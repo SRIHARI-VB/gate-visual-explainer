@@ -1,4 +1,4 @@
-# Partial Orders And Lattices — transcript
+# Partial Orders, Hasse Diagrams and Lattices — transcript
 
 Full narration and caption text in reading order, with scene headings. This is the
 accessibility fallback and the printable study document for the lesson.
