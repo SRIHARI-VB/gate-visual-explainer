@@ -8,7 +8,7 @@ tracker from the topic data below.
 """
 import json
 
-TODAY = "2026-10-25"
+TODAY = "2026-10-26"
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -83,9 +83,25 @@ topics.append(topic(
     importance="high",
     evidence="Named verbatim alongside propositional logic in the GATE 2027 syllabus. " + SYL,
     difficulty="medium",
-    status="READY",
-    microtopics=["domain matters for truth value", "not-for-all is exists-not",
-                 "order of unlike quantifiers", "validity and satisfiability in FOL"]))
+    status="PUBLISHED",
+    slug="first-order-logic",
+    path="topics/first-order-logic/index.html",
+    execution="published 2026-10-26",
+    microtopics=["predicate vs proposition; the domain as part of the meaning",
+                 "for-all as a conjunction over the domain; vacuous truth on the empty domain",
+                 "there-exists as a disjunction; the witness; exists is false on the empty domain",
+                 "same formula, different domains, different truth value",
+                 "not-for-all is exists-not; not-exists is for-all-not",
+                 "nested quantifiers read off a relation grid (rows vs columns)",
+                 "order of unlike quantifiers; for-all-there-exists vs there-exists-for-all",
+                 "same-kind quantifiers commute; mixed ones do not",
+                 "there-exists-for-all implies for-all-there-exists, never the reverse",
+                 "distribution: for-all over conjunction, there-exists over disjunction",
+                 "non-distribution: for-all over disjunction, there-exists over conjunction",
+                 "implication for a restricted for-all, conjunction for a restricted there-exists",
+                 "free and bound variables; scope; the definition of a sentence",
+                 "validity and satisfiability; tautology vs validity in FOL",
+                 "counting relations 2^(n*n) and predicates 2^n"]))
 
 topics.append(topic(
     DM, "Sets", "Sets and set operations",
