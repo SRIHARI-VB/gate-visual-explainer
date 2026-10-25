@@ -11,6 +11,8 @@ lessons are static files and work from a local clone.
 | Topic | Syllabus class | Path |
 |---|---|---|
 | Propositional Logic | A — explicitly in the syllabus | `topics/propositional-logic/index.html` |
+| First-Order Logic | A — explicitly in the syllabus | `topics/first-order-logic/index.html` |
+| Sets and Set Operations | A — explicitly in the syllabus | `topics/sets-and-set-operations/index.html` |
 | Pointers in C | B — prerequisite for a syllabus topic | `topics/pointers-in-c/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
