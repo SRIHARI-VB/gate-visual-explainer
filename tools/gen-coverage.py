@@ -180,15 +180,49 @@ topics.append(topic(
 
 topics.append(topic(
     DM, "Functions", "Functions and their properties",
-    ["domain, codomain, range", "injective, surjective, bijective",
-     "composition and inverse", "cardinality arguments for finite functions",
-     "counting functions, injections, bijections"],
-    prereq=["sets and set operations"],
-    related=["relations", "counting", "pigeonhole principle"],
+    [
+     "a function as a total, single-valued relation",
+     "domain, codomain and range",
+     "injective, surjective, bijective",
+     "the finite equal-size collapse",
+     "counting functions, injections, surjections and bijections",
+     "composition of functions",
+     "the inverse function versus the preimage of a set",
+     "images and preimages under union, intersection and complement"
+     ],
+    prereq=["sets and set operations", "relations and their properties"],
+    related=["relations and their properties", "counting and combinatorics", "partial orders and lattices", "monoids and groups"],
     importance="medium",
-    evidence="Named in the syllabus item 'Sets, relations, functions, partial orders and lattices'. " + SYL,
+    evidence="Named in the syllabus item 'Sets, relations, functions, partial orders and lattices'. Official GATE 2027 CS syllabus, IIT Madras (Section 1: Engineering Mathematics, Discrete Mathematics)",
     difficulty="easy-medium",
-    microtopics=["bijection iff inverse exists", "counting injections between finite sets"]))
+    status="PUBLISHED",
+    slug="functions-and-their-properties",
+    path="topics/functions-and-their-properties/index.html",
+    execution="published 2026-10-26",
+    microtopics=[
+     "function as a relation with exactly one 1 in every row of its matrix",
+     "totality and single-valuedness as separate promises; a relation failing each",
+     "relations versus functions: 2^(mn) against n^m, both counted by enumeration",
+     "domain is declared, codomain is declared, range is computed",
+     "range is a subset of the codomain; equality exactly when onto",
+     "injective: f(a)=f(b) implies a=b; at most one 1 per column; the colliding-pair witness",
+     "surjective: every b is reached; at least one 1 per column; the uncovered-element witness",
+     "bijective: exactly one 1 per column; the matrix becomes a permutation matrix",
+     "pigeonhole: injective forces m <= n, surjective forces m >= n, so m > n gives zero injections",
+     "for finite equal sizes injective, surjective and bijective are the same condition",
+     "the collapse needs finiteness: successor on the naturals is injective and not surjective",
+     "counts: n^m, n!/(n-m)!, inclusion-exclusion for surjections, n! for bijections",
+     "the wrong onto shortcut n! x C(m,n) and why it only works when m = n",
+     "composition: order of application, associativity, failure of commutativity",
+     "injective after injective is injective; surjective after surjective is surjective",
+     "composite injective forces the inner function only; composite onto forces the outer function only",
+     "inverse function exists iff bijective; f-inv after f is the identity both ways",
+     "preimage of a set is defined for every function, bijection or not",
+     "x -> x^2 is not invertible on R; restricting the domain restores bijectivity",
+     "f(S u T) = f(S) u f(T) always; f(S n T) inside f(S) n f(T) with equality iff injective",
+     "preimage commutes exactly with union, intersection and complement",
+     "cardinality argument: two bijections give equations, then bound and solve in integers"
+     ]))
 
 topics.append(topic(
     DM, "Partial orders", "Partial orders and lattices",
@@ -199,8 +233,19 @@ topics.append(topic(
     importance="high",
     evidence="Named in the syllabus item 'Sets, relations, functions, partial orders and lattices'. " + SYL,
     difficulty="medium",
+    status="PUBLISHED",
+    slug="partial-orders-and-lattices",
+    path="topics/partial-orders-and-lattices/index.html",
+    execution="published 2026-10-26",
     microtopics=["total vs partial order", "drawing a Hasse diagram correctly",
-                 "least upper bound vs greatest element", "lattice as a poset with joins and meets"]))
+                 "least upper bound vs greatest element", "lattice as a poset with joins and meets",
+                 "covering relation and transitive reduction", "chain versus antichain",
+                 "maximal versus greatest on a finite poset", "join and meet as lub and glb",
+                 "the two shapes that stop a poset being a lattice",
+                 "M3 and N5 as the distributivity obstructions",
+                 "complement counts and the Boolean-algebra ladder",
+                 "counting linear extensions of a poset",
+                 "number of partial orders on a small set (Dedekind numbers)"]))
 
 topics.append(topic(
     DM, "Algebraic structures", "Monoids and groups",
