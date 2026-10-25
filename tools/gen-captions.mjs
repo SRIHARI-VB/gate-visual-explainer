@@ -1,14 +1,21 @@
 #!/usr/bin/env node
 /* Derive captions.vtt, captions.srt and transcript.md from topics/<slug>/timeline.js.
-   The timeline is the only source of truth; these files are generated, never edited. */
+   The timeline is the only source of truth; these files are generated, never edited.
+
+   Usage: node tools/gen-captions.mjs [slug]     (default slug: pointers-in-c) */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 
-const SLUG = 'pointers-in-c';
+const SLUG = process.argv[2] || 'pointers-in-c';
 const root = path.resolve(process.cwd());
 const dir = path.join(root, 'topics', SLUG);
+
+if (!fs.existsSync(path.join(dir, 'timeline.js'))) {
+  console.error(`No timeline at topics/${SLUG}/timeline.js`);
+  process.exit(1);
+}
 
 function loadTimeline(file) {
   const code = fs.readFileSync(file, 'utf8');
@@ -19,6 +26,19 @@ function loadTimeline(file) {
 }
 
 const tl = loadTimeline(path.join(dir, 'timeline.js'));
+
+/* the lesson title, derived from the slug */
+function slugTitle(s) {
+  return s.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+/* prefer the registered title, so regenerating never rewrites a lesson's name */
+const registry = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(root, 'topics.json'), 'utf8')); }
+  catch { return { topics: [] }; }
+})();
+const registered = (registry.topics || []).find(t => t.slug === SLUG);
+const title = (registered && registered.title) || slugTitle(SLUG);
 
 /* ---------- validation of the timeline itself ---------- */
 const problems = [];
@@ -40,7 +60,16 @@ for (const s of tl.scenes) {
   const covered = tl.events.some(e => e.scene === s.id);
   if (!covered) problems.push(`scene has no captions: ${s.id}`);
   if (!(s.end > s.start)) problems.push(`scene has non-positive span: ${s.id}`);
+  if (!(s.end <= tl.duration + 1e-6)) problems.push(`scene ends after the duration: ${s.id}`);
 }
+/* scene boundaries must tile the timeline without gaps */
+const ordered = tl.scenes.slice().sort((a, b) => a.start - b.start);
+for (let i = 1; i < ordered.length; i++) {
+  if (Math.abs(ordered[i].start - ordered[i - 1].end) > 1e-6) {
+    problems.push(`gap or overlap between scenes ${ordered[i - 1].id} and ${ordered[i].id}`);
+  }
+}
+if (ordered.length && Math.abs(ordered[0].start) > 1e-6) problems.push('first scene does not start at 0');
 
 if (problems.length) {
   console.error('Timeline validation failed:\n  ' + problems.join('\n  '));
@@ -67,7 +96,7 @@ const mmss = t => `${Math.floor(t / 60)}:${pad(Math.floor(t % 60))}`;
 
 /* ---------- WebVTT ---------- */
 let vtt = 'WEBVTT\n';
-vtt += `TITLE Pointers in C — GATE Visual Explainer\n`;
+vtt += `TITLE ${title} — GATE Visual Explainer\n`;
 vtt += `NOTE Timings are estimated from the lesson timeline (speaking-rate based), not measured from recorded audio.\n\n`;
 tl.events.forEach((ev, i) => {
   vtt += `${i + 1}\n`;
@@ -86,7 +115,7 @@ tl.events.forEach((ev, i) => {
 fs.writeFileSync(path.join(dir, 'captions.srt'), srt, 'utf8');
 
 /* ---------- transcript ---------- */
-let md = `# Pointers in C — transcript\n\n`;
+let md = `# ${title} — transcript\n\n`;
 md += `Full narration and caption text in reading order, with scene headings. This is the\n`;
 md += `accessibility fallback and the printable study document for the lesson.\n\n`;
 md += `- Lesson: \`topics/${SLUG}/index.html\`\n`;
@@ -112,5 +141,5 @@ md += `optional browser speech synthesis, whose voice availability differs by pl
 
 fs.writeFileSync(path.join(dir, 'transcript.md'), md, 'utf8');
 
-console.log(`OK  ${tl.events.length} cues, ${tl.scenes.length} scenes, ${tl.duration}s`);
+console.log(`OK  ${SLUG}: ${tl.events.length} cues, ${tl.scenes.length} scenes, ${tl.duration}s`);
 console.log(`    captions.vtt, captions.srt, transcript.md written to topics/${SLUG}/`);

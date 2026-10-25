@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-/* Generate the hub index.html from topics.json. Never hand-edit the hub. */
+/* Generate the hub index.html from topics.json. Never hand-edit the hub.
+   Cards are grouped by subject, in the order the subjects first appear in the
+   registry; a subject with no registered lesson is not rendered at all. */
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,9 +27,8 @@ const classNote = {
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const cards = [];
-for (const t of reg.topics.slice().sort((a, b) => a.title.localeCompare(b.title))) {
-  cards.push(`      <a class="topic-card" href="${esc(t.path)}">
+function card(t) {
+  return `      <a class="topic-card" href="${esc(t.path)}">
         <h2>${esc(t.title)}</h2>
         <p>${esc(t.description || '')}</p>
         <div class="meta">
@@ -35,7 +36,23 @@ for (const t of reg.topics.slice().sort((a, b) => a.title.localeCompare(b.title)
           <span>·</span>
           <span>${esc(catLabel(t.category || 'other'))}</span>
         </div>
-      </a>`);
+      </a>`;
+}
+
+const order = reg.category_order || [];
+const rank = c => { const i = order.indexOf(c); return i === -1 ? order.length : i; };
+const cats = [...byCategory.keys()].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+
+const groups = [];
+for (const cat of cats) {
+  const list = byCategory.get(cat);
+  const sorted = list.slice().sort((a, b) => a.title.localeCompare(b.title));
+  groups.push(`  <section class="hub-group" aria-label="${esc(catLabel(cat))}">
+    <div class="eyebrow">${esc(catLabel(cat))} · ${sorted.length} lesson${sorted.length === 1 ? '' : 's'}</div>
+    <div class="grid grid--2">
+${sorted.map(card).join('\n')}
+    </div>
+  </section>`);
 }
 
 const html = `<!DOCTYPE html>
@@ -58,12 +75,10 @@ const html = `<!DOCTYPE html>
     <p>One animated, captioned, tabbed lesson per topic. Every lesson opens with its objective, its syllabus class and its prerequisites; every load-bearing claim carries a label; and every diagram is computed and checked in code before it is drawn.</p>
   </header>
 
-  <div class="grid grid--2">
-${cards.join('\n')}
-  </div>
+${groups.join('\n\n')}
 
   <p class="small muted" style="margin-top:22px">
-    ${reg.topics.length} topic${reg.topics.length === 1 ? '' : 's'} · registry: <code>topics.json</code> · generated hub, do not edit by hand
+    ${reg.topics.length} topic${reg.topics.length === 1 ? '' : 's'} across ${byCategory.size} subject${byCategory.size === 1 ? '' : 's'} · registry: <code>topics.json</code> · generated hub, do not edit by hand
   </p>
 
 </div>
@@ -72,4 +87,4 @@ ${cards.join('\n')}
 `;
 
 fs.writeFileSync(path.join(root, 'index.html'), html, 'utf8');
-console.log(`OK  hub written: ${reg.topics.length} topic(s)`);
+console.log(`OK  hub written: ${reg.topics.length} topic(s) in ${byCategory.size} subject group(s)`);
