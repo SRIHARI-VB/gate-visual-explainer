@@ -37,6 +37,7 @@ lessons are static files and work from a local clone.
 | Boolean Algebra and Minimisation | Digital Logic | A — explicitly in the syllabus | `topics/boolean-algebra-and-minimisation/index.html` |
 | Combinational Circuits: Adders, Multiplexers and Decoders | Digital Logic | A — explicitly in the syllabus | `topics/combinational-circuits/index.html` |
 | Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
+| Sequential Circuits: Latches, Flip-Flops, Counters and Machines | Digital Logic | A — explicitly in the syllabus | `topics/sequential-circuits/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
