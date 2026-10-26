@@ -302,11 +302,20 @@ topics.append(topic(
     importance="high",
     evidence="Named in the syllabus: 'Graphs: connectivity, matching, colouring'. " + SYL,
     difficulty="medium-hard",
-    status="READY",
-    microtopics=["Hall's condition as a necessary and sufficient test for a matching saturating one side",
-                 "chromatic number of common families (cycles, complete graphs, bipartite graphs)",
-                 "chromatic number at most maximum degree plus one",
-                 "K5 and K(3,3) are not planar"]))
+    status="PUBLISHED",
+    slug="matching-and-colouring",
+    path="topics/matching-and-colouring/index.html",
+    execution="published 2026-10-26",
+    microtopics=["matching, saturated, free, maximal, maximum, perfect, near-perfect, matching number",
+                 "Berge's theorem and the augmenting-path algorithm",
+                 "Hall's condition as a necessary and sufficient test for a matching saturating one side",
+                 "Konig's theorem, the constructive cover, and its failure on an odd cycle",
+                 "chromatic number of common families (cycles, complete graphs, bipartite graphs, trees)",
+                 "clique number as a lower bound, and the Mycielskian gap",
+                 "first-fit greedy, order dependence, chromatic number at most maximum degree plus one",
+                 "Brooks' theorem and its two exceptions",
+                 "edge colouring, Konig's bipartite equality, Vizing's window, class one and class two",
+                 "Euler's formula, m <= 3n - 6, m <= 2n - 4, K5 and K(3,3) not planar, four colours"]))
 
 topics.append(topic(
     DM, "Combinatorics", "Counting and combinatorics",
