@@ -10,12 +10,18 @@ lessons are static files and work from a local clone.
 
 | Topic | Syllabus class | Path |
 |---|---|---|
-| Propositional Logic | A — explicitly in the syllabus | `topics/propositional-logic/index.html` |
+| Counting and Combinatorics | A — explicitly in the syllabus | `topics/counting-and-combinatorics/index.html` |
 | First-Order Logic | A — explicitly in the syllabus | `topics/first-order-logic/index.html` |
-| Sets and Set Operations | A — explicitly in the syllabus | `topics/sets-and-set-operations/index.html` |
-| Relations and Their Properties | A — explicitly in the syllabus | `topics/relations-and-their-properties/index.html` |
 | Functions and Their Properties | A — explicitly in the syllabus | `topics/functions-and-their-properties/index.html` |
+| Generating Functions | A — explicitly in the syllabus | `topics/generating-functions/index.html` |
+| Graphs: Connectivity and Structure | A — explicitly in the syllabus | `topics/graphs-connectivity/index.html` |
+| Graphs: Matching and Colouring | A — explicitly in the syllabus | `topics/matching-and-colouring/index.html` |
+| Monoids and Groups | A — explicitly in the syllabus | `topics/monoids-and-groups/index.html` |
 | Partial Orders, Hasse Diagrams and Lattices | A — explicitly in the syllabus | `topics/partial-orders-and-lattices/index.html` |
+| Propositional Logic | A — explicitly in the syllabus | `topics/propositional-logic/index.html` |
+| Recurrence Relations | A — explicitly in the syllabus | `topics/recurrence-relations/index.html` |
+| Relations and Their Properties | A — explicitly in the syllabus | `topics/relations-and-their-properties/index.html` |
+| Sets and Set Operations | A — explicitly in the syllabus | `topics/sets-and-set-operations/index.html` |
 | Pointers in C | B — prerequisite for a syllabus topic | `topics/pointers-in-c/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from

@@ -256,6 +256,10 @@ topics.append(topic(
     importance="medium",
     evidence="Named in the syllabus: 'Monoids, Groups'. " + SYL,
     difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="monoids-and-groups",
+    path="topics/monoids-and-groups/index.html",
+    execution="published 2026-10-26 (earlier run)",
     microtopics=["checking the four group axioms", "subgroup tests", "order divides group order"]))
 
 # The syllabus names "Graphs: connectivity, matching, colouring" as one item. It is
@@ -355,11 +359,33 @@ topics.append(topic(
      "solving recurrences with generating functions", "coefficient extraction",
      "exponential generating functions"],
     prereq=["recurrence relations", "counting and combinatorics"],
-    related=["recurrence relations", "probability"],
+    related=["recurrence relations", "counting and combinatorics", "functions and their properties"],
     importance="medium",
-    evidence="Named in the syllabus: 'Combinatorics: counting, recurrence relations, generating functions'. " + SYL,
+    evidence="Named in the syllabus: 'Combinatorics: counting, recurrence relations, generating functions'. " + SYL + " Community observation: five questions in the public archives (2014 Set 1 Q49, 2016 Set 1 Q26, 2017 Set 2 Q47, 2018 Q1, 2022 Q26) use it; a reading of those papers, not a weightage figure.",
     difficulty="hard",
-    microtopics=["1/(1-x) and its derivatives", "partial fractions for coefficients"]))
+    status="PUBLISHED",
+    slug="generating-functions",
+    path="topics/generating-functions/index.html",
+    execution="published 2026-10-26",
+    microtopics=[
+        "formal power series: x is a placeholder, never evaluated",
+        "coefficient extraction [x^n] as the terminal operation",
+        "1/(1-x) and its derivatives; x/(1-x)^2 is n, x(1+x)/(1-x)^3 is n^2",
+        "1/(1-x)^k has coefficient C(n+k-1, k-1): stars and bars",
+        "substituting x -> x^2 as the parity filter",
+        "the shift rule [x^n] x^k G = [x^(n-k)] G",
+        "multiplication by 1/(1-x) as prefix sums",
+        "sum rule for disjoint cases, product rule for independent choices",
+        "a product of series is a convolution, not a coefficient product",
+        "rational closed form <-> linear recurrence; the denominator is the recurrence",
+        "base cases live in the numerator (x/(1-x-x^2) against 1/(1-x-x^2))",
+        "solving a recurrence: multiply by x^n, sum, solve for G, cancel or use partial fractions",
+        "the 2024 Set 2 Q15 cancellation that removes the 3^n term",
+        "quadratic functional equations: Catalan C = 1 + xC^2",
+        "the branch test: reject any branch with a negative power; a_0 decides",
+        "ordinary against exponential generating functions; n! under the EGF",
+        "rewriting a correct answer into the shape the options use (2022 Q26)",
+        "verify by expanding four terms"]))
 
 # ---------------------------------------------------------------- Engineering Mathematics
 topics.append(topic(
