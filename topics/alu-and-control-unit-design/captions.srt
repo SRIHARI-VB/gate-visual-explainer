@@ -1,0 +1,160 @@
+1
+00:00:00,000 --> 00:00:07,500
+A processor is two things: a datapath that holds and combines values, and a control unit that says what to do this step.
+
+2
+00:00:07,500 --> 00:00:15,000
+The datapath is registers, an ALU and buses. A register may read onto the bus or write from it, and one bus carries one value per step.
+
+3
+00:00:15,000 --> 00:00:22,500
+The ALU has no idea which operation it is performing. Function-select lines pick one of its functions, and the control unit drives them.
+
+4
+00:00:22,500 --> 00:00:30,000
+Every instruction becomes a list of micro-operations, one per control step. The control unit’s job is to emit the right signals in the right step.
+
+5
+00:00:30,000 --> 00:00:37,500
+One bit of an ALU takes two bits and a carry in, and produces a result bit and a carry out.
+
+6
+00:00:37,500 --> 00:00:45,000
+Inside the slice the AND gate, the OR gate and a full adder all compute at once, and a multiplexer chooses which answer leaves.
+
+7
+00:00:45,000 --> 00:00:52,500
+The function-select lines are the multiplexer’s address. Four functions need two select bits, and eight functions need three.
+
+8
+00:00:52,500 --> 00:01:00,000
+In general k functions need the ceiling of log base two of k select lines, so an ALU with two lines and three functions wastes one code.
+
+9
+00:01:00,000 --> 00:01:07,500
+There is no subtractor. Subtraction is A plus the complement of B plus one, and a single invert line makes the switch.
+
+10
+00:01:07,500 --> 00:01:15,000
+The adder’s carry out becomes the carry flag, the top bit of the result becomes the sign flag, and an all-zero result sets the zero flag.
+
+11
+00:01:15,000 --> 00:01:22,500
+Overflow is not the carry out. For signed numbers it is the carry into the top bit, exclusive-or the carry out of it.
+
+12
+00:01:22,500 --> 00:01:30,000
+So 127 plus 1 in eight bits overflows with no carry out, and 255 plus 1 carries out with no overflow. The page checks all 65536 pairs.
+
+13
+00:01:30,000 --> 00:01:37,500
+Chain n one-bit adders and the carry must ripple through all n. The top bit cannot finish until the carry reaches it.
+
+14
+00:01:37,500 --> 00:01:45,000
+So a ripple-carry ALU takes time proportional to n. Doubling the width doubles the delay, and the gate count doubles with it.
+
+15
+00:01:45,000 --> 00:01:52,500
+Carry look-ahead computes every carry from generate and propagate signals in a tree, so its depth grows like log n instead of n.
+
+16
+00:01:52,500 --> 00:02:00,000
+That is why a question about an ALU asks for its delay, not its gate count, and why the adder sits on the critical path.
+
+17
+00:02:00,000 --> 00:02:07,500
+The GATE 2020 datapath is a single bus: every register hangs off it, and only one may drive it in a step.
+
+18
+00:02:07,500 --> 00:02:15,000
+So R0 <- R1 + R2 cannot be one step. The ALU takes one operand from the bus and the other from TEMP1, a latched input.
+
+19
+00:02:15,000 --> 00:02:22,500
+So R1 goes to TEMP1 first, then R2 is put on the bus and the sum is latched into TEMP2, then TEMP2 is written into R0.
+
+20
+00:02:22,500 --> 00:02:30,000
+And the instruction must be fetched before any of it: PC to MAR, a memory read, then MDR to IR. Five steps, in that order.
+
+21
+00:02:30,000 --> 00:02:37,500
+One control step is one clock. An instruction’s time is its number of steps multiplied by the clock period.
+
+22
+00:02:37,500 --> 00:02:45,000
+On a single bus, an add of two register operands costs three execute steps. On a three-bus datapath the same add costs one.
+
+23
+00:02:45,000 --> 00:02:52,500
+Extra temporary registers are not free: each latch that must be filled in its own step adds a step, and a step adds a clock.
+
+24
+00:02:52,500 --> 00:03:00,000
+That is the trade in one line: buses and temporaries are hardware, and steps are time.
+
+25
+00:03:00,000 --> 00:03:07,500
+Hardwired control is a combinational circuit whose inputs are the opcode bits, the step counter and the condition flags.
+
+26
+00:03:07,500 --> 00:03:15,000
+An instruction decoder turns the opcode into one active line, and a step counter counts the steps t0, t1, t2 and so on.
+
+27
+00:03:15,000 --> 00:03:22,500
+Each control signal is a boolean function of those inputs, so the control unit is a truth table built out of gates.
+
+28
+00:03:22,500 --> 00:03:30,000
+Fast, because the signal appears after a gate delay. Inflexible, because a new instruction means rewiring the table.
+
+29
+00:03:30,000 --> 00:03:37,500
+A microprogrammed unit replaces the gate table with a memory. Each word of that memory is a microinstruction.
+
+30
+00:03:37,500 --> 00:03:45,000
+A microinstruction holds the control signals for one step, plus a next-address field, plus a condition select.
+
+31
+00:03:45,000 --> 00:03:52,500
+A microprogram counter addresses control memory, and the next-address field decides what is fetched next. That is how branching works.
+
+32
+00:03:52,500 --> 00:04:00,000
+So the fetch routine is one shared sequence of microinstructions, and each instruction is a chain of them.
+
+33
+00:04:00,000 --> 00:04:07,500
+Horizontal: one bit per control signal. A wide word, no decoding, and every signal can fire at once.
+
+34
+00:04:07,500 --> 00:04:15,000
+Vertical: the signals are encoded in fields. A group of n mutually exclusive signals needs the ceiling of log base two of n plus one bits, because one code must mean none.
+
+35
+00:04:15,000 --> 00:04:22,500
+The word width is the control bits plus the condition-select bits plus the next-address bits, and the control memory size is words times width.
+
+36
+00:04:22,500 --> 00:04:30,000
+The 2004 paper: 26 equals 13 plus 10 plus 3, and two to the ten is 1024 words. The arithmetic is the question.
+
+37
+00:04:30,000 --> 00:04:37,500
+Speed order: hardwired fastest, then horizontal, then vertical. The 1999 paper asked exactly this.
+
+38
+00:04:37,500 --> 00:04:45,000
+A microprogrammed unit pays a control-memory read on every step, and a vertical one pays a decoder on top of that.
+
+39
+00:04:45,000 --> 00:04:52,500
+Choose hardwired for a small, fixed, fast instruction set, and microprogrammed for a large or changeable one.
+
+40
+00:04:52,500 --> 00:05:00,000
+Four numbers decide the arithmetic questions: select lines, word width, control-memory words, and control steps.
+

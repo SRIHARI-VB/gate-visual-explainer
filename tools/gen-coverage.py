@@ -658,14 +658,40 @@ topics.append(topic(
     difficulty="medium"))
 
 topics.append(topic(
-    "Computer Organization and Architecture", "Datapath", "ALU and control unit design",
-    ["arithmetic and logic unit design", "hardwired control", "microprogrammed control",
-     "interfacing"],
-    prereq=["Design of combinational circuits"],
-    related=["instruction set", "pipelining"],
+    "Computer Organization and Architecture", "Datapath and control", "ALU and control unit design",
+    ["arithmetic and logic unit design", "datapath and micro-operations",
+     "hardwired control", "microprogrammed control",
+     "horizontal and vertical microinstruction formats"],
+    prereq=["Design of combinational circuits", "number representation and arithmetic",
+            "design of sequential circuits", "boolean algebra and minimisation"],
+    related=["instruction set and addressing modes", "pipelining and hazards"],
     importance="high",
-    evidence="GATE 2027 Section 3 names 'Design of arithmetic and logic unit (ALU). Design of control unit and hardwired and microprogrammed. Instruction pipelining, pipeline hazards. Memory hierarchy: cache memory - mapping. I/O interface (interrupt and DMA).'",
-    difficulty="medium-hard"))
+    evidence="Named verbatim in GATE 2027 Section 3, and newly explicit: 'Design of arithmetic and logic unit (ALU). Design of control unit - hardwired and microprogrammed.' The 2026 wording was 'ALU, data-path and control unit'. Verified against the official PDF (gate2027.iitm.ac.in) on 2026-10-26.",
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="alu-and-control-unit-design",
+    path="topics/alu-and-control-unit-design/index.html",
+    execution="published 2026-10-27",
+    microtopics=[
+        "ALU as a combinational block with a function-select input",
+        "the one-bit slice: AND, OR, full adder, multiplexer",
+        "k functions need ceil(log2 k) select lines; unused codes",
+        "subtraction as A + not B + 1 with one invert line",
+        "flags C, Z, S and V; V = carry-in(top) XOR carry-out(top)",
+        "counterexamples 127+1 (V without C) and 255+1 (C without V)",
+        "ripple-carry delay proportional to n; carry look-ahead depth log n",
+        "single-bus datapath: one transfer per control step",
+        "read-before-write dependencies and micro-operation ordering",
+        "control steps to execution time: steps x clock period",
+        "hardwired control: instruction decoder, step counter, gate matrix",
+        "microinstruction fields: control, condition select, next address",
+        "shared fetch microcode and branching on a status flag",
+        "horizontal (one bit per signal) against vertical (encoded fields)",
+        "vertical encoding needs ceil(log2(n+1)) bits for n signals",
+        "control memory size = words x width; words, bits and bytes",
+        "speed order hardwired > horizontal > vertical",
+        "the four quantities questions ask for, and how they differ",
+    ]))
 
 topics.append(topic(
     "Computer Organization and Architecture", "Pipelining", "Pipelining and hazards",

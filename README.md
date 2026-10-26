@@ -38,6 +38,7 @@ lessons are static files and work from a local clone.
 | Combinational Circuits: Adders, Multiplexers and Decoders | Digital Logic | A — explicitly in the syllabus | `topics/combinational-circuits/index.html` |
 | Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
 | Sequential Circuits: Latches, Flip-Flops, Counters and Machines | Digital Logic | A — explicitly in the syllabus | `topics/sequential-circuits/index.html` |
+| ALU and Control Unit Design: Datapath, Hardwired and Microprogrammed Control | Computer Organization and Architecture | A — explicitly in the syllabus | `topics/alu-and-control-unit-design/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by

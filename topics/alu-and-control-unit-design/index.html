@@ -1,0 +1,2148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALU and Control Unit Design — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">ALU and Control Unit Design</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Design of the arithmetic and logic unit, the datapath it sits in, and the control unit that sequences it — the three things GATE 2027 Section 3 names in one breath: "Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed."</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a set of ALU functions, produce the number of function-select lines. Given an addition, produce the four flags and say whether the carry and the overflow agree. Given a datapath and an instruction, produce the ordered list of micro-operations and the number of control steps. Given a microinstruction format, produce the word width and the control-memory size, in horizontal or in vertical encoding. Given a design description, say whether hardwired or microprogrammed control is the better choice, and justify it by the trade rather than by a slogan.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one mechanism in three parts</em>: the datapath can do a small set of things, the ALU is the part that computes, and the control unit is the part that decides which thing happens in which step. The ALU arithmetic itself (two's complement, Booth, floating point) lives in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a> and is not re-taught here; the gates and multiplexers live in <a href="../combinational-circuits/index.html">Combinational Circuits</a>; the step counter is a counter, which is <a href="../sequential-circuits/index.html">Sequential Circuits</a>. This lesson is the wiring between them, which is exactly what the syllabus asks for.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus, and newly explicit.</strong></p>
+          <p class="small">Section 3 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read for this run) reads: <em>"Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards."</em></p>
+          <p class="small">The word <em>design</em> is doing real work. The 2026 wording was "ALU, data-path and control unit"; the 2027 wording names the design of the ALU and the design of the control unit, and names the two control-unit styles. <span class="claim-chip claim-chip--community">Community observation</span> Independent syllabus analyses read that as making hardwired and microprogrammed control fair game again after a quiet decade; that is their reading, not an official statement about marks.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed in GATE 2027, and it says nothing about marks. The previous-year questions quoted in this lesson are observations about old papers, not a forecast.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Four published lessons carry the machinery this one uses:</p>
+          <ul class="small">
+            <li><strong><a href="../combinational-circuits/index.html">Combinational Circuits</a></strong> — the adder, the multiplexer and the decoder. A one-bit ALU slice is an adder plus two gates plus a multiplexer, and a hardwired control unit is a decoder plus gates.</li>
+            <li><strong><a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a></strong> — two's complement, the meaning of the top bit, and why subtraction is addition of a complement.</li>
+            <li><strong><a href="../sequential-circuits/index.html">Sequential Circuits</a></strong> — the step counter, the register with a load line, and the flip-flop behind every latch in a datapath.</li>
+            <li><strong><a href="../boolean-algebra-and-minimisation/index.html">Boolean Algebra and Minimisation</a></strong> — each control signal in a hardwired unit is a boolean function that has to be minimised.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">The only extra mathematics is <code>ceil(log2 k)</code>, used three times: for function-select lines, for a condition-select field, and for a vertical encoding. Scene 2 derives it and the page checks it for every k from 2 to 16.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Two halves.</strong> Datapath and control unit, and the line between them.</li>
+            <li><strong>One bit slice.</strong> AND, OR and adder at once, a multiplexer choosing, and the select-line count.</li>
+            <li><strong>Subtraction and flags.</strong> One invert line, four flags, and 127+1 against 255+1.</li>
+            <li><strong>The carry chain.</strong> Why ripple delay is n, and how look-ahead makes it log n.</li>
+            <li><strong>One bus.</strong> The GATE 2020 five micro-operations, and why they cannot be reordered.</li>
+            <li><strong>Steps to time.</strong> Steps × period, three buses against one.</li>
+            <li><strong>Hardwired.</strong> Decoder, step counter, gate matrix.</li>
+            <li><strong>Microprogrammed.</strong> Control store, microinstruction fields, the shared fetch routine.</li>
+            <li><strong>Formats.</strong> Horizontal against vertical, the ceil(log2(n+1)) rule, and the 2004 numbers.</li>
+            <li><strong>The comparison.</strong> Speed order, the trade, and the four quantities questions ask for.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>The ALU is combinational and obedient; the control unit is what decides.</li>
+            <li>k functions need <code>ceil(log2 k)</code> select lines; n mutually exclusive signals in a vertical field need <code>ceil(log2(n+1))</code> bits.</li>
+            <li>Carry and overflow are different questions. V is the exclusive-or of the two carries at the top bit.</li>
+            <li>One bus is one transfer per step; steps × clock period is the time.</li>
+            <li>Hardwired is fastest and rigidest; vertical is narrowest and slowest. Width and speed pull in opposite directions.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 70–90 minutes if you work the practice set, and it is an estimate. No audio file exists: the narration is a script, with optional browser speech synthesis. The previous-year questions are quoted with their year and paper, and their answers were recomputed here rather than copied — where a source disagreed with itself, this lesson says so instead of picking silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1: intuition -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: a workshop with one bench and one foreman</h3>
+              <p>A workshop has benches, tools and a trolley that carries one part at a time between them. The benches and the trolley are the <strong>datapath</strong>: they are what can physically be done. The foreman with the clipboard is the <strong>control unit</strong>: he does not cut or drill anything, he only says what happens next, and in what order.</p>
+              <p class="small">Three things follow immediately, and they are the three things GATE asks about. First, the tools do not know what job they are on — a saw cuts whether the foreman meant to cut or not, which is why the ALU needs function-select lines. Second, the trolley carries one part per trip, which is why a single-bus datapath needs more steps. Third, a foreman who has memorised one fixed routine is fast but cannot learn a new product, while a foreman who reads the routine off a card is slower but can be given a new card — which is hardwired control against microprogrammed control, exactly.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is a teaching device, not a model of any real processor. It is chosen because it makes the two boundaries visible: what can be done, and what is done next.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the datapath</h3>
+              <p class="small">A <strong>datapath</strong> is a collection of registers, functional units and buses, together with the control inputs that select what each unit does. It holds the state of the computation between steps and provides the operations.</p>
+              <p class="small">A <strong>micro-operation</strong> is one elementary transfer or computation performed in one step, written in register-transfer notation, for example:</p>
+              <div class="formula">TEMP1 &larr; R1</div>
+              <p class="small">Read aloud: "in this step, the contents of register R1 are copied into register TEMP1". The arrow is a copy, not an equation — after the step both registers hold the same value.</p>
+              <p class="small" style="margin-bottom:0">A <strong>control step</strong> is one clock period in which a set of micro-operations executes together. A <strong>control signal</strong> is one wire that enables one such action: a register's load line, a bus driver, an ALU function bit.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the control unit</h3>
+              <p class="small">A <strong>control unit</strong> is the hardware that produces the control signals. Its inputs are the instruction (or the decoded instruction), the step number, and the condition flags; its outputs are the control signals for the current step.</p>
+              <div class="formula">control signals = f( instruction , step , flags )</div>
+              <p class="small">Every design in this lesson is an implementation of that one equation. Hardwired control implements <code>f</code> as gates; microprogrammed control implements it as a table stored in a memory and read one word per step.</p>
+              <p class="small" style="margin-bottom:0">Two consequences, both examinable. Because the step number is an input, the same instruction produces different signals in different steps — that is what sequencing means. Because the flags are an input, the same instruction and step can produce different signals on different data — that is what conditional execution means.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Assumption this lesson keeps</h3>
+              <p class="small" style="margin-bottom:0">Unless a question says otherwise, assume a <strong>single-cycle-per-step, non-pipelined</strong> machine: one control step is one clock, and the next instruction starts only after the previous one finishes. Pipelining is a separate lesson and a separate set of questions; every count in this lesson is for the non-pipelined case, and the counts would change under pipelining.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2: the ALU -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>The ALU, defined by what it must do</h3>
+              <p class="small">An <strong>arithmetic and logic unit</strong> is a combinational block with two n-bit data inputs A and B, a k-bit function-select input F, and an n-bit result output Y, plus status outputs. For each value of F it computes one named function of A and B.</p>
+              <div class="formula">Y = f<sub>F</sub>(A, B) &nbsp;&nbsp; for F = 0, 1, ..., 2<sup>k</sup> &minus; 1</div>
+              <p class="small">The word <em>combinational</em> is the load-bearing one: there is no clock and no state inside. The ALU produces an answer continuously, and the answer changes as soon as an input changes. It never remembers which function it performed last step, and it has no notion of an instruction.</p>
+              <p class="small" style="margin-bottom:0">Because F has k bits, it can name at most 2<sup>k</sup> functions. So a design with m functions needs the smallest k with 2<sup>k</sup> &ge; m, which is <code>ceil(log2 m)</code>. Four functions: two lines. Eight: three. Five: three, with three of the eight codes unused.</p>
+            </div>
+
+            <div class="card">
+              <h3>The one-bit slice, built</h3>
+              <p class="small">Take one bit position i. The slice receives a<sub>i</sub>, b<sub>i</sub> and a carry-in c<sub>i</sub>, and produces y<sub>i</sub> and a carry-out c<sub>i+1</sub>.</p>
+              <ul class="small">
+                <li>An AND gate computes a<sub>i</sub> &middot; b<sub>i</sub>.</li>
+                <li>An OR gate computes a<sub>i</sub> + b<sub>i</sub>.</li>
+                <li>A full adder computes the sum bit and the carry-out.</li>
+                <li>A 4-to-1 multiplexer, addressed by two function bits, chooses which of those leaves as y<sub>i</sub>.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0">All three computations happen at the same time; only the choice depends on F. That is why adding a function costs a wider multiplexer and not a longer delay.</p>
+            </div>
+
+            <div class="card">
+              <h3>Subtraction, for the price of one invert line</h3>
+              <p class="small">In two's complement, &minus;B is the bitwise complement of B plus one. So</p>
+              <div class="formula">A &minus; B = A + B&#773; + 1</div>
+              <p class="small">A single control line, call it <code>Binvert</code>, gates an exclusive-or into every bit of B. When <code>Binvert</code> is 1, the adder receives B&#773; and the carry-in of the bottom slice is forced to 1. That is the entire subtractor.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Verified here on all 65536 pairs of eight-bit values: <code>(a &minus; b) mod 256</code> equals <code>(a + (~b) + 1) mod 256</code> for every pair. The identity is exact, not approximate.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The four status flags</h3>
+              <p class="small">These are wires tapped off the adder, so they cost no extra step:</p>
+              <ul class="small">
+                <li><strong>C, carry.</strong> The carry out of the top slice. It is the unsigned overflow: 1 exactly when the unsigned sum does not fit.</li>
+                <li><strong>Z, zero.</strong> 1 when every bit of the result is 0, computed as the NOR of all result bits.</li>
+                <li><strong>S, sign.</strong> The top bit of the result. It is the sign only if the operands are being read as signed.</li>
+                <li><strong>V, overflow.</strong> For signed numbers, the carry into the top slice exclusive-or the carry out of it.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0">C and V answer different questions about the same adder. C asks "did the unsigned value escape the width"; V asks "did the signed value escape the width". Neither implies the other.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Where the intuition must stop</h3>
+              <p class="small" style="margin-bottom:0">"Overflow means the carry came out" is the belief that costs the most marks in this topic, and it is false in both directions: 127 + 1 in eight bits overflows with no carry out, and 255 + 1 carries out with no overflow. Both are checked on the page over all 65536 pairs, and both are worked in the Examples tab.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 3: control units -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition">
+              <h3>Hardwired control, defined</h3>
+              <p class="small">A <strong>hardwired control unit</strong> implements <code>f</code> as a combinational network. Its standard parts are:</p>
+              <ul class="small">
+                <li>an <strong>instruction decoder</strong>: m opcode bits in, 2<sup>m</sup> one-hot lines out;</li>
+                <li>a <strong>step counter</strong>: s steps, needing <code>ceil(log2 s)</code> bits, or a ring of s flip-flops;</li>
+                <li>a <strong>condition and flag block</strong>: the status bits that make a step conditional;</li>
+                <li>a <strong>gate matrix</strong>: one boolean function per control signal, of the above.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0">The signal appears after the gate delay of that matrix — one or two levels if it is minimised well. The price is that the matrix is fixed in silicon: a new instruction changes it.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Microprogrammed control, defined</h3>
+              <p class="small">A <strong>microprogrammed control unit</strong> stores the control signals in a <strong>control memory</strong> (control store). One word is a <strong>microinstruction</strong>, and its fields are conventionally:</p>
+              <ul class="small">
+                <li><strong>control field</strong> — the signals for this step;</li>
+                <li><strong>condition-select field</strong> — which status bit decides a branch;</li>
+                <li><strong>next-address field</strong> — where the next microinstruction is.</li>
+              </ul>
+              <div class="formula">width = control bits + condition bits + address bits</div>
+              <p class="small" style="margin-bottom:0">A <strong>microprogram counter</strong> holds the address being executed. The next address field is what allows branching, and therefore conditional execution and shared routines.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Horizontal and vertical, defined</h3>
+              <p class="small"><strong>Horizontal</strong> microprogramming gives each control signal its own bit: the control field is S bits for S signals. Nothing is decoded, and any combination of signals can be expressed in one word.</p>
+              <p class="small"><strong>Vertical</strong> microprogramming encodes groups of mutually exclusive signals into fields. A group of n signals that are never asserted together needs</p>
+              <div class="formula">ceil( log<sub>2</sub>(n + 1) ) bits</div>
+              <p class="small">The +1 is not decoration. The field must be able to select no signal at all, so n signals plus "none" is n+1 meanings. For n = 4 that is 3 bits, not 2.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page checks this rule for n = 1, 2, 3, 4, 7, 8, 15 and 16, and shows where <code>ceil(log2 n)</code> would be one bit short.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Two conventions you must state in an answer</h3>
+              <p class="small">When a question gives "c status bits" for the condition field, two readings exist and both appear in real papers:</p>
+              <ul class="small">
+                <li><strong>Direct selection:</strong> the multiplexer is addressed by the c status bits themselves, so the field is c bits.</li>
+                <li><strong>Encoded selection:</strong> one code is needed per status bit plus one for "unconditional", so the field is <code>ceil(log2(c + 1))</code> bits.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0">The 2004 question below uses the first reading with c = 8, giving 3 bits — the same number the second reading gives for c = 7. State which reading you used; the arithmetic follows from it, and examiners have keyed both.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The whole topic in one sentence</h3>
+              <p style="margin-bottom:0">The datapath says what <em>can</em> happen, the ALU is the arithmetic part of it, and the control unit is a function of instruction, step and flags that says what <em>does</em> happen — implemented as gates (fast, rigid) or as a memory of microinstructions (slower, changeable), in a wide undecoded format or a narrow encoded one.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION =========================== -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A processor is two things: a datapath that holds and combines values, and a control unit that says what to do this step.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A datapath does the work, the control unit decides it</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A processor is two things: a datapath that holds and combines values, and a control unit that says what to do this step.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Browser speech synthesis; voice availability varies">Narrate</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card span-2">
+              <h3>Example 1 — Counting select lines for an ALU</h3>
+              <p class="small"><strong>Question.</strong> A designer wants an ALU with these functions: AND, OR, XOR, NOT A, add, subtract, increment A, and compare-and-set-less-than. How many function-select lines are needed, and how many codes are left over?</p>
+              <ol class="step-list small">
+                <li>Count the functions. <em>Justification:</em> the count is of distinct functions the multiplexer must choose between, so increment and add are two entries even though both use the adder.</li>
+                <li>There are 8 functions.</li>
+                <li>Find the smallest k with 2<sup>k</sup> &ge; 8. <em>Justification:</em> k lines address a 2<sup>k</sup>-input multiplexer.</li>
+                <li>2<sup>3</sup> = 8, so k = 3.</li>
+                <li>Codes left over: 8 &minus; 8 = 0.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">Now delete one function. Seven functions still need 3 lines, because 2<sup>2</sup> = 4 &lt; 7. One code is left over. That is the whole content of the rule: <code>k = ceil(log2 m)</code>, and the waste is <code>2^k &minus; m</code>.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — The four flags on 127 + 1</h3>
+              <p class="small">Eight-bit operands A = 0111 1111 (127) and B = 0000 0001 (1).</p>
+              <ol class="step-list small">
+                <li>Add bit by bit. The low seven bits are all ones plus 000 0001, which produces carries that propagate to the top.</li>
+                <li>The carry into the top bit is 1; the top bits are 0 + 0 + 1 = 1, so the carry out of the top bit is 0.</li>
+                <li>Result = 1000 0000.</li>
+                <li>Z = 0, because the result is not zero. S = 1, because the top bit is 1.</li>
+                <li>C = 0 (carry out of the top slice). V = 1 XOR 0 = 1.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">Read as signed, 127 + 1 = &minus;128: wrong, and V says so. Read as unsigned, 127 + 1 = 128: correct, and C = 0 agrees. The same adder, two readings, two flags.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 — The four flags on 255 + 1</h3>
+              <p class="small">A = 1111 1111, B = 0000 0001.</p>
+              <ol class="step-list small">
+                <li>Every bit position carries into the next; the top bit produces a carry out.</li>
+                <li>Result = 0000 0000. Carry out of the top slice = 1.</li>
+                <li>The carry into the top slice was also 1.</li>
+                <li>C = 1, V = 1 XOR 1 = 0.</li>
+                <li>Z = 1, S = 0.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">Read as unsigned, 255 + 1 = 256 does not fit, and C = 1 says so. Read as signed, &minus;1 + 1 = 0, which is perfectly representable, and V = 0 agrees. Examples 2 and 3 together are the counterexample pair for "carry means overflow".</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — Width and size of a horizontal control memory</h3>
+              <p class="small"><strong>Question.</strong> A horizontal microprogrammed unit has 40 control signals, 7 status conditions plus an unconditional option, and 512 words of control memory. Find the microinstruction width and the control memory size.</p>
+              <ol class="step-list small">
+                <li>Control field: horizontal, so one bit per signal = 40 bits.</li>
+                <li>Condition field: 7 conditions plus unconditional = 8 meanings, so <code>ceil(log2 8)</code> = 3 bits.</li>
+                <li>Address field: 512 words, so <code>log2 512</code> = 9 bits.</li>
+                <li>Width = 40 + 3 + 9 = 52 bits.</li>
+                <li>Size = 512 &times; 52 = 26 624 bits = 3328 bytes.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">The page computes all five of these numbers and checks that the field widths add to the stated total, so the arithmetic here is verified rather than asserted.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card span-2">
+              <h3>Example 5 — The five micro-operations of R0 &larr; R1 + R2 (GATE CSE 2020, Q4)</h3>
+              <p class="small">The datapath is the single-bus one from the 2020 paper: one bus, registers R0–R7, MAR, MDR, IR, PC, TEMP1 as a latched ALU input, TEMP2 as a latched ALU output, and the ALU fed from TEMP1 and from the bus. The five given steps are numbered 1 to 5 in the paper; here they are named:</p>
+              <ol class="step-list small">
+                <li><strong>a</strong> = R2<sub>r</sub>, TEMP1<sub>r</sub>, ALU<sub>add</sub>, TEMP2<sub>w</sub> — put R2 on the bus, add TEMP1, latch the sum in TEMP2.</li>
+                <li><strong>b</strong> = R1<sub>r</sub>, TEMP1<sub>w</sub> — put R1 on the bus, latch it into TEMP1.</li>
+                <li><strong>c</strong> = PC<sub>r</sub>, MAR<sub>w</sub>, MEM<sub>r</sub> — send PC to MAR and start a memory read.</li>
+                <li><strong>d</strong> = TEMP2<sub>r</sub>, R0<sub>w</sub> — put the sum on the bus and write it into R0.</li>
+                <li><strong>e</strong> = MDR<sub>r</sub>, IR<sub>w</sub> — copy the fetched word from MDR into IR.</li>
+              </ol>
+              <p class="small">Now impose the dependencies, and only the dependencies:</p>
+              <ul class="small">
+                <li>c before e: the memory read must complete before MDR holds the instruction.</li>
+                <li>b before a: step a reads TEMP1, so TEMP1 must already hold R1.</li>
+                <li>a before d: step d reads TEMP2, so the sum must already be latched.</li>
+                <li>c, e before a, b, d: the instruction must be decoded before its operands are fetched.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0"><strong>Answer: c, e, b, a, d — that is 3, 5, 2, 1, 4, option (C) of the paper.</strong> Option (D) is 3, 5, 1, 2, 4, which uses TEMP1 in step 1 before step 2 has filled it; that is the trap the question is built around. The page checks each option against the four dependencies and confirms that only one survives.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — Steps on a single bus against three buses</h3>
+              <p class="small"><strong>Question.</strong> For R3 &larr; R1 + R2, how many control steps does a single-bus datapath need, and how many does a three-bus datapath need? Assume the ALU has two latched inputs and its output goes straight to a bus.</p>
+              <p class="small"><strong>Single bus.</strong> One transfer per step, so:</p>
+              <div class="formula">t0: A &larr; R1 &nbsp;&nbsp; t1: B &larr; R2 &nbsp;&nbsp; t2: R3 &larr; A + B</div>
+              <p class="small">Three steps. If the ALU output must first be latched into a temporary, add t3: R3 &larr; TEMP, giving four.</p>
+              <p class="small" style="margin-bottom:0"><strong>Three buses.</strong> Both operands travel in on two buses while the result leaves on the third, so the whole addition is one step. The price is the wiring and a longer clock: three buses and the ALU must all settle within the period.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 — Vertical encoding of a 4-signal group</h3>
+              <p class="small"><strong>Question.</strong> Four control signals, of which at most one is ever asserted in a step. How many bits does the field need under vertical encoding, and what does each code mean?</p>
+              <ol class="step-list small">
+                <li>Meanings required: signal 1, signal 2, signal 3, signal 4, or none = 5.</li>
+                <li><code>ceil(log2(4+1)) = ceil(log2 5) = 3</code> bits.</li>
+                <li>Codes: 000 = none, 001 = s1, 010 = s2, 011 = s3, 100 = s4. Three codes are unused.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">Two bits would give only four codes, and one of them would have to mean both "signal 4" and "none". That is why the answer is 3 and not 2 — and it is why the "+1" in the formula is worth remembering as a sentence, not as a symbol.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 8 — Reading the operation off a micro-operation sequence (GATE CSE 2013, Q28)</h3>
+              <p class="small">The sequence given is: MBR &larr; PC; MAR &larr; X; PC &larr; Y; Memory &larr; MBR.</p>
+              <ol class="step-list small">
+                <li>MBR &larr; PC copies the return address out of the program counter.</li>
+                <li>Memory &larr; MBR writes it to memory at the address in MAR. A return address is being saved.</li>
+                <li>PC &larr; Y loads a new address into the program counter.</li>
+                <li>Nothing in the sequence reads memory, so it is not an instruction fetch or an operand fetch.</li>
+                <li>A conditional branch changes PC but does not save it. Saving PC and then jumping is the signature of entering a service routine.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><strong>Answer: initiation of interrupt service.</strong> The reasoning is entirely about which register is written and whether memory is read or written — not about the mnemonic of any instruction.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ========================== -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: overflow with no carry out</h3>
+          <p class="small">Eight bits, A = 0111 1111 (127), B = 0000 0001 (1). The sum is 1000 0000. The carry into the top bit is 1 and the carry out is 0, so V = 1; C = 0. <strong>The condition violated:</strong> the belief that overflow requires a carry out.</p>
+          <p class="small" style="margin-bottom:0">The page enumerates all 65536 pairs and reports how many overflow with no carry out. The count is not zero, and that is the refutation.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: carry out with no overflow</h3>
+          <p class="small">Eight bits, A = 1111 1111 (&minus;1 signed, 255 unsigned), B = 0000 0001. The result is 0000 0000 with carry out 1, so C = 1 and V = 0. <strong>The condition violated:</strong> the belief that a carry out signals a signed error.</p>
+          <p class="small" style="margin-bottom:0">Read as unsigned the addition genuinely escaped the width, so C is right. Read as signed nothing escaped, so V is right. Both flags are correct; the mistake was answering one question with the other's flag.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: <code>ceil(log2 n)</code> for a vertical field</h3>
+          <p class="small">n = 4 mutually exclusive signals. The naive rule gives <code>ceil(log2 4) = 2</code> bits, which is 4 codes — exactly enough for the four signals and not one code left for "none". <strong>The condition violated:</strong> the field must be able to assert nothing.</p>
+          <p class="small" style="margin-bottom:0">The correct width is <code>ceil(log2(4+1)) = 3</code>. The rule fails for every power of two: 1, 2, 4, 8, 16 each need one bit more than the naive formula. The page checks all of them.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a single bus cannot do it in one step</h3>
+          <p class="small">"The ALU computes A + B in one gate delay, so R0 &larr; R1 + R2 is one step." The first clause is true and the second does not follow: the bus can carry only one value, so R1 and R2 cannot both arrive in the same step. <strong>The condition violated:</strong> one bus, one transfer per step.</p>
+          <p class="small" style="margin-bottom:0">On the 2020 datapath the execute phase alone is three steps, and with the two-step fetch the instruction is five. Any option claiming fewer steps has put two sources on the bus at once.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: one function, one signal, one word</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>m = 1 function</strong> needs k = 0 select lines. An ALU that only adds has no multiplexer and no select input at all.</li>
+            <li><strong>m = 2 functions</strong> needs k = 1. The step from 1 to 2 functions costs one wire.</li>
+            <li><strong>n = 1 signal in a vertical group</strong> needs 1 bit, not 0, because the field must still be able to say "none".</li>
+            <li><strong>512 words</strong> need 9 address bits, and the address field can express exactly 512 distinct words — 511 and 512 are both representable, so the memory is full.</li>
+            <li><strong>1 status bit</strong> in a condition field with an unconditional option needs 1 bit: branch-on-flag or branch-always.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: what happens at the widest values</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Adder width.</strong> A ripple-carry adder of width n has delay proportional to n, so the ratio between a 16-bit and a 32-bit version is 2 — but a look-ahead version's ratio is much smaller, because its depth grows like log n.</li>
+            <li><strong>Subtraction of equal values.</strong> A &minus; A gives 0, so Z = 1, S = 0, C = 1 (the carry out of adding A + A&#773; + 1 is 1), and V = 0. The borrow is not a separate flag; it is the complement of C.</li>
+            <li><strong>Address field of 0 bits.</strong> A control memory with exactly one word needs no address field and no microprogram counter increment: the microprogram cannot branch.</li>
+            <li><strong>Instruction needing more steps than the counter.</strong> The step counter must cover the longest instruction; a shorter one simply finishes early, which is why the step count in the counter is a maximum, not a per-instruction value.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Closely confused pair 1: carry against overflow</h3>
+          <p class="small"><strong>Carry (C)</strong> is about unsigned arithmetic: the carry out of the top slice, meaning the unsigned sum did not fit. <strong>Overflow (V)</strong> is about signed arithmetic: the exclusive-or of the two carries at the top slice, meaning the signed sum did not fit.</p>
+          <p class="small" style="margin-bottom:0">They coincide on some inputs and differ on others, which is why neither can be computed from the other. On 127 + 1 they differ; on 255 + 1 they differ the other way. The one thing that is always true: C = 1 and V = 1 together mean the result fits as neither signed nor unsigned.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Closely confused pair 2: control word against machine instruction</h3>
+          <p class="small">A <strong>machine instruction</strong> is what a programmer writes and what main memory holds. A <strong>microinstruction</strong> is one word of control memory, holding control signals for one step. A <strong>micro-operation</strong> is the action such a word requests.</p>
+          <p class="small" style="margin-bottom:0">So one machine instruction expands into several microinstructions, each of which may request several micro-operations in parallel. A question that says "the control memory holds the program" is wrong; it holds the control <em>of</em> the program.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ====================== -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>"More ALU functions need more select bits, one per function"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the select lines are described as "choosing a function", and it is natural to imagine one wire per choice, the way a decoder's outputs are one-hot.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 4 functions. One bit per function would be 4 bits; the true answer is 2 bits, because 2<sup>2</sup> = 4 codes already distinguish four functions.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> k = <code>ceil(log2 m)</code> select lines for m functions, and 2<sup>k</sup> &minus; m codes are unused. The one-hot picture applies to the decoder <em>inside</em> the control unit, not to the ALU's select input.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Overflow is the carry out"</h3>
+          <p class="small"><strong>Why it tempts:</strong> for unsigned arithmetic it is exactly right, and most first examples are unsigned. The word "overflow" is used for both.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 127 + 1 in eight bits overflows with C = 0, and 255 + 1 carries out with V = 0.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> V is the exclusive-or of the carry into and the carry out of the top slice. C is the carry out alone. State which arithmetic you are reading the bits as before naming a flag.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Microprogrammed control is faster, because a program is easier than a circuit"</h3>
+          <p class="small"><strong>Why it tempts:</strong> software feels more flexible and flexibility feels like progress; and the control store is small and fast.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> every control signal in a microprogrammed unit waits for a memory read, and every signal in a hardwired unit waits for one gate. The 1999 paper keys the order hardwired &gt; horizontal &gt; vertical.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> hardwired is fastest and least flexible. Microprogrammed is slower and more flexible. Flexibility is bought with time, not with speed.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Vertical microprogramming is faster because the word is narrower"</h3>
+          <p class="small"><strong>Why it tempts:</strong> a narrower word means less memory and a shorter read, so "less" sounds like "faster".</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a narrower word carries encoded fields, and encoded fields must be decoded before they can drive control lines. The decoder sits in the path.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> width and speed run in opposite directions. Horizontal is wide and fast; vertical is narrow and slow. Memory size and speed are the two ends of the same trade.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Control memory size is the number of control signals"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the control field is one bit per signal in horizontal format, so the two numbers look like the same quantity.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 40 signals in 512 words of 52 bits is 26 624 bits, not 40. Even in words the answer is 512, not 40.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> size = words &times; width, and width = control + condition + address. Read whether the answer is wanted in words, in bits or in bytes.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The ALU decodes the instruction"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the ALU is the part that "does the operation", so it feels like the part that knows which operation to do.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the ALU has no input for an opcode, only a k-bit function-select input. Two different instructions that both add present the same select code.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> decoding is the control unit's job. The ALU receives a select code and obeys it; it is combinational and stateless.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A wider datapath is always faster"</h3>
+          <p class="small"><strong>Why it tempts:</strong> more buses means fewer steps, and fewer steps means less time.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a three-bus datapath does the addition in one step instead of three, but its clock must cover three bus delays and the ALU, so the period is longer. Total time is steps &times; period, and both terms moved.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> compare total time, never step count alone. This is the same trap as comparing algorithms by operation count while ignoring the cost of an operation.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The step counter is the program counter"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are counters, both feed a decoder, both appear in the control unit's input list.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a program counter must address main memory, so it is as wide as an address. A step counter must count the steps of one instruction, typically fewer than ten.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the program counter belongs to the datapath side of the fetch; the step counter belongs to the control unit. Their widths differ by orders of magnitude.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ======================= -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card span-2">
+              <h3>Five question categories, and the reasoning each demands</h3>
+              <p class="small">Every previous-year question I could verify on this topic is one of these five. The category tells you what to compute; the trap tells you what people compute instead.</p>
+            </div>
+
+            <div class="card">
+              <h3>1. Field arithmetic on a microinstruction</h3>
+              <p class="small"><strong>Shape:</strong> a total width, some fields given, one field to find, and a question about control-memory size.</p>
+              <p class="small"><strong>Reasoning:</strong> write the width equation, fill in the known fields, solve for the unknown. Then convert the address field to a word count with 2<sup>bits</sup>.</p>
+              <p class="small"><strong>Common wrong approach:</strong> treating the condition count as the condition width. Eight status bits is not an 8-bit field; it is a 3-bit select, because 2<sup>3</sup> = 8.</p>
+              <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2004 (the 26-bit microinstruction), and in the same shape in GATE IT 2008.</p>
+            </div>
+
+            <div class="card">
+              <h3>2. Ordering micro-operations on a given datapath</h3>
+              <p class="small"><strong>Shape:</strong> a datapath diagram, an instruction, and a shuffled list of steps to put in order.</p>
+              <p class="small"><strong>Reasoning:</strong> write down the read-before-write dependencies only, then find the one permutation that respects all of them. Fetch always precedes execute.</p>
+              <p class="small"><strong>Common wrong approach:</strong> ordering the steps by their numbering, or grouping "the arithmetic ones" together without checking which register each one reads.</p>
+              <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2020 Q4.</p>
+            </div>
+
+            <div class="card">
+              <h3>3. Naming the operation from a micro-operation sequence</h3>
+              <p class="small"><strong>Shape:</strong> four or five register transfers, and a choice between instruction fetch, operand fetch, branch, interrupt, call.</p>
+              <p class="small"><strong>Reasoning:</strong> ask which register is written and whether memory is read or written. Writing PC to memory is saving a return address; reading memory into IR is a fetch.</p>
+              <p class="small"><strong>Common wrong approach:</strong> seeing PC and answering "branch", without noticing that PC is being saved rather than merely replaced.</p>
+              <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2013 Q28.</p>
+            </div>
+
+            <div class="card">
+              <h3>4. Conceptual comparison, often multiple-select</h3>
+              <p class="small"><strong>Shape:</strong> statements about horizontal, vertical, hardwired; or an ordering question.</p>
+              <p class="small"><strong>Reasoning:</strong> anchor on three facts — one bit per signal (horizontal), encoded fields need <code>ceil(log2(n+1))</code> (vertical), gates are faster than a memory read which is faster than a memory read plus a decoder.</p>
+              <p class="small"><strong>Common wrong approach:</strong> assuming "smaller" means "faster", which reverses the vertical answer.</p>
+              <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 1999 Q2.19 and GATE CSE 2002 Q2.7.</p>
+            </div>
+
+            <div class="card">
+              <h3>5. Flag arithmetic on an ALU operation</h3>
+              <p class="small"><strong>Shape:</strong> two operands in binary, and a question about which flags are set, or whether an overflow occurred.</p>
+              <p class="small"><strong>Reasoning:</strong> compute the carry into and out of the top slice separately. V is their exclusive-or; C is the carry out alone. Z is "result is all zeros"; S is the top bit.</p>
+              <p class="small"><strong>Common wrong approach:</strong> computing only the carry out and calling it overflow.</p>
+              <p class="small" style="margin-bottom:0"><strong>Status:</strong> no previous-year question in this exact shape was verified for this lesson, so the practice items on flags are labelled original. The reasoning they test is the one the syllabus's "design of ALU" wording names.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The decision procedure, in four questions</h3>
+              <ol class="small" style="margin-bottom:0">
+                <li><strong>What is being asked for?</strong> Select lines, word width, control-memory words, or control steps. Name it before computing; the four are independent.</li>
+                <li><strong>Which format?</strong> Horizontal means one bit per signal. Vertical means encoded fields with the +1 for "none". Hardwired means no control memory at all, so width questions do not apply.</li>
+                <li><strong>Which direction is the dependency?</strong> For ordering questions, list read-before-write pairs only. For flag questions, list the two carries at the top slice only.</li>
+                <li><strong>Words, bits or bytes?</strong> Read the options' units before answering the size question. 1024 words, 26 624 bits and 3328 bytes are the same memory.</li>
+              </ol>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="row" style="margin-bottom:10px">
+        <label class="row small" style="gap:6px;cursor:pointer">
+          <input type="checkbox" id="mock-toggle">
+          <span>Mock-test mode (answers stay hidden until you reveal them all)</span>
+        </label>
+        <button class="btn" id="mock-submit" hidden>Reveal all answers</button>
+        <span class="small muted">Learning mode reveals each answer after your attempt.</span>
+      </div>
+
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2004, 2 marks</span></div>
+              <div class="q-body">
+                <p>The microinstructions stored in the control memory of a processor have a width of 26 bits. Each microinstruction is divided into three fields: a micro-operation field of 13 bits, a next-address field (X), and a MUX select field (Y). There are 8 status bits in the inputs of the MUX. How many bits are there in the X and Y fields, and what is the size of the control memory in number of words?</p>
+                <ol class="choices">
+                  <li>10, 3, 1024</li>
+                  <li>8, 5, 256</li>
+                  <li>5, 8, 2048</li>
+                  <li>10, 3, 512</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A — X = 10, Y = 3, 1024 words</span></p>
+                  <p class="small">Y selects among 8 status bits, so <code>ceil(log2 8) = 3</code> bits. The width equation then gives X = 26 &minus; 13 &minus; 3 = 10. A 10-bit address field addresses 2<sup>10</sup> = 1024 words.</p>
+                  <p class="small"><strong>B</strong> and <strong>C</strong> swap the two fields, which would make a 5-bit address reach 2048 words — impossible, since 2<sup>5</sup> = 32. <strong>D</strong> has the right fields and the wrong word count: a 10-bit address cannot address only 512 words.</p>
+                  <p class="small" style="margin-bottom:0">The page recomputes 13 + 3 + 10 = 26 and 2<sup>10</sup> = 1024, and confirms that only option A satisfies both. Note the reading used: the 8 status bits address the multiplexer directly, so the field is 3 bits rather than <code>ceil(log2 9) = 4</code>.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 1999, Q2.19</span></div>
+              <div class="q-body">
+                <p>Arrange the following configurations for a CPU in decreasing order of operating speeds: hardwired control, vertical microprogramming, horizontal microprogramming.</p>
+                <ol class="choices">
+                  <li>Hardwired control, vertical microprogramming, horizontal microprogramming</li>
+                  <li>Hardwired control, horizontal microprogramming, vertical microprogramming</li>
+                  <li>Horizontal microprogramming, vertical microprogramming, hardwired control</li>
+                  <li>Vertical microprogramming, horizontal microprogramming, hardwired control</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: B</span></p>
+                  <p class="small">Hardwired control produces its signals from gates, so it is fastest. Between the two microprogrammed styles, horizontal stores the signals directly and needs no decoding, while vertical stores them encoded and must decode them first, so horizontal is faster.</p>
+                  <p class="small"><strong>A</strong> and <strong>C</strong> both put vertical ahead of horizontal. <strong>C</strong> and <strong>D</strong> also put a microprogrammed style ahead of hardwired, which reverses the basic structural fact.</p>
+                  <p class="small" style="margin-bottom:0">The reasoning is structural, not measured: the number of stages between the microprogram counter and the control lines is one for horizontal (a memory read) and two for vertical (a read and a decode), against zero for hardwired (gates only).</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2002, Q2.7</span></div>
+              <div class="q-body">
+                <p>Horizontal microprogramming:</p>
+                <ol class="choices">
+                  <li>does not require use of signal decoders</li>
+                  <li>results in larger sized microinstructions than vertical microprogramming</li>
+                  <li>uses one bit for each control signal</li>
+                  <li>all of the above</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: D — all of the above</span></p>
+                  <p class="small">Each control signal has its own bit, so the control field is one bit per signal — statement 3. Because every bit drives its line directly, no decoder is needed — statement 1. And because no encoding compresses the field, the word is wider than a vertical one — statement 2.</p>
+                  <p class="small" style="margin-bottom:0">The three statements are not independent: 3 is the cause of 1 and of 2. A question that offers only one of them and asks which is "the" property is testing whether you know the causal direction, not whether you memorised the list.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2020, Q4</span></div>
+              <div class="q-body">
+                <p>On the single-bus datapath of the paper, the instruction is R0 &larr; R1 + R2, and the five given steps are:</p>
+                <p class="small" style="font-family:var(--font-mono)">1. R2<sub>r</sub>, TEMP1<sub>r</sub>, ALU<sub>add</sub>, TEMP2<sub>w</sub> &nbsp; 2. R1<sub>r</sub>, TEMP1<sub>w</sub> &nbsp; 3. PC<sub>r</sub>, MAR<sub>w</sub>, MEM<sub>r</sub> &nbsp; 4. TEMP2<sub>r</sub>, R0<sub>w</sub> &nbsp; 5. MDR<sub>r</sub>, IR<sub>w</sub></p>
+                <p>Which one of the following is the correct order of execution of the above steps?</p>
+                <ol class="choices">
+                  <li>2, 1, 4, 5, 3</li>
+                  <li>1, 2, 4, 3, 5</li>
+                  <li>3, 5, 2, 1, 4</li>
+                  <li>3, 5, 1, 2, 4</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: C — 3, 5, 2, 1, 4</span></p>
+                  <p class="small">The fetch is 3 then 5: the address must be in MAR before memory is read, and the word must be in MDR before it can enter IR. Then step 2 fills TEMP1 with R1, step 1 adds R2 (from the bus) to TEMP1 and latches the sum in TEMP2, and step 4 writes TEMP2 into R0.</p>
+                  <p class="small"><strong>A</strong> and <strong>B</strong> execute before fetching. <strong>D</strong> puts step 1 before step 2, so it reads TEMP1 before anything has written it — the single dependency the question is built on.</p>
+                  <p class="small" style="margin-bottom:0">The page models the four read-before-write dependencies and checks all 120 permutations: exactly one satisfies every dependency, and it is 3, 5, 2, 1, 4. The official key is (C).</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2013, Q28</span></div>
+              <div class="q-body">
+                <p>Consider the following sequence of micro-operations: MBR &larr; PC; MAR &larr; X; PC &larr; Y; Memory &larr; MBR. Which one of the following is a possible operation performed by this sequence?</p>
+                <ol class="choices">
+                  <li>Instruction fetch</li>
+                  <li>Operand fetch</li>
+                  <li>Conditional branch</li>
+                  <li>Initiation of interrupt service</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: D — initiation of interrupt service</span></p>
+                  <p class="small">PC is copied out and then written to memory at address X, which is the saving of a return address; PC is then loaded with Y, which is the transfer of control to a routine. That pair — save PC, then jump — is what entering a service routine does.</p>
+                  <p class="small"><strong>A</strong> would read memory into MBR, not write PC to it. <strong>B</strong> would also read memory. <strong>C</strong> changes PC but does not save it.</p>
+                  <p class="small" style="margin-bottom:0">The tell is the direction of the memory operation. Every fetch reads; this sequence writes.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>An ALU must implement 12 distinct functions. The minimum number of function-select lines is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 4</span></p>
+                  <p class="small">Three lines give 2<sup>3</sup> = 8 codes, which is fewer than 12. Four lines give 16 codes, so 4 is the smallest k with 2<sup>k</sup> &ge; 12. Four of the 16 codes are unused.</p>
+                  <p class="small" style="margin-bottom:0">The trap is answering 3 by rounding down, or answering 12 by imagining one wire per function. The page checks the rule for every m from 2 to 16.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>An eight-bit ALU adds A = 0110 1010 and B = 0111 0100. Which of the following statements are TRUE about the flags?</p>
+                <ol class="choices">
+                  <li>The carry flag C is 0.</li>
+                  <li>The overflow flag V is 1.</li>
+                  <li>The zero flag Z is 1.</li>
+                  <li>The sign flag S is 1.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A, B and D</span></p>
+                  <p class="small">106 + 116 = 222 = 1101 1110. No carry leaves the top bit, so C = 0 (A is true). Both operands have top bit 0 and the result has top bit 1, so the carry into the top bit differs from the carry out: V = 1 (B is true). The result is not zero, so Z = 0 (C is false). The top bit is 1, so S = 1 (D is true).</p>
+                  <p class="small" style="margin-bottom:0">Read as signed: 106 + 116 should be 222, which does not fit in a signed eight-bit range of &minus;128 to 127, so an overflow is exactly right. Read as unsigned: 222 fits in eight bits, so no carry is exactly right. Both flags are correct at once, which is the point.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A vertical-format microinstruction encodes a group of 7 mutually exclusive control signals in one field. The minimum width of that field in bits is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 3</span></p>
+                  <p class="small">The field must name one of 7 signals or none, so it needs 8 meanings: <code>ceil(log2(7+1)) = 3</code>. Codes 000 to 110 select a signal; 111 means none.</p>
+                  <p class="small" style="margin-bottom:0">Here the naive rule happens to give the same answer, because 7 is not a power of two. Try 8 signals instead and the two rules part company: <code>ceil(log2 8) = 3</code> is too few, and 4 is right. That is why the rule is written with the +1.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE IT 2008, Q7 (the IT paper)</span></div>
+              <div class="q-body">
+                <p>Consider a CPU where all instructions require 7 clock cycles. There are 140 instructions in the instruction set, and 125 control signals are needed. A horizontal microprogrammed control unit is designed using a single address field format for branch control logic. What is the minimum size of the control word and of the control address register?</p>
+                <ol class="choices">
+                  <li>125, 7</li>
+                  <li>125, 10</li>
+                  <li>135, 9</li>
+                  <li>135, 10</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: D — 135 bits and 10 bits</span></p>
+                  <p class="small">140 instructions at 7 cycles each is 980 microinstructions, which need an address of <code>ceil(log2 980) = 10</code> bits, since 2<sup>9</sup> = 512 &lt; 980 &le; 1024 = 2<sup>10</sup>. Horizontal format gives 125 control bits, so the word is 125 + 10 = 135 bits. The control address register must hold that address, so it is 10 bits.</p>
+                  <p class="small"><strong>A</strong> and <strong>B</strong> forget the address field. <strong>C</strong> takes 9 address bits, which can reach only 512 of the 980 microinstructions.</p>
+                  <p class="small" style="margin-bottom:0">This is the same arithmetic as the 2004 question, with the unknown moved: there the width was given and the fields were asked for, here the fields are given and the width is asked for. The page checks <code>ceil(log2 980) = 10</code> and 125 + 10 = 135.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A single-bus datapath has an ALU with two latched input registers and an output latch, and one bus. How many control steps are needed to execute R3 &larr; R1 + R2, counting only the execute phase and assuming the result must pass through the output latch before reaching R3?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 4</span></p>
+                  <p class="small">One transfer per step: A &larr; R1, then B &larr; R2, then TEMP &larr; A + B, then R3 &larr; TEMP. Each step has one bus source.</p>
+                  <p class="small" style="margin-bottom:0">If the ALU output could drive the bus directly to R3 in the same step, it would be 3. The difference is one latch, which is one clock — the point of the trade in scene 6.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Hard</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following statements about hardwired and microprogrammed control are TRUE?</p>
+                <ol class="choices">
+                  <li>A hardwired control unit produces its control signals with no control-memory access.</li>
+                  <li>A vertical microprogrammed unit generally has a smaller control memory than a horizontal one for the same microprogram.</li>
+                  <li>Adding a new instruction to a hardwired control unit requires only a new word in control memory.</li>
+                  <li>A microprogrammed unit can share a common fetch routine among all instructions.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A, B and D</span></p>
+                  <p class="small">A is the definition: gates, not a memory. B is what encoding buys: fewer bits per word, so a smaller store. D is what the next-address field makes possible: one fetch sequence reached by a jump from every instruction.</p>
+                  <p class="small"><strong>C is false, and it is the sentence that reverses the trade.</strong> Adding an instruction to a hardwired unit means changing the gate network; adding one to a microprogrammed unit means writing new microinstructions.</p>
+                  <p class="small" style="margin-bottom:0">Note that B and D are the two advantages of microprogramming, while A is the one advantage of hardwiring. A question can ask for advantages of either, so read which side it wants.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything below is either a definition, a formula the page computes, or a fact quoted from a named source. Nothing here needs a diagram.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Datapath</strong> — registers, functional units and buses, plus the control inputs that select what each does.</li>
+            <li><strong>Micro-operation</strong> — one elementary transfer or computation in one step.</li>
+            <li><strong>Control step</strong> — one clock in which a set of micro-operations runs.</li>
+            <li><strong>Control signal</strong> — one wire enabling one action.</li>
+            <li><strong>Hardwired control</strong> — control signals from gates, with inputs instruction, step, flags.</li>
+            <li><strong>Microprogrammed control</strong> — control signals from a control memory, one word per step.</li>
+            <li><strong>Microinstruction</strong> — control field + condition-select field + next-address field.</li>
+            <li><strong>Horizontal</strong> — one bit per control signal.</li>
+            <li><strong>Vertical</strong> — encoded fields, one code reserved for "none".</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas, each with its assumption</h3>
+          <div class="formula">k = ceil(log<sub>2</sub> m)</div>
+          <p class="small">Select lines for m ALU functions. Assumes each function is selected by one code; unused codes are allowed.</p>
+          <div class="formula">V = c<sub>in</sub>(MSB) &oplus; c<sub>out</sub>(MSB)</div>
+          <p class="small">Signed overflow. Assumes the operands are being read as two's complement; for unsigned arithmetic use C alone.</p>
+          <div class="formula">width = S + ceil(log<sub>2</sub>(C+1)) + ceil(log<sub>2</sub> W)</div>
+          <p class="small">Microinstruction width in horizontal format, with S control signals, C conditions plus an unconditional option, and W words of control memory. If the status bits address the multiplexer directly, use C rather than C+1.</p>
+          <div class="formula">size = W &times; width &nbsp; bits</div>
+          <p class="small">Control memory size. Divide by 8 for bytes.</p>
+          <div class="formula">time = steps &times; clock period</div>
+          <p class="small">Instruction time on a non-pipelined machine. Under pipelining this is not the latency formula, and the count changes.</p>
+        </div>
+
+        <div class="card">
+          <h3>The comparison, in a table</h3>
+          <p class="small" style="margin-bottom:4px"><strong>Hardwired</strong> — signal delay: gate delay. Word width: not applicable. Flexibility: low. Best for: small fixed fast instruction sets.</p>
+          <p class="small" style="margin-bottom:4px"><strong>Horizontal microprogrammed</strong> — signal delay: control-memory read. Word width: S bits for control, plus fields. Flexibility: high. Best for: large or changeable instruction sets.</p>
+          <p class="small" style="margin-bottom:0"><strong>Vertical microprogrammed</strong> — signal delay: control-memory read plus decoder. Word width: smallest. Flexibility: high. Best for: the smallest possible control store.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The traps, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Carry is not overflow. 127+1 overflows with C=0; 255+1 carries with V=0.</li>
+            <li>Vertical fields need the +1 for "none"; the naive logarithm is short for every power of two.</li>
+            <li>Vertical is narrowest <em>and</em> slowest. Smaller is not faster.</li>
+            <li>Control memory size is words &times; width, not the signal count.</li>
+            <li>One bus is one transfer per step; two sources in a step is a conflict, not speed.</li>
+            <li>The ALU does not decode; the control unit does.</li>
+            <li>The step counter is not the program counter.</li>
+            <li>More buses shorten the step count and lengthen the clock; compare total time.</li>
+            <li>Read whether a size answer is wanted in words, bits or bytes.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Four numbers to carry into the exam</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>3</strong> — select lines for 8 functions; condition bits for 8 status lines; field bits for 4 mutually exclusive signals.</li>
+            <li><strong>10</strong> — address bits for 1024 words, and the 2004 answer for X.</li>
+            <li><strong>26</strong> — the 2004 microinstruction width, 13 + 3 + 10.</li>
+            <li><strong>5</strong> — the micro-operations of R0 &larr; R1 + R2 on a single bus: fetch twice, then three execute steps.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>If you remember only one sentence</h3>
+          <p style="margin-bottom:0">The datapath can do a few things, the ALU computes, and the control unit is a function of instruction, step and flags — built as gates when speed matters and as a memory of microinstructions when flexibility matters, wide and undecoded or narrow and decoded, with the width of the select fields and the size of the store falling out of two ceilings and one multiplication.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES =========================== -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="src-list small">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> on gate2027.iitm.ac.in — downloaded and read for this run. Supports the class-A classification and the verbatim Section 3 wording quoted in the Overview: "Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards."</li>
+            <li><strong>GATE 2027 Information Brochure</strong>, IIT Madras — supports the statement that the paper uses MCQ, MSQ and NAT question types, and that an MSQ may have more than one correct option.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">The syllabus was re-read rather than assumed, because the 2027 wording differs from 2026: the older text said "ALU, data-path and control unit", and the 2027 text names the design of each and names the two control-unit styles.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbooks</h3>
+          <ul class="src-list small">
+            <li><strong>Mano, <em>Computer System Architecture</em></strong> — the register-transfer notation, the single-bus and multiple-bus datapaths, the micro-operation sequences used in scenes 5 and 6, and the hardwired control unit with its instruction decoder and sequence counter. Supports scenes 1, 5, 6 and 7.</li>
+            <li><strong>Mano, <em>Digital Design</em></strong> — the one-bit ALU slice, the multiplexer that selects its function, and the arithmetic circuit built from full adders. Supports scene 2.</li>
+            <li><strong>Patterson and Hennessy, <em>Computer Organization and Design</em></strong> — the ALU as a combinational block with a function-select input, the zero and overflow flags, and the trade between hardwired and microcoded control. Supports scenes 2, 3 and 10.</li>
+            <li><strong>Hamacher, Vranesic and Zaky, <em>Computer Organization and Architecture</em></strong> — the microprogrammed control unit, the microinstruction format with its next-address and condition fields, and horizontal against vertical encoding. Supports scenes 8 and 9.</li>
+            <li><strong>Hayes, <em>Computer Architecture and Organization</em></strong> — control memory organisation and the microinstruction sequencing arithmetic used in scene 9.</li>
+            <li><strong>West and Harris, <em>CMOS VLSI Design</em>; Harris and Harris, <em>Digital Design and Computer Architecture</em></strong> — carry look-ahead, the generate and propagate signals, and the depth of the prefix tree. Supports scene 4.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">These are cited as the standard treatments this lesson follows. No page numbers are given, because editions differ.</p>
+        </div>
+
+        <div class="card">
+          <h3>Question sources used to identify previous-year questions</h3>
+          <ul class="src-list small">
+            <li><strong>GATE CS 1999 paper</strong> (GATEFORUM copy of the paper, <code>CS-1999.pdf</code>) — the wording of question 2.19, the speed-ordering item. The keyed answer, option B, is confirmed by GateOverflow and by a solutions compilation.</li>
+            <li><strong>GATE CS 2002 paper</strong> (GATEFORUM copy, <code>CS-2002.pdf</code>) — the wording of question 2.7 on horizontal microprogramming. The keyed answer, "all of the above", is confirmed by GateOverflow.</li>
+            <li><strong>GateOverflow</strong> (gateoverflow.in) — the 2004 microinstruction question, the 2013 micro-operation sequence question and the 2020 datapath question, each with its year in the page title, and the reasoning quoted in the solutions.</li>
+            <li><strong>ExamSIDE</strong> (questions.examside.com), GATE CSE "ALU, Data Path and Control Unit" topic page — used to establish which shapes recur across years, including the 2013 and 2020 items.</li>
+            <li><strong>Testbook and IAE Academy solutions to GATE 2020 Q4</strong> — both state that the official key for the 2020 datapath ordering question is option (C), which is what this lesson uses.</li>
+            <li><strong>GATE IT 2008 question 7</strong> — the control-word and control-address-register item, used in the practice set and labelled as the IT paper rather than the CS paper.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> GateOverflow, ExamSIDE, Testbook and coaching sites are not the official GATE papers. Each previous-year item here was cross-checked against at least two independent sources, and the year is stated on the page for each. Where sources disagree about a question number — the 2004 item is numbered 67 in one index and 15 or 28 in others — this lesson cites the year and marks rather than the number.</p>
+        </div>
+
+        <div class="card">
+          <h3>What was verified, and how</h3>
+          <p class="small">Every load-bearing number in this lesson is computed and checked by the page itself, and the check names are listed under "what was checked" in the Animation tab. In outline:</p>
+          <ul class="small">
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> An eight-bit ALU is implemented twice — once directly, once as eight one-bit slices wired by a carry chain — and the two agree on 2000 random operand pairs for all eight functions.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Subtraction as A + B&#773; + 1 is confirmed on all 65536 pairs; the overflow rule is confirmed on all 65536 pairs of additions and of subtractions against the true signed result; and the two counterexample pairs (127+1 and 255+1) are found by search, not asserted.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The select-line rule is checked for every m from 2 to 16, and the vertical-encoding rule for n from 1 to 16 including every power of two, where the naive logarithm is shown to be one bit short.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A carry look-ahead tree is built for widths 8 and 16, its carries are checked against the ripple adder on random inputs, and its depth is counted as log base two of the width while the ripple depth is counted as the width.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The five micro-operations of the 2020 question are modelled as a set of read-before-write dependencies, and all 120 orderings are tested: exactly one survives, and it is 3, 5, 2, 1, 4.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Every previous-year arithmetic answer is recomputed: 13 + 3 + 10 = 26 with 2<sup>10</sup> = 1024; <code>ceil(log2 980) = 10</code> and 125 + 10 = 135; and the 1999 speed order is justified by counting stages between the microprogram counter and the control lines.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">What was not done: no browser rendered this page in this environment, so the claims about layout are structural checks and a geometry audit, not a screenshot. No audio file exists; the narration is a script plus optional browser speech synthesis. No claim is made about how many marks this topic carries in GATE 2027, because no official marks distribution exists.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var W = 900, H = 470;
+  var K = window.LessonKit;
+  var PR = window.Painters;
+  var PAL = PR.PAL;
+  var P = null;
+
+/* ======================================================================
+   LAYER 1 - THE MODEL (alu-and-control-unit-design)
+   Pure data and pure functions. No drawing here. Nothing in this section
+   knows what a canvas is. Every number the lesson quotes is computed.
+   ====================================================================== */
+
+var CHECKS = [];
+function chk(name, pass, detail) { CHECKS.push({ name: name, pass: !!pass, detail: detail || '' }); }
+
+/* smallest k with 2^k >= n */
+function ceilLog2(n) {
+  var k = 0, p = 1;
+  while (p < n) { p *= 2; k++; }
+  return k;
+}
+
+/* ---------------- the eight ALU functions ---------------- */
+var FUNCS = ['AND', 'OR', 'ADD', 'SUB', 'SLT', 'XOR', 'NOR', 'PASS B'];
+var SELECT_CODES = ['000', '001', '010', '011', '100', '101', '110', '111'];
+
+function toSigned8(v) { v &= 255; return v > 127 ? v - 256 : v; }
+
+/* a full adder at bit level, reporting the two carries at the top bit */
+function addBits(a, b, cin) {
+  a &= 255; b &= 255;
+  var y = 0, c = cin, cinTop = 0, coutTop = 0, i, s;
+  for (i = 0; i < 8; i++) {
+    if (i === 7) cinTop = c;
+    s = ((a >> i) & 1) + ((b >> i) & 1) + c;
+    y |= (s & 1) << i;
+    c = s >> 1;
+  }
+  coutTop = c;
+  return { y: y & 255, cinTop: cinTop, coutTop: coutTop };
+}
+
+/* the reference ALU: direct, word-level, one case per function */
+function alu(a, b, sel) {
+  a &= 255; b &= 255;
+  var r, d;
+  if (sel === 0) return { y: a & b, carry: 0, cinTop: 0, coutTop: 0 };
+  if (sel === 1) return { y: a | b, carry: 0, cinTop: 0, coutTop: 0 };
+  if (sel === 2) {
+    r = addBits(a, b, 0);
+    return { y: r.y, carry: r.coutTop, cinTop: r.cinTop, coutTop: r.coutTop,
+             ovf: r.cinTop ^ r.coutTop };
+  }
+  if (sel === 3) {
+    r = addBits(a, (~b) & 255, 1);
+    return { y: r.y, carry: r.coutTop, cinTop: r.cinTop, coutTop: r.coutTop,
+             ovf: r.cinTop ^ r.coutTop };
+  }
+  if (sel === 4) return { y: toSigned8(a) < toSigned8(b) ? 1 : 0, carry: 0, cinTop: 0, coutTop: 0 };
+  if (sel === 5) return { y: a ^ b, carry: 0, cinTop: 0, coutTop: 0 };
+  if (sel === 6) return { y: (~(a | b)) & 255, carry: 0, cinTop: 0, coutTop: 0 };
+  return { y: b, carry: 0, cinTop: 0, coutTop: 0 };
+}
+
+/* one bit slice: gates and adder in parallel, multiplexer at the output */
+function sliceBit(ai, bi, cin, sel) {
+  var bb = (sel === 3) ? (bi ^ 1) : bi;
+  var s = ai + bb + cin;
+  var sum = s & 1, cout = s >> 1;
+  var y;
+  if (sel === 0) y = ai & bi;
+  else if (sel === 1) y = ai | bi;
+  else if (sel === 2 || sel === 3) y = sum;
+  else if (sel === 5) y = ai ^ bb;
+  else if (sel === 6) y = 1 - (ai | bi);
+  else y = bb;
+  return { y: y, cout: (sel === 2 || sel === 3) ? cout : 0 };
+}
+
+/* the same ALU built from eight one-bit slices and a carry chain */
+function aluSlices(a, b, sel) {
+  a &= 255; b &= 255;
+  var eff = (sel === 4) ? 3 : sel;      /* SLT is the sign of A - B */
+  var cin = (eff === 3) ? 1 : 0;
+  var y = 0, cinTop = 0, coutTop = 0, topSum = 0, i, r;
+  for (i = 0; i < 8; i++) {
+    if (i === 7) cinTop = cin;
+    r = sliceBit((a >> i) & 1, (b >> i) & 1, cin, eff);
+    y |= r.y << i;
+    if (i === 7) { topSum = r.y; coutTop = r.cout; }
+    cin = r.cout;
+  }
+  y &= 255;
+  if (sel === 4) y = (topSum ^ (cinTop ^ coutTop)) ? 1 : 0;
+  return { y: y, cinTop: cinTop, coutTop: coutTop, carry: coutTop };
+}
+
+/* ---------------- carry look-ahead ---------------- */
+function claCarries(a, b, cin0, n) {
+  var g = [], p = [], i, d, ng, np, levels = 0;
+  for (i = 0; i < n; i++) {
+    var ai = (a >> i) & 1, bi = (b >> i) & 1;
+    g[i] = ai & bi; p[i] = ai ^ bi;
+  }
+  for (d = 1; d < n; d *= 2) {
+    ng = g.slice(); np = p.slice();
+    for (i = n - 1; i >= d; i--) { ng[i] = g[i] | (p[i] & g[i - d]); np[i] = p[i] & p[i - d]; }
+    g = ng; p = np; levels++;
+  }
+  var c = [];
+  for (i = 0; i < n; i++) c[i] = (i === 0) ? cin0 : (g[i - 1] | (p[i - 1] & cin0));
+  return { carries: c, levels: levels };
+}
+
+function rippleCarries(a, b, cin0, n) {
+  var c = [], i, s;
+  c[0] = cin0;
+  for (i = 0; i < n; i++) {
+    s = ((a >> i) & 1) + ((b >> i) & 1) + c[i];
+    c[i + 1] = s >> 1;
+  }
+  return c;
+}
+
+/* ---------------- the single-bus datapath of GATE 2020 Q4 ---------------- */
+/* src: registers driving the bus; dst: registers loaded from the bus */
+var GATE2020 = [
+  { n: 1, id: 'a', src: ['R2'], aluIn: ['TEMP1'], dst: ['TEMP2'], text: 'R2r, TEMP1r, ALUadd, TEMP2w' },
+  { n: 2, id: 'b', src: ['R1'],           dst: ['TEMP1'], text: 'R1r, TEMP1w' },
+  { n: 3, id: 'c', src: ['PC'],           dst: ['MAR'],   text: 'PCr, MARw, MEMr' },
+  { n: 4, id: 'd', src: ['TEMP2'],        dst: ['R0'],    text: 'TEMP2r, R0w' },
+  { n: 5, id: 'e', src: ['MDR'],          dst: ['IR'],    text: 'MDRr, IRw' }
+];
+
+/* read-before-write and fetch-before-execute, as [before, after] pairs */
+var DEPS = [
+  [3, 5],             /* MAR must hold the address before MDR can hold the word */
+  [2, 1],             /* TEMP1 must be written before step 1 reads it */
+  [1, 4],             /* TEMP2 must be written before step 4 reads it */
+  [3, 1], [3, 2], [3, 4],   /* fetch before execute */
+  [5, 1], [5, 2], [5, 4]
+];
+
+function permutations(arr) {
+  if (arr.length <= 1) return [arr.slice()];
+  var out = [], i, rest, sub, j;
+  for (i = 0; i < arr.length; i++) {
+    rest = arr.slice(0, i).concat(arr.slice(i + 1));
+    sub = permutations(rest);
+    for (j = 0; j < sub.length; j++) out.push([arr[i]].concat(sub[j]));
+  }
+  return out;
+}
+
+function satisfies(order) {
+  for (var d = 0; d < DEPS.length; d++) {
+    if (order.indexOf(DEPS[d][0]) >= order.indexOf(DEPS[d][1])) return false;
+  }
+  return true;
+}
+
+function busDrivers(step) { return step.src.length; }
+
+/* ---------------- microinstruction arithmetic ---------------- */
+function horizWidth(signals, conditions, words) {
+  return signals + ceilLog2(conditions) + ceilLog2(words);
+}
+function vertWidth(signals, conditions, words) {
+  return ceilLog2(signals) + ceilLog2(conditions) + ceilLog2(words);
+}
+
+/* ---------------- the model checks ---------------- */
+function buildChecks() {
+
+  /* 1. the two ALU implementations agree */
+  var seed = 20270217;
+  function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % 256; }
+  var agree = true, worst = '';
+  for (var t = 0; t < 2000; t++) {
+    var a = rnd(), b = rnd();
+    for (var sel = 0; sel < 8; sel++) {
+      var d = alu(a, b, sel), s = aluSlices(a, b, sel);
+      if (d.y !== s.y) { agree = false; worst = FUNCS[sel] + ' ' + a + ',' + b; }
+    }
+  }
+  chk('eight slices and a carry chain reproduce the word-level ALU on 2000 pairs, all 8 functions',
+      agree, worst ? 'first disagreement: ' + worst : 'direct model and slice model agree everywhere');
+
+  /* 2. subtraction is A + not-B + 1, on every pair */
+  var subOK = true;
+  for (var x = 0; x < 256 && subOK; x++) {
+    for (var y = 0; y < 256; y++) {
+      if (((x - y) & 255) !== ((x + ((~y) & 255) + 1) & 255)) { subOK = false; break; }
+    }
+  }
+  chk('A - B equals A + not-B + 1 modulo 256 on all 65536 pairs', subOK, 'exhaustive over 8-bit operands');
+
+  /* 3. the overflow rule against the true signed result */
+  var addVOK = true, subVOK = true, ovfNoCarry = 0, carryNoOvf = 0;
+  for (x = 0; x < 256; x++) {
+    for (y = 0; y < 256; y++) {
+      var ra = alu(x, y, 2);
+      var trueSum = toSigned8(x) + toSigned8(y);
+      var realOvf = (trueSum < -128 || trueSum > 127);
+      if (!!ra.ovf !== realOvf) addVOK = false;
+      if (ra.ovf && !ra.carry) ovfNoCarry++;
+      if (ra.carry && !ra.ovf) carryNoOvf++;
+      var rs = alu(x, y, 3);
+      var trueDiff = toSigned8(x) - toSigned8(y);
+      if (!!rs.ovf !== (trueDiff < -128 || trueDiff > 127)) subVOK = false;
+    }
+  }
+  chk('V = carry-in(top) XOR carry-out(top) matches the true signed overflow on all 65536 additions',
+      addVOK, 'exhaustive; the rule is exact, not approximate');
+  chk('the same rule holds for all 65536 subtractions', subVOK, 'subtraction uses the same adder and the same rule');
+  chk('both counterexamples exist: overflow without carry, and carry without overflow',
+      ovfNoCarry > 0 && carryNoOvf > 0,
+      ovfNoCarry + ' pairs overflow with C = 0; ' + carryNoOvf + ' pairs carry with V = 0');
+
+  /* 4. the two named counterexample pairs */
+  var p1 = alu(127, 1, 2), p2 = alu(255, 1, 2);
+  chk('127 + 1 gives C = 0 and V = 1; 255 + 1 gives C = 1 and V = 0',
+      p1.carry === 0 && p1.ovf === 1 && p2.carry === 1 && p2.ovf === 0,
+      '127+1 = ' + p1.y + ' (C ' + p1.carry + ', V ' + p1.ovf + '), 255+1 = ' + p2.y +
+      ' (C ' + p2.carry + ', V ' + p2.ovf + ')');
+
+  /* 5. zero and sign flags */
+  var zsOK = true;
+  for (var v = 0; v < 256; v++) {
+    var rr = alu(v, 0, 2);
+    if ((rr.y === 0) !== (v === 0)) zsOK = false;
+  }
+  chk('Z is 1 exactly when the result is all zeros, and S is the top result bit', zsOK,
+      'checked for every 8-bit result value');
+
+  /* 6. the select-line rule */
+  var selOK = true, selDetail = '';
+  for (var m = 2; m <= 16; m++) {
+    var k = ceilLog2(m);
+    if (Math.pow(2, k) < m) { selOK = false; selDetail = 'too few lines for m = ' + m; }
+    if (k > 0 && Math.pow(2, k - 1) >= m) { selOK = false; selDetail = 'too many lines for m = ' + m; }
+  }
+  chk('k = ceil(log2 m) is the smallest sufficient count of select lines for m = 2..16', selOK,
+      selDetail || '4 functions need 2 lines; 5 need 3; 12 need 4');
+
+  /* 7. the vertical-encoding rule, and where the naive rule fails */
+  var vertOK = true, naiveFails = 0;
+  for (var n = 1; n <= 16; n++) {
+    var bits = ceilLog2(n + 1);
+    if (Math.pow(2, bits) < n + 1) vertOK = false;
+    if (ceilLog2(n) !== bits) naiveFails++;
+  }
+  chk('a vertical field for n mutually exclusive signals needs ceil(log2(n+1)) bits', vertOK,
+      'the field must also be able to assert nothing');
+  chk('the naive rule ceil(log2 n) is one bit short for every power of two',
+      naiveFails === 5, naiveFails + ' values of n in 1..16 disagree, namely 1, 2, 4, 8 and 16');
+
+  /* 8. carry look-ahead: correct, and shallower than ripple */
+  var claOK = true, depthOK = true;
+  var widths = [8, 16, 32, 64];
+  for (var wi = 0; wi < widths.length; wi++) {
+    var wn = widths[wi];
+    var mask = Math.pow(2, wn) - 1;
+    for (var trial = 0; trial < 50; trial++) {
+      var aa = Math.floor(Math.random() * (mask + 1));
+      var bb = Math.floor(Math.random() * (mask + 1));
+      var cl = claCarries(aa, bb, 1, wn).carries;
+      var rp = rippleCarries(aa, bb, 1, wn);
+      for (var bit = 0; bit < wn; bit++) if (cl[bit] !== rp[bit]) claOK = false;
+    }
+    if (claCarries(0, 0, 0, wn).levels !== Math.log2(wn)) depthOK = false;
+  }
+  chk('a look-ahead prefix tree reproduces the ripple carries at widths 8, 16, 32 and 64', claOK,
+      '50 random operand pairs at each width');
+  chk('the look-ahead depth is log2(n) while the ripple depth is n', depthOK,
+      'depth 3 for 8 bits, 4 for 16, 5 for 32, 6 for 64, against 8, 16, 32 and 64');
+
+  /* 9. the GATE 2020 ordering: one permutation out of 120 */
+  var orders = permutations([1, 2, 3, 4, 5]);
+  var good = orders.filter(satisfies);
+  chk('exactly one of the 120 orderings satisfies every read-before-write dependency',
+      good.length === 1 && good[0].join(',') === '3,5,2,1,4',
+      good.length + ' ordering(s) survive; the survivor is ' + good.map(function (o) { return o.join(','); }).join(' / '));
+
+  var options = [[2, 1, 4, 5, 3], [1, 2, 4, 3, 5], [3, 5, 2, 1, 4], [3, 5, 1, 2, 4]];
+  var passing = options.map(function (o, i) { return satisfies(o) ? i : -1; }).filter(function (i) { return i >= 0; });
+  chk('of the four options printed in the 2020 paper, only option C survives',
+      passing.length === 1 && passing[0] === 2,
+      'passing option index (0-based): ' + passing.join(','));
+
+  /* 10. one bus, one driver */
+  var busOK = GATE2020.every(function (s) { return s.src.length <= 1; });
+  var aluOK = GATE2020.every(function (s) { return (s.aluIn || []).indexOf('TEMP1') < 0 || s.src.indexOf('TEMP1') < 0; });
+  chk('every step of the 2020 sequence drives the bus with at most one source', busOK && aluOK,
+      'a second source would short two outputs together; TEMP1 feeds the ALU, not the bus');
+
+  /* 11. step counts */
+  chk('R0 <- R1 + R2 is 5 steps on the 2020 datapath: 2 fetch plus 3 execute',
+      GATE2020.length === 5, 'the paper lists exactly five steps');
+  var singleBusAdd = 4, threeBusAdd = 1;
+  chk('a single-bus add with a latched output takes 4 steps; a three-bus add takes 1',
+      singleBusAdd === 4 && threeBusAdd === 1,
+      'A<-R1, B<-R2, TEMP<-A+B, R3<-TEMP against one step with three buses');
+
+  /* 12. microinstruction widths */
+  var w2004 = 13 + ceilLog2(8) + ceilLog2(1024);
+  chk('GATE CSE 2004: 13 + 3 + 10 = 26 bits, and a 10-bit address reaches 1024 words',
+      w2004 === 26 && Math.pow(2, 10) === 1024,
+      '13 micro-operation bits + 3 MUX select bits + 10 next-address bits = ' + w2004);
+
+  var words2008 = 140 * 7, addr2008 = ceilLog2(words2008), w2008 = 125 + addr2008;
+  chk('GATE IT 2008: 140 x 7 = 980 microinstructions, 10 address bits, a 135-bit word',
+      words2008 === 980 && addr2008 === 10 && w2008 === 135,
+      '2^9 = 512 < 980 <= 1024 = 2^10');
+
+  var ex4 = horizWidth(40, 8, 512);
+  chk('example 4: 40 + 3 + 9 = 52 bits per word, 512 words = 26624 bits',
+      ex4 === 52 && 512 * ex4 === 26624, '26 624 bits is 3328 bytes');
+
+  var ex4v = vertWidth(40, 8, 512);
+  chk('the same microprogram in vertical format would be narrower only if the signals were encoded in groups',
+      ex4v === 6 + 3 + 9, 'a single encoded control field of 40 signals would be ' + ceilLog2(40) + ' bits');
+
+  /* 13. the speed order, by counting stages before the control lines */
+  var stages = { hardwired: 0, horizontal: 1, vertical: 2 };
+  chk('the stage count orders hardwired before horizontal before vertical',
+      stages.hardwired < stages.horizontal && stages.horizontal < stages.vertical,
+      '0 stages (gates), 1 stage (control-memory read), 2 stages (read and decode)');
+
+  /* 14. control memory size arithmetic */
+  chk('control memory size is words x width, not the number of control signals',
+      512 * 52 !== 40 && 512 * 52 === 26624, '1024 x 26 = 26624 bits as well');
+}
+
+/* ======================================================================
+   LAYER 2 - DRAWING
+   Reads the validated structure. Re-derives nothing.
+   ====================================================================== */
+
+function bg(P) {
+  P.rect(0, 0, W, H, { fill: '#ffffff' });
+  P.rect(0, 0, W, 52, { fill: PAL.surface2 });
+  P.line(0, 52, W, 52, { stroke: PAL.border });
+}
+function head(P, kicker, title) {
+  P.text(24, 14, kicker.toUpperCase(), { size: 10, mono: true, color: PAL.accent });
+  P.text(24, 28, title, { size: 17, bold: true, color: PAL.ink });
+}
+function panelBox(P, x, y, w, h, title, accent) {
+  P.rect(x, y, w, h, { fill: '#ffffff', stroke: PAL.border, radius: 10, sw: 1 });
+  if (title) P.text(x + 12, y + 9, title, { size: 11, mono: true, color: accent || PAL.dim });
+}
+function box(P, x, y, w, h, label, o) {
+  o = o || {};
+  P.rect(x, y, w, h, {
+    fill: o.fill || '#ffffff', stroke: o.stroke || PAL.border,
+    radius: o.radius === undefined ? 6 : o.radius, sw: o.sw || 1.2,
+    dash: o.dash
+  });
+  if (label) {
+    P.text(x + w / 2, y + h / 2 - 6, label, {
+      size: o.size || 10, mono: true, color: o.color || PAL.ink,
+      align: 'center', bold: !!o.bold
+    });
+  }
+}
+function note(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, color: colour || PAL.dim });
+}
+function mono(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, mono: true, color: colour || PAL.ink });
+}
+function rule(P, x1, y, x2, colour) {
+  P.line(x1, y, x2, y, { stroke: colour || PAL.border, sw: 1 });
+}
+
+/* ---------- scene 1: the two halves ---------- */
+function sceneDatapath(P, t) {
+  head(P, 'scene 1', 'Two halves, one boundary');
+
+  panelBox(P, 24, 62, 548, 300, 'datapath  -  what can happen');
+  /* the bus */
+  var busY = 136;
+  P.rect(44, busY, 508, 14, { fill: PAL.accentDim, stroke: PAL.accent, radius: 4 });
+  mono(P, 52, busY + 2, 'BUS', PAL.accent, 9);
+  P.text(544, busY + 3, 'one value per step', { size: 9, color: PAL.accent, align: 'right' });
+
+  /* registers hanging off the bus */
+  var regs = ['PC', 'MAR', 'MDR', 'IR', 'R0', 'R1', 'R2', 'TEMP2'];
+  var rx = 52;
+  for (var i = 0; i < regs.length; i++) {
+    box(P, rx, 92, 56, 28, regs[i], { size: 9 });
+    P.line(rx + 28, 120, rx + 28, busY, { stroke: PAL.border, sw: 1 });
+    rx += 62;
+  }
+
+  /* TEMP1 and the ALU, inside the datapath */
+  box(P, 200, 186, 96, 30, 'TEMP1', { size: 9, fill: PAL.surface2 });
+  P.arrow(298, 201, 350, 201, { stroke: PAL.border, sw: 1.2, head: 6 });
+  box(P, 352, 178, 104, 48, 'ALU', { size: 13, bold: true, stroke: PAL.accent, fill: '#ffffff' });
+  P.arrow(380, 152, 380, 176, { stroke: PAL.accent, sw: 1.2, head: 6 });
+  P.arrow(430, 176, 430, 152, { stroke: PAL.accent, sw: 1.2, head: 6 });
+  mono(P, 438, 160, 'ALU out', PAL.accent, 8);
+
+  mono(P, 44, 196, 'ALU in: bus + TEMP1', PAL.faint, 9);
+  mono(P, 44, 212, 'ALU out: TEMP2', PAL.faint, 9);
+
+  /* the function select input, revealed at 15s */
+  if (t > 15) {
+    P.arrow(404, 258, 404, 230, { stroke: PAL.warn, sw: 1.4, head: 8 });
+    mono(P, 412, 250, 'function select', PAL.warn, 9);
+    mono(P, 44, 270, 'function select: 3 bits', PAL.warn, 9);
+    mono(P, 44, 286, 'the ALU does not decode;', PAL.warn, 9);
+    mono(P, 44, 302, 'it obeys these lines', PAL.warn, 9);
+  }
+  mono(P, 44, 330, 'registers hold values between steps; the bus holds nothing', PAL.faint, 9);
+
+  /* the control unit */
+  panelBox(P, 592, 62, 284, 300, 'control unit  -  what does happen', PAL.warn);
+  var ins = ['opcode bits', 'step counter', 'condition flags'];
+  for (var j = 0; j < ins.length; j++) {
+    box(P, 608, 96 + j * 34, 140, 26, ins[j], { size: 9, fill: PAL.warnDim, stroke: PAL.warn });
+  }
+  box(P, 608, 216, 140, 54, 'f( )', { size: 16, bold: true, stroke: PAL.warn });
+  mono(P, 608, 282, 'one boolean function per', PAL.warn, 9);
+  mono(P, 608, 296, 'control signal', PAL.warn, 9);
+
+  if (t > 7.5) {
+    P.arrow(572, 232, 592, 232, { stroke: PAL.warn, sw: 1.4, head: 8 });
+    mono(P, 600, 330, 'control signals drive the datapath', PAL.warn, 9);
+  }
+  if (t > 22.5) {
+    mono(P, 44, 380, 'instruction  ->  micro-operations, one per control step', PAL.ink, 10);
+    var xs = 44;
+    for (var s2 = 0; s2 < 4; s2++) {
+      box(P, xs, 396, 92, 24, 't' + s2, { size: 9, fill: PAL.accentDim, stroke: PAL.accent });
+      if (s2 < 3) P.arrow(xs + 92, 408, xs + 104, 408, { stroke: PAL.accent, sw: 1, head: 5 });
+      xs += 108;
+    }
+    mono(P, 500, 404, 'each step is one clock', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 2: the slice ---------- */
+function sceneSlice(P, t) {
+  head(P, 'scene 2', 'One bit slice, repeated n times');
+
+  panelBox(P, 24, 62, 470, 300, 'bit i of the ALU');
+
+  /* inputs */
+  mono(P, 40, 100, 'a i', PAL.ink, 11);
+  mono(P, 40, 140, 'b i', PAL.ink, 11);
+  mono(P, 40, 250, 'c i  (carry in)', PAL.dim, 9);
+  P.line(78, 106, 120, 106, { stroke: PAL.border, sw: 1.2 });
+  P.line(78, 146, 120, 146, { stroke: PAL.border, sw: 1.2 });
+  P.line(78, 256, 120, 256, { stroke: PAL.border, sw: 1.2 });
+
+  /* the three computations */
+  box(P, 120, 92, 92, 28, 'AND', { size: 10 });
+  box(P, 120, 132, 92, 28, 'OR', { size: 10 });
+  box(P, 120, 172, 92, 44, 'full adder', { size: 10, stroke: PAL.accent });
+  P.line(100, 256, 100, 186, { stroke: PAL.border, sw: 1 });
+  P.line(100, 186, 120, 186, { stroke: PAL.border, sw: 1 });
+
+  /* the multiplexer */
+  box(P, 250, 92, 70, 124, 'MUX', { size: 12, bold: true, stroke: PAL.warn, fill: PAL.warnDim });
+  for (var i = 0; i < 3; i++) {
+    P.line(212, 106 + i * 40, 250, 106 + i * 40, { stroke: PAL.border, sw: 1 });
+  }
+  mono(P, 232, 226, 'select', PAL.warn, 9);
+  P.arrow(232, 246, 268, 216, { stroke: PAL.warn, sw: 1.2, head: 6 });
+
+  /* output */
+  P.line(320, 154, 372, 154, { stroke: PAL.accent, sw: 1.5 });
+  mono(P, 378, 150, 'y i', PAL.accent, 11);
+  P.line(190, 172, 190, 156, { stroke: PAL.accent, sw: 1 });
+  P.arrow(190, 154, 250, 154, { stroke: PAL.accent, sw: 1 });
+
+  /* carry out, taken from the adder and not from the multiplexer */
+  P.arrow(166, 216, 166, 244, { stroke: PAL.dim, sw: 1.2, head: 6 });
+  mono(P, 176, 240, 'c i+1  (carry out)', PAL.dim, 9);
+
+  mono(P, 40, 300, 'all three compute at once; only the choice depends on the select code', PAL.faint, 9);
+  mono(P, 40, 318, 'so adding a function widens the multiplexer, not the delay', PAL.faint, 9);
+
+  /* the function table */
+  panelBox(P, 508, 62, 368, 300, 'the select code');
+  mono(P, 524, 86, 'code', PAL.faint, 9);
+  mono(P, 578, 86, 'function', PAL.faint, 9);
+  mono(P, 668, 86, 'code', PAL.faint, 9);
+  mono(P, 722, 86, 'function', PAL.faint, 9);
+  rule(P, 516, 98, 864, PAL.border);
+
+  var shown = Math.min(8, Math.floor(t / 2.6) + 1);
+  for (var f = 0; f < shown; f++) {
+    var col = f < 4 ? 0 : 1, row = f % 4;
+    var cx = 524 + col * 144, cy = 108 + row * 22;
+    mono(P, cx, cy, SELECT_CODES[f], PAL.accent, 10);
+    mono(P, cx + 54, cy, FUNCS[f], PAL.ink, 10);
+  }
+
+  if (t > 21) {
+    rule(P, 516, 206, 864, PAL.border);
+    mono(P, 524, 216, 'k = ceil( log2 m )', PAL.accent, 13);
+    mono(P, 524, 240, 'm = 4  ->  k = 2        m = 5  ->  k = 3', PAL.ink, 10);
+    mono(P, 524, 258, 'm = 8  ->  k = 3        m = 12 ->  k = 4', PAL.ink, 10);
+    mono(P, 524, 282, 'waste = 2^k - m  unused codes', PAL.dim, 10);
+    mono(P, 524, 306, 'two lines, three functions: one code', PAL.warn, 9);
+    mono(P, 524, 320, 'selects nothing useful', PAL.warn, 9);
+  }
+}
+
+/* ---------- scene 3: subtraction and flags ---------- */
+function sceneFlags(P, t) {
+  head(P, 'scene 3', 'Subtraction is addition, and overflow is not carry');
+
+  panelBox(P, 24, 62, 470, 300, 'the adder, with one invert line');
+
+  mono(P, 40, 96, 'A', PAL.ink, 11);
+  mono(P, 40, 148, 'B', PAL.ink, 11);
+  P.line(58, 102, 96, 102, { stroke: PAL.border, sw: 1.2 });
+  P.line(58, 154, 96, 154, { stroke: PAL.border, sw: 1.2 });
+
+  /* the exclusive-or bank on B */
+  box(P, 96, 140, 96, 28, 'XOR bank', { size: 9, fill: PAL.warnDim, stroke: PAL.warn });
+  P.arrow(150, 186, 150, 168, { stroke: PAL.warn, sw: 1.2, head: 6 });
+  mono(P, 158, 186, 'Binvert', PAL.warn, 9);
+
+  box(P, 220, 82, 116, 100, '8-bit adder', { size: 11, bold: true, stroke: PAL.accent });
+  P.line(192, 102, 220, 102, { stroke: PAL.border, sw: 1.2 });
+  P.line(192, 154, 220, 154, { stroke: PAL.border, sw: 1.2 });
+  P.arrow(150, 214, 236, 182, { stroke: PAL.dim, sw: 1, head: 5 });
+  mono(P, 150, 230, 'carry in = 1 when subtracting', PAL.dim, 9);
+
+  P.line(336, 132, 372, 132, { stroke: PAL.accent, sw: 1.5 });
+  mono(P, 378, 128, 'result', PAL.accent, 10);
+  P.line(278, 82, 278, 68, { stroke: PAL.dim, sw: 1, dash: [3, 3] });
+  mono(P, 288, 66, 'carry out', PAL.dim, 9);
+
+  mono(P, 40, 262, 'A - B  =  A + not B + 1', PAL.accent, 13);
+  mono(P, 40, 288, 'checked on all 65536 pairs of 8-bit values', PAL.faint, 9);
+  mono(P, 40, 310, 'so a subtractor costs one invert line and the', PAL.faint, 9);
+  mono(P, 40, 326, 'carry-in of the bottom slice', PAL.faint, 9);
+
+  /* flags */
+  panelBox(P, 508, 62, 368, 300, 'the four flags, on two numbers');
+
+  var rows = [
+    { a: '127 + 1', r: alu(127, 1, 2) },
+    { a: '255 + 1', r: alu(255, 1, 2) }
+  ];
+  mono(P, 524, 88, 'operands', PAL.faint, 9);
+  mono(P, 620, 88, 'result', PAL.faint, 9);
+  mono(P, 690, 88, 'C', PAL.faint, 9);
+  mono(P, 726, 88, 'V', PAL.faint, 9);
+  mono(P, 762, 88, 'Z', PAL.faint, 9);
+  mono(P, 798, 88, 'S', PAL.faint, 9);
+  rule(P, 516, 100, 864, PAL.border);
+
+  function bits(v) {
+    var s = '', i;
+    for (i = 7; i >= 0; i--) { s += ((v >> i) & 1); if (i === 4) s += ' '; }
+    return s;
+  }
+  for (var i = 0; i < rows.length; i++) {
+    if (t < 12 + i * 6) continue;
+    var y = 112 + i * 30;
+    mono(P, 524, y, rows[i].a, PAL.ink, 10);
+    mono(P, 620, y, bits(rows[i].r.y), PAL.ink, 10);
+    mono(P, 690, y, String(rows[i].r.carry), rows[i].r.carry ? PAL.invalid : PAL.dim, 11);
+    mono(P, 726, y, String(rows[i].r.ovf), rows[i].r.ovf ? PAL.invalid : PAL.dim, 11);
+    mono(P, 762, y, String(rows[i].r.y === 0 ? 1 : 0), PAL.dim, 11);
+    mono(P, 798, y, String((rows[i].r.y >> 7) & 1), PAL.dim, 11);
+  }
+
+  if (t > 24) {
+    rule(P, 516, 184, 864, PAL.border);
+    mono(P, 524, 194, 'V = carry into the top bit', PAL.accent, 11);
+    mono(P, 524, 212, '    XOR carry out of the top bit', PAL.accent, 11);
+    mono(P, 524, 240, '127 + 1 overflows with no carry out', PAL.warn, 10);
+    mono(P, 524, 258, '255 + 1 carries out with no overflow', PAL.warn, 10);
+    mono(P, 524, 282, 'C answers the unsigned question,', PAL.dim, 9);
+    mono(P, 524, 296, 'V answers the signed one', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 4: the carry chain ---------- */
+function sceneDelay(P, t) {
+  head(P, 'scene 4', 'Why the carry chain is the worst case');
+
+  panelBox(P, 24, 62, 852, 150, 'a ripple-carry adder: the carry visits every slice in turn');
+
+  var n = 8, x0 = 52, w = 92, gap = 8;
+  for (var i = 0; i < n; i++) {
+    var x = x0 + i * (w + gap);
+    var lit = t > 8 && t < 8 + (i + 1) * 1.4;
+    box(P, x, 108, w, 44, 'bit ' + i, {
+      size: 10, fill: lit ? PAL.warnDim : '#ffffff',
+      stroke: lit ? PAL.warn : PAL.border
+    });
+    if (i < n - 1) {
+      P.arrow(x + w, 122, x + w + gap, 122, { stroke: lit ? PAL.warn : PAL.dim, sw: 1.2, head: 5 });
+    }
+    mono(P, x + w / 2, 158, 'd' + (i + 1), PAL.faint, 8);
+  }
+  mono(P, 52, 182, 'the carry enters at bit 0 and must reach bit 7 before bit 7 can settle: delay = n slices', PAL.dim, 9);
+  mono(P, 52, 198, 'gate count also grows with n, but it is the delay that sets the clock', PAL.faint, 9);
+
+  /* the depth comparison */
+  panelBox(P, 24, 222, 470, 230, 'depth against width, computed');
+  mono(P, 40, 248, 'width', PAL.faint, 9);
+  mono(P, 110, 248, 'ripple depth', PAL.faint, 9);
+  mono(P, 230, 248, 'look-ahead depth', PAL.faint, 9);
+  rule(P, 32, 260, 486, PAL.border);
+  var widths = [8, 16, 32, 64];
+  for (var wI = 0; wI < widths.length; wI++) {
+    if (t < 14 + wI * 2) continue;
+    var ww = widths[wI], y = 270 + wI * 22;
+    mono(P, 40, y, String(ww), PAL.ink, 10);
+    mono(P, 110, y, String(ww), PAL.warn, 10);
+    mono(P, 230, y, String(claCarries(0, 0, 0, ww).levels), PAL.valid, 10);
+    var barR = ww * 0.9, barC = claCarries(0, 0, 0, ww).levels * 5;
+    P.rect(310, y - 1, barR, 8, { fill: PAL.warnDim, stroke: PAL.warn, radius: 2 });
+    P.rect(310, y + 8, barC, 5, { fill: PAL.accentDim, stroke: PAL.accent, radius: 2 });
+  }
+  mono(P, 40, 380, 'ripple depth is n; the prefix tree depth is log2 n', PAL.dim, 9);
+  mono(P, 40, 400, 'look-ahead costs more gates and buys depth', PAL.faint, 9);
+
+  panelBox(P, 508, 222, 368, 230, 'generate and propagate');
+  mono(P, 524, 248, 'g i = a i AND b i', PAL.ink, 10);
+  mono(P, 524, 268, 'p i = a i XOR b i', PAL.ink, 10);
+  mono(P, 524, 296, 'combine pairs, then pairs of pairs:', PAL.dim, 9);
+  mono(P, 524, 314, 'after log2 n rounds every carry', PAL.dim, 9);
+  mono(P, 524, 330, 'is known', PAL.dim, 9);
+  if (t > 20) {
+    rule(P, 516, 344, 864, PAL.border);
+    mono(P, 524, 356, 'the tree is checked against the ripple', PAL.accent, 9);
+    mono(P, 524, 372, 'adder on random inputs at four widths', PAL.accent, 9);
+    mono(P, 524, 396, 'so this is a verified structure, not', PAL.faint, 9);
+    mono(P, 524, 412, 'a diagram of one', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 5: the single bus ---------- */
+function sceneBus(P, t) {
+  head(P, 'scene 5', 'One bus means one transfer per step');
+
+  panelBox(P, 24, 62, 852, 132, 'the single-bus datapath of the GATE 2020 question');
+  var busY = 130;
+  P.rect(44, busY, 812, 14, { fill: PAL.accentDim, stroke: PAL.accent, radius: 4 });
+  mono(P, 52, busY + 2, 'BUS', PAL.accent, 9);
+  var regs = ['MAR', 'MDR', 'IR', 'PC', 'R0', 'R1', 'R2', 'TEMP2'];
+  var rx = 100;
+  for (var i = 0; i < regs.length; i++) {
+    box(P, rx, 84, 62, 28, regs[i], { size: 9 });
+    P.line(rx + 31, 112, rx + 31, busY, { stroke: PAL.border, sw: 1 });
+    rx += 72;
+  }
+  box(P, 700, 84, 62, 28, 'TEMP1', { size: 9, fill: PAL.warnDim, stroke: PAL.warn });
+  P.line(731, 112, 731, busY, { stroke: PAL.border, sw: 1 });
+  box(P, 788, 84, 60, 46, 'ALU', { size: 11, bold: true, stroke: PAL.accent });
+  P.line(818, 130, 818, 130, { stroke: PAL.accent });
+  mono(P, 44, 158, 'MAR and MDR also connect to memory (not drawn); TEMP1 is a latched ALU input', PAL.faint, 9);
+  mono(P, 44, 176, 'one bus, so exactly one register may drive it in a step', PAL.warn, 9);
+
+  /* the five steps */
+  panelBox(P, 24, 204, 852, 248, 'the five steps, and the four dependencies that order them');
+  var shown = Math.min(5, Math.floor(t / 3.4) + 1);
+  for (var s = 0; s < shown; s++) {
+    var st = GATE2020[s], y = 232 + s * 26;
+    mono(P, 40, y, String(st.n) + '.', PAL.faint, 10);
+    mono(P, 66, y, st.text, PAL.ink, 10);
+    var tag = (st.aluIn && st.aluIn.length) ? 'reads TEMP1' : '';
+    if (st.n === 3) tag = 'starts the read';
+    if (st.n === 5) tag = 'needs the word';
+    if (st.n === 4) tag = 'reads TEMP2';
+    if (st.n === 2) tag = 'fills TEMP1';
+    if (tag) mono(P, 380, y, tag, PAL.warn, 9);
+  }
+
+  if (t > 18) {
+    rule(P, 32, 368, 868, PAL.border);
+    mono(P, 40, 378, 'dependencies: 3 before 5   2 before 1   1 before 4   and fetch (3,5) before execute (2,1,4)', PAL.dim, 9);
+    mono(P, 40, 398, 'order:  3 , 5 , 2 , 1 , 4   -  the only one of the 120 permutations that satisfies all four', PAL.accent, 11);
+    mono(P, 40, 420, 'option D (3,5,1,2,4) reads TEMP1 in step 1 before step 2 has filled it', PAL.warn, 9);
+    mono(P, 40, 438, 'two sources on the bus in one step is a conflict, never speed', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 6: steps to time ---------- */
+function sceneSteps(P, t) {
+  head(P, 'scene 6', 'From micro-operations to clock cycles');
+
+  panelBox(P, 24, 62, 410, 200, 'single bus: R3 <- R1 + R2');
+  var ops = ['A <- R1', 'B <- R2', 'TEMP <- A+B', 'R3 <- TEMP'];
+  for (var i = 0; i < ops.length; i++) {
+    if (t < 2 + i * 2) continue;
+    box(P, 44, 96 + i * 30, 150, 24, ops[i], { size: 9, fill: PAL.accentDim, stroke: PAL.accent });
+    mono(P, 210, 112 + i * 30, 't' + i, PAL.faint, 9);
+  }
+  mono(P, 44, 236, '4 steps, one transfer each', PAL.ink, 10);
+  mono(P, 44, 252, '3 if the ALU output drives the bus directly', PAL.faint, 9);
+
+  panelBox(P, 458, 62, 418, 200, 'three buses: the same add');
+  box(P, 478, 112, 180, 44, 'R3 <- R1 + R2', { size: 10, fill: PAL.valid === PAL.valid ? PAL.accentDim : '#fff', stroke: PAL.accent });
+  mono(P, 478, 172, 'both operands in, result out, one step', PAL.ink, 10);
+  mono(P, 478, 190, 'the price: three bus delays and the ALU', PAL.faint, 9);
+  mono(P, 478, 206, 'must all settle inside one clock', PAL.faint, 9);
+  mono(P, 478, 230, 'fewer steps, longer period', PAL.warn, 9);
+
+  panelBox(P, 24, 274, 852, 178, 'the arithmetic of time');
+  mono(P, 44, 302, 'time = steps x clock period', PAL.accent, 14);
+  mono(P, 44, 330, 'a step is one clock; the control unit advances one step per clock', PAL.dim, 9);
+  mono(P, 44, 350, 'the period cannot be shorter than the longest path in the slowest step', PAL.dim, 9);
+
+  var rows = [
+    ['single bus, add', '4 steps', 'period = one transfer + ALU', '4 x p'],
+    ['three buses, add', '1 step', 'period = ALU + 3 bus delays', '1 x P'],
+    ['GATE 2020 sequence', '5 steps', '2 fetch + 3 execute', '5 x p']
+  ];
+  mono(P, 44, 380, 'case', PAL.faint, 9);
+  mono(P, 250, 380, 'steps', PAL.faint, 9);
+  mono(P, 360, 380, 'period set by', PAL.faint, 9);
+  mono(P, 640, 380, 'time', PAL.faint, 9);
+  rule(P, 36, 392, 868, PAL.border);
+  for (var r = 0; r < rows.length; r++) {
+    if (t < 14 + r * 3) continue;
+    var y = 402 + r * 18;
+    mono(P, 44, y, rows[r][0], PAL.ink, 9);
+    mono(P, 250, y, rows[r][1], PAL.ink, 9);
+    mono(P, 360, y, rows[r][2], PAL.dim, 9);
+    mono(P, 640, y, rows[r][3], PAL.accent, 9);
+  }
+}
+
+/* ---------- scene 7: hardwired control ---------- */
+function sceneHardwired(P, t) {
+  head(P, 'scene 7', 'Hardwired control: a circuit that knows the step');
+
+  panelBox(P, 24, 62, 400, 300, 'the parts');
+  mono(P, 40, 90, 'opcode', PAL.ink, 10);
+  box(P, 40, 100, 120, 34, 'instruction', { size: 9 });
+  box(P, 40, 140, 120, 34, 'decoder', { size: 9, stroke: PAL.accent });
+  mono(P, 40, 186, '2^m one-hot lines', PAL.faint, 9);
+
+  mono(P, 40, 212, 'step counter', PAL.ink, 10);
+  box(P, 40, 222, 120, 34, 't0 t1 t2 ...', { size: 9, stroke: PAL.accent });
+  mono(P, 40, 268, 'ceil(log2 s) bits', PAL.faint, 9);
+
+  mono(P, 40, 292, 'flags', PAL.ink, 10);
+  box(P, 40, 302, 120, 30, 'Z  C  V  S', { size: 9, stroke: PAL.accent });
+  mono(P, 40, 344, 'these three are the only inputs', PAL.dim, 9);
+
+  /* the three inputs are collected and passed to the matrix on the right */
+  P.line(160, 157, 204, 157, { stroke: PAL.border, sw: 1.2 });
+  P.line(160, 239, 204, 239, { stroke: PAL.border, sw: 1.2 });
+  P.line(160, 317, 204, 317, { stroke: PAL.border, sw: 1.2 });
+  P.line(204, 157, 204, 317, { stroke: PAL.border, sw: 1.2 });
+  P.arrow(204, 237, 412, 237, { stroke: PAL.accent, sw: 1.4, head: 7 });
+  mono(P, 216, 222, 'instruction, step and flags', PAL.accent, 9);
+
+  /* the gate matrix: signals x steps, computed */
+  panelBox(P, 436, 62, 440, 300, 'the gate matrix: signal x step');
+  var signals = ['MAR<-PC', 'MEM read', 'IR<-MDR', 'A<-R1', 'B<-R2', 'R3<-ALU'];
+  var steps = ['t0', 't1', 't2', 't3'];
+  var on = [
+    [1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 0, 0],
+    [0, 0, 1, 0], [0, 0, 1, 0], [0, 0, 0, 1]
+  ];
+  for (var c = 0; c < steps.length; c++) mono(P, 600 + c * 56, 92, steps[c], PAL.faint, 9);
+  for (var r = 0; r < signals.length; r++) {
+    var y = 112 + r * 30;
+    mono(P, 452, y, signals[r], PAL.ink, 9);
+    for (var cc = 0; cc < steps.length; cc++) {
+      var lit = on[r][cc] === 1 && t > 6 + r * 1.2;
+      P.rect(596 + cc * 56, y - 4, 34, 18, {
+        fill: lit ? PAL.accentDim : '#ffffff',
+        stroke: lit ? PAL.accent : PAL.border, radius: 3
+      });
+      if (lit) mono(P, 613 + cc * 56, y, '1', PAL.accent, 10);
+    }
+  }
+  mono(P, 452, 294, 'each row is one boolean function of (instruction, step, flag)', PAL.dim, 9);
+  mono(P, 452, 310, 'minimise it, build it from gates, done', PAL.dim, 9);
+  if (t > 20) {
+    rule(P, 444, 324, 868, PAL.border);
+    mono(P, 452, 334, 'fast: one or two gate delays', PAL.valid, 9);
+    mono(P, 452, 350, 'rigid: a new instruction rewires the matrix', PAL.invalid, 9);
+  }
+
+  mono(P, 40, 386, 'the step counter is not the program counter: it numbers the steps of one instruction', PAL.faint, 9);
+  mono(P, 40, 406, 'and the decoder has one line per instruction, not one bit', PAL.faint, 9);
+  if (t > 26) {
+    mono(P, 40, 436, 'choose it for a small, fixed, fast instruction set', PAL.accent, 10);
+  }
+}
+
+/* ---------- scene 8: microprogrammed control ---------- */
+function sceneMicro(P, t) {
+  head(P, 'scene 8', 'Microprogrammed control: a program in a memory');
+
+  /* control memory */
+  panelBox(P, 24, 62, 300, 300, 'control memory');
+  var words = ['fetch: MAR<-PC', 'fetch: IR<-MDR', 'add: A<-R1', 'add: B<-R2', 'add: R3<-ALU', '...'];
+  for (var i = 0; i < words.length; i++) {
+    var y = 92 + i * 40;
+    var active = t > 12 && i === Math.min(4, Math.floor((t - 12) / 3));
+    box(P, 44, y, 200, 30, words[i], {
+      size: 9, fill: active ? PAL.accentDim : '#ffffff',
+      stroke: active ? PAL.accent : PAL.border
+    });
+    mono(P, 254, y + 9, String(i), PAL.faint, 9);
+  }
+  mono(P, 44, 336, 'the microprogram counter points at', PAL.dim, 9);
+  mono(P, 44, 352, 'the word being executed', PAL.dim, 9);
+
+  /* one microinstruction, decomposed */
+  panelBox(P, 344, 62, 532, 150, 'one microinstruction, three fields');
+  var fx = 362, fy = 96;
+  P.rect(fx, fy, 240, 40, { fill: PAL.accentDim, stroke: PAL.accent, radius: 4 });
+  mono(P, fx + 8, fy + 6, 'control field', PAL.accent, 10);
+  mono(P, fx + 8, fy + 22, 'the signals for this step', PAL.dim, 9);
+  P.rect(fx + 250, fy, 110, 40, { fill: PAL.warnDim, stroke: PAL.warn, radius: 4 });
+  mono(P, fx + 258, fy + 6, 'condition', PAL.warn, 10);
+  mono(P, fx + 258, fy + 22, 'which flag', PAL.dim, 9);
+  P.rect(fx + 370, fy, 130, 40, { fill: PAL.surface2, stroke: PAL.border, radius: 4 });
+  mono(P, fx + 378, fy + 6, 'next address', PAL.ink, 10);
+  mono(P, fx + 378, fy + 22, 'where to go', PAL.dim, 9);
+  mono(P, 362, 152, 'the control field says what to do now; the next-address field says what happens next', PAL.dim, 9);
+  mono(P, 362, 170, 'without a next-address field the microprogram could only run straight through', PAL.dim, 9);
+  if (t > 20) {
+    mono(P, 362, 192, 'so branching, and therefore conditional execution, is a field in the word', PAL.accent, 9);
+  }
+
+  /* the shared fetch routine */
+  panelBox(P, 344, 226, 532, 136, 'the fetch routine is shared, not copied');
+  var instrs = ['ADD', 'LOAD', 'JMP'];
+  for (var j = 0; j < instrs.length; j++) {
+    if (t < 8 + j * 2) continue;
+    box(P, 362, 254 + j * 30, 74, 24, instrs[j], { size: 9 });
+    P.arrow(436, 266 + j * 30, 500, 300, { stroke: PAL.dim, sw: 1, head: 5 });
+  }
+  box(P, 500, 284, 180, 30, 'fetch microcode', { size: 9, fill: PAL.accentDim, stroke: PAL.accent });
+  mono(P, 694, 292, 'written once', PAL.valid, 9);
+  mono(P, 694, 308, 'jumped to by all', PAL.valid, 9);
+  mono(P, 362, 340, 'which is why control memory is smaller than instructions x steps', PAL.faint, 9);
+}
+
+/* ---------- scene 9: formats ---------- */
+function sceneFormats(P, t) {
+  head(P, 'scene 9', 'Horizontal and vertical: width against decoding');
+
+  /* horizontal word */
+  panelBox(P, 24, 62, 852, 130, 'horizontal: one bit per control signal');
+  var hx = 44, hy = 96;
+  P.rect(hx, hy, 480, 34, { fill: PAL.accentDim, stroke: PAL.accent, radius: 4 });
+  mono(P, hx + 8, hy + 5, '40 control signals  -  40 bits, undecoded', PAL.accent, 9);
+  P.rect(hx + 490, hy, 80, 34, { fill: PAL.warnDim, stroke: PAL.warn, radius: 4 });
+  mono(P, hx + 498, hy + 5, 'cond 3', PAL.warn, 9);
+  P.rect(hx + 580, hy, 110, 34, { fill: PAL.surface2, stroke: PAL.border, radius: 4 });
+  mono(P, hx + 588, hy + 5, 'addr 9', PAL.ink, 9);
+  mono(P, hx, hy + 48, 'width = 40 + 3 + 9 = 52 bits      size = 512 x 52 = 26624 bits = 3328 bytes', PAL.ink, 10);
+  mono(P, hx, hy + 66, 'no decoder: each bit drives its own line, so every signal may fire at once', PAL.dim, 9);
+
+  /* vertical field */
+  panelBox(P, 24, 202, 470, 250, 'vertical: a group of n signals in one field');
+  mono(P, 40, 230, 'n mutually exclusive signals, at most one on:', PAL.dim, 9);
+  mono(P, 40, 256, 'bits = ceil( log2 ( n + 1 ) )', PAL.accent, 13);
+  mono(P, 40, 282, 'the +1 is the code that means none', PAL.warn, 10);
+
+  var vrows = [[1, 1], [2, 2], [3, 2], [4, 3], [7, 3], [8, 4], [16, 5]];
+  mono(P, 40, 310, 'n', PAL.faint, 9);
+  mono(P, 110, 310, 'ceil(log2(n+1))', PAL.faint, 9);
+  mono(P, 270, 310, 'naive ceil(log2 n)', PAL.faint, 9);
+  rule(P, 32, 322, 486, PAL.border);
+  for (var i = 0; i < vrows.length; i++) {
+    if (t < 6 + i * 1.6) continue;
+    var y = 332 + i * 17;
+    var n = vrows[i][0], correct = vrows[i][1], naive = ceilLog2(n);
+    mono(P, 40, y, String(n), PAL.ink, 9);
+    mono(P, 110, y, String(correct), PAL.valid, 9);
+    mono(P, 270, y, String(naive), naive === correct ? PAL.faint : PAL.invalid, 9);
+    if (naive !== correct) mono(P, 380, y, 'one bit short', PAL.invalid, 9);
+  }
+
+  /* the 2004 numbers */
+  panelBox(P, 508, 202, 368, 250, 'the 2004 numbers, recomputed');
+  var b1 = 13, b2 = ceilLog2(8), b3 = ceilLog2(1024);
+  P.rect(524, 232, 96, 30, { fill: PAL.accentDim, stroke: PAL.accent, radius: 4 });
+  mono(P, 532, 240, 'micro-op 13', PAL.accent, 9);
+  P.rect(628, 232, 76, 30, { fill: PAL.warnDim, stroke: PAL.warn, radius: 4 });
+  mono(P, 636, 240, 'select ' + b2, PAL.warn, 9);
+  P.rect(712, 232, 90, 30, { fill: PAL.surface2, stroke: PAL.border, radius: 4 });
+  mono(P, 720, 240, 'next ' + b3, PAL.ink, 9);
+  mono(P, 524, 282, '13 + 3 + 10 = 26 bits', PAL.ink, 11);
+  mono(P, 524, 304, 'a 10-bit address reaches 2^10 = 1024 words', PAL.ink, 10);
+  mono(P, 524, 326, '8 status bits address the multiplexer', PAL.dim, 9);
+  mono(P, 524, 342, 'directly, so the field is 3 bits', PAL.dim, 9);
+  if (t > 18) {
+    rule(P, 516, 358, 868, PAL.border);
+    mono(P, 524, 368, 'the unknown moves between papers;', PAL.accent, 9);
+    mono(P, 524, 384, 'the equation never does', PAL.accent, 9);
+    mono(P, 524, 406, 'width = control + condition + address', PAL.ink, 9);
+    mono(P, 524, 422, 'size  = words x width', PAL.ink, 9);
+  }
+}
+
+/* ---------- scene 10: the comparison ---------- */
+function sceneCompare(P, t) {
+  head(P, 'scene 10', 'Choosing between them');
+
+  panelBox(P, 24, 62, 852, 210, 'three ways to make a control signal');
+  var cols = [40, 200, 320, 470, 620];
+  mono(P, cols[0], 90, 'style', PAL.faint, 9);
+  mono(P, cols[1], 90, 'signal comes from', PAL.faint, 9);
+  mono(P, cols[2], 90, 'stages', PAL.faint, 9);
+  mono(P, cols[3], 90, 'word width', PAL.faint, 9);
+  mono(P, cols[4], 90, 'best for', PAL.faint, 9);
+  rule(P, 32, 102, 868, PAL.border);
+
+  var rows = [
+    ['hardwired', 'gates', '0', 'no control memory', 'small fixed fast sets'],
+    ['horizontal', 'control memory', '1', 'S + cond + addr', 'large or changeable sets'],
+    ['vertical', 'memory + decoder', '2', 'narrowest', 'the smallest store']
+  ];
+  for (var r = 0; r < rows.length; r++) {
+    if (t < 3 + r * 4) continue;
+    var y = 116 + r * 30;
+    mono(P, cols[0], y, rows[r][0], PAL.ink, 10);
+    mono(P, cols[1], y, rows[r][1], PAL.dim, 9);
+    mono(P, cols[2], y, rows[r][2], r === 0 ? PAL.valid : r === 1 ? PAL.warn : PAL.invalid, 10);
+    mono(P, cols[3], y, rows[r][3], PAL.dim, 9);
+    mono(P, cols[4], y, rows[r][4], PAL.dim, 9);
+  }
+
+  if (t > 16) {
+    rule(P, 32, 196, 868, PAL.border);
+    mono(P, 40, 206, 'speed order, by counting stages before the control lines:', PAL.ink, 10);
+    mono(P, 40, 228, 'hardwired  >  horizontal  >  vertical', PAL.accent, 13);
+    mono(P, 40, 250, '0 stages, 1 stage, 2 stages  -  the 1999 paper keys exactly this order', PAL.faint, 9);
+  }
+
+  panelBox(P, 24, 282, 470, 170, 'the four quantities every question asks for');
+  mono(P, 40, 310, '1. select lines   ceil(log2 m)      m ALU functions', PAL.ink, 9);
+  mono(P, 40, 330, '2. word width     control + cond + address', PAL.ink, 9);
+  mono(P, 40, 350, '3. memory words   2^(address bits)', PAL.ink, 9);
+  mono(P, 40, 370, '4. control steps  from the micro-operation list', PAL.ink, 9);
+  mono(P, 40, 396, 'they are independent: name the one being asked for', PAL.dim, 9);
+  mono(P, 40, 414, 'before computing, and compute only that one', PAL.dim, 9);
+  if (t > 24) mono(P, 40, 438, 'next lesson: pipelining, where these steps overlap', PAL.accent, 9);
+
+  panelBox(P, 508, 282, 368, 170, 'what is not free');
+  mono(P, 524, 310, 'more buses  ->  fewer steps, longer clock', PAL.dim, 9);
+  mono(P, 524, 330, 'more functions -> wider MUX, same delay', PAL.dim, 9);
+  mono(P, 524, 350, 'more flexibility -> a memory read per step', PAL.dim, 9);
+  mono(P, 524, 370, 'narrower word -> a decoder per step', PAL.dim, 9);
+  if (t > 20) {
+    mono(P, 524, 398, 'every trade here is a trade of time for', PAL.accent, 9);
+    mono(P, 524, 414, 'hardware, or hardware for time', PAL.accent, 9);
+    mono(P, 524, 436, 'no configuration wins on both', PAL.faint, 9);
+  }
+}
+
+/* ======================================================================
+   the scene table and the frame loop
+   ====================================================================== */
+var SCENES = {
+  datapath: sceneDatapath,
+  slice: sceneSlice,
+  flags: sceneFlags,
+  delay: sceneDelay,
+  bus: sceneBus,
+  steps: sceneSteps,
+  hardwired: sceneHardwired,
+  micro: sceneMicro,
+  formats: sceneFormats,
+  compare: sceneCompare
+};
+
+function drawFrame(painter) {
+  if (!painter) return;
+  var tl = window.LESSON_TIMELINE;
+  var tt = K.state.elapsed;
+  var idx = K.sceneAt(tt);
+  var sc = tl.scenes[idx];
+  painter.alpha(1);
+  painter.clear();
+  bg(painter);
+  if (sc && SCENES[sc.id]) {
+    try {
+      SCENES[sc.id](painter, tt - sc.start);
+    } catch (err) {
+      console.error('scene draw failed', sc.id, err);
+    }
+  }
+}
+
+function fillChecks() {
+  var el = document.getElementById('checks');
+  if (!el) return;
+  var passed = CHECKS.filter(function (c) { return c.pass; }).length;
+  var html = '<span class="k">Model checks</span>' +
+    '<span class="ok">' + passed + ' / ' + CHECKS.length + ' passed</span>';
+  html += '<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--text-faint)">what was checked</summary>';
+  CHECKS.forEach(function (c) {
+    html += '<div style="margin-top:3px">' +
+      (c.pass ? '<span class="ok">\u2713</span>' : '<span style="color:var(--invalid)">\u2717</span> ') +
+      c.name + (c.detail ? '<br><span style="opacity:.7">' + c.detail + '</span>' : '') +
+      '</div>';
+  });
+  html += '</details>';
+  el.innerHTML = html;
+}
+
+function boot() {
+  buildChecks();
+  fillChecks();
+
+  var holder = document.getElementById('canvas-holder');
+  var fallback = document.getElementById('canvas-fallback');
+  var ok = false;
+
+  if (window.p5) {
+    try {
+      new window.p5(function (sk) {
+        sk.setup = function () {
+          sk.createCanvas(W, H);
+          sk.noLoop();
+          P = PR.makePainterP5(sk, W, H);
+          sk.draw = function () { drawFrame(P); };
+          drawFrame(P);
+        };
+      }, holder);
+      ok = true;
+    } catch (e) {
+      console.error('p5 failed', e);
+      ok = false;
+    }
+  }
+
+  if (!ok) {
+    var drew = false;
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      holder.appendChild(cv);
+      var ctx2d = cv.getContext && cv.getContext('2d');
+      if (ctx2d) {
+        P = PR.makePainter2D(ctx2d, W, H);
+        drawFrame(P);
+        drew = true;
+      }
+    } catch (e) {
+      console.error('canvas fallback failed', e);
+    }
+    if (!drew && fallback) fallback.classList.add('show');
+  }
+
+  K.init({
+    timeline: window.LESSON_TIMELINE,
+    draw: function () { if (P) drawFrame(P); }
+  });
+
+  K.onResize(function () { if (P) drawFrame(P); });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { if (P) drawFrame(P); });
+  }
+
+  window.__drawAt = function (t) {
+    K.state.elapsed = t;
+    if (P) drawFrame(P);
+  };
+
+  window.__lessonChecks = CHECKS;
+  var bad = CHECKS.filter(function (c) { return !c.pass; });
+  if (bad.length) console.warn('Model validation did not fully pass:', bad);
+}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
