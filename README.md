@@ -32,6 +32,8 @@ lessons are static files and work from a local clone.
 | Asymptotic Complexity and Recurrences | Algorithms | A — explicitly in the syllabus | `topics/asymptotic-complexity/index.html` |
 | Binary Search and Its Variants | Algorithms | A — explicitly in the syllabus | `topics/binary-search-and-variants/index.html` |
 | Sorting Algorithms and the Comparison Lower Bound | Algorithms | A — explicitly in the syllabus | `topics/sorting-algorithms/index.html` |
+| Greedy Algorithms: Choice, Exchange and Counterexample | Algorithms | A — explicitly in the syllabus | `topics/greedy-algorithms/index.html` |
+| Graph Algorithms: Traversals, MSTs and Shortest Paths | Algorithms | A — explicitly in the syllabus | `topics/graph-traversals-mst-shortest-paths/index.html` |
 | Boolean Algebra and Minimisation | Digital Logic | A — explicitly in the syllabus | `topics/boolean-algebra-and-minimisation/index.html` |
 | Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
 
