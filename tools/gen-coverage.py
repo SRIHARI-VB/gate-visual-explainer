@@ -8,7 +8,8 @@ tracker from the topic data below.
 """
 import json
 
-TODAY = "2026-10-26"
+TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
+RUN_DATE = "2026-10-27"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -529,14 +530,78 @@ topics.append(topic(
         "the five-step procedure and the four traps",
     ]))
 
+# The syllabus line "Design of combinational and sequential circuits" is two
+# designs, so it is tracked as two entries. The first is published; the second
+# is the next Digital Logic lesson.
 topics.append(topic(
-    "Digital Logic", "Circuits", "Combinational and sequential circuits",
-    ["multiplexers and decoders", "adders and subtractors", "latches and flip-flops",
-     "registers and counters", "finite state machines", "timing behaviour"],
+    "Digital Logic", "Combinational design", "Design of combinational circuits",
+    ["adders and subtractors", "multiplexers and decoders", "hazards and timing",
+     "gate-level delay models"],
     prereq=["Boolean algebra", "number representation"],
+    related=["computer organisation", "propositional logic"],
+    importance="high",
+    evidence="GATE 2027 Section 2 names 'Design of combinational and sequential circuits'. "
+             "Past papers checked for this run: GATE CSE 2014 Set 1 Q45 (multiplexer minimal SOP), "
+             "GATE CSE 2004 Q60 (2-to-1 multiplexer realising T+R), GATE CSE 2023 Q34 (multiplexer tree), "
+             "GATE CSE 2007 Q8 (nine 3-to-8 decoders for 6-to-64), GATE CSE 2016 Set 1 Q43 and "
+             "GATE CSE 1997 Q2.5 (look-ahead depth), GATE CSE 2016 Set 2 Q7 (ripple-adder latency). "
+             "No marks distribution is claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="combinational-circuits",
+    path="topics/combinational-circuits/index.html",
+    execution="published 2026-10-27",
+    microtopics=[
+        "a combinational circuit is its truth table: no state, so 2^n rows are complete",
+        "reading a network by labelling every wire, then substituting",
+        "half adder: S = A xor B, C = A and B, no carry input",
+        "full adder: sum is odd parity, carry out is at least two ones",
+        "full adder from two half adders and one OR, with the two carries provably exclusive",
+        "an n-bit adder is one half adder plus n-1 full adders, never n half adders",
+        "ripple carry: the carry out of a column is the carry in of the next",
+        "the gate-delay model: two levels per column carry, one for the sum exclusive-OR",
+        "final carry out at 2n levels and the last sum bit at 2n-1, under that model",
+        "5 + 3 and 7 + 1 share the carry pattern 0 1 1 1 0: many operands, one carry chain",
+        "for A = 1 in eight bits the chain lengths split 128, 64, 32, 16, 8, 4, 2, 1, 1",
+        "only B = -1 walks all eight stages (GATE 2016 Set 2 Q7), and the model is data-dependent",
+        "generate g = a and b, propagate p = a xor b, and the two definitions of p in the literature",
+        "c(i+1) = g(i) + p(i) c(i), and the unrolled c4 with no reference to lower carries",
+        "constant depth with unbounded fan-in against ceil(log2(n+1)) with fan-in two (GATE 2016 Set 1 Q43)",
+        "block look-ahead and the log base of the block size (GATE 1997 Q2.5)",
+        "half subtractor: D = X xor Y, borrow = X-not and Y, asymmetric on purpose",
+        "the adder-subtractor: B xor M on every bit and M into the carry in",
+        "correct modulo 2^n in both modes, checked on 512 combinations",
+        "overflow is carry-in xor carry-out of the sign column, never the carry out",
+        "2^n data inputs and n select lines, and the 4-to-1 equation as one term per select pattern",
+        "three 2-to-1 switches build a 4-to-1; 2^n - 1 switches build a 2^n-to-1",
+        "reading a multiplexer circuit as one substitution (GATE 2014 Set 1 Q45)",
+        "select order decides which minterm each data input owns",
+        "a multiplexer is a lookup table, universal for functions of its select lines",
+        "the 8-to-1 table method: data input k is row k of the table",
+        "the 4-to-1 variable method: each data input is 0, 1, the variable, or its complement",
+        "the 2-to-1 case with absorption (GATE 2004 Q60)",
+        "a tree of multiplexers adds select lines, and the top switch is the MSB",
+        "n-to-2^n decoder: exactly one output high, so the outputs are the minterms",
+        "decoder plus OR is any sum of products with no minimisation",
+        "active-low outputs need NAND, by De Morgan",
+        "the enable turns a decoder into a selector and makes cascades possible",
+        "1 + 2^(k-m) decoders for a 2^k-to-2^k decoder (GATE 2007 Q8: nine for 6-to-64)",
+        "priority encoder and the collision that forces a valid flag",
+        "static-1 hazard: adjacent ones covered by different terms",
+        "the level-by-level trace 1 1 1 0 1 1 for A-prime-B + AC as A falls",
+        "the consensus term BC as the repair, and why it changes no row",
+        "minimal sum of products is minimal two-level, not minimum gates",
+    ]))
+
+topics.append(topic(
+    "Digital Logic", "Sequential design", "Design of sequential circuits",
+    ["latches and flip-flops", "registers and counters", "finite state machines",
+     "timing behaviour and clocking"],
+    prereq=["Design of combinational circuits"],
     related=["computer organisation"],
     importance="high",
-    evidence="GATE 2027 Section 2 names 'Design of combinational and sequential circuits'.",
+    evidence="GATE 2027 Section 2 names 'Design of combinational and sequential circuits'. "
+             "Split from the same syllabus line as the published combinational lesson; not yet taught.",
     difficulty="medium-hard"))
 
 topics.append(topic(
@@ -552,7 +617,7 @@ topics.append(topic(
     "Computer Organization and Architecture", "Datapath", "ALU and control unit design",
     ["arithmetic and logic unit design", "hardwired control", "microprogrammed control",
      "interfacing"],
-    prereq=["combinational and sequential circuits"],
+    prereq=["Design of combinational circuits"],
     related=["instruction set", "pipelining"],
     importance="high",
     evidence="GATE 2027 Section 3 names 'Design of arithmetic and logic unit (ALU). Design of control unit and hardwired and microprogrammed. Instruction pipelining, pipeline hazards. Memory hierarchy: cache memory - mapping. I/O interface (interrupt and DMA).'",
@@ -1376,7 +1441,7 @@ doc = {
         "note": "Section 1 Engineering Mathematics (Discrete Mathematics, Linear Algebra, Calculus, Probability and Statistics); Sections 2-10 core CS. Subjects and topic wording above follow that document."
     },
     "statuses": ["NOT_STARTED", "READY", "IN_PROGRESS", "PUBLISHED", "NEEDS_REVIEW", "BLOCKED"],
-    "updated": TODAY,
+    "updated": RUN_DATE,
     "counts": {
         "topics": len(topics),
         "published": sum(1 for t in topics if t["coverage_status"] == "PUBLISHED"),

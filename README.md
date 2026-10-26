@@ -35,6 +35,7 @@ lessons are static files and work from a local clone.
 | Greedy Algorithms: Choice, Exchange and Counterexample | Algorithms | A — explicitly in the syllabus | `topics/greedy-algorithms/index.html` |
 | Graph Algorithms: Traversals, MSTs and Shortest Paths | Algorithms | A — explicitly in the syllabus | `topics/graph-traversals-mst-shortest-paths/index.html` |
 | Boolean Algebra and Minimisation | Digital Logic | A — explicitly in the syllabus | `topics/boolean-algebra-and-minimisation/index.html` |
+| Combinational Circuits: Adders, Multiplexers and Decoders | Digital Logic | A — explicitly in the syllabus | `topics/combinational-circuits/index.html` |
 | Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
