@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Binary Search and Its Variants — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Binary Search and Its Variants</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Binary search and its variants — the loop and its invariant, the exact comparison count, the two loop shapes and their faults, first and last occurrence, rotated arrays, bitonic arrays, search on a monotone predicate, and the decision-tree lower bound that explains why log n cannot be beaten.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a sorted array and a target, trace the loop correctly and say how many comparisons it makes, including the last one. Given a piece of binary-search code, say whether it terminates and whether it can return a wrong index. Given a search problem that is not "find x in a sorted array" — duplicates, a rotation, a peak, a yes/no predicate — reduce it to the same loop with a changed test. Given a claim about the best possible search cost, justify it with a decision tree rather than with an appeal to the algorithm.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one loop plus six different tests</em>. Sorting, and the Ω(n log n) lower bound for sorting, live in the next lesson of this unit; hashing lives in the one after it. This lesson is only about searching, and it uses the complexity language of the <a href="../asymptotic-complexity/index.html">Asymptotic Complexity</a> lesson rather than re-teaching it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 5 of the official GATE 2027 CS syllabus (IIT Madras) opens with: <em>"Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths."</em></p>
+          <p class="small">Searching is the first word of the Algorithms section. Binary search is also the standard example used to test the asymptotic vocabulary of the second sentence, so one question can carry both.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed, and it says nothing about the number of marks. The previous-year questions quoted in this lesson are observations about old papers, not a forecast.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Four published lessons carry what this one uses:</p>
+          <ul class="small">
+            <li><strong><a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a></strong> — zero-based indexing, and why an array gives O(1) access to any cell. Every index in this lesson is a cell number, and the arithmetic only works because access is free.</li>
+            <li><strong><a href="../asymptotic-complexity/index.html">Asymptotic Complexity</a></strong> — Θ and Ω notation, and the fact that a recurrence with one recursive call is unrolled by division. This lesson uses that language and does not re-derive it.</li>
+            <li><strong><a href="../recurrence-relations/index.html">Recurrence Relations</a></strong> — solving F(n) = F(⌊n/2⌋) + 1 by unrolling. Scene 4 does the unrolling in full, so the lesson stands alone, but the method is taught there.</li>
+            <li><strong><a href="../counting-and-combinatorics/index.html">Counting and Combinatorics</a></strong> — the count of leaves in a binary tree of a given height, which is the whole of scene 10.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">The only mathematics assumed beyond that is the logarithm: log base 2 of n is the number of times you can halve n before reaching 1. Floor and ceiling are used constantly — ⌊x⌋ is x rounded down, ⌈x⌉ is x rounded up — and every use is spelled out in words the first time.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Halving.</strong> Sixteen cells, four probes, and the discarded halves shading out one at a time.</li>
+            <li><strong>The invariant.</strong> lo, hi and the live range, with the three comparison outcomes each moving one boundary.</li>
+            <li><strong>A full trace.</strong> Two trace tables side by side: a hit at four comparisons, a miss at four.</li>
+            <li><strong>Counting.</strong> The recurrence unrolled into ⌊log₂ n⌋ + 1, the table for n = 1 to 16, and the three cases as bars.</li>
+            <li><strong>The two loop shapes.</strong> Correct shapes, then the stuck-pointer state and the 32-bit overflow, drawn as states rather than described.</li>
+            <li><strong>Duplicates.</strong> lower_bound and upper_bound on 4, 8, 8, 8, 12, 16, and the count that comes from subtracting them.</li>
+            <li><strong>Rotation.</strong> A rotated array, the one comparison that identifies the sorted half, and the unchanged bound.</li>
+            <li><strong>Bitonic.</strong> Peak search, then two monotone searches, then the three costs added rather than multiplied.</li>
+            <li><strong>A monotone predicate.</strong> A row of candidate answers flipping once from no to yes, and the same loop finding the flip.</li>
+            <li><strong>The lower bound.</strong> The comparison tree for seven cells, the inequality it gives, and the five-question checklist.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>What you should be able to do afterwards</h3>
+          <p class="small">Answer any search question in this order: <em>is the structure sorted or is a predicate monotone?</em>, <em>which quantity is being counted?</em>, <em>which loop shape is this?</em>, <em>is the target guaranteed present?</em>, <em>which assumption did the stem give?</em></p>
+          <p class="small" style="margin-bottom:0">The most expensive mistake in this topic is a count that is off by one because the final comparison was dropped. The second most expensive is trusting a bound without checking whether the array was actually sorted — binary search on unsorted data is not slow, it is wrong.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How long this takes</h3>
+          <p class="small">The animation runs 5 minutes. Reading the Build-up and working the practice set is roughly 70–90 minutes for a first pass, about 20 minutes on a revision pass.</p>
+          <p class="small muted" style="margin-bottom:0">These are estimates for planning, not measurements.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Level 1 — Intuition: the dictionary, not the phone book</h3>
+          <p class="small"><strong>A sorted array is a licence to skip.</strong> If you open a dictionary in the middle and see the word "mango", then every word before that page is smaller than "mango" and every word after it is larger. You have not learned where your word is, but you have learned that half the book cannot contain it. That single fact is the whole algorithm.</p>
+          <p class="small"><strong>The trick is throwing away, not looking.</strong> A linear scan gains one position per comparison. A halving search gains half the remaining book per comparison. After ten comparisons a linear scan has looked at ten words; a halving search has eliminated all but one word in a thousand.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The dictionary picture is good for the mechanism and poor for the cost. A real dictionary has a thumb index, which is closer to direct addressing than to binary search. Keep the picture for the discarding, and use the trace table in Level 4 for the counting.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2 — The formal statement, symbol by symbol</h3>
+          <p class="small">Given an array <strong>A</strong> of n cells, indexed from 0 to n − 1, with A[0] ≤ A[1] ≤ … ≤ A[n − 1], and a value x, find an index i with A[i] = x, or report that none exists.</p>
+          <p class="small">The algorithm keeps two indices, <strong>lo</strong> and <strong>hi</strong>, meaning "the answer, if it exists, has an index between lo and hi inclusive". Then:</p>
+          <ul class="small">
+            <li>Compute the middle index <strong>mid</strong> = ⌊(lo + hi) / 2⌋, the floor of the average, so mid is an integer cell number.</li>
+            <li>Compare A[mid] with x. That comparison costs one unit.</li>
+            <li>If they are equal, return mid. If A[mid] &lt; x, the answer cannot be at mid or to its left, so set lo = mid + 1. Otherwise set hi = mid − 1.</li>
+            <li>Repeat while lo ≤ hi. When lo &gt; hi the range is empty, and the answer is "absent".</li>
+          </ul>
+          <p class="small" style="margin-bottom:0"><strong>Two conditions are being assumed, and both matter.</strong> The array is sorted — otherwise the discarding is unjustified. The cells are directly addressable — otherwise reaching A[mid] would itself cost something, and the bound would change.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 3 — The invariant, and why it is the whole proof</h3>
+          <p class="small">An <strong>invariant</strong> is a sentence that is true before the loop, true after every pass, and strong enough at the end to give the answer. Here it is:</p>
+          <p class="formula">If x occurs in A at all, then it occurs at some index i with lo ≤ i ≤ hi.<span class="gloss">Everything strictly outside [lo, hi] has already been proved not to hold x.</span></p>
+          <p class="small"><strong>Before the loop</strong> it holds trivially, because lo = 0 and hi = n − 1 cover the whole array. <strong>Each pass</strong> preserves it: the cell mid is compared, and the two possible updates throw away exactly the cells that the comparison proved wrong. <strong>At the end</strong>, if the loop stopped because A[mid] = x, we have the answer; if it stopped because lo &gt; hi, the range is empty, and an empty range cannot contain x, so x is absent — a proof, not a guess.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The invariant is what makes the two updates <em>forced</em> rather than remembered. mid must be excluded from both new ranges because it has just been tested; that is why the updates are mid + 1 and mid − 1 and never mid.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The one sentence to memorise</h3>
+          <p class="small">"Sorted, so the comparison at the middle eliminates one whole side." Every variant in this lesson — first occurrence, rotated, bitonic, predicate — is a different answer to the question <em>which side does this comparison eliminate?</em></p>
+          <p class="small" style="margin-bottom:0">When you meet an unfamiliar search problem, do not look for an array to binary-search. Ask what a single probe tells you, and whether the answer is then confined to a region you can halve.</p>
+        </div>
+
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Level 4 — A worked trace, written the way an exam wants it</h3>
+          <p class="small">A = [3, 7, 11, 14, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63], n = 16, target x = 43.</p>
+          <div class="sheet small">
+            <div class="row"><span>pass</span><span>lo</span><span>hi</span><span>mid</span><span>A[mid]</span><span>verdict</span></div>
+            <div class="row"><span>1</span><span>0</span><span>15</span><span>7</span><span>31</span><span>31 &lt; 43, so lo = 8</span></div>
+            <div class="row"><span>2</span><span>8</span><span>15</span><span>11</span><span>47</span><span>47 &gt; 43, so hi = 10</span></div>
+            <div class="row"><span>3</span><span>8</span><span>10</span><span>9</span><span>39</span><span>39 &lt; 43, so lo = 10</span></div>
+            <div class="row"><span>4</span><span>10</span><span>10</span><span>10</span><span>43</span><span>equal, return 10</span></div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Four comparisons.</strong> The count is the number of rows, and the last row counts, because the equality test is itself a comparison. For n = 16 the formula gives ⌊log₂ 16⌋ + 1 = 4 + 1 = 5, and this particular target was luckier than the worst case.</p>
+        </div>
+
+        <div class="card">
+          <h3>The same trace, for a target that is absent</h3>
+          <p class="small">Now x = 25, which does not occur in A.</p>
+          <div class="sheet small">
+            <div class="row"><span>pass</span><span>lo</span><span>hi</span><span>mid</span><span>A[mid]</span><span>verdict</span></div>
+            <div class="row"><span>1</span><span>0</span><span>15</span><span>7</span><span>31</span><span>31 &gt; 25, so hi = 6</span></div>
+            <div class="row"><span>2</span><span>0</span><span>6</span><span>3</span><span>14</span><span>14 &lt; 25, so lo = 4</span></div>
+            <div class="row"><span>3</span><span>4</span><span>6</span><span>5</span><span>23</span><span>23 &lt; 25, so lo = 6</span></div>
+            <div class="row"><span>4</span><span>6</span><span>6</span><span>6</span><span>27</span><span>27 &gt; 25, so hi = 5, loop ends</span></div>
+          </div>
+          <p class="small" style="margin-bottom:0">Four comparisons again, and the answer is −1. Note the shape of the failure: the range became empty because lo moved past hi, not because anything was found. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A miss never costs more than the worst hit, because both walk a root-to-leaf path in the same comparison tree and all such paths are within one level of each other.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 5 — The bound, derived rather than quoted</h3>
+          <p class="small">Let F(n) be the worst-case number of comparisons on n cells. The first comparison is spent on the middle cell. The two remaining pieces have ⌊(n − 1)/2⌋ and ⌈(n − 1)/2⌉ cells, so the larger has ⌊n/2⌋ cells, and the adversary may put the target there. Hence</p>
+          <p class="formula">F(n) = F(⌊n/2⌋) + 1, with F(0) = 0.<span class="gloss">One comparison, then the same problem on at most half the cells.</span></p>
+          <p class="small">Unrolling: F(n) = 1 + 1 + … + 1 over as many halvings as n survives, which is ⌊log₂ n⌋, and then one final comparison on the last surviving cell. So <strong>F(n) = ⌊log₂ n⌋ + 1</strong>. Check it: n = 16 gives 5, n = 15 gives 4, n = 1 gives 1, n = 2 gives 2.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The closed form is checked exhaustively in this page's model: for every array of up to nine cells over a small alphabet and every target, the observed worst case equals ⌊log₂ n⌋ + 1, and the same expression equals ⌈log₂(n + 1)⌉ for every n up to one million.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Level 5 — The two conditions, and what breaks when one fails</h3>
+          <p class="small"><strong>Sortedness.</strong> On A = [5, 1, 9, 3] searching for 3, the first probe is index 1 holding 1. Since 1 &lt; 3 the code sets lo = 2 and never looks at index 3. The answer is wrong, and no amount of care in the loop body fixes it.</p>
+          <p class="small"><strong>Direct access.</strong> In a linked list you cannot reach the middle cell in constant time; you must walk to it, which costs O(n) per probe and destroys the bound. Binary search is a statement about arrays, and it is why balanced search trees exist: they buy the halving while keeping insertion cheap.</p>
+          <p class="small" style="margin-bottom:0"><strong>The bound is on comparisons.</strong> A question that asks for time, for array accesses, or for iterations is asking a different question. Iterations of the loop can be one fewer than comparisons, and array accesses are often two per comparison.</p>
+        </div>
+
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Level 6 — Edge cases that a real implementation must survive</h3>
+          <p class="small"><strong>n = 0.</strong> lo = 0, hi = −1, the loop never runs, and the answer is −1. Any code that computes a[mid] before the first test crashes here.</p>
+          <p class="small"><strong>n = 1.</strong> One comparison decides everything. A miss and a hit cost the same, which is the only size where that is true for the worst case.</p>
+          <p class="small"><strong>All cells equal.</strong> Every comparison returns "equal" at the first probe, so the answer is index ⌊(n−1)/2⌋. That is <em>a</em> correct index, not the first one — the difference matters when the question says "first occurrence".</p>
+          <p class="small"><strong>Target below every cell, or above every cell.</strong> Both take ⌈log₂(n + 1)⌉ comparisons, the same as the worst hit. A miss at an end is not cheaper than a miss in the middle.</p>
+          <p class="small" style="margin-bottom:0"><strong>n = 2³¹ − 1 with 32-bit indices.</strong> The sum lo + hi can overflow before the halving, producing a negative index. The fix is to compute lo + (hi − lo)/2, which never exceeds hi.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A counterexample to "binary search is faster"</h3>
+          <p class="small">Take n = 8 and a target that sits at A[0]. Linear search finds it in <strong>one</strong> comparison. Binary search on the same input probes index 3, then index 1, then index 0: <strong>three</strong> comparisons.</p>
+          <p class="small">So the O(log n) claim is a statement about how the cost <em>grows</em>, not a statement that the algorithm is quicker on every input. For small n and favourable positions, the scan wins. The crossover for n cells, assuming a uniform target, is around n ≈ 10 in practice.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> This is exactly the distinction the asymptotic lesson draws between a growth rate and a measurement. An exam option that says "binary search always uses fewer comparisons" is false, and the n = 8 example refutes it in one line.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Level 7 — How GATE tests this, in three shapes</h3>
+          <p class="small"><strong>Shape 1, the count.</strong> "What is the maximum number of comparisons…" The answer is a formula, and the mark is lost by an off-by-one. Quote the convention: comparisons including the final equality test.</p>
+          <p class="small"><strong>Shape 2, the recurrence.</strong> "Let F(n) be the maximum number of comparisons… which of the following is true?" Here the options are recurrences, and the trap is a coefficient of 2, which describes searching both halves.</p>
+          <p class="small"><strong>Shape 3, the code.</strong> A loop is printed and you must say whether it terminates, whether it is binary search, or what it returns for a given input. Read the exit condition and the two updates together — the faults live in their pairing.</p>
+          <p class="small" style="margin-bottom:0">A fourth shape has become common since 2020: a <em>structure</em> that is not a sorted array — rotated, bitonic, a matrix, a predicate — and a question asking for the best achievable bound. The answer is almost always Θ(log n) with a two-stage argument.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Levels 8 and 9 — where to go next</h3>
+          <p class="small">Independent practice is the Practice tab: twelve questions, answers hidden until you ask, each with the reason the wrong options are wrong. Level 9, the consolidation, is the Revision tab: the formulas, the two loop shapes, the fault list and the five-question checklist on one screen.</p>
+          <p class="small" style="margin-bottom:0">If you only remember one thing from the Build-up, remember that every variant changes <em>one test</em> and nothing else. The loop is always the same loop.</p>
+        </div>
+
+      </div>
+      </div>
+
+      <div class="row" style="justify-content:space-between;margin-top:10px">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="small muted" data-pager-count></span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION =========================== -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Sixteen sorted cells, one target. Linear search would touch up to sixteen of them.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Halving the problem: 16 cells, 4 probes</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Sixteen sorted cells and one target. A linear scan would compare up to sixteen of them, one at a time.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running…
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Browser speech synthesis; voice availability varies">Narrate</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Example 1 — First occurrence among duplicates</h3>
+          <p class="small">A = [4, 8, 8, 8, 12, 16], find the <em>first</em> index holding 8. A plain binary search returns index 2 (the middle of the whole array), which is a correct answer to the wrong question.</p>
+          <p class="small">Change the test. Instead of "is A[mid] equal", ask "is A[mid] &lt; 8". If yes, the first 8 is to the right, so lo = mid + 1. If no, the first 8 is at mid or to its left, so hi = mid. Loop while lo &lt; hi.</p>
+          <div class="sheet small">
+            <div class="row"><span>lo, hi</span><span>mid</span><span>A[mid]</span><span>test A[mid] &lt; 8</span><span>update</span></div>
+            <div class="row"><span>0, 6</span><span>3</span><span>8</span><span>false</span><span>hi = 3</span></div>
+            <div class="row"><span>0, 3</span><span>1</span><span>8</span><span>false</span><span>hi = 1</span></div>
+            <div class="row"><span>0, 1</span><span>0</span><span>4</span><span>true</span><span>lo = 1</span></div>
+          </div>
+          <p class="small" style="margin-bottom:0">lo = hi = 1, so the first 8 is at index 1. Three comparisons. Note hi started at n, not n − 1: the answer may be "one past the end", and the half-open window allows that.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — Counting the copies</h3>
+          <p class="small">On the same array, upper_bound of 8 uses the test A[mid] ≤ 8 and returns index 4, the first index whose value is greater than 8.</p>
+          <p class="small">upper_bound − lower_bound = 4 − 1 = <strong>3</strong>, the number of copies of 8. Two logarithmic searches answer "how many times does x occur" in Θ(log n), which no scan can beat asymptotically.</p>
+          <p class="small"><strong>The safe recipe.</strong> Compute lb = lower_bound(x). If lb = n or A[lb] ≠ x, the value is absent — count 0. Otherwise the first occurrence is lb and the last is ub − 1.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The two loops differ in exactly one character: <code>&lt;</code> against <code>≤</code>. That character decides whether the boundary is placed before or after the run of equal values, which is why the difference counts them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — A rotated sorted array</h3>
+          <p class="small">A = [43, 47, 51, 3, 7, 11, 14], n = 7, target 7. At each step exactly one of the two halves around mid is sorted, and that is the fact to exploit.</p>
+          <div class="sheet small">
+            <div class="row"><span>lo, hi</span><span>mid</span><span>A[mid]</span><span>sorted half</span><span>is 7 in it?</span><span>update</span></div>
+            <div class="row"><span>0, 6</span><span>3</span><span>3</span><span>right, 3..14</span><span>yes, 3 ≤ 7 ≤ 14</span><span>lo = 4</span></div>
+            <div class="row"><span>4, 6</span><span>5</span><span>11</span><span>left, 7..11</span><span>yes, 7 ≤ 7 ≤ 11</span><span>hi = 4</span></div>
+            <div class="row"><span>4, 4</span><span>4</span><span>7</span><span>—</span><span>equal</span><span>return 4</span></div>
+          </div>
+          <p class="small" style="margin-bottom:0">Three comparisons. The test "is the left half sorted" is <code>A[lo] ≤ A[mid]</code>; when it fails, the right half is the sorted one. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> With distinct values the two cases are exhaustive, because a rotation point inside the left half leaves the right half untouched.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — Reading a buggy loop</h3>
+          <p class="small">Here is a loop printed as an exam question:</p>
+          <p class="formula small">while (lo &lt; hi) { mid = (lo + hi) / 2; if (A[mid] &lt; x) lo = mid; else hi = mid; }<span class="gloss">Integer division, so mid is the floor.</span></p>
+          <p class="small">Take A = [1, 3, 5, 7] and x = 7. Start lo = 0, hi = 3, mid = 1 (value 3 &lt; 7) so lo = 1. Next mid = 2 (value 5 &lt; 7) so lo = 2. Next mid = 2 again, so lo = 2 again. The state (2, 3) repeats for ever.</p>
+          <p class="small" style="margin-bottom:0"><strong>The diagnosis.</strong> When hi = lo + 1, the floor of the average is lo itself, so <code>lo = mid</code> is a no-op. The repair is <code>lo = mid + 1</code>, which is valid here because A[mid] &lt; x already proved that mid cannot be the answer. <span class="claim-chip claim-chip--verified">Verified fact</span> The page's model reproduces the stall: it enters the state (2, 3) and never leaves.</p>
+        </div>
+
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Example 5 — Bitonic array, the GATE 2025 Set 2 shape</h3>
+          <p class="small">A = [2, 5, 9, 14, 20, 17, 11, 6, 3] rises to 20 at index 4 and then falls. Target 11.</p>
+          <p class="small"><strong>Stage 1, find the peak.</strong> Compare A[mid] with A[mid+1]. If A[mid] &lt; A[mid+1] the array is still climbing, so lo = mid + 1; else hi = mid. Here: lo = 0, hi = 8, mid = 4, A[4] = 20 &gt; A[5] = 17, so hi = 4; then mid = 2, A[2] = 9 &lt; A[3] = 14, so lo = 3; then mid = 3, A[3] = 14 &gt; A[4] = 20? No — 14 &lt; 20, so lo = 4. Peak at index 4 in three comparisons.</p>
+          <p class="small"><strong>Stage 2, search the ascending run</strong> A[0..4] for 11: not found, in three comparisons. <strong>Then the descending run</strong> A[5..8] = [17, 11, 6, 3], searched with the inequality reversed: found at index 6 in two comparisons.</p>
+          <p class="small" style="margin-bottom:0">Total 3 + 3 + 2 = 8 comparisons, and the worst case over all targets on nine cells is also 8. The asymptotic bound is Θ(log n), because the three stages add.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 6 — Binary search on a predicate</h3>
+          <p class="small">No array is sorted here. The question is: what is the smallest whole number x whose square is at least 1000?</p>
+          <p class="small">The predicate P(x) = (x·x ≥ 1000) is <strong>monotone</strong>: once true it stays true, because squaring is increasing on non-negative numbers. So the answer is the flip point, and it can be found by halving the range of candidate answers, 0 to 63.</p>
+          <div class="sheet small">
+            <div class="row"><span>lo, hi</span><span>mid</span><span>mid²</span><span>P(mid)</span><span>update</span></div>
+            <div class="row"><span>0, 63</span><span>31</span><span>961</span><span>false</span><span>lo = 32</span></div>
+            <div class="row"><span>32, 63</span><span>47</span><span>2209</span><span>true</span><span>hi = 47</span></div>
+            <div class="row"><span>32, 47</span><span>39</span><span>1521</span><span>true</span><span>hi = 39</span></div>
+            <div class="row"><span>32, 39</span><span>35</span><span>1225</span><span>true</span><span>hi = 35</span></div>
+            <div class="row"><span>32, 35</span><span>33</span><span>1089</span><span>true</span><span>hi = 33</span></div>
+            <div class="row"><span>32, 33</span><span>32</span><span>1024</span><span>true</span><span>hi = 32, stop</span></div>
+          </div>
+          <p class="small" style="margin-bottom:0">Six predicate calls, and the answer is 32. The cost is ⌈log₂ 64⌉ = 6, the logarithm of the <em>range</em>, not of any data. <span class="claim-chip claim-chip--verified">Verified fact</span> The model checks this loop against a linear scan for every boundary value from 0 to 1000.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 7 — Iterations, comparisons, and array accesses are three numbers</h3>
+          <p class="small">For n = 1000 the worst-case comparison count is ⌊log₂ 1000⌋ + 1 = 9 + 1 = 10. But other counts differ:</p>
+          <ul class="small">
+            <li><strong>Loop iterations</strong> can be one fewer than comparisons, because the last pass may exit without a further test.</li>
+            <li><strong>Array accesses</strong> are usually two per comparison in a naive three-way test (one for A[mid], and one more if the code re-reads it), and one if the value is cached in a variable.</li>
+            <li><strong>Time</strong> is comparisons multiplied by the cost of one comparison, which for strings or large records is not constant.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">This is the most common source of lost marks: the stem says "comparisons" and the option list tempts you with the iteration count. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The distinction is not pedantry — a comparison of two 64-bit integers and a comparison of two 1 KB strings are both "one comparison" asymptotically and differ by three orders of magnitude in practice.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 8 — The lower bound, met exactly</h3>
+          <p class="small">For n = 7 cells, any comparison search needs at least ⌈log₂ 8⌉ = 3 comparisons in the worst case, because a tree of height 3 holds at most 2³ − 1 = 7 internal nodes, and we need one node per possible answer.</p>
+          <p class="small">Binary search on 7 cells uses exactly 3 comparisons in the worst case. The bound is therefore <strong>tight</strong>: no comparison-based algorithm can do better, and this one does as well as possible.</p>
+          <p class="small" style="margin-bottom:0"><strong>What the bound does not say.</strong> It does not say 3 comparisons are needed to find a value you have stored elsewhere, and it does not apply to hashing, which reaches Θ(1) expected time by not comparing at all. A lower bound is always relative to a model of computation, and the model here is "the only thing you may do is compare".</p>
+        </div>
+
+      </div>
+      </div>
+
+      <div class="row" style="justify-content:space-between;margin-top:10px">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="small muted" data-pager-count></span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ========================== -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Empty and single-cell arrays</h3>
+          <p class="small"><strong>n = 0.</strong> With lo = 0 and hi = −1 the condition lo ≤ hi is false immediately, so there are zero comparisons and the answer is −1. Any implementation that computes mid before testing will index cell 0 of an empty array.</p>
+          <p class="small" style="margin-bottom:0"><strong>n = 1.</strong> One comparison. This is the only size where a hit and a miss cost the same in the worst case, and the only size where ⌊log₂ n⌋ + 1 = ⌈log₂(n + 1)⌉ = 1 is easy to see.</p>
+        </div>
+
+        <div class="card">
+          <h3>Two cells: where every off-by-one lives</h3>
+          <p class="small">With lo = 0 and hi = 1 the floor of the average is 0, so the probe is the <em>first</em> cell. Every fault in this topic appears here: <code>lo = mid</code> stalls, <code>hi = mid</code> with a ceiling rounding stalls, and <code>hi = mid − 1</code> with a floor rounding terminates correctly in one step.</p>
+          <p class="small" style="margin-bottom:0"><strong>Test with n = 2.</strong> A test suite with odd sizes only will pass a buggy loop, because the stall needs an even final window of exactly two cells.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>All cells equal, and the meaning of "found"</h3>
+          <p class="small">A = [8, 8, 8, 8, 8] and x = 8. The first probe is index 2, which equals 8, so the loop returns 2. That is a correct index and not the first one.</p>
+          <p class="small" style="margin-bottom:0">If the question asks for the first occurrence, the answer is 0, and only the lower_bound loop finds it. If it asks for the count, the answer is 5, and only the difference of two boundary searches finds it. An option list containing 2 is testing whether you read the stem.</p>
+        </div>
+
+        <div class="card">
+          <h3>Target outside the range of values</h3>
+          <p class="small">A target smaller than A[0] or larger than A[n − 1] is a miss, and it costs ⌈log₂(n + 1)⌉ comparisons — the full worst case, not a shortcut. The loop has no way to know the target is outside until the range empties.</p>
+          <p class="small" style="margin-bottom:0">A one-line guard (<code>if (x &lt; A[0] || x &gt; A[n−1]) return −1;</code>) changes the constant and not the class, and it is worth mentioning when a question asks about the best case of an unsuccessful search.</p>
+        </div>
+
+        <div class="card">
+          <h3>The two loop shapes, side by side</h3>
+          <p class="small"><strong>Closed shape.</strong> <code>while (lo &lt;= hi)</code> with <code>hi = mid − 1</code> and <code>lo = mid + 1</code>. hi starts at n − 1. The loop can exit with lo = hi + 1, and both pointers may point outside the array.</p>
+          <p class="small"><strong>Half-open shape.</strong> <code>while (lo &lt; hi)</code> with <code>hi = mid</code> and <code>lo = mid + 1</code>. hi starts at n, which is a legal answer ("insert at the end"). On exit lo = hi is the answer index.</p>
+          <p class="small" style="margin-bottom:0">Both are correct. The error is borrowing the condition from one and the updates from the other, which is why a code-reading question is usually just asking you to pair them correctly.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Nearly the same problem, not the same problem</h3>
+          <p class="small"><strong>Search a sorted matrix</strong> (rows and columns sorted) — that is <em>not</em> a sorted array. The correct algorithm starts at the top-right corner and moves left or down, which is Θ(m + n), not Θ(log(mn)).</p>
+          <p class="small"><strong>Find a peak in an arbitrary array</strong> — one probe compares a cell with its neighbours and eliminates a half, so it is Θ(log n), but the array need not be sorted at all. Confusing this with binary search on a sorted array is a common slip.</p>
+          <p class="small" style="margin-bottom:0"><strong>Find the median of two sorted arrays</strong> — Θ(log(min(m, n))) by partitioning, not by merging. The loop looks like binary search and the predicate is "the partition is correct"; a merge answer is Θ(m + n) and is the trap option.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================= 6. MISCONCEPTIONS ========================= -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Misconception 1 — "Binary search works on any array"</h3>
+          <p class="small"><strong>Belief.</strong> It is a search algorithm, so it finds the value whenever the value is there.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> A = [5, 1, 9, 3], x = 3. Probe index 1, value 1. Since 1 &lt; 3 the code sets lo = 2 and never examines index 3, where the 3 sits. It reports "absent".</p>
+          <p class="small" style="margin-bottom:0"><strong>The repair.</strong> Sort first — which costs Θ(n log n), and often makes a linear scan the better answer for a single query.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 2 — "Binary search uses ⌈log₂ n⌉ comparisons"</h3>
+          <p class="small"><strong>Belief.</strong> The textbook formula with the ceiling is the count.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> n = 8. ⌈log₂ 8⌉ = 3, but a search for the largest element probes indices 3, 5, 6, 7 — four comparisons. The correct count is ⌊log₂ n⌋ + 1 = 4.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the confusion survives.</strong> ⌈log₂ n⌉ is the number of halvings needed to reduce n to 1, which is one fewer than the number of comparisons. Both appear in textbooks, describing different quantities.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 3 — "A miss is cheaper than a hit"</h3>
+          <p class="small"><strong>Belief.</strong> If the value is not there, the search stops early.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> n = 16, target 25 (absent) takes four comparisons; target 43 (present) also takes four. Neither is cheaper, and the worst miss equals the worst hit at ⌈log₂ 17⌉ = 5.</p>
+          <p class="small" style="margin-bottom:0"><strong>The general fact.</strong> Every root-to-leaf path in the comparison tree has length within one of every other, so all outcomes cost about the same. This is what makes the algorithm predictable.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 4 — "More comparisons per step means a better class"</h3>
+          <p class="small"><strong>Belief.</strong> Ternary search compares two cells and cuts to a third, so it must be faster than binary search.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> At n = 100,000 binary search needs at most 17 comparisons; ternary needs 22. The ratio tends to 2 / log₂ 3 ≈ 1.262, so ternary is about 26% worse, with the same Θ(log n) class.</p>
+          <p class="small" style="margin-bottom:0"><strong>The general fact.</strong> A k-way search costs (k − 1) log_k n = (k − 1)/log₂ k · log₂ n comparisons, which is minimised at k = 2. Binary is optimal in this family.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 5 — "lo = mid and hi = mid are always safe"</h3>
+          <p class="small"><strong>Belief.</strong> The boundary updates are a matter of taste.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> <code>while (lo &lt; hi) { mid = (lo+hi)/2; if (A[mid] &lt; x) lo = mid; else hi = mid; }</code> on [1, 3, 5, 7] with x = 7 enters the state lo = 2, hi = 3 and repeats it for ever, because mid = 2 = lo.</p>
+          <p class="small" style="margin-bottom:0"><strong>The general fact.</strong> Every iteration must strictly shrink the range. If a branch can leave both pointers unchanged, that branch is a bug.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 6 — "A lower bound is the answer to the question"</h3>
+          <p class="small"><strong>Belief.</strong> Since comparison search needs Ω(log n), an answer of Θ(log n) is always correct.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> A bitonic array is <em>not</em> sorted, yet Θ(log n) is achievable — because the array is two monotone runs. Conversely, searching a general unsorted array with one query has no better strategy than a scan, so the answer there is Θ(n) even though the Ω(log n) bound is still true.</p>
+          <p class="small" style="margin-bottom:0"><strong>The general fact.</strong> A lower bound says nothing can be faster; it never says something is achievable. A matching upper bound is a separate argument, and GATE questions that say "best possible" want both.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 7 — "Binary search is always better than linear search"</h3>
+          <p class="small"><strong>Belief.</strong> O(log n) beats O(n) on every input.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> n = 8, target at index 0. Linear search: 1 comparison. Binary search: 3.</p>
+          <p class="small" style="margin-bottom:0"><strong>The general fact.</strong> Asymptotics compare growth, not measurements. For one query on a small array, a scan can also avoid the cost of sorting entirely.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 8 — "Rotation makes it Θ(n)"</h3>
+          <p class="small"><strong>Belief.</strong> A rotated array is unsorted, so the halving argument fails and the best you can do is scan.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> [43, 47, 51, 3, 7, 11, 14] with target 7 is searched in three comparisons by the rotated variant. Every rotation of every array up to seven cells is checked in this page's model, with no wrong answer and the worst case still ⌊log₂ n⌋ + 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>The general fact.</strong> What binary search needs is not global sortedness but a probe that eliminates a constant fraction. One sorted half per step is enough.</p>
+        </div>
+
+      </div>
+    </section>
