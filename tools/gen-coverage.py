@@ -258,18 +258,55 @@ topics.append(topic(
     difficulty="medium-hard",
     microtopics=["checking the four group axioms", "subgroup tests", "order divides group order"]))
 
+# The syllabus names "Graphs: connectivity, matching, colouring" as one item. It is
+# too large for one screen-based lesson, so it is split into two independently
+# teachable topics that keep the prerequisite order: connectivity first, then
+# matching and colouring (which both need bipartiteness, taught in the first).
 topics.append(topic(
-    DM, "Graph theory", "Graphs: connectivity, matching, colouring",
-    ["graph representations", "paths, cycles, degree sequences",
-     "connectivity and cut vertices", "Euler and Hamiltonian paths",
-     "trees and spanning trees", "matching", "graph colouring", "planarity basics"],
-    prereq=["sets and set operations", "relations"],
-    related=["algorithms: graph traversals", "partial orders", "combinatorics"],
+    DM, "Graph theory", "Graphs: connectivity and structure",
+    ["graph as two sets, adjacency matrix and adjacency list",
+     "degree sequences and the handshake lemma",
+     "walks, trails, paths, cycles, components and distance",
+     "trees and their three equivalent tests", "spanning trees",
+     "cut vertices and bridges", "vertex and edge connectivity",
+     "bipartite graphs and odd cycles", "Euler trails and Hamiltonian cycles"],
+    prereq=["sets and set operations", "relations", "counting and combinatorics"],
+    related=["algorithms: graph traversals", "matching and colouring",
+             "partial orders", "combinatorics"],
     importance="high",
     evidence="Named in the syllabus: 'Graphs: connectivity, matching, colouring'. " + SYL,
     difficulty="medium",
-    microtopics=["handshake lemma", "bipartite iff no odd cycle", "Hall's condition for matching",
-                 "chromatic number of common families", "tree edge counts"]))
+    status="PUBLISHED",
+    slug="graphs-connectivity",
+    path="topics/graphs-connectivity/index.html",
+    execution="published 2026-10-26",
+    microtopics=["handshake lemma and the parity of odd-degree vertices",
+                 "degree sum equals twice the edge count",
+                 "tree iff connected and acyclic iff |E| = n - 1",
+                 "every connected graph has a spanning tree",
+                 "Cayley n^(n-2) for complete graphs only",
+                 "cut vertex vs bridge", "kappa <= lambda <= delta (Whitney)",
+                 "kappa of a complete graph is n - 1 by convention",
+                 "bipartite iff no odd cycle, decided by BFS parity",
+                 "Euler criterion and its one-component condition",
+                 "Euler and Hamiltonian are independent",
+                 "cycle rank |E| - |V| + components"]))
+
+topics.append(topic(
+    DM, "Graph theory", "Graphs: matching and colouring",
+    ["matchings and maximum matchings", "perfect and maximum matchings",
+     "Hall's condition and Hall's theorem", "vertex colouring and the chromatic number",
+     "edge colouring", "greedy colouring bounds", "planarity basics"],
+    prereq=["graphs: connectivity and structure", "counting and combinatorics"],
+    related=["bipartite graphs", "sets and set operations", "combinatorics"],
+    importance="high",
+    evidence="Named in the syllabus: 'Graphs: connectivity, matching, colouring'. " + SYL,
+    difficulty="medium-hard",
+    status="READY",
+    microtopics=["Hall's condition as a necessary and sufficient test for a matching saturating one side",
+                 "chromatic number of common families (cycles, complete graphs, bipartite graphs)",
+                 "chromatic number at most maximum degree plus one",
+                 "K5 and K(3,3) are not planar"]))
 
 topics.append(topic(
     DM, "Combinatorics", "Counting and combinatorics",
@@ -280,6 +317,10 @@ topics.append(topic(
     importance="high",
     evidence="Named in the syllabus: 'Combinatorics: counting, recurrence relations, generating functions'. " + SYL,
     difficulty="medium",
+    status="PUBLISHED",
+    slug="counting-and-combinatorics",
+    path="topics/counting-and-combinatorics/index.html",
+    execution="published 2026-10-26",
     microtopics=["stars and bars", "circular permutations", "pigeonhole with generalised form"]))
 
 topics.append(topic(
@@ -292,6 +333,10 @@ topics.append(topic(
     importance="high",
     evidence="Named in the syllabus: 'Combinatorics: counting, recurrence relations, generating functions'. " + SYL,
     difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="recurrence-relations",
+    path="topics/recurrence-relations/index.html",
+    execution="published 2026-10-26",
     microtopics=["distinct roots vs repeated roots", "particular solution guessing",
                  "master theorem cases and their conditions"]))
 
@@ -448,7 +493,7 @@ topics.append(topic(
     importance="high",
     evidence="GATE 2027 Section 4 opens with 'Programming in C'.",
     difficulty="medium",
-    status="READY"))
+    status="NOT_STARTED"))
 
 topics.append(topic(
     "Programming and Data Structures", "Programming in C", "Recursion",
