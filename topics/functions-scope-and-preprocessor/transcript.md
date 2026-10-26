@@ -1,4 +1,4 @@
-# Functions Scope And Preprocessor — transcript
+# Functions, Scope, Lifetime and the Preprocessor — transcript
 
 Full narration and caption text in reading order, with scene headings. This is the
 accessibility fallback and the printable study document for the lesson.
