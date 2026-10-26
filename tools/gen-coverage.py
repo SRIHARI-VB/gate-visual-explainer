@@ -602,16 +602,67 @@ topics.append(topic(
     execution="published 2026-10-25 (earlier run)"))
 
 topics.append(topic(
-    "Programming and Data Structures", "Programming in C", "C fundamentals: types, operators, control flow",
+    "Programming and Data Structures", "Programming in C", "C fundamentals: types, operators and control flow",
     ["data types and conversions", "operator precedence and associativity",
-     "conditionals and loops", "functions and parameter passing", "scope, lifetime, storage class",
-     "preprocessor", "undefined behaviour"],
+     "conditionals and loops", "expression evaluation and side effects",
+     "undefined, unspecified and implementation-defined behaviour"],
     prereq=["none"],
     related=["pointers in C", "recursion"],
     importance="high",
     evidence="GATE 2027 Section 4 opens with 'Programming in C'.",
     difficulty="medium",
-    status="NOT_STARTED"))
+    status="PUBLISHED",
+    slug="c-fundamentals",
+    path="topics/c-fundamentals/index.html",
+    execution="published 2026-10-26"))
+
+topics.append(topic(
+    "Programming and Data Structures", "Programming in C",
+    "Functions, scope, lifetime and the preprocessor",
+    ["function declaration, definition and prototype",
+     "parameter passing and pass by value",
+     "return values and the void return",
+     "scope: block, function, file, function prototype",
+     "lifetime and storage duration: automatic, static, allocated",
+     "linkage: external, internal, none; static and extern",
+     "the preprocessor: #define, macros, #include, conditional compilation"],
+    prereq=["C fundamentals: types, operators and control flow"],
+    related=["pointers in C", "recursion", "compiler runtime environments",
+             "operating system processes"],
+    importance="high",
+    evidence="GATE 2027 Section 4 begins 'Programming in C.' Functions, scope and the "
+             "preprocessor are part of that phrase and are the mechanism behind the recursion "
+             "and pointers items in the same section. Official GATE 2027 CS syllabus, IIT Madras.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="functions-scope-and-preprocessor",
+    path="topics/functions-scope-and-preprocessor/index.html",
+    execution="published 2026-10-26",
+    microtopics=[
+        "a prototype lets the compiler convert each argument, as if by assignment",
+        "without a prototype the default argument promotions apply",
+        "only float is promoted; double passes unchanged",
+        "arguments are copies; a parameter is a new object each call",
+        "arrays and functions: a parameter of array type is adjusted to a pointer",
+        "why a swap needs pointers, and why returning a pointer to a local is wrong",
+        "sizeof inside a callee is the size of a pointer, not of the array",
+        "scope against storage duration: four combinations, all real",
+        "name lookup from the innermost block outward",
+        "shadowing: two objects, one spelling, no diagnostic",
+        "static local keeps its value across calls and is initialised once",
+        "a static local with no initialiser still starts at zero",
+        "static at file scope gives internal linkage",
+        "extern declares without defining; a plain file-scope int defines",
+        "the four storage classes and their default initial values",
+        "object macros against function macros and the missing-parentheses trap",
+        "outer parentheses around the body do not fix a compound argument",
+        "macro side effects: the argument is substituted once per use",
+        "parentheses fix precedence, never duplication",
+        "#include is textual inclusion and needs include guards",
+        "conditional compilation and the meaning of NDEBUG at the point of inclusion",
+        "the compilation pipeline: preprocess, compile, assemble, link",
+        "declaration against definition, and one external definition per name",
+    ]))
 
 topics.append(topic(
     "Programming and Data Structures", "Programming in C", "Recursion",
@@ -892,6 +943,30 @@ topics.append(topic(
     importance="high",
     evidence="General Aptitude is common to all GATE papers and carries 15 of 100 marks (GATE 2026 brochure, section 4; the same split is stated for GATE 2027).",
     difficulty="easy-medium"))
+
+# ---------------------------------------------------------------- preservation
+# The tracker is regenerated from this file, so anything an earlier run recorded
+# about a published lesson must survive regeneration. Without this step, running
+# the script silently resets a published lesson to NOT_STARTED and drops the
+# microtopics that run verified.
+import os
+PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
+            "microtopics", "coverage_note")
+if os.path.exists("syllabus-coverage.json"):
+    try:
+        with open("syllabus-coverage.json") as f:
+            _old = json.load(f)
+        _old_by_key = {(t["subject"], t["topic"]): t for t in _old.get("topics", [])}
+        for _t in topics:
+            _o = _old_by_key.get((_t["subject"], _t["topic"]))
+            if not _o:
+                continue
+            if _o.get("coverage_status") in ("PUBLISHED", "NEEDS_REVIEW"):
+                for _k in PRESERVE:
+                    if _o.get(_k):
+                        _t[_k] = _o[_k]
+    except Exception as _e:
+        print("warning: could not merge the existing tracker:", _e)
 
 doc = {
     "repo": "gate-visual-explainer",
