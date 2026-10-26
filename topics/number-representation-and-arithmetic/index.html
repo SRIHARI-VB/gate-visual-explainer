@@ -1,0 +1,2133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Number Representation and Arithmetic — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Number Representation and Arithmetic</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../boolean-algebra-and-minimisation/index.html">Prerequisite: Boolean algebra</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Number representation and arithmetic — fixed point (unsigned and signed, with an explicit scale); sign-magnitude, ones' complement and two's complement; the range, the step and the count of distinct values of each; negation, sign extension and one-pass negation; addition and subtraction with a single adder; the carry flag against the overflow flag; normalised binary scientific notation; the IEEE 754 single and double formats, their biases and hidden bit; the four exponent regimes, denormals, zero, infinity and NaN; precision, ulp, rounding and absorbed additions.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a bit string, a width and a representation, state its value; given a value, produce its bits; and given an arithmetic operation, say whether the result is correct, what the carry flag holds, and whether overflow occurred. For IEEE 754: decode any 32-bit or 64-bit pattern, encode any value that the format can hold, name the special values, and compute the range and the gap at a given magnitude.</p>
+          <p class="small muted" style="margin-bottom:0">I am treating this as the whole of the syllabus item "Number representation and arithmetic (fixed and floating point)" and as the representation layer that the next two Digital Logic lessons and the whole of Computer Organization sit on. Boolean algebra and gate minimisation belong to the previous lesson; adders, multiplexers and flip-flops belong to the next one. Arithmetic *algorithms* — Booth recoding, restoring division, carry-lookahead — are not in this lesson.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 2 of the official GATE 2027 CS syllabus, published by IIT Madras as <em>CS_GATE2027_Syllabus.pdf</em>, reads: <em>"Boolean algebra and minimization – algebraic technique, Karnaugh map, tabular method. Design of combinational and sequential circuits. Number representation and arithmetic (fixed and floating point)."</em> The parenthetical "(fixed and floating point)" is why this lesson covers both halves rather than stopping at integers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Nine previous-year questions are used in this lesson, each with its paper and question number: 2012 Q7, 2013 Q4, 2014 Set 2 Q45, 2016 Set 1 Q7, 2016 Set 2 Q9, 2017 Set 1 Q7, 2017 Set 1 Q9, 2019 Q4, 2019 Q8 and 2021 Set 1 Q24, plus 2021 Set 2 Q4. Past frequency is an observation about old papers, not a prediction for 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Positional binary: reading 1011 as 8 + 0 + 2 + 1. Nothing beyond counting in binary and knowing that the leftmost bit is the most significant.</li>
+            <li>Powers of two up to about 2<sup>10</sup>, and negative powers such as 2<sup>−3</sup> = 0.125.</li>
+            <li><a href="../boolean-algebra-and-minimisation/index.html">Boolean algebra and minimisation</a> — not needed for the arithmetic, but the previous lesson explains what a bit column is and why a complement is a row of inverters.</li>
+            <li>No programming, no calculus. Hexadecimal appears only as a compact way to write 32 bits.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A bit pattern has no meaning until you name the representation. The same 10110110 is 182, 11.375 or −74 depending on the convention.</li>
+            <li>Two's complement is arithmetic modulo 2<sup>n</sup>: the pattern arithmetic is always right, and only the flag logic needs to know about signs.</li>
+            <li>Carry and overflow are different questions — one about the fifth bit, one about the sign — and neither implies the other.</li>
+            <li>A float is a sign, a biased exponent and a fraction with an implied leading 1. The bias exists so that the exponent has no sign bit and so that the bit order is the numeric order.</li>
+            <li>The exponent field, not the magnitude, decides whether a pattern is zero, denormal, normal, infinite or NaN.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, five minutes at 1× speed:</p>
+          <ol class="small" style="margin-bottom:0;columns:2;column-gap:16px">
+            <li>A fixed point is a scale</li>
+            <li>Three encodings, and two zeros</li>
+            <li>Two's complement as a wheel</li>
+            <li>One adder for both operations</li>
+            <li>Carry against overflow</li>
+            <li>Scientific notation in base two</li>
+            <li>The 32 bits of a single</li>
+            <li>The whole IEEE number line</li>
+            <li>24 bits of precision</li>
+            <li>The procedure and four traps</li>
+          </ol>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Conventions used throughout</h3>
+          <p class="small" style="margin-bottom:0">Bits are written most significant first, in groups of four. n is the width in bits and f is the number of fraction bits, so a fixed-point format has i = n − f integer bits. <em>Two's complement</em> is written with an apostrophe and means the representation, not the operation. For a floating-point number, S is the sign bit, E is the stored exponent <em>field</em> and e = E − bias is the true exponent; F is the stored fraction and the significand is 1.F for normal numbers and 0.F when E = 0. "ulp" means one unit in the last place, the gap between neighbouring representable values. Hexadecimal is written 0x… or with a trailing H, exactly as the papers write it.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Approximate study time</h3>
+          <p class="small" style="margin-bottom:0">About 85 minutes: 5 of animation, 35 of prose and worked examples, 30 on the practice set, 15 on the revision sheet. Approximate, not measured.</p>
+          <p class="small" style="margin:6px 0 0"><span class="claim-chip claim-chip--derivation">Derivation</span> Every value, range, gap and hex constant printed in the animation is computed in code on this page from the definitions, then checked against its own defining property — 37 checks, listed with their results in the Animation tab. Two of the checks themselves were wrong on the first run and were fixed before publishing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="span-3" data-pager>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+
+          <div class="pager-page active">
+            <div class="grid grid--2">
+
+              <div class="card card--hero span-2">
+                <h3>1. Intuition — a ruler with a fixed set of marks</h3>
+                <p class="small">A fixed-point number is a ruler. The marks are at a fixed spacing — 0.125 apart if the number has three fraction bits — and every value you can write down must be one of the marks. Two bits patterns that look different are two different marks; two real numbers closer together than the spacing cannot be told apart at all. That is all a representation is: a finite set of marks, plus a rule for naming them.</p>
+                <p class="small">A floating-point number is a different kind of ruler: one whose spacing changes. Near 1 the marks are 2<sup>−23</sup> apart, near 2 they are twice as far apart, near 1024 twice as far again. The advantage is that the ruler reaches 10<sup>38</sup>; the cost is that far from zero the marks are coarse. Every question in this topic is a question about which marks a format has.</p>
+                <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The ruler is an analogy for orientation. Nothing after this card depends on it, and the ranges and gaps it mentions are computed in the Animation tab rather than asserted.</p>
+              </div>
+
+              <div class="card card--definition">
+                <h3>2. Formal definition — fixed point</h3>
+                <div class="formula">X = Σ<sub>k=−f</sub><sup>i−1</sup> b<sub>k</sub> · 2<sup>k</sup><span class="gloss">The value of an n-bit fixed-point pattern with f fraction bits, where i = n − f. Each bit b<sub>k</sub> is 0 or 1 and carries the weight 2<sup>k</sup>. The point sits between position 0 and position −1, and it never moves, which is why the format is called fixed.</span></div>
+                <div class="formula">0 ≤ X ≤ 2<sup>i</sup> − 2<sup>−f</sup>, &nbsp; step = 2<sup>−f</sup><span class="gloss">The range and the spacing. The maximum is one step below 2<sup>i</sup>, because the largest pattern is all ones. This is the answer to GATE CSE 2017 Set 1 Q7.</span></div>
+                <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The largest pattern has every bit set, so its value is the sum of all the weights, which is a geometric series equal to 2<sup>i</sup> − 2<sup>−f</sup>.</p>
+              </div>
+
+              <div class="card card--definition">
+                <h3>3. Formal definition — the three signed encodings</h3>
+                <div class="formula">sign-magnitude: (−1)<sup>b<sub>n−1</sub></sup> · (b<sub>n−2</sub>…b<sub>0</sub>)<span class="gloss">The top bit is a sign and the rest is an unsigned magnitude. Range −(2<sup>n−1</sup> − 1) to 2<sup>n−1</sup> − 1, and two patterns for zero.</span></div>
+                <div class="formula">two's complement: −b<sub>n−1</sub>·2<sup>n−1</sup> + Σ<sub>k=0</sub><sup>n−2</sup> b<sub>k</sub>·2<sup>k</sup><span class="gloss">The top bit carries a negative weight. Range −2<sup>n−1</sup> to 2<sup>n−1</sup> − 1, one zero, and 2<sup>n</sup> distinct values. Negation is complement-and-add-one.</span></div>
+                <div class="formula">ones' complement: the negation is the bitwise complement<span class="gloss">Range −(2<sup>n−1</sup> − 1) to 2<sup>n−1</sup> − 1, two patterns for zero, 2<sup>n</sup> − 1 distinct values. Historically important, and the reason the "end-around carry" exists; no modern machine uses it for integers.</span></div>
+                <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> That two's complement is the representation used by current general-purpose machines is stated by the standard reference on signed number representations and follows from the single-zero and single-adder properties shown in scenes two to four.</p>
+              </div>
+
+              <div class="card card--takeaway">
+                <h3>4. Visual understanding — the wheel, and the two flags</h3>
+                <p class="small">All 2<sup>n</sup> patterns of an n-bit word form a ring when you read them as unsigned and step by one. Two's complement relabels that ring by subtracting 2<sup>n</sup> from everything past the halfway point, so the ring reads 0, 1, 2, … up to 2<sup>n−1</sup> − 1 and then continues −2<sup>n−1</sup>, …, −1. Addition walks around the ring; negation reflects across it.</p>
+                <div class="formula">overflow ⇔ C<sub>out</sub> ⊕ C<sub>in to the sign column</sub><span class="gloss">Two flags leave an n-bit adder. C<sub>out</sub> is the (n+1)-th bit of an unsigned sum. Overflow is the exclusive-or of the carry into the sign column and the carry out of it, which is the same as saying: two operands of one sign produced a result of the other sign.</span></div>
+                <p class="small" style="margin-bottom:0">Neither flag implies the other: adding two negative numbers always carries out and usually does not overflow; adding two large positives never carries out and can overflow.</p>
+              </div>
+
+              <div class="card card--definition">
+                <h3>5. Formal definition — IEEE 754</h3>
+                <div class="formula">normal: (−1)<sup>S</sup> · (1.F) · 2<sup>E−127</sup>, &nbsp; 1 ≤ E ≤ 254<span class="gloss">Single precision: 1 sign bit, 8 exponent bits, 23 fraction bits, bias 127. The 1 before the point is implied and not stored, so the significand carries 24 significant bits.</span></div>
+                <div class="formula">denormal: (−1)<sup>S</sup> · (0.F) · 2<sup>−126</sup>, &nbsp; E = 0, F ≠ 0<span class="gloss">The hidden bit becomes 0 and the exponent is pinned at −126. The pattern with E = 0 and F = 0 is zero. With E = 255, a zero fraction is infinity and a non-zero fraction is NaN.</span></div>
+                <div class="formula">double: 1 / 11 / 52, bias 1023, &nbsp; normal (−1)<sup>S</sup> · (1.F) · 2<sup>E−1023</sup><span class="gloss">64 bits in total. Same four regimes, with 2<sup>−1022</sup> as the smallest normal and 2<sup>−1074</sup> as the smallest denormal.</span></div>
+                <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The field widths, the biases, the hidden bit, the denormal rule and the special values are those of the IEEE 754 standard for binary32 and binary64. The lesson quotes no clause number, because the standard document itself was not opened for this run.</p>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="pager-page">
+            <div class="grid grid--2">
+
+              <div class="card card--hero span-2">
+                <h3>6. Worked examples — one line each, with the reason</h3>
+                <p class="small"><strong>Fixed point.</strong> 10110.110 with three fraction bits is 16 + 4 + 2 + 0.5 + 0.25 = 22.75. <em>Why:</em> the weights are 2<sup>4</sup> down to 2<sup>−3</sup>, and only the positions holding a 1 contribute.</p>
+                <p class="small"><strong>Sign extension.</strong> −28 in sixteen bits is 1111 1111 1110 0100. <em>Why:</em> +28 is 0000 0000 0001 1100; complementing gives 1111 1111 1110 0011 and adding one gives the answer. Zero-padding would give 0000 0000 1110 0100, which is +228.</p>
+                <p class="small"><strong>Decode.</strong> S=1, E=10000001, F=1111… gives −7.75. <em>Why:</em> E = 129 so e = 2; 1.1111₂ = 1.9375; 1.9375 × 4 = 7.75, and the sign makes it negative.</p>
+                <p class="small" style="margin-bottom:0"><strong>Encode.</strong> −14.25 is 0xC1640000. <em>Why:</em> 14.25 = 1110.01₂ = 1.11001₂ × 2<sup>3</sup>; the exponent field is 3 + 127 = 130 = 10000010; the fraction is 11001 followed by eighteen zeros; the sign bit is 1. Grouping into nibbles: 1100 0001 0110 0100 0000 … = C1640000.</p>
+              </div>
+
+              <div class="card card--counterexample">
+                <h3>7. Boundaries — what each rule assumes</h3>
+                <ul class="small" style="margin-bottom:0">
+                  <li><strong>The complement identity assumes a fixed width.</strong> "Invert and add one" is a statement about n-bit patterns. In a wider word the same value has a different pattern, and the identity still holds at that width — which is exactly why sign extension is needed when you widen.</li>
+                  <li><strong>The overflow rule assumes two's complement.</strong> In sign-magnitude, overflow is a statement about the magnitude field, and the sign-bit rule gives wrong answers. In ones' complement there is also an end-around carry to handle.</li>
+                  <li><strong>The IEEE formula assumes E in 1…254.</strong> With E = 0 the hidden bit is 0 and the exponent is −126, and with E = 255 the value is not a number at all. Applying the normal formula outside its range is the commonest single error in this topic.</li>
+                  <li><strong>Precision is a property of the significand, range of the exponent.</strong> Adding exponent bits extends the range and changes nothing about precision; adding fraction bits does the reverse.</li>
+                  <li><strong>Exactness is a property of the value, not the format.</strong> 0.5, 0.25, 14.25 and every integer up to 2<sup>24</sup> are exact in single precision. 0.1, 0.2 and 1/3 are not exact in any binary format, at any width.</li>
+                </ul>
+              </div>
+
+              <div class="card card--trap">
+                <h3>8. Edge cases that decide marks</h3>
+                <ul class="small" style="margin-bottom:0">
+                  <li><strong>The most negative value.</strong> In two's complement −2<sup>n−1</sup> is its own negation, so negating it, or taking its absolute value, overflows. It is the one pattern for which "invert and add one" returns itself.</li>
+                  <li><strong>Subtracting the most negative value.</strong> A − (−2<sup>n−1</sup>) cannot be computed as "add the negation", because that negation does not exist at this width; the flag is raised spuriously. This lesson's model finds the exception by search over every pair of widths three to eight.</li>
+                  <li><strong>Signed zero.</strong> +0 and −0 have different bit patterns and compare equal. A question that asks how many distinct patterns represent zero and a question that asks how many distinct values are representable are different questions.</li>
+                  <li><strong>NaN ≠ NaN.</strong> The only value in IEEE 754 that is not equal to itself. It is also the reason a comparison of two floats can be false in both directions.</li>
+                  <li><strong>The smallest normal is not 2<sup>−127</sup>.</strong> With E = 1 the value is 1.0 × 2<sup>1−127</sup> = 2<sup>−126</sup>; 2<sup>−127</sup> is a denormal, representable but with fewer significant bits.</li>
+                  <li><strong>Ties to even.</strong> 2<sup>24</sup> + 1 is exactly halfway between 2<sup>24</sup> and 2<sup>24</sup> + 2, and rounds down to the even neighbour; 2<sup>24</sup> + 3 rounds up. Both are correct roundings, and the direction is not "always up".</li>
+                </ul>
+              </div>
+
+              <div class="card card--recessed span-2">
+                <h3>9. Consolidation — the six sentences to keep</h3>
+                <p class="small" style="margin-bottom:0">A pattern means nothing without its representation. Two's complement is arithmetic modulo 2<sup>n</sup> with a lopsided range, because one pattern is its own negation. One adder serves both addition and subtraction, and the discarded carry is not an error. Carry is about the fifth bit, overflow is about the sign, and neither implies the other. A float is a sign, a biased exponent and an implied-1 fraction, and the exponent field alone decides whether the value is ordinary, denormal, infinite or NaN. Precision is 24 bits in single and 53 in double, and no width makes one tenth exact.</p>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION =========================== -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A fixed-point number keeps the binary point in one place: n bits with f of them after the point leave i = n − f before it.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A fixed point is a scale, and the scale is the whole story</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A fixed-point number keeps the binary point in one place. n bits with f of them after the point leave n minus f before it.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running…
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Browser speech synthesis; voice availability varies">Narrate</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid">
+
+        <div class="span-3" data-pager>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+
+          <div class="pager-page active">
+            <div class="grid grid--2">
+
+              <div class="card card--hero span-2">
+                <h3>Example 1 — fixed point, and the range question in words</h3>
+                <p class="small"><strong>Question.</strong> An 8-bit unsigned fixed-point format uses 3 bits for the fraction. Give the value of 10110110, the largest value, the smallest non-zero value, and the value that would follow the largest.</p>
+                <p class="small"><strong>Value.</strong> Split as 10110.110. Weights: 16 + 0 + 4 + 2 + 0 + 0.5 + 0.25 + 0 = 22.75.</p>
+                <p class="small"><strong>Largest.</strong> All ones, 11111.111 = 31.875 = 2<sup>5</sup> − 2<sup>−3</sup>. <strong>Smallest positive.</strong> 00000.001 = 0.125 = 2<sup>−3</sup>. <strong>The value after the largest.</strong> 32.0 is not representable — it needs six integer bits. Adding one step to 11111.111 carries out of the word and leaves 00000.000, so the format wraps to zero.</p>
+                <p class="small" style="margin-bottom:0"><strong>The lesson.</strong> The upper bound of the format is a value it cannot hold, and the gap between "largest" and "next" is not a step but an absence. This is the arithmetic counterpart of the overflow flag.</p>
+              </div>
+
+              <div class="card card--definition">
+                <h3>Example 2 — the three encodings of one value</h3>
+                <p class="small">Write −6 in 8 bits, three ways.</p>
+                <div class="formula">sign-magnitude: 1000 0110<span class="gloss">Sign 1, magnitude 000 0110 = 6.</span></div>
+                <div class="formula">ones' complement: 1111 1001<span class="gloss">+6 is 0000 0110; invert every bit.</span></div>
+                <div class="formula">two's complement: 1111 1010<span class="gloss">Invert and add one. Note that 1111 1010 in 8 bits and 1010 in 4 bits are the same value at different widths.</span></div>
+                <p class="small" style="margin-bottom:0">GATE CSE 2025 Set 1 Q25 asks which patterns are valid two's complement representations of −6 at 8 and 16 bits: 1111 1010 and 1111 1111 1111 1010 are; 1000 1010 and 1000 0000 0000 1010 are not, because they are sign-magnitude-like patterns with an extra leading 1.</p>
+              </div>
+
+              <div class="card card--takeaway">
+                <h3>Example 3 — subtraction, column by column</h3>
+                <p class="small">Compute 0000 1011 − 0011 0100 in 8-bit two's complement, that is 11 − 52.</p>
+                <p class="small">The negation of 0011 0100 is 1100 1100 (invert to 1100 1011, add one). Then 0000 1011 + 1100 1100 = 1101 0111 with no carry out. Read 1101 0111 back: the top bit is 1, so invert and add one to get 0010 1001 = 41, so the value is −41. And 11 − 52 = −41.</p>
+                <p class="small" style="margin-bottom:0"><strong>The lesson.</strong> The borrow never appears. Subtraction is addition of the negation, and the only care needed is that the negation is formed at the same width as the operands.</p>
+              </div>
+
+              <div class="card card--trap">
+                <h3>Example 4 — the flag that was not asked for</h3>
+                <p class="small">In 4 bits, add 1011 and 1110.</p>
+                <p class="small">1011 is −5, 1110 is −2, and the true sum is −7 = 1001, which is representable. The column addition produces a carry out of the top column: 1011 + 1110 = 1 1001. So the carry flag is 1 and the overflow flag is 0.</p>
+                <p class="small" style="margin-bottom:0">If the question had said the operands were unsigned, 11 + 14 = 25, and the correct answer would be 9 with a carry — the carry flag being the signal that the fifth bit exists. Same circuit, same bits, two different correct answers. <em>This is the pair that the 2017 and 2022 papers test.</em></p>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="pager-page">
+            <div class="grid grid--2">
+
+              <div class="card card--hero span-2">
+                <h3>Example 5 — decode a single-precision constant without a calculator</h3>
+                <p class="small"><strong>Question.</strong> What is 0xC0F80000 as a decimal number?</p>
+                <p class="small"><strong>Step 1, expand to bits.</strong> C = 1100, 0 = 0000, F = 1111, 8 = 1000, then five zeros: 1100 0000 1111 1000 0000 0000 0000 0000.</p>
+                <p class="small"><strong>Step 2, cut the fields.</strong> S = 1; E = 1000 0001 = 129; F = 1111 followed by nineteen zeros.</p>
+                <p class="small"><strong>Step 3, unbiased exponent.</strong> 129 − 127 = 2.</p>
+                <p class="small"><strong>Step 4, significand.</strong> 1.1111₂ = 1 + 0.5 + 0.25 + 0.125 + 0.0625 = 1.9375.</p>
+                <p class="small" style="margin-bottom:0"><strong>Step 5, multiply.</strong> −1 × 1.9375 × 4 = <strong>−7.75</strong>. This is GATE CSE 2021 Set 1 Q24 in the order the exam gave it: the three fields were printed and only the arithmetic was left.</p>
+              </div>
+
+              <div class="card card--definition">
+                <h3>Example 6 — encode a decimal value, and check it</h3>
+                <p class="small">Encode 3.5 in single precision and verify by decoding.</p>
+                <p class="small">3.5 = 11.1₂ = 1.11₂ × 2<sup>1</sup>. Exponent field 1 + 127 = 128 = 10000000. Fraction 110 then zeros. Sign 0. So 0100 0000 0110 0000 … = 0x40600000.</p>
+                <p class="small" style="margin-bottom:0"><strong>Check.</strong> S = 0, E = 128 → e = 1, significand 1.75, and 1.75 × 2 = 3.5. <em>Always decode your own answer.</em> The check costs fifteen seconds and catches the two commonest errors, a bias that was not subtracted and a fraction that included the hidden bit.</p>
+              </div>
+
+              <div class="card card--counterexample">
+                <h3>Example 7 — where the precision goes</h3>
+                <p class="small">In single precision, compute 16777216 + 1.</p>
+                <p class="small">16777216 = 2<sup>24</sup>. At that magnitude the gap between neighbouring singles is 2, so the two candidates for the sum are 2<sup>24</sup> and 2<sup>24</sup> + 2, and the exact sum lies exactly halfway. Ties go to the even neighbour, which is 2<sup>24</sup>, so the answer is 16777216 — the one added vanishes.</p>
+                <p class="small" style="margin-bottom:0">In double precision the same sum is exact, because 2<sup>24</sup> + 1 needs 25 significant bits and double has 53. <em>The lesson:</em> "the computer got it wrong" is the wrong description; the format had no mark there, and rounding chose the nearest one.</p>
+              </div>
+
+              <div class="card card--takeaway">
+                <h3>Example 8 — comparing two floats without decoding them</h3>
+                <p class="small">Which is larger, 0x41200000 or 0x40E00000?</p>
+                <p class="small">Both are positive, so the biased exponent makes the bit patterns order the same way as the values. 0x41200000 &gt; 0x40E00000 as unsigned integers, so it is the larger number. (They are 10.0 and 7.0.)</p>
+                <p class="small" style="margin-bottom:0"><strong>Why this is worth knowing.</strong> It turns a class of multiple-choice questions into one integer comparison, and it explains why the exponent is biased rather than stored in two's complement. It does <em>not</em> work across the sign bit, and it does not work when one operand is a NaN.</p>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ========================= -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Edge cases, boundary cases and the exceptions that break a rule</h3>
+          <p class="small" style="margin-bottom:0">Each of these is a case where a rule that is correct almost everywhere gives the wrong answer. They are collected here because they are exactly what a well-set question asks about.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The integer boundaries</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>−2<sup>n−1</sup> is its own negation.</strong> In 4 bits, 1000 is −8 and negating gives 1000 again. So |−8| is not representable, and a program that takes the absolute value of the most negative integer is relying on undefined behaviour in C.</li>
+            <li><strong>Subtracting −2<sup>n−1</sup> raises a spurious overflow.</strong> A − (−2<sup>n−1</sup>) is computed as A + (−2<sup>n−1</sup>), because the negation cannot be formed; the pattern arithmetic still gives the right answer when the result fits, but the flag is set. The model searches all pairs of widths 3 to 8 and finds 252 such cases.</li>
+            <li><strong>Adding two negatives always carries out.</strong> In 8 bits, 1111 1111 + 1111 1111 = 1 1111 1110, which is −2 — correct, with a carry. Any rule that equates carry with overflow fails on this line.</li>
+            <li><strong>Overflow with no carry.</strong> 0111 + 0001 = 1000: +7 + 1 = −8, no carry out, overflow set.</li>
+            <li><strong>A full-range negation.</strong> With n bits there are 2<sup>n</sup> patterns and 2<sup>n</sup> values in two's complement, so nothing is wasted — but the range is not symmetric, and a question that asks for "the number of positive and negative values" wants 2<sup>n−1</sup> − 1 and 2<sup>n−1</sup>.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The floating-point boundaries</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>E = 0 with F = 0</strong> is zero, and the sign bit still applies: 0x80000000 is −0. It compares equal to +0, and 1/−0 is −∞.</li>
+            <li><strong>E = 0 with F ≠ 0</strong> is denormal: significand 0.F at exponent −126. The smallest is 0x00000001 = 2<sup>−149</sup>.</li>
+            <li><strong>E = 255 with F = 0</strong> is ±∞. <strong>E = 255 with F ≠ 0</strong> is NaN, and there are 2<sup>23</sup> − 1 distinct NaN patterns — the standard calls the field a payload, and none of them equals itself.</li>
+            <li><strong>The largest finite single</strong> is 0x7F7FFFFF = (2 − 2<sup>−23</sup>) × 2<sup>127</sup> ≈ 3.4028 × 10<sup>38</sup>. One bit more in the fraction would make it 2<sup>128</sup>, which is not a finite value, so the significand stops short of 2.</li>
+            <li><strong>The smallest normal</strong> is 0x00800000 = 2<sup>−126</sup>, not 2<sup>−127</sup>, because the exponent field cannot be 0 for a normal number.</li>
+            <li><strong>The gap is not constant.</strong> At 1 it is 2<sup>−23</sup>; at 2<sup>24</sup> it is 2; just below 2<sup>−126</sup> the denormals are evenly spaced at 2<sup>−149</sup>, which means fewer and fewer significant bits as you approach zero.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Cases where the question's own wording decides</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>"How many distinct values"</strong> versus <strong>"how many bit patterns"</strong>. For sign-magnitude and ones' complement the two differ by one, because of the second zero. For two's complement they are equal.</li>
+            <li><strong>"Smallest"</strong> usually means most negative, not smallest magnitude. The 2013 question's smallest 8-bit value is −128; its smallest magnitude is 0.</li>
+            <li><strong>"The decimal value"</strong> of a bit string, with no format named, is the unsigned reading. If the question intends two's complement it will say so, or give a width and a sign convention.</li>
+            <li><strong>"The value rounded to two decimal places"</strong> on a float decode means the exact value of the pattern, then rounded. It never means the nearest float.</li>
+            <li><strong>"A 16-bit signed integer"</strong> in a GATE question means two's complement unless another representation is named. Sign-magnitude and ones' complement are named explicitly when they are meant.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The two exception tables worth memorising</h3>
+          <p class="small" style="margin-bottom:0"><strong>Integers:</strong> one self-negating pattern (−2<sup>n−1</sup>), one wasted pattern in the two older encodings, one carry that is not an overflow, one overflow that is not a carry, and one subtraction that cannot be done by negation. <strong>Floats:</strong> two reserved exponent values (0 and 255) covering five kinds of value (zero, denormal, normal, infinity, NaN), two zeros that compare equal, and one value that never equals itself.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ===================== -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Eight wrong beliefs, each with the smallest counterexample</h3>
+          <p class="small" style="margin-bottom:0">A misconception is only defeated by a case it cannot explain. Each card gives the belief, the counterexample in bits, and the correct statement. The last card is the pair of concepts most often confused with each other in this topic.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "The carry flag means overflow"</h3>
+          <p class="small"><strong>Counterexample.</strong> In 4 bits, 1011 + 1110 = 1 1001. Carry out 1, no overflow: −5 + (−2) = −7, which is representable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> The carry out is the fifth bit of an unsigned sum. Overflow is C<sub>out</sub> ⊕ C<sub>into sign</sub>, equivalently: same-sign operands, opposite-sign result. Neither flag implies the other in either direction.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Overflow always sets the carry"</h3>
+          <p class="small"><strong>Counterexample.</strong> 0111 + 0001 = 1000 in 4 bits: +7 + 1 = −8. No carry out at all, overflow set.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> The carry out of the top column is 0 here because the two operands' top bits are 0 and 0. The carry <em>into</em> the sign column is 1, which is exactly what the exclusive-or test reports.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "Negating a number always works"</h3>
+          <p class="small"><strong>Counterexample.</strong> In 8 bits, −128 is 1000 0000. Invert: 0111 1111. Add one: 1000 0000. The same pattern.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> Negation is an involution on the 2<sup>n</sup> patterns with exactly one fixed point, and that fixed point is the most negative value. Its absolute value is not representable, which is why signed overflow is undefined behaviour in C.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Widening a two's complement number pads with zeros"</h3>
+          <p class="small"><strong>Counterexample.</strong> −28 as 0000 0000 1110 0100 is +228 in 16 bits. The value changed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> Copy the sign bit into every new position: 1111 1111 1110 0100. Zero padding is correct only for unsigned values, where there is no sign to copy.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "E = 129 means the exponent is 129"</h3>
+          <p class="small"><strong>Counterexample.</strong> The 2021 decode gives 1.9375 × 2<sup>129</sup> if you skip the bias — about 1.3 × 10<sup>39</sup>, which is not even representable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> The stored field carries the bias. e = E − 127 in single, E − 1023 in double, and e = −126 when E = 0.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "The fraction field includes the leading one"</h3>
+          <p class="small"><strong>Counterexample.</strong> Writing 1.11001 into the 23 fraction bits of 0xC1640000 would put a 1 in the top fraction position, giving 0xC1A40000 — a different, larger number.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> For a normal number only the bits after the point are stored; the leading 1 is implied. For a denormal the implied bit is 0, which is a different rule, not an exception to this one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. "0xFFFFFFFF is the largest float"</h3>
+          <p class="small"><strong>Counterexample.</strong> Its exponent field is 255 and its fraction is non-zero, so it is a NaN. Adding it to anything gives NaN.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> The largest finite single is 0x7F7FFFFF. Before naming any value, cut the exponent field and check whether it is 0 or 255.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>8. "Floating point can represent one tenth"</h3>
+          <p class="small"><strong>Counterexample.</strong> The nearest single to 0.1 is 13421773/2<sup>27</sup> = 0.10000000149…, and the nearest double is 3602879701896397/2<sup>55</sup>. Neither is one tenth.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> A binary fraction is a multiple of 2<sup>−f</sup>, and 1/10 has a factor of 5 in its denominator, so no f makes it exact. Values whose denominators are powers of two — 0.5, 0.25, 0.125, 14.25 — are exact.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Closely confused pair: <em>range</em> against <em>precision</em></h3>
+          <p class="small">Range is how far from zero the format reaches; precision is how finely it can divide an interval once it gets there. They are set by different fields and they trade against each other.</p>
+          <div class="formula">single: range ±3.4 × 10<sup>38</sup>, precision 24 significant bits (gap 2<sup>−23</sup> at 1)<span class="gloss">8 exponent bits set the range, 23 stored fraction bits plus the hidden one set the precision.</span></div>
+          <div class="formula">double: range ±1.8 × 10<sup>308</sup>, precision 53 significant bits (gap 2<sup>−52</sup> at 1)<span class="gloss">Adding 3 exponent bits multiplies the range by about 2<sup>768</sup>; adding 29 fraction bits multiplies the precision by 2<sup>29</sup>.</span></div>
+          <p class="small" style="margin-bottom:0"><strong>The distinction that earns marks.</strong> A question that says "the value cannot be represented" is usually a range question, and the answer is an infinity or a denormal. A question that says "the answer is slightly wrong" is a precision question, and the answer involves an ulp, a rounding, or an absorbed addend. Single precision covers about 38 decades; double covers about 308. Neither covers 1/10 exactly, because that is a precision fact and no range helps it.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Closely confused pair: <em>carry</em> against <em>overflow</em>, in one table</h3>
+          <p class="small" style="margin-bottom:6px">Both come out of the same adder, and a question that says "the result is wrong" is asking about one of them. The table separates them by what they are evidence <em>for</em>.</p>
+          <div class="sheet">
+            <dl>
+              <dt>Carry flag</dt><dd>The (n+1)-th bit of an unsigned sum. Means the true sum exceeded 2<sup>n</sup> − 1.</dd>
+              <dt>Overflow flag</dt><dd>A sign violation in a signed sum. Means the true sum left [−2<sup>n−1</sup>, 2<sup>n−1</sup> − 1].</dd>
+              <dt>Both set</dt><dd>Adding two large positives as unsigned and as signed. 1000 0000 + 1000 0000: carry out 1, and as signed −128 + −128 overflows.</dd>
+              <dt>Carry only</dt><dd>Two negatives that fit: 1111 1111 + 1111 1111 = −2.</dd>
+              <dt>Overflow only</dt><dd>0111 + 0001 = 1000: +7 + 1.</dd>
+              <dt>Neither</dt><dd>Almost everything else, including every addition of operands with opposite signs.</dd>
+            </dl>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ====================== -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>How this topic is tested, and what each pattern demands</h3>
+          <p class="small" style="margin-bottom:0">Six patterns cover almost every question this topic has produced. For each one: what the question looks like, the procedure that answers it, and the step where marks are usually lost. The frequency statements are observations about the papers listed in the Sources tab; they are not a prediction for 2027.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 1 — convert a value to bits, or bits to a value</h3>
+          <p class="small"><strong>Looks like:</strong> "In 16-bit two's complement representation, the decimal number −28 is …" (2019 Q4) or "The 16-bit two's complement representation of an integer is 1111 1111 1111 0101; its decimal representation is …" (2016 Set 1 Q7).</p>
+          <p class="small"><strong>Procedure.</strong> Width first, then sign, then complement. To go from bits to a value: if the top bit is 0 the value is the unsigned reading; if it is 1, complement the whole word, add one, and prefix a minus.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where marks are lost.</strong> Using eight bits when the question said sixteen. The 2019 wrong option 0000 0000 1110 0100 is exactly the eight-bit answer padded with zeros.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 2 — range, count, or smallest and largest</h3>
+          <p class="small"><strong>Looks like:</strong> "The smallest integer that can be represented by an 8-bit number in 2's complement form is …" (2013 Q4); "Let X be the number of distinct 16-bit integers in 2's complement and Y in sign-magnitude; X − Y is …" (2016 Set 2 Q9); the fixed-point range question (2017 Set 1 Q7).</p>
+          <p class="small"><strong>Procedure.</strong> Write the range formula for the named representation and substitute. Two's complement: −2<sup>n−1</sup> to 2<sup>n−1</sup> − 1. Sign-magnitude and ones': ±(2<sup>n−1</sup> − 1). Fixed point: 0 to 2<sup>i</sup> − 2<sup>−f</sup>.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where marks are lost.</strong> Reading "smallest" as "smallest magnitude", and writing 2<sup>i</sup> as the fixed-point maximum.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 3 — overflow and underflow in an operation</h3>
+          <p class="small"><strong>Looks like:</strong> four bit patterns given, "which of the following operations results in an arithmetic overflow?" — an MSQ in 2022, 2024, 2025 and 2026, and an MCQ earlier.</p>
+          <p class="small"><strong>Procedure.</strong> Convert each operand to its value, compute the true result in ordinary integers, and compare with the range. This is faster and safer than the sign rule, and it works for sign-magnitude as well, where the sign rule does not apply.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where marks are lost.</strong> Answering with the carry flag, and forgetting that a subtraction can overflow too.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 4 — decode an IEEE 754 pattern</h3>
+          <p class="small"><strong>Looks like:</strong> three named fields (2021 Set 1 Q24), a 32-bit binary string (2017 Set 2 Q12), or a hex constant (2023 Q45, 2025 Set 2 Q49, 2026 Set 2 Q34).</p>
+          <p class="small"><strong>Procedure.</strong> Expand to 32 bits, cut 1/8/23, subtract the bias, write the significand as 1 + a sum of halves, multiply.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where marks are lost.</strong> The bias, and reading the fraction as a decimal fraction. Both are one-line checks at the end.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 5 — encode a value, or name a boundary value</h3>
+          <p class="small"><strong>Looks like:</strong> "A float variable is assigned −14.25; its representation in hexadecimal is …" (2014 Set 2 Q45); "the smallest normalized positive number has exponent field … and fraction …" (2021 Set 2 Q4).</p>
+          <p class="small"><strong>Procedure.</strong> For an encode: binary, normalise, exponent field = e + bias, fraction = the bits after the point, sign. For a boundary: set E to the smallest or largest legal value and F to all zeros or all ones.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where marks are lost.</strong> Forgetting that the smallest <em>normal</em> has E = 1, not E = 0; and writing the hidden 1 into the fraction field.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 6 — arithmetic on two floats, and precision loss</h3>
+          <p class="small"><strong>Looks like:</strong> three registers holding hex constants, "which of the following is true about X + Y = Z?" (2022 Q41, 2025 Set 2 Q49, 2026 Set 1 Q36); or a product of two floats (2023 Q45).</p>
+          <p class="small"><strong>Procedure.</strong> You rarely need the exact value. Compare exponents first: a sum of two numbers whose exponents differ by more than 24 cannot change the larger one. For a product, the exponent field adds and the biases must be subtracted once. Then check the sign and the special cases.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where marks are lost.</strong> Adding the two exponent fields and forgetting to subtract 127 once. And assuming that a small addend survives.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The four traps, in the order they cost marks</h3>
+          <p class="small" style="margin-bottom:0"><strong>One: the bias.</strong> E is a field, not an exponent. <strong>Two: the hidden bit.</strong> 1.F for normal, 0.F when E = 0. <strong>Three: carry is not overflow</strong> — the sign decides overflow, not the fifth bit. <strong>Four: the exponent field decides specialness</strong>, so check for 0 and 255 before you compute anything. Each trap is a check that takes a second and can be done after the answer is written, which is why it is worth doing even in the last minute.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE =========================== -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card card--hero span-3">
+          <h3>Practice set — twelve questions</h3>
+          <p class="small" style="margin-bottom:0">Five of them are previous-year questions, each with its paper and question number. The other seven are original GATE-style questions written for this lesson and labelled as such; they carry no official marks. Learning mode reveals each answer on request; mock-test mode withholds every answer until you submit. Every answer is justified and every wrong option is explained.</p>
+          <p class="small" style="margin-top:8px;margin-bottom:0">
+            <label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode (hide all answers until submit)</label>
+            <button class="btn" id="mock-submit" hidden>Submit and reveal all</button>
+          </p>
+        </div>
+
+        <div class="span-3" data-pager>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="count" data-pager-count>Page 1 of 3</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+
+          <div class="pager-page active">
+            <div class="grid grid--2">
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--mcq">MCQ</span>
+                  <span class="badge badge--orig">PYQ · GATE CSE 2013, Q4</span>
+                  <span class="small muted">1 mark</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">The smallest integer that can be represented by an 8-bit number in 2's complement form is</p>
+                  <ol class="choices small">
+                    <li>−256</li><li>−128</li><li>−127</li><li>0</li>
+                  </ol>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: (B) −128.</strong> The range is −2<sup>n−1</sup> to 2<sup>n−1</sup> − 1, so with n = 8 it is −128 to 127. The pattern 1000 0000 is −128: the top bit carries −128 and every other bit is 0.</p>
+                    <p class="small"><strong>Why the others fail.</strong> −256 needs nine bits (−2<sup>8</sup>). −127 is representable but is not the smallest. 0 is not negative at all.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Trap.</strong> "Smallest" means most negative. A question that wants the smallest magnitude says so, or says "smallest non-negative".</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--nat">NAT</span>
+                  <span class="badge badge--orig">PYQ · GATE CSE 2016 Set 2, Q9</span>
+                  <span class="small muted">1 mark</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">Let X be the number of distinct 16-bit integers in 2's complement representation. Let Y be the number of distinct 16-bit integers in sign-magnitude representation. Then X − Y is ______.</p>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: 1.</strong> Two's complement uses every one of the 2<sup>16</sup> patterns for a different value, so X = 65536. Sign-magnitude spends two patterns on zero (0000…0 and 1000…0), so Y = 65535.</p>
+                    <p class="small"><strong>Why it cannot depend on the width.</strong> The waste is exactly one pattern at every width, because there is exactly one duplicate zero. So X − Y = 1 for n = 4, 16 or 64.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Counting patterns rather than values. Both representations have 2<sup>16</sup> patterns; they differ in how many distinct values those patterns name.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--mcq">MCQ</span>
+                  <span class="badge badge--orig">PYQ · GATE CSE 2017 Set 1, Q7</span>
+                  <span class="small muted">1 mark</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">The n-bit fixed-point representation of an unsigned real number X uses f bits for the fraction part. Let i = n − f. The range of decimal values for X in this representation is</p>
+                  <ol class="choices small">
+                    <li>2<sup>−f</sup> to 2<sup>i</sup></li>
+                    <li>2<sup>−f</sup> to 2<sup>i</sup> − 2<sup>−f</sup></li>
+                    <li>0 to 2<sup>i</sup> − 2<sup>−f</sup></li>
+                    <li>0 to 2<sup>i</sup></li>
+                  </ol>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: (C) 0 to 2<sup>i</sup> − 2<sup>−f</sup>.</strong> The smallest pattern is all zeros, which is 0. The largest is all ones, whose value is the sum of the weights 2<sup>i−1</sup> + … + 2<sup>−f</sup> = 2<sup>i</sup> − 2<sup>−f</sup>.</p>
+                    <p class="small"><strong>Why the others fail.</strong> (A) and (B) exclude zero, which the format certainly holds. (D) is one step too large: 2<sup>i</sup> needs the fraction bits to be zero and the integer part to be 2<sup>i</sup>, which the i integer bits cannot hold.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Check on numbers.</strong> n = 8, f = 3: 0 to 32 − 0.125 = 31.875, which is exactly what the animation prints.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--mcq">MCQ</span>
+                  <span class="badge badge--orig">PYQ · GATE CSE 2019, Q8</span>
+                  <span class="small muted">1 mark</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">Consider Z = X − Y, where X, Y and Z are all in sign-magnitude form. X and Y are each represented in n bits. To avoid overflow, the representation of Z would require a minimum of</p>
+                  <ol class="choices small">
+                    <li>n bits</li><li>n − 1 bits</li><li>n + 1 bits</li><li>n + 2 bits</li>
+                  </ol>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: (C) n + 1 bits.</strong> An n-bit sign-magnitude number holds magnitudes up to 2<sup>n−1</sup> − 1. The worst case is (2<sup>n−1</sup> − 1) − (−(2<sup>n−1</sup> − 1)) = 2<sup>n</sup> − 2, a magnitude needing n bits, plus one for the sign.</p>
+                    <p class="small"><strong>Why the others fail.</strong> n bits hold magnitudes only up to 2<sup>n−1</sup> − 1, and 2<sup>n</sup> − 2 is larger than that for every n ≥ 2. n + 2 works but is not minimal. n − 1 is smaller than the inputs.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Cross-check.</strong> In two's complement the same difference also needs n + 1 bits, but for a different reason: the range is asymmetric, and (−2<sup>n−1</sup>) − (2<sup>n−1</sup> − 1) = −2<sup>n</sup> + 1 needs n + 1. Same answer, different derivation — say which one you are using.</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="pager-page">
+            <div class="grid grid--2">
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--mcq">MCQ</span>
+                  <span class="badge badge--orig">PYQ · GATE CSE 2021 Set 2, Q4</span>
+                  <span class="small muted">1 mark</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">The format of the single-precision floating-point representation of a real number as per the IEEE 754 standard is: 1 sign bit, 8 exponent bits, 23 mantissa bits. Which one of the following choices is correct with respect to the <em>smallest normalized positive number</em> represented using the standard?</p>
+                  <ol class="choices small">
+                    <li>exponent = 00000000 and mantissa = 000…0</li>
+                    <li>exponent = 00000000 and mantissa = 000…01</li>
+                    <li>exponent = 00000001 and mantissa = 000…0</li>
+                    <li>exponent = 00000001 and mantissa = 000…01</li>
+                  </ol>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: (C).</strong> A normalized number needs an exponent field in 1…254, so the smallest exponent field is 1, giving e = 1 − 127 = −126. The smallest significand is 1.000…0, so the mantissa bits are all zero. The value is 2<sup>−126</sup> ≈ 1.18 × 10<sup>−38</sup>.</p>
+                    <p class="small"><strong>Why the others fail.</strong> (A) is zero. (B) is the smallest <em>denormal</em>, 2<sup>−149</sup> — the smallest positive number, but not a normalized one. (D) is 2<sup>−126</sup> × (1 + 2<sup>−23</sup>), slightly larger than needed.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Trap.</strong> "Smallest positive" and "smallest normalized positive" have different answers. Read the word <em>normalized</em>; it is doing all the work.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--nat">NAT</span>
+                  <span class="badge badge--orig">Original practice</span>
+                  <span class="small muted">not an official question</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">The 32-bit IEEE 754 single-precision representation of a number is 0xC2710000. The number in decimal representation is ______ (two decimal places).</p>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: −60.25.</strong> Expand: 1100 0010 0111 0001 then zeros. S = 1. E = 1000 0100 = 132, so e = 132 − 127 = 5. F = 1110 0010…, so the significand is 1.1110001₂ = 1 + 0.5 + 0.25 + 0.125 + 0.0078125 = 1.8828125. Then 1.8828125 × 32 = 60.25, negative.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Why this is original.</strong> The pattern appears in a 2026 paper, but the answer here was computed from the field definitions on this page rather than taken from any key, so it is labelled original. The arithmetic is checked in the Animation tab.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--msq">MSQ</span>
+                  <span class="badge badge--orig">Original practice</span>
+                  <span class="small muted">not an official question</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">In 8-bit two's complement, which of the following additions produce an arithmetic overflow?</p>
+                  <ol class="choices small">
+                    <li>0111 1111 + 0000 0001</li>
+                    <li>1111 1111 + 1111 1111</li>
+                    <li>1000 0000 + 1111 1111</li>
+                    <li>0100 0000 + 0100 0000</li>
+                  </ol>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: (A), (C) and (D).</strong> Convert each operand and compare the true sum with the range [−128, 127]. (A) 127 + 1 = 128, out of range. (C) −128 + −1 = −129, out of range. (D) 64 + 64 = 128, out of range. (B) −1 + −1 = −2, comfortably inside, so (B) is the only one that does not overflow.</p>
+                    <p class="small"><strong>Why (B) is the trap.</strong> 1111 1111 + 1111 1111 carries out of the top column, and a carry is exactly what people mistake for overflow. Two negatives whose sum is still representable is the cleanest counterexample there is, and it is the reason the sign rule exists.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Method.</strong> Do not reason from the carry bit. (B) carries and does not overflow; (A), (C) and (D) do not carry out of the top column in every case, and all three overflow.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--nat">NAT</span>
+                  <span class="badge badge--orig">Original practice</span>
+                  <span class="small muted">not an official question</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">The decimal value 3.5 is stored in IEEE 754 single precision. Give its 32-bit pattern in hexadecimal, as eight hex digits without the 0x prefix.</p>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: 40600000.</strong> 3.5 = 11.1₂ = 1.11₂ × 2<sup>1</sup>. Exponent field 1 + 127 = 128 = 1000 0000. Fraction 110 followed by twenty zeros. Sign 0.</p>
+                    <p class="small">Bits: 0 10000000 11000000000000000000000 → 0100 0000 0110 0000 0000 0000 0000 0000 = 0x40600000.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Check by decoding.</strong> E = 128 → e = 1; significand 1.75; 1.75 × 2 = 3.5. A decode that returns the value you started from is the only proof an encode needs.</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="pager-page">
+            <div class="grid grid--2">
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--msq">MSQ</span>
+                  <span class="badge badge--orig">Original practice</span>
+                  <span class="small muted">not an official question</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">Which of the following statements about IEEE 754 single precision are TRUE?</p>
+                  <ol class="choices small">
+                    <li>Every pattern with exponent field 0 is a denormal number.</li>
+                    <li>The largest finite value has fraction bits all ones and exponent field 254.</li>
+                    <li>Two different bit patterns can represent the value zero.</li>
+                    <li>A pattern with exponent field 255 and a non-zero fraction equals itself.</li>
+                  </ol>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: (B) and (C).</strong> (B) is 0x7F7FFFFF = (2 − 2<sup>−23</sup>) × 2<sup>127</sup>, the largest finite single. (C) is true: 0x00000000 and 0x80000000 are both zero.</p>
+                    <p class="small"><strong>Why the others fail.</strong> (A) fails at exactly one pattern: exponent field 0 with fraction 0 is zero, not a denormal. (D) is a NaN, and a NaN is not equal to itself — that is the standard's own test for one.</p>
+                    <p class="small" style="margin-bottom:0"><strong>The distinction.</strong> "Exponent field 0" and "denormal" are not synonyms; nor are "exponent field 255" and "infinity". Each reserved field covers two cases separated by the fraction.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--nat">NAT</span>
+                  <span class="badge badge--orig">Original practice</span>
+                  <span class="small muted">not an official question</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">In single precision, how many distinct bit patterns represent a NaN?</p>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: 16777215, that is 2<sup>23</sup> − 1, doubled for the sign if you count the sign bit separately: 2 × (2<sup>23</sup> − 1).</strong> A NaN needs exponent field 255 and a non-zero fraction. There are 2<sup>23</sup> fraction patterns and exactly one of them is all zeros, which gives infinity instead.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Why the count matters.</strong> It shows that "NaN" is a family, not a value: the fraction field is a payload, and two NaNs with different payloads are both NaN and neither equals anything. The zero payload with exponent 255 is infinity, so it is excluded.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--nat">NAT</span>
+                  <span class="badge badge--orig">Original practice</span>
+                  <span class="small muted">not an official question</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">In 12-bit two's complement, what is the decimal value of the pattern 1111 0110 1010?</p>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: −150.</strong> The top bit is 1, so the value is the unsigned reading minus 2<sup>12</sup>. The unsigned reading is 0xF6A = 3946, and 3946 − 4096 = −150.</p>
+                    <p class="small" style="margin-bottom:0"><strong>Second method, as a check.</strong> Complement and add one: 0000 1001 0101 + 1 = 0000 1001 0110 = 150, and the sign makes it −150. Two methods that agree is the fastest confidence available in an exam.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="question card">
+                <div class="q-head">
+                  <span class="badge badge--mcq">MCQ</span>
+                  <span class="badge badge--orig">Original practice</span>
+                  <span class="small muted">not an official question</span>
+                </div>
+                <div class="q-body">
+                  <p class="small">Two single-precision values are stored as 0x4B800000 and 0x4B800001. Which statement is true?</p>
+                  <ol class="choices small">
+                    <li>They are the same value, because the patterns differ by one.</li>
+                    <li>They differ by 1.0, and no value lies between them.</li>
+                    <li>They differ by 2.0, and no value lies between them.</li>
+                    <li>The first is NaN, because its exponent field is large.</li>
+                  </ol>
+                  <button class="reveal btn">Show answer</button>
+                  <div class="answer" hidden>
+                    <p class="small"><strong>Answer: (C).</strong> 0x4B800000 has E = 150, so e = 24 and the value is 2<sup>24</sup> = 16777216. The next pattern adds one to the fraction, which adds one ulp, and the ulp at exponent 24 is 2<sup>24−23</sup> = 2. So the second value is 16777218.</p>
+                    <p class="small"><strong>Why the others fail.</strong> (A) and (B) both assume the gap is 1 at every magnitude; it is 1 only while the exponent is 23 or less. (D) is false: an exponent field of 150 is ordinary, and only 255 is special.</p>
+                    <p class="small" style="margin-bottom:0"><strong>The distinction.</strong> One bit of pattern change is not one unit of value. The value of a step in the last place is 2<sup>e−23</sup>, so it doubles at every power of two — which is the whole difference between fixed point and floating point.</p>
+                  </div>
+                </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION =========================== -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything below is computed, not quoted: the ranges follow from the weight formulas, the constants follow from the field definitions, and the checks in the Animation tab reproduce them. Print this page before the exam; it is one screen.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Integer representations at width n</h3>
+          <div class="sheet">
+            <dl>
+              <dt>Unsigned</dt><dd>0 to 2<sup>n</sup> − 1; 2<sup>n</sup> values.</dd>
+              <dt>Sign-magnitude</dt><dd>−(2<sup>n−1</sup> − 1) to 2<sup>n−1</sup> − 1; 2<sup>n</sup> − 1 values; two zeros.</dd>
+              <dt>Ones' complement</dt><dd>Same range and count as sign-magnitude; negation is a plain invert.</dd>
+              <dt>Two's complement</dt><dd>−2<sup>n−1</sup> to 2<sup>n−1</sup> − 1; 2<sup>n</sup> values; one zero.</dd>
+              <dt>Negation</dt><dd>Invert and add one, at the same width. −2<sup>n−1</sup> is its own negation.</dd>
+              <dt>Widening</dt><dd>Copy the sign bit leftwards. Zero-padding is only for unsigned values.</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Fixed point at width n, f fraction bits</h3>
+          <div class="sheet">
+            <dl>
+              <dt>Value</dt><dd>Σ b<sub>k</sub> 2<sup>k</sup> for k from −f to i−1, where i = n − f.</dd>
+              <dt>Range</dt><dd>0 to 2<sup>i</sup> − 2<sup>−f</sup>.</dd>
+              <dt>Step</dt><dd>2<sup>−f</sup>; the resolution of the format.</dd>
+              <dt>Trade-off</dt><dd>At fixed n, more fraction bits mean finer steps and a smaller maximum.</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Flags</h3>
+          <div class="sheet">
+            <dl>
+              <dt>Carry</dt><dd>The (n+1)-th bit of an unsigned sum. Meaningful only for unsigned operands.</dd>
+              <dt>Overflow</dt><dd>C<sub>out</sub> ⊕ C<sub>into sign</sub>, equivalently same-sign operands with an opposite-sign result.</dd>
+              <dt>Never overflow</dt><dd>Adding operands of opposite signs.</dd>
+              <dt>Always carries</dt><dd>Adding two negatives — and this usually does not overflow.</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>IEEE 754 at a glance</h3>
+          <div class="sheet">
+            <dl>
+              <dt>Single</dt><dd>1 / 8 / 23, bias 127, 24-bit significand.</dd>
+              <dt>Double</dt><dd>1 / 11 / 52, bias 1023, 53-bit significand.</dd>
+              <dt>Normal</dt><dd>(−1)<sup>S</sup> · 1.F · 2<sup>E−bias</sup>, with 1 ≤ E ≤ 254 (2046 in double).</dd>
+              <dt>Denormal</dt><dd>(−1)<sup>S</sup> · 0.F · 2<sup>−126</sup> when E = 0 and F ≠ 0.</dd>
+              <dt>Zero</dt><dd>E = 0, F = 0; two patterns, comparing equal.</dd>
+              <dt>Infinity / NaN</dt><dd>E = 255: F = 0 is ±∞, F ≠ 0 is NaN, and NaN ≠ NaN.</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The constants worth knowing</h3>
+          <div class="sheet">
+            <dl>
+              <dt>Largest finite single</dt><dd>(2 − 2<sup>−23</sup>) × 2<sup>127</sup> ≈ 3.4 × 10<sup>38</sup> = 0x7F7FFFFF</dd>
+              <dt>Smallest normal single</dt><dd>2<sup>−126</sup> ≈ 1.18 × 10<sup>−38</sup> = 0x00800000</dd>
+              <dt>Smallest denormal single</dt><dd>2<sup>−149</sup> ≈ 1.4 × 10<sup>−45</sup> = 0x00000001</dd>
+              <dt>Gap at 1 (single)</dt><dd>2<sup>−23</sup> ≈ 1.19 × 10<sup>−7</sup></dd>
+              <dt>Largest finite double</dt><dd>(2 − 2<sup>−52</sup>) × 2<sup>1023</sup> ≈ 1.8 × 10<sup>308</sup></dd>
+              <dt>Exact integers (single)</dt><dd>All integers up to 2<sup>24</sup>; beyond that only even ones, then only multiples of 4, and so on.</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Name the representation and the width. <span class="why">Width fixes the bias, the number of fraction bits and the sign position.</span></li>
+            <li>Find the sign, or the sign field. <span class="why">For integers the top bit; for floats the first bit; for fixed point there is none, which is why the format is unsigned unless stated.</span></li>
+            <li>Cut the fields, or write the weights. <span class="why">1 / 8 / 23 for a single; 2<sup>k</sup> weights for a fixed point.</span></li>
+            <li>Apply the bias or the complement. <span class="why">e = E − 127; or invert and add one.</span></li>
+            <li>Compute, then check. <span class="why">Decode your own encode. Compare the exponent field with 0 and 255. Compare the sum with the range.</span></li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Five quick revision questions</h3>
+          <p class="small" style="margin-bottom:0">(1) What is 0x3F800000? (2) How many bits does A − B need in two's complement if A and B are n-bit? (3) Is 2<sup>−127</sup> a normal single? (4) What is 1111 0000 in 8-bit two's complement? (5) What is the gap between 1.0 and the next single? Answers: 1.0; n + 1; no, it is denormal; −16; 2<sup>−23</sup>.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ========================== -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Sources, and what each one supports</h3>
+          <p class="small" style="margin-bottom:0">Official documents are separated from reference material and from community discussion. Nothing in this lesson rests on a community answer alone: every previous-year answer was recomputed in code on this page, and every constant was derived from the field definitions.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Official</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <span class="muted">CS_GATE2027_Syllabus.pdf, gate2027.iitm.ac.in.</span> Supports the exact wording of Section 2 quoted in the Overview tab: "Number representation and arithmetic (fixed and floating point)." Read on 2026-10-26.</li>
+            <li><strong>GATE 2027 Information Brochure, IIT Madras</strong> — <span class="muted">GATE2027-IB.pdf.</span> Supports the question types used by the practice labels (MCQ, MSQ, NAT) and the note that the syllabus was revised for 2027.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Previous-year questions — where each was checked</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>2013, Q4</strong> — question text and key −128 confirmed on a per-question solution page and on two year-wise compilations. The lesson's own range formula gives −128.</li>
+            <li><strong>2014 Set 2, Q45</strong> — question and key C1640000H confirmed on two independent compilations. The lesson's own encoder produces 0xC1640000.</li>
+            <li><strong>2016 Set 1, Q7</strong> — question and key −11 confirmed on three independent pages. The lesson's own decoder produces −11.</li>
+            <li><strong>2016 Set 2, Q9</strong> — question and key 1 confirmed on two compilations. The lesson's own count of distinct values gives 65536 and 65535.</li>
+            <li><strong>2017 Set 1, Q7</strong> — question and the range answer confirmed on a per-question index. The lesson derives 0 to 2<sup>i</sup> − 2<sup>−f</sup> and checks it numerically for n = 8, f = 3.</li>
+            <li><strong>2017 Set 1, Q9</strong> — the overflow condition C<sub>7</sub> ⊕ C<sub>6</sub> is the one stated in the question's own answer discussion; this lesson states the general rule and the two-definition equivalence, and checks the equivalence exhaustively rather than quoting the option letter.</li>
+            <li><strong>2019, Q4</strong> — question and key option C confirmed on a GATE Overflow question page and two compilations. The lesson's encoder produces 1111 1111 1110 0100.</li>
+            <li><strong>2019, Q8</strong> — question and key n + 1 bits confirmed on two compilations. The lesson's own worst-case derivation gives 2<sup>n</sup> − 2.</li>
+            <li><strong>2021 Set 1, Q24</strong> — question and key −7.75 confirmed on four independent pages, including a paper transcript. The question number differs between copies (23, 24 or 34 depending on how the paper is numbered); the year and set are certain. The lesson's own decoder gives −7.75.</li>
+            <li><strong>2021 Set 2, Q4</strong> — question and the exponent-field answer confirmed on two compilations. The lesson's own boundary computation gives E = 00000001, F = 0.</li>
+            <li><strong>2025 Set 1, Q25</strong> — mentioned in Example 2; the question and its options were seen on a year-wise question bank, and the answer is a direct application of the two's complement encoding checked in this lesson.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Reference material and community discussion</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>The IEEE 754 field layout</strong> — 1/8/23 with bias 127 and 1/11/52 with bias 1023, the hidden bit, the denormal rule and the special values are the standard's definitions for binary32 and binary64. The standard document itself was not opened for this run. Instead, the layout was verified computationally: the page's hand-written encoder and decoder agree with the host's own single- and double-precision implementation over a wide sample, including every boundary constant. That is strong evidence for the layout, not a citation of the standard's text.</li>
+            <li><strong>Signed number representations</strong> — the comparison table of unsigned, sign-magnitude, ones' complement, two's complement and excess-K, and the statement that two's complement is what current general-purpose machines use. Used for the framing of scene two; every count in it is recomputed on this page.</li>
+            <li><strong>University lecture notes on two's complement</strong> — used for the range formula, the overflow rule and the observation that an even number of patterns cannot split evenly between positive and negative. Both facts are re-derived and checked here.</li>
+            <li><strong>Standard textbook treatment</strong> — the fixed-point weight formula, the adder and flag discussion, and the floating-point format follow the usual undergraduate presentation (Patterson and Hennessy for the representation and arithmetic; Stallings for the arithmetic algorithms; Mano for the digital logic). No page or exercise number is quoted, because none was checked against a specific edition.</li>
+            <li><strong>Community discussion</strong> — GATE Overflow threads on the 2019 and 2021 questions were used to find the common wrong answers, which is how the trap notes in the practice set were chosen. Every claim in those notes is checked by the page's own code, so no community answer is load-bearing.</li>
+          </ul>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What this lesson did not verify</h3>
+          <p class="small" style="margin-bottom:0">No marks distribution is claimed anywhere. No question is described as an official PYQ without a year, a set where sets exist, and a question number, and the one numbering ambiguity (2021 Set 1) is stated rather than hidden. The IEEE standard document was not read, so its text is not quoted and no clause number is cited. Arithmetic algorithms such as Booth recoding, restoring and non-restoring division, and carry-lookahead adders are outside this lesson and were not researched for it. The lesson was not rendered in a real browser in the environment where it was built; the page's own code was executed headlessly, every scene was drawn frame by frame, and layout was checked numerically rather than by eye.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ======================================================================
+     LAYER 1 — THE MODEL
+     Every number this lesson shows is produced here. Nothing is hardcoded
+     from memory; the checks in layer 2 test these functions against the
+     properties that define them.
+     ====================================================================== */
+
+  var M = (function () {
+    var N = {};
+    var dv = new DataView(new ArrayBuffer(8));
+
+    N.bin = function (v, n) {
+      var s = '';
+      for (var i = n - 1; i >= 0; i--) s += ((v >> i) & 1) ? '1' : '0';
+      return s;
+    };
+    N.fromBin = function (s) {
+      var v = 0;
+      for (var i = 0; i < s.length; i++) v = v * 2 + (s.charAt(i) === '1' ? 1 : 0);
+      return v;
+    };
+    N.groups = function (s, k) {
+      k = k || 4;
+      var out = [];
+      for (var i = 0; i < s.length; i += k) out.push(s.substr(i, k));
+      return out.join(' ');
+    };
+
+    N.dec2 = function (v, n) { return v >= (1 << (n - 1)) ? v - (1 << n) : v; };
+    N.enc2 = function (x, n) { return x < 0 ? (1 << n) + x : x; };
+    N.dec1 = function (v, n) { var m = (1 << n) - 1; return (v >> (n - 1)) & 1 ? -((~v) & m) : v; };
+    N.decSM = function (v, n) {
+      var mag = v & ((1 << (n - 1)) - 1);
+      return (v >> (n - 1)) & 1 ? -mag : mag;
+    };
+    N.neg2 = function (v, n) { return ((1 << n) - v) & ((1 << n) - 1); };
+    N.range = function (n, rep) {
+      if (rep === 'unsigned') return [0, (1 << n) - 1];
+      if (rep === 'sm' || rep === 'ones') return [-((1 << (n - 1)) - 1), (1 << (n - 1)) - 1];
+      return [-(1 << (n - 1)), (1 << (n - 1)) - 1];
+    };
+    N.distinct = function (n, rep) {
+      var seen = {}, k = 0;
+      for (var v = 0; v < (1 << n); v++) {
+        var x = rep === 'sm' ? N.decSM(v, n) : rep === 'ones' ? N.dec1(v, n) : N.dec2(v, n);
+        if (!seen[x]) { seen[x] = 1; k++; }
+      }
+      return k;
+    };
+    N.zeros = function (n, rep) {
+      var out = [];
+      for (var v = 0; v < (1 << n); v++) {
+        var x = rep === 'sm' ? N.decSM(v, n) : rep === 'ones' ? N.dec1(v, n) : N.dec2(v, n);
+        if (x === 0) out.push(N.bin(v, n));
+      }
+      return out;
+    };
+
+    N.add = function (a, b, n) {
+      var mask = (1 << n) - 1;
+      var sum = (a + b) & mask;
+      var carryOut = (a + b) > mask ? 1 : 0;
+      var carryIn = (((a & (mask >> 1)) + (b & (mask >> 1))) > (mask >> 1)) ? 1 : 0;
+      var sa = (a >> (n - 1)) & 1, sb = (b >> (n - 1)) & 1, ss = (sum >> (n - 1)) & 1;
+      return {
+        bits: N.bin(sum, n), raw: sum, carryOut: carryOut, carryIn: carryIn,
+        overflow: carryOut !== carryIn,
+        sameSignWrongSign: (sa === sb) && (ss !== sa)
+      };
+    };
+    N.sub = function (a, b, n) { return N.add(a, N.neg2(b, n), n); };
+    N.extend = function (v, from, to) {
+      if (!((v >> (from - 1)) & 1)) return v;
+      return v | (((1 << (to - from)) - 1) << from);
+    };
+
+    N.fixedValue = function (bits, f) { return N.fromBin(bits) / Math.pow(2, f); };
+    N.fixedRange = function (n, f) {
+      var i = n - f;
+      return { max: Math.pow(2, i) - Math.pow(2, -f), step: Math.pow(2, -f), intBits: i };
+    };
+
+    N.f32bits = function (x) { dv.setFloat32(0, x); return dv.getUint32(0); };
+    N.f32value = function (u) { dv.setUint32(0, u >>> 0); return dv.getFloat32(0); };
+    N.hex32 = function (u) {
+      var s = (u >>> 0).toString(16).toUpperCase();
+      while (s.length < 8) s = '0' + s;
+      return '0x' + s;
+    };
+    N.fields = function (u) {
+      var s = (u >>> 31) & 1, e = (u >>> 23) & 0xFF, f = u & 0x7FFFFF;
+      return { s: s, e: e, f: f, eBits: N.bin(e, 8), fBits: N.bin(f, 23), sBits: String(s) };
+    };
+    N.kind = function (u) {
+      var F = N.fields(u);
+      if (F.e === 0) return F.f === 0 ? 'zero' : 'denormal';
+      if (F.e === 255) return F.f === 0 ? 'infinity' : 'nan';
+      return 'normal';
+    };
+    N.decode = function (u) {
+      var F = N.fields(u), kind = N.kind(u), sign = F.s ? -1 : 1, mag;
+      if (kind === 'zero') mag = 0;
+      else if (kind === 'infinity' || kind === 'nan') mag = NaN;
+      else if (kind === 'denormal') mag = (F.f / 8388608) * Math.pow(2, -126);
+      else mag = (1 + F.f / 8388608) * Math.pow(2, F.e - 127);
+      return {
+        kind: kind, value: sign * mag, sign: sign, e: F.e, f: F.f,
+        exponent: kind === 'normal' ? F.e - 127 : (kind === 'denormal' ? -126 : null),
+        significand: kind === 'normal' ? 1 + F.f / 8388608 : F.f / 8388608,
+        hex: N.hex32(u)
+      };
+    };
+    N.round32 = function (x) { return Math.fround(x); };
+
+    N.K = {
+      bias: 127, minNormal: Math.pow(2, -126),
+      maxFinite: (2 - Math.pow(2, -23)) * Math.pow(2, 127),
+      minDenormal: Math.pow(2, -149), ulpAtOne: Math.pow(2, -23)
+    };
+    return N;
+  })();
+
+  /* ======================================================================
+     LAYER 2 — CHECKS
+     Each check tests the model against a defining property, or reproduces a
+     past-paper answer that the model must be able to reach.
+     ====================================================================== */
+
+  var CHECKS = [];
+  function check(name, pass, detail) {
+    CHECKS.push({ name: name, pass: !!pass, detail: detail === undefined ? null : String(detail) });
+  }
+  function near(a, b) { return Math.abs(a - b) < 1e-12; }
+
+  (function runChecks() {
+    var ok, i, j, n, v;
+
+    /* 1. two's complement decode is the weighted sum with a negative top weight */
+    ok = true;
+    for (n = 2; n <= 12 && ok; n++) {
+      for (v = 0; v < (1 << n); v++) {
+        var w = ((v >> (n - 1)) & 1) ? -Math.pow(2, n - 1) : 0;
+        for (i = n - 2; i >= 0; i--) w += ((v >> i) & 1) * Math.pow(2, i);
+        if (w !== M.dec2(v, n)) { ok = false; break; }
+      }
+    }
+    check('two\u2019s complement decode equals the weighted sum with a negative top weight', ok, 'n = 2..12, every pattern');
+
+    /* 2. encode then decode, whole range, widths 2..16 */
+    ok = true;
+    for (n = 2; n <= 16 && ok; n++) {
+      var r = M.range(n, 'twos');
+      for (var x = r[0]; x <= r[1]; x++) {
+        var p = M.enc2(x, n);
+        if (p < 0 || p > (1 << n) - 1 || M.dec2(p, n) !== x) { ok = false; break; }
+      }
+    }
+    check('encode then decode returns the same integer for every value at every width 2..16', ok);
+
+    /* 3. distinct values */
+    ok = true;
+    for (n = 1; n <= 12; n++) {
+      if (M.distinct(n, 'twos') !== Math.pow(2, n)) ok = false;
+      if (M.distinct(n, 'ones') !== Math.pow(2, n) - 1) ok = false;
+      if (M.distinct(n, 'sm') !== Math.pow(2, n) - 1) ok = false;
+    }
+    check('distinct values: 2^n in two\u2019s complement, 2^n \u2212 1 in ones\u2019 complement and sign-magnitude', ok, 'GATE CSE 2016 Set 2 Q9 asks for the difference, which is 1');
+
+    /* 4. two zeros, one zero */
+    check('zero has two patterns in sign-magnitude and ones\u2019 complement, one in two\u2019s complement',
+      M.zeros(4, 'sm').length === 2 && M.zeros(4, 'ones').length === 2 && M.zeros(4, 'twos').length === 1,
+      M.zeros(4, 'sm').join(' / '));
+
+    /* 5. negation is an involution with exactly one fixed point per width */
+    ok = true;
+    var fixed = [];
+    for (n = 3; n <= 12; n++) {
+      for (v = 0; v < (1 << n); v++) {
+        if (M.neg2(M.neg2(v, n), n) !== v) ok = false;
+        if (M.neg2(v, n) === v) fixed.push(M.bin(v, n));
+      }
+    }
+    check('negating twice returns the original pattern, and exactly one pattern per width is its own negation', ok,
+      'the fixed point is ' + fixed[fixed.length - 1] + ' at width 12');
+
+    /* 6. negation is invert-and-add-one */
+    ok = true;
+    for (n = 2; n <= 12; n++) {
+      var mask = (1 << n) - 1;
+      for (v = 0; v < (1 << n); v++) if (M.neg2(v, n) !== ((~v & mask) + 1) % (1 << n)) ok = false;
+    }
+    check('negation equals inverting every bit and adding one, for every pattern at every width', ok);
+
+    /* 7. the three overflow definitions agree on all 65536 eight-bit additions */
+    ok = true;
+    var carryOnly = null, overflowOnly = null;
+    for (var a = 0; a < 256; a++) {
+      for (var b = 0; b < 256; b++) {
+        var rr = M.add(a, b, 8);
+        if (rr.overflow !== (rr.carryOut !== rr.carryIn)) ok = false;
+        if (rr.overflow !== rr.sameSignWrongSign) ok = false;
+        if (rr.carryOut && !rr.overflow && !carryOnly) carryOnly = M.bin(a, 8) + ' + ' + M.bin(b, 8);
+        if (!rr.carryOut && rr.overflow && !overflowOnly) overflowOnly = M.bin(a, 8) + ' + ' + M.bin(b, 8);
+      }
+    }
+    check('overflow means the same thing under three definitions, on all 65536 eight-bit additions', ok,
+      'carry without overflow: ' + carryOnly + '; overflow without carry: ' + overflowOnly);
+
+    /* 8. subtraction is exact when the result fits */
+    var exact = true, flagged = true, spurious = 0;
+    for (n = 3; n <= 8; n++) {
+      var rg = M.range(n, 'twos');
+      for (i = rg[0]; i <= rg[1]; i++) {
+        for (j = rg[0]; j <= rg[1]; j++) {
+          var s = M.sub(M.enc2(i, n), M.enc2(j, n), n);
+          var fits = (i - j >= rg[0] && i - j <= rg[1]);
+          if (fits && M.dec2(s.raw, n) !== i - j) exact = false;
+          if (!fits && j !== rg[0] && !s.overflow) flagged = false;
+          if (fits && j === rg[0] && s.overflow) spurious++;
+        }
+      }
+    }
+    check('subtraction done as addition of the negation is arithmetically exact whenever the result fits', exact);
+    check('and raises overflow exactly when the result does not fit, for every subtrahend except the most negative value', flagged);
+    check('subtracting the most negative value raises a spurious overflow, because its negation cannot be formed', spurious > 0,
+      spurious + ' such cases over widths 3..8');
+
+    /* 9. sign extension keeps the value */
+    ok = true;
+    for (var from = 2; from <= 8; from++) {
+      for (v = 0; v < (1 << from); v++) {
+        for (var to = from; to <= 16; to++) {
+          if (M.dec2(M.extend(v, from, to), to) !== M.dec2(v, from)) ok = false;
+        }
+      }
+    }
+    check('sign extension to a wider word keeps the value, for every pattern and every pair of widths', ok);
+
+    /* 10. fixed point range, 2017 Set 1 Q7 */
+    var fr = M.fixedRange(8, 3);
+    check('an 8-bit unsigned fixed-point number with 3 fraction bits ranges over 0 to 2^5 \u2212 2^\u22123 with step 2^\u22123',
+      near(fr.max, 31.875) && near(fr.step, 0.125) && fr.intBits === 5,
+      'max = ' + fr.max + ', step = ' + fr.step + '  (GATE CSE 2017 Set 1 Q7)');
+
+    /* 11-14. past-paper reproductions */
+    check('GATE CSE 2019 Q4: \u221228 in 16-bit two\u2019s complement is 1111 1111 1110 0100',
+      M.groups(M.bin(M.enc2(-28, 16), 16)) === '1111 1111 1110 0100', M.groups(M.bin(M.enc2(-28, 16), 16)));
+    check('GATE CSE 2016 Set 1 Q7: 1111 1111 1111 0101 is \u221211',
+      M.dec2(M.fromBin('1111111111110101'), 16) === -11, M.dec2(M.fromBin('1111111111110101'), 16));
+    check('GATE CSE 2013 Q4: the smallest 8-bit two\u2019s complement integer is \u2212128',
+      M.range(8, 'twos')[0] === -128 && M.bin(128, 8) === '10000000', '\u2212128 = 1000 0000');
+    ok = true;
+    for (n = 2; n <= 8; n++) {
+      var lim = Math.pow(2, n - 1) - 1, need = 2 * lim;
+      if (!(need > Math.pow(2, n - 1) - 1)) ok = false;
+      if (need > Math.pow(2, n) - 1) ok = false;
+    }
+    check('GATE CSE 2019 Q8: sign-magnitude X \u2212 Y needs n + 1 bits, because the worst case is 2^n \u2212 2', ok,
+      'n = 8: worst case 254, which needs 9 bits');
+
+    /* 15-19. IEEE reproductions */
+    var q21 = M.decode(0xC0F80000);
+    check('GATE CSE 2021 Set 1 Q24: S=1, E=10000001, F=1111... decodes to \u22127.75',
+      q21.value === -7.75 && q21.exponent === 2 && near(q21.significand, 1.9375),
+      q21.value + ' with unbiased exponent ' + q21.exponent);
+    check('GATE CSE 2014 Set 2 Q45: \u221214.25 in single precision is 0xC1640000',
+      M.hex32(M.f32bits(-14.25)) === '0xC1640000' && M.f32value(0xC1640000) === -14.25, M.hex32(M.f32bits(-14.25)));
+    var half = M.fields(M.f32bits(0.5));
+    check('GATE CSE 2012 Q7: 0.5 has fraction bits 00...0 and exponent field 126, that is exponent \u22121',
+      half.f === 0 && half.e === 126, 'E = ' + half.e);
+    var mn = M.decode(0x00800000);
+    check('GATE CSE 2021 Set 2 Q4: the smallest normalised positive single is 2^\u2212126, bits 0x00800000',
+      mn.value === Math.pow(2, -126) && M.fields(0x00800000).e === 1 && M.fields(0x00800000).f === 0,
+      mn.value.toExponential(4));
+    check('largest finite single is (2 \u2212 2^\u221223) \u00d7 2^127 = 0x7F7FFFFF, and the smallest denormal is 2^\u2212149',
+      M.f32value(0x7F7FFFFF) === M.K.maxFinite && M.decode(0x00000001).value === Math.pow(2, -149),
+      M.f32value(0x7F7FFFFF).toExponential(6));
+
+    /* 20. the four regimes */
+    var regimes = [M.kind(0x00000000), M.kind(0x80000000), M.kind(0x00000001),
+                   M.kind(0x00800000), M.kind(0x7F800000), M.kind(0xFF800000), M.kind(0x7FC00000)];
+    check('E = 0 with F = 0 is zero, E = 0 with F > 0 is denormal, E = 255 with F = 0 is infinity, 255 with F > 0 is NaN',
+      regimes.join(',') === 'zero,zero,denormal,normal,infinity,infinity,nan', regimes.join(', '));
+
+    /* 21. hand decoder against the platform decoder */
+    ok = true;
+    var worst = 0;
+    for (var u = 1; u < 0xFFFFFFFF; u += 2654435761 % 0xFFFFFFFF) {
+      var uu = u >>> 0, d = M.decode(uu), pv = M.f32value(uu);
+      if (isNaN(d.value) !== isNaN(pv)) { ok = false; break; }
+      if (!isNaN(pv)) {
+        var rel = Math.abs(d.value - pv) / Math.max(1e-30, Math.abs(pv));
+        worst = Math.max(worst, rel);
+        if (rel > 1e-6) { ok = false; break; }
+      }
+    }
+    check('the hand-written single-precision decoder agrees with the platform decoder', ok,
+      'worst relative difference ' + worst.toExponential(2));
+
+    /* 22. encode then decode */
+    ok = true;
+    var sample = [0, 1, -1, 0.1, -0.1, 0.5, 1 / 3, 14.25, -14.25, 1e-40, 3.4e38, 1.5e-45, Math.PI, 1e20, Math.pow(2, -126), Math.pow(2, 24)];
+    for (i = 0; i < sample.length; i++) {
+      var back = M.f32value(M.f32bits(sample[i]));
+      if (M.f32bits(back) !== M.f32bits(sample[i])) ok = false;
+    }
+    check('encode then decode returns the same 32 bits for every value in the sample', ok);
+
+    /* 23. one tenth is not exact */
+    var tenth = M.f32value(M.f32bits(0.1));
+    check('0.1 is not exactly representable in single precision: the stored value is 13421773 / 2^27',
+      10 * 13421773 !== (1 << 27) && tenth !== 0.1, tenth.toPrecision(12));
+
+    /* 24. ulp and absorption */
+    check('the gap between 1 and the next single is 2^\u221223, and 2^24 + 1 rounds back to 2^24',
+      M.f32value(M.f32bits(1) + 1) - 1 === Math.pow(2, -23) && M.round32(Math.pow(2, 24) + 1) === Math.pow(2, 24),
+      'next after 1 is ' + M.f32value(M.f32bits(1) + 1));
+    check('ties to even: 2^24 + 1 goes down to 2^24, while 2^24 + 3 goes up to 2^24 + 4',
+      M.round32(Math.pow(2, 24) + 3) === Math.pow(2, 24) + 4, 'fround(2^24 + 3) = ' + M.round32(Math.pow(2, 24) + 3));
+
+    /* 25. denormal spacing */
+    ok = true;
+    var prev = M.decode(0x00000001).value;
+    for (u = 2; u <= 64; u++) {
+      var dv2 = M.decode(u).value;
+      if (Math.abs((dv2 - prev) - Math.pow(2, -149)) > 1e-60) ok = false;
+      prev = dv2;
+    }
+    check('denormals are evenly spaced at 2^\u2212149, so precision is lost gradually towards zero', ok);
+
+    /* 26. the 2026 decode, computed here */
+    check('0xC2710000 decodes to \u221260.25 (computed from the fields, not quoted)', M.decode(0xC2710000).value === -60.25,
+      M.decode(0xC2710000).value);
+
+    /* 27. the biased exponent orders bit patterns */
+    ok = true;
+    var seed = 12345;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+    for (i = 0; i < 400; i++) {
+      var pa = Math.floor(rnd() * 0x7F000000), pb = Math.floor(rnd() * 0x7F000000);
+      var va = M.f32value(pa), vb = M.f32value(pb);
+      if (isFinite(va) && isFinite(vb) && ((pa < pb) !== (va < vb))) ok = false;
+    }
+    check('for positive numbers the biased exponent makes bit-pattern order agree with numeric order', ok);
+
+    /* 28. double precision constants */
+    var dv3 = new DataView(new ArrayBuffer(8));
+    dv3.setFloat64(0, 1);
+    var hi = dv3.getUint32(0);
+    check('double precision: 1.0 has exponent field 1023, and the largest finite double is (2 \u2212 2^\u221252) \u00d7 2^1023',
+      ((hi >>> 20) & 0x7FF) === 1023 && M.K.maxFinite / Math.pow(2, 1000) < 4,
+      'exponent field ' + ((hi >>> 20) & 0x7FF));
+
+    /* 29. the sign-extension counterexample used in the lesson */
+    check('the lesson\u2019s sign-extension counterexample is right: zero-padding \u221228 to 16 bits gives 228, not \u221228',
+      M.dec2(0x00E4, 16) === 228 && M.dec2(M.extend(M.enc2(-28, 8), 8, 16), 16) === -28,
+      'zero-padded reading = ' + M.dec2(0x00E4, 16));
+
+    /* 30. the example-2 claim about the extra fraction bit */
+    check('the misconception counterexample is right: putting a leading 1 in the fraction of 0xC1640000 gives 0xC1A40000',
+      M.hex32(0xC1640000 + (1 << 22)) === '0xC1A40000', M.hex32(0xC1640000 + (1 << 22)));
+
+    /* 31. the example-8 comparison */
+    check('example 8: 0x41200000 is 10.0, 0x40E00000 is 7.0, and the integer comparison agrees with the numeric one',
+      M.f32value(0x41200000) === 10 && M.f32value(0x40E00000) === 7 && 0x41200000 > 0x40E00000);
+
+    /* 32. the ulp question in the practice set */
+    check('the ulp practice question: 0x4B800000 is 2^24 and the next pattern is 2^24 + 2, so the gap there is 2',
+      M.f32value(0x4B800000) === Math.pow(2, 24) && M.f32value(0x4B800001) === Math.pow(2, 24) + 2,
+      M.f32value(0x4B800001));
+
+    /* 33. the 12-bit decode in the practice set */
+    check('the 12-bit practice question: 1111 0110 1010 in two\u2019s complement is \u2212150',
+      M.dec2(M.fromBin('111101101010'), 12) === -150, M.dec2(M.fromBin('111101101010'), 12));
+
+    /* 34. the overflow MSQ in the practice set */
+    var msqA = M.add(M.fromBin('01111111'), M.fromBin('00000001'), 8);
+    var msqB = M.add(M.fromBin('11111111'), M.fromBin('11111111'), 8);
+    var msqC = M.add(M.fromBin('10000000'), M.fromBin('11111111'), 8);
+    var msqD = M.add(M.fromBin('01000000'), M.fromBin('01000000'), 8);
+    check('the overflow MSQ: A, C and D overflow, B carries out and does not overflow',
+      msqA.overflow && !msqB.overflow && msqC.overflow && msqD.overflow && msqB.carryOut === 1,
+      'B carries out ' + msqB.carryOut + ' with overflow ' + msqB.overflow);
+  })();
+
+  var passed = CHECKS.filter(function (c) { return c.pass; }).length;
+
+  /* ======================================================================
+     LAYER 3 — DRAWING
+     The scene functions read the model; they never recompute a value.
+     ====================================================================== */
+
+  var W = 900, H = 470;
+  var PAL = window.Painters.PAL;
+  var TL = window.LESSON_TIMELINE;
+
+  function sceneById(id) {
+    for (var i = 0; i < TL.scenes.length; i++) if (TL.scenes[i].id === id) return TL.scenes[i];
+    return TL.scenes[0];
+  }
+  function local(t, id) {
+    var sc = sceneById(id);
+    var p = (t - sc.start) / (sc.end - sc.start);
+    return p < 0 ? 0 : p > 1 ? 1 : p;
+  }
+  function cl(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function seg(t, a, b) { return cl((t - a) / (b - a)); }
+  function ease(x) { x = cl(x); return x * x * (3 - 2 * x); }
+
+  function txt(P, x, y, s, o) { P.text(x, y, s, o || {}); }
+
+  function head(P, title, sub) {
+    txt(P, 30, 20, title, { size: 17, bold: true, color: PAL.ink });
+    if (sub) txt(P, 30, 44, sub, { size: 12, color: PAL.dim });
+  }
+
+  function panelBox(P, x, y, w, h, label) {
+    P.rect(x, y, w, h, { fill: PAL.surface2, stroke: PAL.border, radius: 8 });
+    if (label) txt(P, x + 12, y + 10, label, { size: 11, mono: true, color: PAL.dim });
+  }
+
+  /* a row of bit cells; opts.hi is a list of indices to tint */
+  function bitRow(P, x, y, bits, o) {
+    o = o || {};
+    var cw = o.cw || 34, ch = o.ch || 34, i, ch2;
+    for (i = 0; i < bits.length; i++) {
+      var on = bits.charAt(i) === '1';
+      var hi = o.hi && o.hi.indexOf(i) >= 0;
+      var fill = hi ? PAL.accentDim : (on ? PAL.surface : PAL.surface2);
+      P.rect(x + i * (cw + 2), y, cw, ch, {
+        fill: fill, stroke: hi ? PAL.accent : PAL.border, radius: 3, sw: hi ? 2 : 1
+      });
+      txt(P, x + i * (cw + 2) + cw / 2, y + ch / 2, bits.charAt(i), {
+        size: o.fs || 15, mono: true, align: 'center', base: 'middle',
+        color: on ? PAL.ink : PAL.faint, bold: on
+      });
+    }
+    if (o.label) txt(P, x - 8, y + ch / 2, o.label, { size: 12, mono: true, align: 'right', base: 'middle', color: PAL.dim });
+  }
+
+  function chip(P, x, y, s, o) {
+    o = o || {};
+    var w = (o.w || (String(s).length * 6.6 + 16));
+    P.rect(x, y, w, o.h || 20, { fill: o.fill || PAL.surface, stroke: o.stroke || PAL.border, radius: 4 });
+    txt(P, x + w / 2, y + (o.h || 20) / 2, s, {
+      size: o.size || 11, mono: o.mono !== false, align: 'center', base: 'middle', color: o.color || PAL.ink, bold: o.bold
+    });
+    return w;
+  }
+
+  function line(P, x1, y1, x2, y2, o) { P.line(x1, y1, x2, y2, o || { stroke: PAL.border }); }
+
+  /* ---------------- scene 1: fixed point ---------------- */
+  function sceneFixed(P, t) {
+    var p = local(t, 'fixedpoint'), sc = sceneById('fixedpoint');
+    head(P, 'Fixed point: one scale, one set of marks',
+      '8 bits, f = 3 fraction bits, so i = 8 \u2212 3 = 5 integer bits');
+
+    var bits = '10110110';
+    var x0 = 150, cw = 46;
+    bitRow(P, x0, 150, bits, { cw: cw, ch: 44, fs: 17 });
+
+    /* the point */
+    var px = x0 + 5 * (cw + 2) - 1;
+    P.circle(px, 196, 3, { fill: PAL.accent });
+
+    /* weights */
+    var w = ['16', '8', '4', '2', '1', '0.5', '0.25', '0.125'];
+    var showW = ease(seg(t, sc.start + 5, sc.start + 12));
+    P.alpha(showW);
+    for (var i = 0; i < 8; i++) {
+      txt(P, x0 + i * (cw + 2) + cw / 2, 138, w[i], {
+        size: 11, mono: true, align: 'center', base: 'bottom',
+        color: bits.charAt(i) === '1' ? PAL.accent : PAL.faint, bold: bits.charAt(i) === '1'
+      });
+    }
+    P.alpha(1);
+
+    /* the accumulation */
+    var acc = seg(t, sc.start + 13, sc.start + 22);
+    var ones = [0, 2, 3, 5, 6];
+    var vals = [16, 4, 2, 0.5, 0.25];
+    var total = 0, shown = 0;
+    for (var k = 0; k < ones.length; k++) {
+      var step = cl(acc * ones.length - k);
+      if (step > 0) { total += vals[k] * step; shown++; }
+    }
+    panelBox(P, 590, 130, 280, 108, 'value');
+    txt(P, 606, 156, '16 + 4 + 2 + 0.5 + 0.25', { size: 13, mono: true, color: PAL.dim });
+    txt(P, 606, 182, '= ' + (Math.round(total * 1000) / 1000), { size: 26, bold: true, mono: true, color: PAL.accent });
+    txt(P, 606, 214, shown + ' of 5 set bits counted', { size: 11, color: PAL.faint });
+
+    /* the range, revealed late */
+    var showR = ease(seg(t, sc.start + 22, sc.start + 28));
+    P.alpha(showR);
+    panelBox(P, 60, 250, 810, 92, 'range and step');
+    txt(P, 78, 280, 'smallest 0.000  =  0', { size: 13, mono: true, color: PAL.ink });
+    txt(P, 78, 304, 'largest  11111.111  =  31.875  =  2\u2075 \u2212 2\u207b\u00b3', { size: 13, mono: true, color: PAL.ink });
+    txt(P, 78, 328, 'step     0.001  =  0.125  =  2\u207b\u00b3   \u2014 the resolution', { size: 13, mono: true, color: PAL.accent });
+    /* a ruler of marks */
+    var rx = 520, rw = 330, ry = 296;
+    line(P, rx, ry, rx + rw, ry, { stroke: PAL.border, sw: 1.5 });
+    for (var m = 0; m <= 16; m++) {
+      var mx = rx + (rw * m) / 16;
+      line(P, mx, ry - 5, mx, ry + 5, { stroke: PAL.border });
+    }
+    txt(P, rx + rw / 2, ry + 12, 'sixteen marks in 0 \u2026 2', { size: 10, align: 'center', color: PAL.faint });
+    P.alpha(1);
+
+    txt(P, 60, 372, 'The point never moves, so the gap between neighbouring values is fixed at 0.125 everywhere on the ruler.',
+      { size: 12, color: PAL.dim });
+  }
+
+  /* ---------------- scene 2: the three encodings ---------------- */
+  function sceneEnc(P, t) {
+    var sc = sceneById('encodings');
+    head(P, 'Three encodings of a negative number, at width 4',
+      'the same value \u22125 written three ways, and three different counts of what each one reaches');
+
+    var cols = [
+      { x: 40, name: 'sign-magnitude', pos: '0101', neg: '1101', zeros: ['0000', '1000'], count: '15 distinct' },
+      { x: 330, name: "ones' complement", pos: '0101', neg: '1010', zeros: ['0000', '1111'], count: '15 distinct' },
+      { x: 620, name: "two's complement", pos: '0101', neg: '1011', zeros: ['0000'], count: '16 distinct' }
+    ];
+    var appear = ease(seg(t, sc.start + 1, sc.start + 6));
+
+    for (var c = 0; c < 3; c++) {
+      var C = cols[c];
+      P.alpha(appear);
+      panelBox(P, C.x, 74, 250, 250, C.name);
+      bitRow(P, C.x + 24, 104, C.pos, { cw: 26, ch: 26, fs: 13, label: '+5' });
+      var negOn = ease(seg(t, sc.start + 5 + c * 3, sc.start + 9 + c * 3));
+      P.alpha(negOn);
+      bitRow(P, C.x + 24, 144, C.neg, { cw: 26, ch: 26, fs: 13, label: '\u22125', hi: [0] });
+      P.alpha(appear);
+
+      txt(P, C.x + 24, 190, 'zero patterns', { size: 10, mono: true, color: PAL.faint });
+      for (var z = 0; z < C.zeros.length; z++) {
+        var zx = C.x + 24 + z * 64;
+        var flash = (z === 1 && C.zeros.length === 2) ? 1 : 0;
+        P.rect(zx, 200, 56, 26, {
+          fill: flash ? PAL.invalidDim : PAL.surface,
+          stroke: flash ? PAL.invalid : PAL.border, radius: 3, sw: flash ? 2 : 1
+        });
+        txt(P, zx + 28, 213, C.zeros[z], { size: 12, mono: true, align: 'center', base: 'middle', color: PAL.ink });
+      }
+      if (C.zeros.length === 2) {
+        txt(P, C.x + 24, 236, 'two patterns, one value', { size: 10, color: PAL.invalid });
+      } else {
+        txt(P, C.x + 24, 236, 'one pattern only', { size: 10, color: PAL.valid });
+      }
+      txt(P, C.x + 24, 262, C.count, {
+        size: 14, bold: true, mono: true,
+        color: c === 2 ? PAL.valid : PAL.warn
+      });
+      P.alpha(1);
+    }
+
+    var show = ease(seg(t, sc.start + 20, sc.start + 26));
+    P.alpha(show);
+    txt(P, 40, 348, 'GATE CSE 2016 Set 2 Q9:  X = 2\u00b9\u2076 = 65536 distinct 16-bit integers in two\u2019s complement;',
+      { size: 12, color: PAL.ink });
+    txt(P, 40, 368, 'Y = 65535 in sign-magnitude, because one pattern is spent on a second zero.  X \u2212 Y = 1, at every width.',
+      { size: 12, color: PAL.ink });
+    P.alpha(1);
+
+    txt(P, 40, 400, 'A duplicated zero is a wasted pattern, and it is the whole difference between the three schemes.',
+      { size: 12, color: PAL.dim });
+  }
+
+  /* ---------------- scene 3: the wheel ---------------- */
+  function sceneWheel(P, t) {
+    var sc = sceneById('twoswheel');
+    head(P, 'The wheel: 16 patterns, relabelled', 'two\u2019s complement value = unsigned value \u2212 16 once the top bit is set');
+
+    var cx = 250, cy = 250, R = 140;
+    var i, ang, nx, ny;
+    /* the ring */
+    P.circle(cx, cy, R, { stroke: PAL.border, sw: 1.5 });
+    var appear = ease(seg(t, sc.start + 1, sc.start + 8));
+    P.alpha(appear);
+    for (i = 0; i < 16; i++) {
+      ang = -Math.PI / 2 + (i * 2 * Math.PI) / 16;
+      nx = cx + R * Math.cos(ang);
+      ny = cy + R * Math.sin(ang);
+      var v = M.dec2(i, 4);
+      var isNeg = v < 0;
+      P.circle(nx, ny, 13, { fill: isNeg ? PAL.invalidDim : PAL.accentDim, stroke: isNeg ? PAL.invalid : PAL.accent, sw: 1.2 });
+      txt(P, nx, ny, String(v), { size: 11, mono: true, align: 'center', base: 'middle', bold: true, color: PAL.ink });
+      txt(P, cx + (R + 26) * Math.cos(ang), cy + (R + 26) * Math.sin(ang), M.bin(i, 4), {
+        size: 9, mono: true, align: 'center', base: 'middle', color: PAL.faint
+      });
+    }
+    P.alpha(1);
+    txt(P, cx, cy - 8, '0 \u2026 7', { size: 13, mono: true, align: 'center', color: PAL.valid });
+    txt(P, cx, cy + 12, '\u22128 \u2026 \u22121', { size: 13, mono: true, align: 'center', color: PAL.invalid });
+
+    /* the mirror: 5 -> -5 */
+    var mir = ease(seg(t, sc.start + 8, sc.start + 14));
+    if (mir > 0) {
+      var a1 = -Math.PI / 2 + (5 * 2 * Math.PI) / 16;
+      var a2 = -Math.PI / 2 + (11 * 2 * Math.PI) / 16;
+      P.alpha(mir);
+      P.arrow(cx + R * Math.cos(a1), cy + R * Math.sin(a1), cx + R * Math.cos(a2), cy + R * Math.sin(a2),
+        { stroke: PAL.warn, sw: 2, head: 9 });
+      txt(P, cx, cy + 150, '0101 (5)  \u2192  1011 (\u22125):  invert, then add one', { size: 12, mono: true, align: 'center', color: PAL.warn });
+      P.alpha(1);
+    }
+
+    /* the fixed point */
+    var fx = ease(seg(t, sc.start + 15, sc.start + 20));
+    P.alpha(fx);
+    var a8 = -Math.PI / 2 + (8 * 2 * Math.PI) / 16;
+    P.circle(cx + R * Math.cos(a8), cy + R * Math.sin(a8), 18, { stroke: PAL.invalid, sw: 2.5 });
+    txt(P, 60, 430, '1000 is \u22128 and its own negation \u2014 so the range is lopsided: \u22122\u207f\u207b\u00b9 to 2\u207f\u207b\u00b9 \u2212 1.',
+      { size: 12, color: PAL.invalid });
+    P.alpha(1);
+
+    /* right panel: range and sign extension */
+    panelBox(P, 470, 74, 390, 150, 'range at width n');
+    txt(P, 488, 104, 'two\u2019s complement   \u22122\u207f\u207b\u00b9  \u2026  2\u207f\u207b\u00b9 \u2212 1', { size: 13, mono: true, color: PAL.ink });
+    txt(P, 488, 128, 'n = 8                \u2212128  \u2026  127', { size: 13, mono: true, color: PAL.dim });
+    txt(P, 488, 152, 'sign-magnitude       \u2212127  \u2026  127', { size: 13, mono: true, color: PAL.dim });
+    txt(P, 488, 182, 'GATE CSE 2013 Q4 asks for the smallest: \u2212128, pattern 1000 0000', { size: 11, color: PAL.accent });
+
+    var se = ease(seg(t, sc.start + 20, sc.start + 27));
+    P.alpha(se);
+    panelBox(P, 470, 240, 390, 150, 'sign extension, GATE CSE 2019 Q4');
+    bitRow(P, 488, 270, '11100100', { cw: 24, ch: 24, fs: 12, label: '8-bit' });
+    txt(P, 488, 306, 'copies the sign bit leftwards \u2193', { size: 11, color: PAL.accent });
+    bitRow(P, 488, 320, '1111111111100100', { cw: 17, ch: 24, fs: 10, label: '16' });
+    txt(P, 488, 358, '= \u221228.   Zero-padding would give +228.', { size: 11, color: PAL.ink });
+    P.alpha(1);
+  }
+
+  /* ---------------- scene 4: addition ---------------- */
+  function sceneAdd(P, t) {
+    var sc = sceneById('addition');
+    head(P, 'One adder: 1111 0101 \u2212 0000 1011 in 8 bits', '\u221211 \u2212 11 = \u221222, computed as A + (complement of B + 1)');
+
+    var A = '11110101', B = '00001011';
+    var nB = M.neg2(M.fromBin(B), 8);
+    var nBs = M.bin(nB, 8);
+    var res = M.add(M.fromBin(A), nB, 8);
+
+    var x0 = 150, cw = 46;
+    bitRow(P, x0, 96, A, { cw: cw, ch: 32, fs: 14, label: 'A' });
+    bitRow(P, x0, 150, nBs, { cw: cw, ch: 32, fs: 14, label: '\u2212B' });
+    txt(P, x0, 138, '+', { size: 15, mono: true, align: 'right', color: PAL.dim });
+    line(P, x0 - 4, 192, x0 + 8 * (cw + 2), 192, { stroke: PAL.ink, sw: 1.5 });
+
+    /* column by column */
+    var step = seg(t, sc.start + 4, sc.start + 18);
+    var col = Math.floor(step * 9);
+    var sumSoFar = '';
+    for (var i = 0; i < 8; i++) {
+      if (7 - i < col) sumSoFar = res.bits.charAt(i) + sumSoFar;
+    }
+    if (sumSoFar.length) {
+      bitRow(P, x0 + (8 - sumSoFar.length) * (cw + 2), 206, sumSoFar, {
+        cw: cw, ch: 32, fs: 14, hi: sumSoFar.length === 8 ? [0] : null
+      });
+    }
+    /* carries */
+    if (col > 0) {
+      txt(P, x0 + (cw + 2) * 8 + 6, 96 + 16, 'carry out 1', { size: 11, mono: true, color: PAL.warn });
+      txt(P, x0 + (cw + 2) * 8 + 6, 140 + 16, 'discarded', { size: 11, mono: true, color: PAL.warn });
+    }
+
+    /* the result panel */
+    var showRes = ease(seg(t, sc.start + 18, sc.start + 23));
+    P.alpha(showRes);
+    panelBox(P, 60, 262, 810, 86, 'result');
+    txt(P, 78, 290, 'bits ' + M.groups(res.bits) + '  \u2192  top bit 1, so invert and add one: 0010 1001 = 41', { size: 12, mono: true, color: PAL.ink });
+    txt(P, 78, 314, 'value = \u221241,  and indeed \u221211 \u2212 11 = \u221241.   Carry out = ' + res.carryOut +
+      ',  overflow = ' + (res.overflow ? 'yes' : 'no'), { size: 12, mono: true, color: PAL.accent });
+    txt(P, 78, 338, 'the borrow never appears: subtraction is addition of the negation, at the same width', { size: 11, color: PAL.dim });
+    P.alpha(1);
+
+    var showS = ease(seg(t, sc.start + 24, sc.start + 29));
+    P.alpha(showS);
+    txt(P, 60, 378, 'One-pass negation: copy the bits up to and including the rightmost 1, then invert everything to its left.',
+      { size: 12, color: PAL.ink });
+    txt(P, 60, 400, 'For 0000 1011: the rightmost 1 is the second bit from the right, so 1101 0100 + 1 = 1111 0101 is the same answer in one sweep.',
+      { size: 11, color: PAL.dim });
+    P.alpha(1);
+  }
+
+  /* ---------------- scene 5: carry against overflow ---------------- */
+  function sceneFlags(P, t) {
+    var sc = sceneById('flags');
+    head(P, 'Carry and overflow: two flags, two questions', 'the same adder, two readings of the operands');
+
+    /* the adder box */
+    panelBox(P, 60, 90, 300, 150, '4-bit adder');
+    txt(P, 78, 122, 'A  1011', { size: 13, mono: true, color: PAL.ink });
+    txt(P, 78, 146, 'B  1110', { size: 13, mono: true, color: PAL.ink });
+    P.rect(200, 112, 130, 64, { fill: PAL.surface, stroke: PAL.ink, radius: 6, sw: 1.5 });
+    txt(P, 265, 144, 'ADD', { size: 14, mono: true, align: 'center', base: 'middle', bold: true, color: PAL.ink });
+    P.arrow(80, 122, 196, 122, { stroke: PAL.dim, sw: 1.2, head: 7 });
+    P.arrow(80, 146, 196, 146, { stroke: PAL.dim, sw: 1.2, head: 7 });
+    P.arrow(332, 128, 400, 128, { stroke: PAL.valid, sw: 1.6, head: 8 });
+    txt(P, 404, 124, 'C out = 1', { size: 12, mono: true, color: PAL.valid });
+    P.arrow(332, 164, 400, 164, { stroke: PAL.invalid, sw: 1.6, head: 8 });
+    txt(P, 404, 168, 'C into sign = 1', { size: 12, mono: true, color: PAL.invalid });
+    txt(P, 78, 216, 'sum 1 1001  \u2192  1001 = \u22127', { size: 12, mono: true, color: PAL.ink });
+
+    /* the xor */
+    var showX = ease(seg(t, sc.start + 8, sc.start + 14));
+    P.alpha(showX);
+    P.circle(500, 146, 20, { stroke: PAL.warn, sw: 2 });
+    txt(P, 500, 146, 'XOR', { size: 11, mono: true, align: 'center', base: 'middle', color: PAL.warn, bold: true });
+    P.arrow(470, 128, 486, 138, { stroke: PAL.valid, sw: 1.2, head: 6 });
+    P.arrow(470, 164, 486, 154, { stroke: PAL.invalid, sw: 1.2, head: 6 });
+    P.arrow(520, 146, 556, 146, { stroke: PAL.warn, sw: 1.4, head: 7 });
+    txt(P, 560, 142, 'overflow = 0', { size: 12, mono: true, color: PAL.warn });
+    txt(P, 560, 158, 'carry out was 1', { size: 10, mono: true, color: PAL.faint });
+    P.alpha(1);
+
+    /* the two example rows */
+    var rows = [
+      { y: 270, a: '1011', b: '1110', note: '\u22125 + \u22122 = \u22127  \u2014  carry 1, overflow 0', col: PAL.valid },
+      { y: 330, a: '0111', b: '0001', note: '+7 + 1 = \u22128  \u2014  carry 0, overflow 1', col: PAL.invalid }
+    ];
+    var rr = ease(seg(t, sc.start + 14, sc.start + 20));
+    P.alpha(rr);
+    for (var k = 0; k < 2; k++) {
+      var R2 = rows[k];
+      bitRow(P, 90, R2.y, R2.a, { cw: 26, ch: 26, fs: 12, label: 'A' });
+      bitRow(P, 90, R2.y + 32, R2.b, { cw: 26, ch: 26, fs: 12, label: 'B' });
+      txt(P, 230, R2.y + 30, R2.note, { size: 12, mono: true, color: R2.col });
+    }
+    P.alpha(1);
+
+    var fin = ease(seg(t, sc.start + 21, sc.start + 28));
+    P.alpha(fin);
+    txt(P, 60, 404, 'Carry out is a fifth bit and means something only for unsigned operands. Overflow is a sign violation,',
+      { size: 12, color: PAL.ink });
+    txt(P, 60, 424, 'and it is the same event as "carry into the sign column \u2260 carry out of it". Neither flag implies the other.',
+      { size: 12, color: PAL.ink });
+    P.alpha(1);
+  }
+
+  /* ---------------- scene 6: scientific notation ---------------- */
+  function sceneSci(P, t) {
+    var sc = sceneById('scientific');
+    head(P, 'Scientific notation in base two', '14.25  \u2192  1110.01  \u2192  1.11001 \u00d7 2\u00b3');
+
+    var sh = ease(seg(t, sc.start + 3, sc.start + 10));
+    txt(P, 80, 110, '1110.01', { size: 30, mono: true, color: PAL.ink });
+    txt(P, 80, 150, 'move the point three places left', { size: 11, color: PAL.dim });
+    /* the point moves */
+    var pxStart = 80 + 4 * 19.6, pxEnd = 300 + 1 * 19.6;
+    P.circle(pxStart + (pxEnd - pxStart) * sh, 128, 3.5, { fill: PAL.accent });
+    if (sh > 0.9) {
+      txt(P, 300, 110, '=  1.11001 \u00d7 2\u00b3', { size: 24, mono: true, color: PAL.accent });
+      txt(P, 300, 146, 'normalised: exactly one 1 before the point', { size: 11, color: PAL.dim });
+    }
+
+    var fields = ease(seg(t, sc.start + 11, sc.start + 17));
+    P.alpha(fields);
+    panelBox(P, 60, 186, 800, 96, 'the three fields');
+    P.rect(90, 212, 60, 46, { fill: PAL.accentDim, stroke: PAL.accent, radius: 4 });
+    txt(P, 120, 235, 'S', { size: 16, mono: true, align: 'center', base: 'middle', bold: true });
+    txt(P, 120, 268, 'sign', { size: 10, align: 'center', color: PAL.dim });
+
+    P.rect(170, 212, 210, 46, { fill: PAL.warnDim, stroke: PAL.warn, radius: 4 });
+    txt(P, 275, 235, 'e + 127', { size: 16, mono: true, align: 'center', base: 'middle', bold: true });
+    txt(P, 275, 268, 'biased exponent: 3 + 127 = 130', { size: 10, align: 'center', color: PAL.dim });
+
+    P.rect(400, 212, 430, 46, { fill: PAL.surface, stroke: PAL.border, radius: 4 });
+    txt(P, 615, 235, 'fraction: 11001 then zeros \u2014 the leading 1 is not stored', { size: 12, mono: true, align: 'center', base: 'middle' });
+    txt(P, 615, 268, '23 bits, giving 24 bits of precision', { size: 10, align: 'center', color: PAL.dim });
+    P.alpha(1);
+
+    var bias = ease(seg(t, sc.start + 18, sc.start + 25));
+    P.alpha(bias);
+    panelBox(P, 60, 302, 380, 110, 'the bias, single precision');
+    txt(P, 78, 332, 'e = \u22123   \u2192   E = 124', { size: 13, mono: true, color: PAL.ink });
+    txt(P, 78, 354, 'e =  0   \u2192   E = 127', { size: 13, mono: true, color: PAL.ink });
+    txt(P, 78, 376, 'e = +3   \u2192   E = 130', { size: 13, mono: true, color: PAL.ink });
+    txt(P, 78, 400, 'bias = 2\u2078\u207b\u00b9 \u2212 1 = 127', { size: 11, color: PAL.accent });
+
+    panelBox(P, 460, 302, 400, 110, 'why bias rather than a sign bit');
+    txt(P, 478, 332, 'every exponent becomes non-negative, so no sign bit is needed;', { size: 11, color: PAL.ink });
+    txt(P, 478, 352, 'and the unsigned order of the field matches the numeric order,', { size: 11, color: PAL.ink });
+    txt(P, 478, 372, 'so two positive floats compare as plain integers.', { size: 11, color: PAL.ink });
+    txt(P, 478, 396, 'the two reserved fields, 0 and 255, then mean the ends.', { size: 10, color: PAL.faint });
+    P.alpha(1);
+  }
+
+  /* ---------------- scene 7: the 32 bits of a single ---------------- */
+  function sceneIEEE(P, t) {
+    var sc = sceneById('ieee');
+    var phaseA = t < sc.start + 15;
+    head(P, phaseA ? 'Decode: S = 1, E = 10000001, F = 1111\u2026' : 'Encode: \u221214.25',
+      phaseA ? 'GATE CSE 2021 Set 1 Q24' : 'GATE CSE 2014 Set 2 Q45');
+
+    var bits = phaseA ? '11000000111110000000000000000000' : '11000001011001000000000000000000';
+    var hex = phaseA ? '0xC0F80000' : '0xC1640000';
+    var x0 = 40, cw = 24;
+
+    bitRow(P, x0, 88, bits, { cw: cw, ch: 30, fs: 12 });
+
+    /* field brackets */
+    var y = 126;
+    line(P, x0, y, x0 + cw, y, { stroke: PAL.accent, sw: 2 });
+    line(P, x0 + cw + 2, y, x0 + 9 * (cw + 2) - 2, y, { stroke: PAL.warn, sw: 2 });
+    line(P, x0 + 9 * (cw + 2), y, x0 + 32 * (cw + 2) - 2, y, { stroke: PAL.info, sw: 2 });
+    txt(P, x0 + cw / 2, y + 6, 'S', { size: 11, mono: true, align: 'center', color: PAL.accent, bold: true });
+    txt(P, x0 + 5 * (cw + 2), y + 6, 'E (8)', { size: 11, mono: true, align: 'center', color: PAL.warn, bold: true });
+    txt(P, x0 + 20 * (cw + 2), y + 6, 'F (23)', { size: 11, mono: true, align: 'center', color: PAL.info, bold: true });
+    txt(P, x0, y + 26, hex, { size: 13, mono: true, color: PAL.ink });
+
+    var lines;
+    if (phaseA) {
+      lines = [
+        ['S = 1', 'so the sign is negative'],
+        ['E = 1000 0001 = 129', 'e = 129 \u2212 127 = 2'],
+        ['F = 1111 0000\u2026', 'significand 1.1111\u2082 = 1 + .5 + .25 + .125 + .0625 = 1.9375'],
+        ['value = \u22121 \u00d7 1.9375 \u00d7 2\u00b2 = \u22127.75', 'the answer key gives \u22127.75']
+      ];
+    } else {
+      lines = [
+        ['14.25 = 1110.01\u2082', 'normalise: 1.11001\u2082 \u00d7 2\u00b3'],
+        ['E = 3 + 127 = 130', '130 = 1000 0010'],
+        ['F = 11001 then 18 zeros', 'the leading 1 is implied, not stored'],
+        ['bits = 1 10000010 11001000\u2026', 'grouped: 1100 0001 0110 0100 \u2026 = 0xC1640000']
+      ];
+    }
+    var startT = phaseA ? sc.start + 3 : sc.start + 18;
+    for (var i = 0; i < lines.length; i++) {
+      var a = ease(seg(t, startT + i * 2.6, startT + i * 2.6 + 2));
+      P.alpha(a);
+      var ly = 190 + i * 44;
+      txt(P, 50, ly, lines[i][0], { size: 14, mono: true, color: PAL.ink, bold: i === 3 });
+      txt(P, 460, ly, lines[i][1], { size: 11, color: PAL.dim });
+      P.alpha(1);
+    }
+
+    txt(P, 50, 396, 'Four steps, always in this order: sign, exponent field, unbiased exponent, significand.',
+      { size: 12, color: PAL.accent });
+    txt(P, 50, 418, 'The two questions differ only in direction, and in whether the bits are given as fields, as a string, or as hex.',
+      { size: 11, color: PAL.dim });
+  }
+
+  /* ---------------- scene 8: the number line ---------------- */
+  function sceneLine(P, t) {
+    var sc = sceneById('numberline');
+    head(P, 'The whole IEEE single-precision number line', 'the exponent field decides which regime a pattern is in');
+
+    var x0 = 70, x1 = 830, y = 150;
+    /* segments: denormals | normals | infinity/NaN */
+    var denW = 120, infW = 110;
+    var normW = x1 - x0 - denW - infW;
+
+    P.rect(x0, y - 14, denW, 28, { fill: PAL.warnDim, stroke: PAL.warn, radius: 3 });
+    P.rect(x0 + denW, y - 14, normW, 28, { fill: PAL.accentDim, stroke: PAL.accent, radius: 3 });
+    P.rect(x0 + denW + normW, y - 14, infW, 28, { fill: PAL.invalidDim, stroke: PAL.invalid, radius: 3 });
+
+    txt(P, x0 + denW / 2, y - 2, 'E = 0', { size: 12, mono: true, align: 'center', base: 'middle', bold: true });
+    txt(P, x0 + denW + normW / 2, y - 2, 'E = 1 \u2026 254', { size: 12, mono: true, align: 'center', base: 'middle', bold: true });
+    txt(P, x0 + denW + normW + infW / 2, y - 2, 'E = 255', { size: 12, mono: true, align: 'center', base: 'middle', bold: true });
+
+    txt(P, x0, y + 24, '0', { size: 10, mono: true, color: PAL.faint });
+    txt(P, x0 + denW, y + 24, '2\u207b\u00b9\u00b2\u2076', { size: 10, mono: true, align: 'center', color: PAL.faint });
+    txt(P, x0 + denW + normW, y + 24, '3.4 \u00d7 10\u00b3\u2078', { size: 10, mono: true, align: 'right', color: PAL.faint });
+
+    /* markers */
+    var marks = [
+      { x: x0 + 6, s: '2\u207b\u00b9\u2074\u2079 smallest denormal', up: true },
+      { x: x0 + denW, s: '2\u207b\u00b9\u00b2\u2076 smallest normal', up: false },
+      { x: x0 + denW + normW - 60, s: '2\u00b9\u00b2\u2077 largest finite', up: true }
+    ];
+    var mk = ease(seg(t, sc.start + 4, sc.start + 10));
+    P.alpha(mk);
+    for (var i = 0; i < marks.length; i++) {
+      line(P, marks[i].x, y - 22, marks[i].x, y - 40, { stroke: PAL.ink, sw: 1 });
+      var al = marks[i].x < 150 ? 'left' : marks[i].x > 760 ? 'right' : 'center';
+      txt(P, marks[i].x + (al === 'left' ? 4 : al === 'right' ? -4 : 0), y - 44, marks[i].s,
+        { size: 10, mono: true, align: al, base: 'bottom', color: PAL.ink });
+    }
+    P.alpha(1);
+
+    var t2 = ease(seg(t, sc.start + 10, sc.start + 18));
+    P.alpha(t2);
+    panelBox(P, 60, 210, 380, 150, 'the four regimes');
+    txt(P, 78, 240, 'E = 0,  F = 0    \u2192  zero (\u00b10)', { size: 12, mono: true });
+    txt(P, 78, 264, 'E = 0,  F \u2260 0    \u2192  denormal: 0.F \u00d7 2\u207b\u00b9\u00b2\u2076', { size: 12, mono: true });
+    txt(P, 78, 288, '1 \u2264 E \u2264 254     \u2192  normal: 1.F \u00d7 2^(E\u2212127)', { size: 12, mono: true });
+    txt(P, 78, 312, 'E = 255, F = 0   \u2192  \u00b1\u221e', { size: 12, mono: true });
+    txt(P, 78, 336, 'E = 255, F \u2260 0   \u2192  NaN, and NaN \u2260 NaN', { size: 12, mono: true, color: PAL.invalid });
+    P.alpha(1);
+
+    var t3 = ease(seg(t, sc.start + 18, sc.start + 26));
+    P.alpha(t3);
+    panelBox(P, 460, 210, 400, 150, 'what the denormals buy');
+    txt(P, 478, 240, 'the hidden bit becomes 0 and the exponent is pinned at \u2212126,', { size: 11 });
+    txt(P, 478, 260, 'so the marks next to zero are evenly spaced at 2\u207b\u00b9\u2074\u2079.', { size: 11 });
+    txt(P, 478, 280, 'precision degrades gradually instead of collapsing to zero.', { size: 11 });
+    txt(P, 478, 306, 'without them the gap between 0 and 2\u207b\u00b9\u00b2\u2076 would be a hole.', { size: 11, color: PAL.accent });
+    txt(P, 478, 332, 'GATE CSE 2021 Set 2 Q4: the smallest normalised positive', { size: 10, color: PAL.faint });
+    txt(P, 478, 348, 'number is 2\u207b\u00b9\u00b2\u2076, with E = 00000001 and F = 0.', { size: 10, color: PAL.faint });
+    P.alpha(1);
+
+    txt(P, 60, 384, 'Infinity is what an exponent overflow produces; NaN is what 0/0 and \u221e \u2212 \u221e produce. Both live at E = 255,',
+      { size: 12, color: PAL.ink });
+    txt(P, 60, 406, 'separated only by the fraction field \u2014 which is why you cut the fields before naming any value.',
+      { size: 12, color: PAL.ink });
+  }
+
+  /* ---------------- scene 9: precision ---------------- */
+  function scenePrec(P, t) {
+    var sc = sceneById('precision');
+    head(P, 'Precision is not range', 'the significand sets the gap; the exponent sets the reach');
+
+    /* the ruler from 1 to 2 */
+    var x0 = 70, x1 = 470, y = 130;
+    line(P, x0, y, x1, y, { stroke: PAL.ink, sw: 1.5 });
+    var ticks = 8;
+    for (var i = 0; i <= ticks; i++) {
+      var tx = x0 + ((x1 - x0) * i) / ticks;
+      line(P, tx, y - 6, tx, y + 6, { stroke: PAL.accent, sw: 1.2 });
+    }
+    txt(P, x0, y + 16, '1', { size: 11, mono: true, align: 'center', color: PAL.dim });
+    txt(P, x1, y + 16, '2', { size: 11, mono: true, align: 'center', color: PAL.dim });
+    var gapLbl = ease(seg(t, sc.start + 2, sc.start + 8));
+    P.alpha(gapLbl);
+    P.arrow(x0 + 20, y - 26, x0 + 20 + (x1 - x0) / ticks, y - 26, { stroke: PAL.accent, sw: 1.4, head: 7 });
+    txt(P, x0 + 20, y - 34, 'one ulp = 2\u207b\u00b2\u00b3', { size: 11, mono: true, color: PAL.accent });
+    P.alpha(1);
+
+    txt(P, 500, 116, 'between 1 and 2: 2\u00b2\u00b3 marks', { size: 12, mono: true, color: PAL.ink });
+    txt(P, 500, 136, 'between 2 and 4: 2\u00b2\u00b3 marks, twice as far apart', { size: 12, mono: true, color: PAL.dim });
+    txt(P, 500, 156, 'between 2\u00b2\u00b3 and 2\u00b2\u2074: the gap is 1', { size: 12, mono: true, color: PAL.dim });
+    txt(P, 500, 176, 'at 2\u00b2\u2074: the gap is 2, so odd integers are lost', { size: 12, mono: true, color: PAL.invalid });
+
+    /* absorption */
+    var ab = ease(seg(t, sc.start + 9, sc.start + 17));
+    P.alpha(ab);
+    panelBox(P, 60, 210, 380, 140, 'alignment: 2\u00b2\u2074 + 1');
+    P.rect(80, 244, 240, 20, { fill: PAL.accentDim, stroke: PAL.accent, radius: 3 });
+    txt(P, 84, 254, '2\u00b2\u2074', { size: 11, mono: true, base: 'middle', color: PAL.ink });
+    P.rect(80, 274, 10, 20, { fill: PAL.warnDim, stroke: PAL.warn, radius: 3 });
+    txt(P, 96, 284, '1', { size: 11, mono: true, base: 'middle', color: PAL.warn });
+    var drop = cl((t - (sc.start + 13)) / 3);
+    txt(P, 96 + 30 * drop, 284 + 26 * drop, 'shifted out of the 24-bit window', { size: 10, color: PAL.invalid });
+    txt(P, 80, 322, 'result: exactly 2\u00b2\u2074 \u2014 the addend vanished', { size: 12, mono: true, color: PAL.invalid });
+    P.alpha(1);
+
+    var t2 = ease(seg(t, sc.start + 17, sc.start + 24));
+    P.alpha(t2);
+    panelBox(P, 460, 210, 400, 140, 'one tenth is not a binary fraction');
+    txt(P, 478, 240, 'single:  13421773 / 2\u00b2\u2077 = 0.10000000149\u2026', { size: 12, mono: true });
+    txt(P, 478, 262, 'double:  3602879701896397 / 2\u2075\u2075', { size: 12, mono: true });
+    txt(P, 478, 284, 'exact values, 0.5, 0.25, 0.125, 14.25, and every', { size: 11, color: PAL.dim });
+    txt(P, 478, 302, 'integer up to 2\u00b2\u2074.', { size: 11, color: PAL.dim });
+    txt(P, 478, 328, 'rounding is to nearest, ties to even.', { size: 12, color: PAL.accent });
+    P.alpha(1);
+
+    txt(P, 60, 384, 'The shift that aligns two exponents is where the bits are lost, and the loss is not an error in the adder:',
+      { size: 12, color: PAL.ink });
+    txt(P, 60, 406, 'it is the correct rounding of an exact sum to the nearest value the format can hold.', { size: 12, color: PAL.ink });
+  }
+
+  /* ---------------- scene 10: procedure and traps ---------------- */
+  function sceneProc(P, t) {
+    var sc = sceneById('procedure');
+    head(P, 'The procedure, and the four traps', 'five steps that work for every question in this topic');
+
+    var steps = [
+      ['1', 'name the format', 'integer, fixed point, single, double'],
+      ['2', 'name the width', 'fixes bias, fraction bits, sign position'],
+      ['3', 'find the sign', 'top bit, or the S field'],
+      ['4', 'cut the fields', '1 / 8 / 23, or 2\u1d4f weights'],
+      ['5', 'compute, then check', 'decode your own encode']
+    ];
+    for (var i = 0; i < steps.length; i++) {
+      var a = ease(seg(t, sc.start + 1 + i * 1.4, sc.start + 3 + i * 1.4));
+      P.alpha(a);
+      var bx = 40 + i * 168;
+      P.rect(bx, 80, 152, 84, { fill: PAL.surface, stroke: PAL.border, radius: 6 });
+      P.circle(bx + 20, 100, 11, { fill: PAL.accentDim, stroke: PAL.accent, sw: 1.2 });
+      txt(P, bx + 20, 100, steps[i][0], { size: 11, mono: true, align: 'center', base: 'middle', bold: true });
+      txt(P, bx + 10, 124, steps[i][1], { size: 11, bold: true, color: PAL.ink });
+      txt(P, bx + 10, 144, steps[i][2], { size: 9, color: PAL.dim });
+      if (i < 4) P.arrow(bx + 154, 122, bx + 166, 122, { stroke: PAL.border, sw: 1.2, head: 6 });
+      P.alpha(1);
+    }
+
+    var traps = [
+      ['trap 1', 'the bias', 'E = 129 means e = 2, not 129'],
+      ['trap 2', 'the hidden bit', '1.F for normal, 0.F when E = 0'],
+      ['trap 3', 'carry \u2260 overflow', 'the sign decides, not the fifth bit'],
+      ['trap 4', 'the exponent field', 'only E = 255 is special']
+    ];
+    for (var k = 0; k < 4; k++) {
+      var b = ease(seg(t, sc.start + 11 + k * 2, sc.start + 13 + k * 2));
+      P.alpha(b);
+      var tx2 = 40 + (k % 2) * 420, ty2 = 196 + Math.floor(k / 2) * 84;
+      P.rect(tx2, ty2, 400, 68, { fill: PAL.invalidDim, stroke: PAL.invalid, radius: 6 });
+      txt(P, tx2 + 14, ty2 + 16, traps[k][0], { size: 10, mono: true, color: PAL.invalid, bold: true });
+      txt(P, tx2 + 14, ty2 + 36, traps[k][1], { size: 14, bold: true, color: PAL.ink });
+      txt(P, tx2 + 14, ty2 + 54, traps[k][2], { size: 11, color: PAL.dim });
+      P.alpha(1);
+    }
+
+    txt(P, 40, 384, 'Every trap is a check that can be run after the answer is written, which is why it is worth running even in the last minute.',
+      { size: 12, color: PAL.ink });
+    txt(P, 40, 406, 'Reading the representation first is what makes the checks possible; skipping it is what all four traps punish.',
+      { size: 12, color: PAL.dim });
+  }
+
+  /* ---------------- frame ---------------- */
+  var SCENE_FNS = {
+    fixedpoint: sceneFixed, encodings: sceneEnc, twoswheel: sceneWheel,
+    addition: sceneAdd, flags: sceneFlags, scientific: sceneSci,
+    ieee: sceneIEEE, numberline: sceneLine, precision: scenePrec, procedure: sceneProc
+  };
+
+  function drawFrame(P) {
+    P.alpha(1);
+    P.clear();
+    P.rect(0, 0, W, H, { fill: PAL.surface });
+    var t = window.LessonKit.state.elapsed;
+    var idx = window.LessonKit.sceneAt(t);
+    var sc = TL.scenes[idx];
+    var fn = SCENE_FNS[sc && sc.id];
+    if (fn) fn(P, t);
+    var p = cl(t / TL.duration);
+    P.rect(26, H - 12, W - 52, 3, { fill: PAL.surface2, radius: 2 });
+    P.rect(26, H - 12, Math.max(2, (W - 52) * p), 3, { fill: PAL.accent, radius: 2 });
+  }
+
+  /* ======================================================================
+     LAYER 4 — BOOT
+     ====================================================================== */
+
+  function fillChecks() {
+    var el = document.getElementById('checks');
+    if (!el) return;
+    var html = '<span class="k">Model checks</span><p class="small" style="margin:4px 0 0">' +
+      '<strong>' + passed + ' of ' + CHECKS.length + '</strong> checks passed \u2014 every value, range, gap and hex ' +
+      'constant was computed from the definitions and then tested against its defining property.</p>' +
+      '<details style="margin-top:6px"><summary class="small">Show the list</summary>' +
+      '<ul class="small" style="margin:6px 0 0;padding-left:16px">';
+    CHECKS.forEach(function (c) {
+      html += '<li>' + (c.pass ? '&#10003;' : '&#10007;') + ' ' + c.name +
+        (c.detail ? ' <span class="muted">(' + c.detail + ')</span>' : '') + '</li>';
+    });
+    html += '</ul></details>';
+    el.innerHTML = html;
+  }
+
+  var PAINTER = null;
+
+  function boot() {
+    fillChecks();
+
+    var holder = document.getElementById('canvas-holder');
+    var fallback = document.getElementById('canvas-fallback');
+    var ok = false;
+
+    if (window.p5) {
+      try {
+        new window.p5(function (sk) {
+          sk.setup = function () {
+            sk.createCanvas(W, H);
+            sk.noLoop();
+            PAINTER = window.Painters.makePainterP5(sk, W, H);
+            sk.draw = function () { drawFrame(PAINTER); };
+            drawFrame(PAINTER);
+          };
+        }, holder);
+        ok = true;
+      } catch (e) {
+        console.error('p5 failed', e);
+        ok = false;
+      }
+    }
+
+    if (!ok) {
+      var drew = false;
+      try {
+        var cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        holder.appendChild(cv);
+        var ctx2d = cv.getContext && cv.getContext('2d');
+        if (ctx2d) {
+          PAINTER = window.Painters.makePainter2D(ctx2d, W, H);
+          drawFrame(PAINTER);
+          drew = true;
+        }
+      } catch (e) {
+        console.error('canvas fallback failed', e);
+      }
+      if (!drew && fallback) fallback.classList.add('show');
+    }
+
+    window.LessonKit.init({
+      timeline: TL,
+      draw: function () { if (PAINTER) drawFrame(PAINTER); }
+    });
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { if (PAINTER) drawFrame(PAINTER); });
+    }
+
+    window.__lessonChecks = CHECKS;
+    window.__model = { M: M, decode: M.decode, fields: M.fields, add: M.add, neg2: M.neg2 };
+
+    window.__drawAt = function (t) {
+      window.LessonKit.state.elapsed = t;
+      if (PAINTER) drawFrame(PAINTER);
+      return window.LessonKit.sceneAt(t);
+    };
+
+    if (passed !== CHECKS.length) {
+      console.warn('Model validation did not fully pass:', CHECKS.filter(function (c) { return !c.pass; }));
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
