@@ -8,21 +8,32 @@ lessons are static files and work from a local clone.
 
 ## Topics
 
-| Topic | Syllabus class | Path |
-|---|---|---|
-| Counting and Combinatorics | A — explicitly in the syllabus | `topics/counting-and-combinatorics/index.html` |
-| First-Order Logic | A — explicitly in the syllabus | `topics/first-order-logic/index.html` |
-| Functions and Their Properties | A — explicitly in the syllabus | `topics/functions-and-their-properties/index.html` |
-| Generating Functions | A — explicitly in the syllabus | `topics/generating-functions/index.html` |
-| Graphs: Connectivity and Structure | A — explicitly in the syllabus | `topics/graphs-connectivity/index.html` |
-| Graphs: Matching and Colouring | A — explicitly in the syllabus | `topics/matching-and-colouring/index.html` |
-| Monoids and Groups | A — explicitly in the syllabus | `topics/monoids-and-groups/index.html` |
-| Partial Orders, Hasse Diagrams and Lattices | A — explicitly in the syllabus | `topics/partial-orders-and-lattices/index.html` |
-| Propositional Logic | A — explicitly in the syllabus | `topics/propositional-logic/index.html` |
-| Recurrence Relations | A — explicitly in the syllabus | `topics/recurrence-relations/index.html` |
-| Relations and Their Properties | A — explicitly in the syllabus | `topics/relations-and-their-properties/index.html` |
-| Sets and Set Operations | A — explicitly in the syllabus | `topics/sets-and-set-operations/index.html` |
-| Pointers in C | B — prerequisite for a syllabus topic | `topics/pointers-in-c/index.html` |
+| Topic | Subject | Syllabus class | Path |
+|---|---|---|---|
+| Counting and Combinatorics | Discrete Mathematics | A — explicitly in the syllabus | `topics/counting-and-combinatorics/index.html` |
+| First-Order Logic | Discrete Mathematics | A — explicitly in the syllabus | `topics/first-order-logic/index.html` |
+| Functions and Their Properties | Discrete Mathematics | A — explicitly in the syllabus | `topics/functions-and-their-properties/index.html` |
+| Generating Functions | Discrete Mathematics | A — explicitly in the syllabus | `topics/generating-functions/index.html` |
+| Graphs: Connectivity and Structure | Discrete Mathematics | A — explicitly in the syllabus | `topics/graphs-connectivity/index.html` |
+| Graphs: Matching and Colouring | Discrete Mathematics | A — explicitly in the syllabus | `topics/matching-and-colouring/index.html` |
+| Monoids and Groups | Discrete Mathematics | A — explicitly in the syllabus | `topics/monoids-and-groups/index.html` |
+| Partial Orders, Hasse Diagrams and Lattices | Discrete Mathematics | A — explicitly in the syllabus | `topics/partial-orders-and-lattices/index.html` |
+| Propositional Logic | Discrete Mathematics | A — explicitly in the syllabus | `topics/propositional-logic/index.html` |
+| Recurrence Relations | Discrete Mathematics | A — explicitly in the syllabus | `topics/recurrence-relations/index.html` |
+| Relations and Their Properties | Discrete Mathematics | A — explicitly in the syllabus | `topics/relations-and-their-properties/index.html` |
+| Sets and Set Operations | Discrete Mathematics | A — explicitly in the syllabus | `topics/sets-and-set-operations/index.html` |
+| Arrays, Stacks and Queues | Programming And Data Structures | A — explicitly in the syllabus | `topics/arrays-stacks-queues/index.html` |
+| C Fundamentals: Types, Operators and Control Flow | Programming And Data Structures | A — explicitly in the syllabus | `topics/c-fundamentals/index.html` |
+| Functions, Scope, Lifetime and the Preprocessor | Programming And Data Structures | A — explicitly in the syllabus | `topics/functions-scope-and-preprocessor/index.html` |
+| Linked Lists | Programming And Data Structures | A — explicitly in the syllabus | `topics/linked-lists/index.html` |
+| Pointers in C | Programming And Data Structures | B — prerequisite for a syllabus topic | `topics/pointers-in-c/index.html` |
+| Recursion | Programming And Data Structures | A — explicitly in the syllabus | `topics/recursion/index.html` |
+| Trees, Binary Search Trees and Heaps | Programming And Data Structures | A — explicitly in the syllabus | `topics/trees-bst-and-heaps/index.html` |
+| Asymptotic Complexity and Recurrences | Algorithms | A — explicitly in the syllabus | `topics/asymptotic-complexity/index.html` |
+| Binary Search and Its Variants | Algorithms | A — explicitly in the syllabus | `topics/binary-search-and-variants/index.html` |
+| Sorting Algorithms and the Comparison Lower Bound | Algorithms | A — explicitly in the syllabus | `topics/sorting-algorithms/index.html` |
+| Boolean Algebra and Minimisation | Digital Logic | A — explicitly in the syllabus | `topics/boolean-algebra-and-minimisation/index.html` |
+| Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
