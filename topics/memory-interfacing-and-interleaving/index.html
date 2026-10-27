@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Interfacing and Interleaving — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Memory Interfacing and Interleaving</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Memory interfacing and interleaving — the first half of GATE 2027 Section 3's memory clause: <em>"Memory interfacing and hierarchy"</em>. The hierarchy and cache half is a separate published lesson.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a chip described as <em>W words of b bits</em> and a memory required as <em>N words of B bits</em>, compute chips across, rows, total chips, total address bits, the bits each chip takes, the bits left for the decoder, and the decoder size. Given a chip-select condition on address bits, name the exact address range it enables. Given <em>m</em> interleaved banks with a bank cycle time and a bus that accepts one word per bus cycle, compute the time to fetch <em>n</em> consecutive words and the sustained bandwidth — and state the condition under which the clean formula is allowed.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>two divisions, one bit budget, one schedule</em>. The two divisions turn two rectangles into an array. The bit budget turns the address into a split between what a chip needs and what a decoder needs. The schedule turns many slow banks into one fast-looking stream. Every question in this area is one of those three, wearing a different costume. Nothing here repeats the cache lesson: mapping, tags, replacement and average access time live there.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 3 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read for an earlier run and recorded in this repository's coverage tracker) reads: <em>"Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past papers lists 73 items under "Memory Interfacing" across 36 papers from the 1980s to 2026. That is a count of what has been asked under a coaching site's own topic label — it includes cache questions — and it is not a forecast, not an official weightage, and not a marks distribution.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted in this lesson carries its year and paper, and its answer was recomputed here rather than copied.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Powers of two and logarithms.</strong> Every bit count is a log base 2 and every capacity is a power of two. That is the whole mathematical toolkit.</li>
+            <li><strong>Binary and hexadecimal.</strong> Chip-select ranges are asked in hex; a 16-bit address in binary converts by grouping four bits.</li>
+            <li><strong>What a decoder is.</strong> An <em>n</em>-input, 2<sup>n</sup>-output part that asserts exactly one output line. Built and counted in <a href="../combinational-circuits/index.html">Design of Combinational Circuits</a>.</li>
+            <li><strong>The idea of a clock cycle and of overlapping work.</strong> For the interleaving half only. <a href="../pipelining-and-hazards/index.html">Pipelining and Hazards</a> covers the same reasoning about overlap.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing from <a href="../memory-hierarchy-and-cache/index.html">Memory Hierarchy and Cache</a> is assumed, but the two lessons are designed to be read in either order. Where a cache is mentioned here it is only as the thing that asks for a block.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>The rectangle.</strong> One chip, then the array built row by row from two divisions.</li>
+            <li><strong>The bit budget.</strong> Fourteen bits cut into four for the decoder and ten for every chip, with both checks.</li>
+            <li><strong>Wiring.</strong> What is broadcast, what is decoded — and the 2023 wiring that puts the decoder in the middle of the address.</li>
+            <li><strong>Chip select.</strong> Five fixed bits, eleven free, the window C800–CFFF drawn to scale on a 64 KB line.</li>
+            <li><strong>Decoder arithmetic.</strong> A 4-to-16 built from 2-to-4s, counted by the tree.</li>
+            <li><strong>Interleaving.</strong> The same sixteen addresses placed into four banks under both orders.</li>
+            <li><strong>The schedule.</strong> Two Gantt charts, four banks against two, 110 ns against 170.</li>
+            <li><strong>Bandwidth.</strong> The rising-then-flat curve and its knee, then the 2014 store count.</li>
+            <li><strong>A real block fetch.</strong> 24 banks, 48 bytes a round, two rounds, 184 ns and the dissent.</li>
+            <li><strong>The recipe.</strong> Four steps, five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Interfacing is two independent divisions: bits for width, words for depth. Never one division for both.</li>
+            <li>The address split is forced: each chip consumes log of its own word count, and the remainder must choose a row.</li>
+            <li>A chip-select region's size comes from the bits that were <em>not</em> decoded, not from the chip behind it.</li>
+            <li>Low-order interleaving is what turns a sequential stream into parallel bank work; high-order does not.</li>
+            <li>The formula <em>t<sub>c</sub> + (n−1)t<sub>bus</sub></em> is a licensed shortcut. The licence is <em>m·t<sub>bus</sub> ≥ t<sub>c</sub></em>, and several questions exist to revoke it.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 70–90 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Three neighbouring topics are deliberately not taught here and remain recorded as uncovered in the coverage tracker: <strong>virtual memory and the TLB</strong> (Operating Systems, Section 8), <strong>I/O interface, interrupts and DMA</strong> (the next clause of Section 3), and <strong>cache mapping and replacement</strong>, which is a separate published lesson. Where two public sources give different answers to the same previous-year question — the 2006 bank-latency item — this lesson says so instead of choosing silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: the shelf, the box and the trolley</h3>
+              <p>A chip is a box with a fixed number of pigeonholes, and each pigeonhole holds a fixed number of letters. The box you can buy holds 1024 pigeonholes of 8 letters. The memory you need holds 16384 pigeonholes of 16 letters. You cannot buy that box, so you buy boxes and join them.</p>
+              <p class="small">Two things must grow and they grow in different directions. To make a pigeonhole <em>wider</em> you put two boxes side by side and read both at once: that is the width direction. To make the shelf <em>longer</em> you stack rows of those pairs: that is the depth direction. One division gives each. Nothing about the width ratio tells you anything about the depth ratio, and confusing them is the first mistake in this topic.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is a teaching device. It keeps two multiplications visibly separate, which is exactly what the exam asks you to keep separate.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal vocabulary, every symbol glossed</h3>
+              <p class="small"><strong>Chip organisation</strong> is written <em>W × b</em>: <em>W</em> words, each <em>b</em> bits. <em>W</em> is depth — how many different addresses the chip answers to. <em>b</em> is width — how many bits arrive on one access.</p>
+              <p class="small"><strong>Target memory</strong> is written <em>N × B</em>: <em>N</em> words of <em>B</em> bits. Then:</p>
+              <p class="formula">across = B / b &nbsp;&nbsp; rows = N / W &nbsp;&nbsp; chips = across × rows</p>
+              <p class="small"><strong>Address width</strong> of the finished memory is log<sub>2</sub> <em>N</em> bits, because 2<sup>k</sup> addresses need k bits. Each chip takes log<sub>2</sub> <em>W</em> of them; the remainder, log<sub>2</sub> <em>N</em> − log<sub>2</sub> <em>W</em>, is the <strong>select field</strong> that drives the row decoder.</p>
+              <p class="small" style="margin-bottom:0"><strong>Chip select</strong> (CS) is an input pin that enables a chip. <strong>Aliasing</strong> is the same physical word answering at two different addresses because too few bits were decoded.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Two checks that catch almost every slip</h3>
+              <p class="small">Both are arithmetic on numbers you already have, and both are cheap:</p>
+              <p class="small"><strong>Check one.</strong> per-chip address bits + select bits = total address bits. In the running example, 10 + 4 = 14.</p>
+              <p class="small"><strong>Check two.</strong> 2<sup>select bits</sup> = rows. In the running example, 2<sup>4</sup> = 16 rows.</p>
+              <p class="small" style="margin-bottom:0">The page computes both for every array it shows, and the Animation tab's model-check panel lists them. A design that fails either check is not a smaller or larger memory; it is a design that cannot be addressed.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked, in one line each</h3>
+              <p class="small"><strong>16K × 16 from 1K × 8.</strong> across = 16/8 = 2, rows = 16384/1024 = 16, chips = 32, select = 14 − 10 = 4 → a 4-to-16 decoder. <span class="claim-chip claim-chip--verified">Verified fact</span> This is GATE 2013's array.</p>
+              <p class="small"><strong>32K × 32 from 128 × 8.</strong> across = 4, rows = 256, chips = 1024.</p>
+              <p class="small"><strong>256 KB from 32K × 1.</strong> across = 8/1 = 8, rows = 262144/32768 = 8, chips = 64.</p>
+              <p class="small" style="margin-bottom:0">Notice that the second and third examples give the same total bit capacity by completely different arrays. Capacity alone never determines the array.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>From an array to a circuit: broadcast and decode</h3>
+              <p>The array is now a rectangle of chips. What remains is to say which address lines go where. The rule is short: the bits that name a word <em>inside</em> a chip are broadcast to every chip that participates in the access, and the bits that name <em>which row</em> go to a decoder whose outputs are chip-select pins.</p>
+              <p class="small" style="margin-bottom:0">Inside a row, all chips receive the same address, because they are delivering different slices of the same word at the same instant. Exactly one row is enabled, because the decoder is one-hot. Two rows enabled at once is not a wider word; it is two chips driving the same data lines, which is a bus conflict.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The decoded bits need not be the top bits</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2023 (paper Q42, official key IIT Kanpur) realises a 4 KB byte-addressable memory from four 1 KB blocks, with <strong>IA4 and IA3</strong> feeding a 2-to-4 decoder for chip select and the other ten lines feeding the address port of every block.</p>
+              <p class="small">Nothing in the hardware requires the row bits to be contiguous or high. The consequence is worth seeing clearly: block <em>k</em> owns the addresses whose bits 4 and 3 spell <em>k</em>, so it owns eight bytes out of every thirty-two. The blocks start at 0, 8, 16, 24 and each holds 1024 bytes — but no block is a contiguous 1024 bytes.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Enumerating all 4096 addresses by their bits 4 and 3 partitions them into four sets of 1024, with minima 0, 8, 16, 24. The page does this enumeration and checks that the four sets partition the space exactly once.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The four options, and why three of them exist</h3>
+              <p class="small">The paper offered (0,1,2,3), (0,1024,2048,3072), (0,8,16,24) and (0,0,0,0). Each wrong option is a specific error:</p>
+              <p class="small"><strong>(0,1,2,3)</strong> — believing a decoder always means consecutive blocks one byte apart.</p>
+              <p class="small"><strong>(0,1024,2048,3072)</strong> — believing "four 1 KB blocks" means four contiguous kilobyte regions, which is what you would get if IA11 and IA10 drove the decoder.</p>
+              <p class="small" style="margin-bottom:0"><strong>(0,0,0,0)</strong> — reading only the ten address-port lines and ignoring the decoder input entirely.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Chip select as a logic condition</h3>
+              <p class="small">A chip-select pin is an AND gate over address bits, some inverted. A bit wired straight in demands a 1; a bit through an inverter demands a 0; a bit not wired at all is free.</p>
+              <p class="formula">range size = 2<sup>(address bits − fixed bits)</sup></p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2019 asks for the range enabled by <em>A<sub>15</sub>A<sub>14</sub>A<sub>13</sub>'A<sub>12</sub>'A<sub>11</sub></em>. Five bits are fixed, eleven are free, so 2<sup>11</sup> = 2048 addresses, from 1100 1000 0000 0000 to 1100 1111 1111 1111, that is C800 to CFFF. The page enumerates all 65 536 addresses, counts the enabled ones and confirms 2048.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Interleaving: making many slow banks look like one fast one</h3>
+              <p>A bank of memory accepts one request per cycle time. It cannot do better. But if memory is split into <em>m</em> banks and consecutive addresses land in different banks, then <em>m</em> requests can be in flight at once, and the only shared resource is the bus.</p>
+              <p class="small" style="margin-bottom:0">Two mappings are worth knowing by name. <strong>Low-order interleaving</strong> takes the bank number from the low bits, so bank = address mod <em>m</em> and consecutive words go to different banks. <strong>High-order interleaving</strong> takes it from the high bits, so consecutive words stay in one bank and each bank holds one contiguous block of the address space.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The schedule, and the condition</h3>
+              <p class="small">Under low-order interleaving with <em>m</em> banks, bank <em>b</em> serves words <em>b</em>, <em>b+m</em>, <em>b+2m</em>, … The bus returns to that bank after <em>m</em> bus cycles. The bank needs its full cycle time <em>t<sub>c</sub></em> before it can accept the next request.</p>
+              <p class="formula">if m·t<sub>bus</sub> ≥ t<sub>c</sub> &nbsp;then&nbsp; T(n) = t<sub>c</sub> + (n−1)·t<sub>bus</sub></p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The first word costs the full bank cycle because nothing can overlap with it. Every later word costs one bus cycle, because a bank is free exactly when its turn comes. If the condition fails, the bus waits, and the formula understates the time.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Counterexample: two banks, 40 ns cycle, 10 ns bus</h3>
+              <p class="small">The condition is 2 × 10 = 20 &lt; 40, so the formula is not licensed. The formula would say 40 + 7×10 = 110 ns for eight words.</p>
+              <p class="small">Simulating the schedule: word 0 starts at 0, word 1 at 10, word 2 at 40 (bank 0 busy until 40), word 3 at 50, word 4 at 80, word 5 at 90, word 6 at 120, word 7 at 130 — finishing at 170 ns.</p>
+              <p class="small" style="margin-bottom:0">So the true answer is 170, not 110. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page simulates this and asserts the 170.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Bandwidth is the interval, inverted</h3>
+              <p class="small">Once the pipeline is running, words emerge at a fixed rhythm:</p>
+              <p class="formula">interval = max(t<sub>bus</sub>, t<sub>c</sub> / m) &nbsp;&nbsp; bandwidth = word width / interval</p>
+              <p class="small" style="margin-bottom:0">So bandwidth rises with <em>m</em> while the banks are the limit, then flattens at one word per bus cycle. The knee is exactly <em>m·t<sub>bus</sub> = t<sub>c</sub></em>. Past the knee, extra banks cost money and buy nothing.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A memory chip is a rectangle: a number of words, each a fixed number of bits wide.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why one chip is never enough</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A memory chip is a rectangle: a number of words, each a fixed number of bits wide.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked examples, each with its justification</h3>
+          <p class="small" style="margin-bottom:0">Every number below is recomputed by the page's model, and the Animation tab's check panel lists which ones passed. The three previous-year items carry their paper; the two others are marked as original practice in the same shape.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>1. Build a 16K × 16 memory from 1K × 8 chips</h3>
+          <div class="step-list">
+            <p class="small"><strong>Step 1.</strong> across = 16 bits / 8 bits = 2. <em>Why:</em> one chip supplies half a word, so two share every address.</p>
+            <p class="small"><strong>Step 2.</strong> rows = 16384 words / 1024 words = 16. <em>Why:</em> each row holds 1024 words, and 16 rows reach 16384.</p>
+            <p class="small"><strong>Step 3.</strong> chips = 2 × 16 = 32. <em>Why:</em> it is a grid, so the count is the product.</p>
+            <p class="small"><strong>Step 4.</strong> address bits = log<sub>2</sub> 16384 = 14; per chip = log<sub>2</sub> 1024 = 10; select = 4.</p>
+            <p class="small" style="margin-bottom:0"><strong>Step 5.</strong> Decoder = 4-to-16. <em>Check:</em> 2<sup>4</sup> = 16 = rows. <span class="claim-chip claim-chip--verified">Verified fact</span> This is the GATE 2013 array; its answer, 5 two-to-four decoders, follows below.</p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Count the decoders (GATE 2013, Q46)</h3>
+          <p class="small">The parts bin holds only 2-to-4 decoders <em>with an enable input</em>. Build the 4-to-16 row decoder.</p>
+          <div class="step-list">
+            <p class="small"><strong>Step 1.</strong> Sixteen rows means sixteen outputs, so the row decoder is 4-to-16 — not 32-to-anything, because there are 32 chips but only 16 rows.</p>
+            <p class="small"><strong>Step 2.</strong> One 2-to-4 takes the top two bits and produces four enable signals.</p>
+            <p class="small"><strong>Step 3.</strong> Four more 2-to-4s, each enabled by one of those signals, produce four outputs each: 16 in total.</p>
+            <p class="small" style="margin-bottom:0"><strong>Step 4.</strong> Count the tree: 1 + 4 = 5. <span class="claim-chip claim-chip--verified">Verified fact</span> Official key: option B, 5.</p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>3. The chip-select range (GATE 2019)</h3>
+          <p class="small">Sixteen address lines. The chip-select gate requires A<sub>15</sub> = 1, A<sub>14</sub> = 1, A<sub>13</sub> = 0, A<sub>12</sub> = 0, A<sub>11</sub> = 1.</p>
+          <div class="step-list">
+            <p class="small"><strong>Step 1.</strong> Five bits are fixed; eleven are free.</p>
+            <p class="small"><strong>Step 2.</strong> Lowest address: free bits 0 → 1100 1000 0000 0000 = C800.</p>
+            <p class="small"><strong>Step 3.</strong> Highest address: free bits 1 → 1100 1111 1111 1111 = CFFF.</p>
+            <p class="small" style="margin-bottom:0"><strong>Step 4.</strong> Size = 2<sup>11</sup> = 2048 = CFFF − C800 + 1. <span class="claim-chip claim-chip--verified">Verified fact</span> Official key: option A, C800 to CFFF. The page enumerates all 65 536 addresses and counts 2048 enabled.</p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>4. Four banks, 40 ns cycle, 10 ns bus, eight words</h3>
+          <div class="step-list">
+            <p class="small"><strong>Step 1.</strong> Condition: 4 × 10 = 40 ≥ 40, so it holds — exactly, with no slack.</p>
+            <p class="small"><strong>Step 2.</strong> First word finishes at 40 ns.</p>
+            <p class="small"><strong>Step 3.</strong> Each later word is issued one bus cycle after the previous, and its bank is free by then.</p>
+            <p class="small" style="margin-bottom:0"><strong>Step 4.</strong> T = 40 + 7 × 10 = 110 ns. Bandwidth = 4 bytes / 10 ns = 0.4 bytes per ns. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page simulates the schedule and gets 110.</p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>5. Store throughput (GATE 2014 Set 2)</h3>
+          <p class="small">Eight modules on a one-word bus. A write occupies the bus for 100 ns; the addressed module is then busy for a further 500 ns. Different modules may overlap; only one request may be on the bus.</p>
+          <div class="step-list">
+            <p class="small"><strong>Step 1.</strong> Module cycle = 100 + 500 = 600 ns.</p>
+            <p class="small"><strong>Step 2.</strong> Condition: 8 × 100 = 800 ≥ 600, so no request ever waits for a module.</p>
+            <p class="small"><strong>Step 3.</strong> The bus is therefore the only limit: one store per 100 ns.</p>
+            <p class="small" style="margin-bottom:0"><strong>Step 4.</strong> 1 ms / 100 ns = 10 000 stores initiated. <span class="claim-chip claim-chip--verified">Verified fact</span> Official key: 10 000. With five modules it would be 8 330 instead, and the page computes both.</p>
+          </div>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>6. A 64-byte block through 24 banks (GATE 2006, Q41)</h3>
+          <p class="small">A CPU has a cache with block size 64 bytes. Main memory has <em>k</em> banks, each <em>c</em> bytes wide, with consecutive <em>c</em>-byte chunks mapped to consecutive banks with wrap-around. All <em>k</em> banks are accessed in parallel, but two accesses to the same bank are serialised. Each parallel round requires decoding the bank numbers, costing <em>k</em>/2 ns. One bank access costs 80 ns. Take <em>c</em> = 2 and <em>k</em> = 24, and find the latency of retrieving a cache block starting at address zero.</p>
+          <div class="grid grid--2" style="margin-top:6px">
+            <div>
+              <p class="small"><strong>Step 1.</strong> One round moves 24 × 2 = 48 bytes.</p>
+              <p class="small"><strong>Step 2.</strong> 64 bytes needs ⌈64/48⌉ = 2 rounds, moving 96 bytes for 64 wanted.</p>
+            </div>
+            <div>
+              <p class="small"><strong>Step 3.</strong> Each round: 24/2 = 12 ns decode + 80 ns access = 92 ns.</p>
+              <p class="small"><strong>Step 4.</strong> 2 × 92 = <strong>184 ns</strong>.</p>
+            </div>
+          </div>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Published solutions disagree. Most give 184 ns (option D). Some give 172 ns (option C) by overlapping the second round's decoding with the first round's fetch, which is only valid if the bank addresses are latched in a buffer. The question says each round requires decoding, so 184 is the reading this lesson takes — and the disagreement is stated rather than hidden.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample span-2">
+          <h3>Edge case 1: a block is a set of addresses, not a range</h3>
+          <p class="small">GATE 2023's four 1 KB blocks each hold 1024 bytes, and none of them is a contiguous 1024 bytes. Block 2 owns addresses 16–23, 48–55, 80–87, … — eight bytes in every thirty-two. A design description that says "four 1 KB blocks" tells you their sizes and nothing about their addresses; the wiring tells you the addresses.</p>
+          <p class="small" style="margin-bottom:0">This is also the cleanest bridge in the syllabus from interfacing to interleaving: the same question that looks like chip select is really asking you to describe a four-way interleave at eight-byte granularity.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 2: aliasing when too few bits are decoded</h3>
+          <p class="small">A 256-byte chip enabled by a condition that leaves 11 free bits answers at 2048 addresses — eight distinct physical regions collapse onto the same 256 bytes. That is address aliasing.</p>
+          <p class="small" style="margin-bottom:0">It is silent: every access succeeds and returns plausible data. It only fails when a program assumes two addresses are distinct. The fix is to decode more bits, which is why real designs decode every unused high bit.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 3: the condition holds with no slack</h3>
+          <p class="small">Four banks, 40 ns cycle, 10 ns bus gives 4 × 10 = 40, exactly equal. The formula holds, but any extra bus delay — a refresh, a bus arbitration cycle, one wait state — breaks it immediately, because there is zero margin.</p>
+          <p class="small" style="margin-bottom:0">Exact equality is the boundary, not a comfortable design point. Questions often sit on it deliberately, because the arithmetic is cleanest there.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 4: initiated is not completed</h3>
+          <p class="small">In the 2014 question, 10 000 stores are <em>initiated</em> in a millisecond. The first completes at 600 ns, and the last initiated one has not completed when the window closes. Counting completions gives 9 995.</p>
+          <p class="small" style="margin-bottom:0">Read the verb. "Initiated", "issued", "accepted" and "completed" are four different counts, and the difference is the pipeline depth.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 5: a chip wider than the word needed</h3>
+          <p class="small">If the target word is 8 bits and the chip is 16 bits wide, <em>across</em> is a half, which is meaningless. You use one chip and waste half its width, or you build a 16-bit memory instead. The divisions must be checked for integrality before they are multiplied.</p>
+          <p class="small" style="margin-bottom:0">The same trap appears the other way: a target word of 24 bits from 8-bit chips needs three chips across, and no power of two is involved.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 6: refresh is part of the cycle budget</h3>
+          <p class="small">DRAM must be refreshed row by row. If a chip has <em>r</em> rows, each refresh takes <em>t<sub>ref</sub></em>, and the whole array must be refreshed within a period <em>P</em>, then the fraction of time unavailable is <em>r·t<sub>ref</sub> / P</em>.</p>
+          <p class="small" style="margin-bottom:0">Example: 2<sup>13</sup> rows at 60 ns within 4 ms costs 8192 × 60 ns = 491 520 ns, which is 12.3% of the period, leaving 87.7% for reads and writes. This is original practice, not a quoted paper. The page computes it.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Edge case 7: a bank conflict can erase the whole benefit</h3>
+          <p class="small" style="margin-bottom:0">Interleaving only helps when consecutive requests go to different banks. A stride of exactly <em>m</em> words under low-order interleaving sends every request to the same bank, and the system performs exactly like a single bank. That is why the number of banks is a power of two in almost every real design — it makes the bank field a clean slice of the address — and why compilers and array layouts care about the stride.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>"The number of chips is the capacity ratio, and that is the answer"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the capacity ratio really does give the right chip count, so the first half of every question checks out.</p>
+          <p class="small"><strong>The counterexample:</strong> 32K × 32 from 128 × 8 is 1024 chips, and the array is 256 rows of 4. Answering 1024 is right; answering 1024 to "how many rows" is wrong by a factor of 4.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> do both divisions. The chip count is their product and the row count is one of them.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A 4 KB memory built from four 1 KB blocks has blocks at 0, 1024, 2048, 3072"</h3>
+          <p class="small"><strong>Why it tempts:</strong> that is what happens when the decoder takes the top address bits, which is the usual textbook drawing.</p>
+          <p class="small"><strong>The counterexample:</strong> GATE 2023 wires IA4 and IA3 to the decoder and gets 0, 8, 16, 24.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> read which lines go to the decoder. The block boundaries are wherever those lines change, not wherever the capacity suggests.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The chip-select range is as big as the chip"</h3>
+          <p class="small"><strong>Why it tempts:</strong> in a well-designed system they are equal, so the two numbers agree and the error never shows.</p>
+          <p class="small"><strong>The counterexample:</strong> five fixed bits out of sixteen leave 2048 addresses regardless of whether a 256-byte or a 2 KB chip sits behind the gate.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the range comes from the address logic; the chip size comes from the chip. Equality is a property of a correct design, not a definition.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Interleaving makes memory faster"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the bandwidth really does multiply, and bandwidth is what "faster" usually means.</p>
+          <p class="small"><strong>The counterexample:</strong> the latency of one isolated access is unchanged, and may even rise because of the bank decoder. A single dependent load chain gains nothing.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> interleaving raises throughput for independent or sequential requests. It does not lower the latency of one request.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"High-order interleaving is just the worse one"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it loses on the sequential stream, which is the case every example uses.</p>
+          <p class="small"><strong>The counterexample:</strong> for a program whose working set is one contiguous block, high-order interleaving keeps that block inside one bank, so it never contends with another bank's traffic.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> low-order suits sequential streams; high-order suits locality. Neither dominates.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The overlap formula is the formula for interleaved access"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is in every set of notes, and it gives the right answer for the examples those notes use.</p>
+          <p class="small"><strong>The counterexample:</strong> two banks, 40 ns cycle, 10 ns bus. The formula says 110 ns for eight words; the schedule takes 170.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> check <em>m·t<sub>bus</sub> ≥ t<sub>c</sub></em> first, then use the formula. If the check fails, simulate.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>"The decoder size follows from the chip count"</h3>
+          <p class="small" style="margin-bottom:0"><strong>Why it tempts:</strong> the decoder question and the chip-count question usually sit in the same part, so the last number computed gets reused. <strong>The counterexample:</strong> the 2013 array has 32 chips and 16 rows, and the row decoder has 16 outputs. Dividing 32 by 4 gives 8, which is not a decoder size in the options. <strong>The rule:</strong> the row decoder's output count equals the number of rows, which is the depth ratio, and the width ratio never enters it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six question shapes, and the reasoning each demands</h3>
+          <p class="small" style="margin-bottom:0">Every previous-year item in this area that this lesson examined is one of these six. None of them needs a formula you have not seen; all of them need the two divisions and the bit split to be done in the right order.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — count the chips</h3>
+          <p class="small">"How many 128 × 8 RAMs are required to design a 32K × 32 RAM?"</p>
+          <p class="small"><strong>Reasoning:</strong> across = 32/8 = 4, rows = 32768/128 = 256, chips = 1024.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> dividing the two capacities in bits and treating the result as final, which here happens to give the right count but no array shape.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — size the decoder</h3>
+          <p class="small">"How many 2 × 4 decoders with enable are needed to build a 16K × 16 RAM from 1K × 8?"</p>
+          <p class="small"><strong>Reasoning:</strong> rows = 16, so a 4-to-16 decoder, built as 1 + 4 = 5 small decoders.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> counting chips (32/4 = 8) or answering 4 and forgetting the root that drives the enables.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — name the address range</h3>
+          <p class="small">"The chip select is generated by A<sub>15</sub>A<sub>14</sub>A<sub>13</sub>'A<sub>12</sub>'A<sub>11</sub>. What range does it enable?"</p>
+          <p class="small"><strong>Reasoning:</strong> write the fixed bits, zero the free bits for the base, one them for the top.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> treating the free bits as a low-byte suffix, which gives C800–C8FF instead of C800–CFFF.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — find the block start addresses</h3>
+          <p class="small">"Two address lines drive a decoder into four blocks; give the starting address of each block."</p>
+          <p class="small"><strong>Reasoning:</strong> zero the address-port bits, set the decoder inputs to <em>k</em>, read the whole address as one number.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> assuming the decoder takes the top bits, which is the option (0, 1024, 2048, 3072) sitting there waiting.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 — time a sequence of words</h3>
+          <p class="small">"m banks of t<sub>c</sub> ns behind a bus that takes one word per t<sub>bus</sub>: how long for n consecutive words?"</p>
+          <p class="small"><strong>Reasoning:</strong> check m·t<sub>bus</sub> ≥ t<sub>c</sub>; if it holds use t<sub>c</sub> + (n−1)t<sub>bus</sub>, otherwise lay out the schedule.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> n × t<sub>c</sub> (ignoring overlap entirely) or the formula without the check.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 6 — throughput under overlap</h3>
+          <p class="small">"Eight modules, 100 ns bus, 600 ns module cycle: how many stores can be initiated in 1 ms?"</p>
+          <p class="small"><strong>Reasoning:</strong> check the condition, then divide the window by the limiting interval.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> dividing by the module cycle (1666) or answering completions (9995) when the question asked for initiations.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The procedure, in the order the exam wants it</h3>
+          <p class="small" style="margin-bottom:0">Write down both rectangles. Do the two divisions and keep them labelled. Compute the three bit counts and check both identities. If a decoder is asked for, count by the tree, from rows. If a range is asked for, fix and free the bits, then read the hex. If a time is asked for, write the condition first and the formula second. Convert units once, at the end.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — page 1 of 2</h3>
+              <p class="small" style="margin-bottom:0">Answers are hidden until you reveal them, one question at a time. Every previous-year item is labelled with its paper; every other item is labelled as original practice in the same shape.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A memory of 64K words of 32 bits is built from chips of 8K words of 4 bits. How many chips are required?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 64</span></p>
+                  <p class="small">across = 32/4 = 8, rows = 65536/8192 = 8, chips = 64.</p>
+                  <p class="small" style="margin-bottom:0">The array is 8 rows of 8 chips. Answering 64 by dividing bit capacities gives the same number and hides the shape — which is what the next part of such a question usually asks for.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>For that 64K × 32 memory, how many address bits go to each chip, and how many go to the row decoder?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 13 to each chip, 3 to the decoder</span></p>
+                  <p class="small">Total = log<sub>2</sub> 65536 = 16. Per chip = log<sub>2</sub> 8192 = 13. Select = 3.</p>
+                  <p class="small" style="margin-bottom:0">Check: 2<sup>3</sup> = 8 = rows. The row decoder is 3-to-8.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 1991, Q1(ii)</span></div>
+              <div class="q-body">
+                <p>In interleaved memory organisation, consecutive words are stored in consecutive memory modules in ______ interleaving, whereas consecutive words are stored within the module in ______ interleaving.</p>
+                <p class="small">(A) high-order, low-order &nbsp; (B) low-order, high-order &nbsp; (C) horizontal, vertical &nbsp; (D) block, cyclic</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) low-order, high-order</span></p>
+                  <p class="small">Under low-order interleaving the bank is the low part of the address, so consecutive addresses sit in consecutive modules. Under high-order interleaving the bank is the high part, so consecutive addresses stay inside one module until its word field runs out.</p>
+                  <p class="small" style="margin-bottom:0">"Cyclic" and "block" are the informal names for the same two ideas, and are not the answer here. The page maps addresses 0–3 under both orders and checks that one spreads and the other does not.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2023, Q42</span></div>
+              <div class="q-body">
+                <p>A 4 KB byte-addressable memory is realised from four 1 KB blocks. IA4 and IA3 drive a 2-to-4 decoder whose outputs are the chip selects; the other ten lines IA11–IA0 drive the address port of every block. The starting addresses of the four blocks are:</p>
+                <p class="small">(A) 0, 1, 2, 3 &nbsp; (B) 0, 1024, 2048, 3072 &nbsp; (C) 0, 8, 16, 24 &nbsp; (D) 0, 0, 0, 0</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C) 0, 8, 16, 24</span></p>
+                  <p class="small">At a block's starting address the ten address-port bits are zero, so only IA4 and IA3 carry weight: 2<sup>4</sup> = 16 and 2<sup>3</sup> = 8. For k = 0,1,2,3 those give 0, 8, 16, 24.</p>
+                  <p class="small" style="margin-bottom:0">Option B is the top-bits assumption. The page enumerates all 4096 addresses by their bits 4 and 3, confirms four sets of 1024, and confirms they partition the space exactly once.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — page 2 of 2</h3>
+              <p class="small" style="margin-bottom:0">Two previous-year items with numbers, one multiple-select, and one counterexample question that exists because the formula is usually trusted.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2014 Set 2</span></div>
+              <div class="q-body">
+                <p>A main memory system has 8 modules attached to a one-word-wide system bus. A write occupies the bus for 100 ns; during that time and for 500 ns thereafter the addressed module executes one cycle. Module operations may overlap, but only one request may be on the bus. The maximum number of one-word stores that can be <em>initiated</em> in 1 ms is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 10000</span></p>
+                  <p class="small">Condition: 8 × 100 = 800 ≥ 600, so the bus never waits for a module. The bus, not the module, is the limit: 1 ms / 100 ns = 10 000.</p>
+                  <p class="small" style="margin-bottom:0">Dividing by 600 gives 1666 and answers a different question. With five modules the answer would be 8 330, because 5 × 100 = 500 &lt; 600 forces a stall after every fifth store — the page simulates both and checks the first wait lands on store six.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2006, Q41</span></div>
+              <div class="q-body">
+                <p>Cache block 64 bytes; main memory has k banks of c bytes each, consecutive c-byte chunks on consecutive banks, all k banks accessed in parallel, two accesses to one bank serialised. Each parallel round costs k/2 ns to decode, and one bank access costs 80 ns. With c = 2 and k = 24, the latency of retrieving a block starting at address zero is ______ ns.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 184</span></p>
+                  <p class="small">One round moves 24 × 2 = 48 bytes; 64 bytes needs 2 rounds; each round is 12 + 80 = 92 ns; total 184 ns.</p>
+                  <p class="small" style="margin-bottom:0">Published solutions disagree: 172 ns is obtained by overlapping the second round's decode with the first round's fetch, which requires latching the bank addresses. The question states that each round requires decoding, so 184 is the reading taken here.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A memory has 4 banks of cycle time 60 ns behind a bus that accepts one word per 20 ns. Which statements are TRUE?</p>
+                <p class="small">(A) The clean overlap formula applies.<br>(B) Eight consecutive words take 60 + 7 × 20 = 200 ns.<br>(C) Sustained bandwidth is one word per 20 ns.<br>(D) Doubling the banks to eight would double the bandwidth.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A), (B), (C)</span></p>
+                  <p class="small">4 × 20 = 80 ≥ 60, so (A) holds and (B) follows. The steady interval is max(20, 60/4 = 15) = 20 ns, so the bus is the limit and (C) holds.</p>
+                  <p class="small" style="margin-bottom:0">(D) is false: the system is already bus-limited, so more banks change nothing. This is the knee, and it is where a "more banks is better" instinct fails.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">Original practice — the counterexample</span></div>
+              <div class="q-body">
+                <p>Two interleaved banks, cycle time 40 ns, bus accepts one word per 10 ns. How many nanoseconds does it take to fetch 8 consecutive words?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 170</span></p>
+                  <p class="small">2 × 10 = 20 &lt; 40, so the formula is not licensed. Laying out the schedule: starts at 0, 10, 40, 50, 80, 90, 120, 130 ns; the last finishes at 130 + 40 = 170 ns.</p>
+                  <p class="small" style="margin-bottom:0">The formula would have said 110. This is the distinction the lesson insists on: the formula is a shortcut with a condition, and the condition is checkable in one multiplication.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A DRAM chip has 2<sup>13</sup> rows. Each refresh operation takes 60 ns and the whole chip must be refreshed every 4 ms. What percentage of the time remains available for read and write operations? Give your answer to one decimal place.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 87.7 per cent</span></p>
+                  <p class="small">Refresh cost = 8192 × 60 ns = 491 520 ns = 0.49152 ms. As a fraction of 4 ms that is 12.288%.</p>
+                  <p class="small" style="margin-bottom:0">Available = 100 − 12.288 = 87.712%, so 87.7%. The page computes this and checks the value. The usual slip is comparing one refresh with the whole period instead of all rows with it.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>One distinction to carry into the exam</h3>
+              <p class="small" style="margin-bottom:0"><strong>Interfacing</strong> answers "how is the memory built" — chips, rows, bits, decoder, range. <strong>Interleaving</strong> answers "how is the memory used" — bank mapping, schedule, bandwidth. The two meet in exactly one place: the address bits. Interfacing splits the address into chip bits and row bits; interleaving splits it into bank bits and word bits. Both are the same bit budget, spent for different purposes, and a question that seems to mix them is usually asking you to say which split it means.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything on this tab is a definition, a derivation or a check. Nothing here is a rule of thumb that needs a condition you have not been given.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Build</h3>
+          <p class="formula">across = B/b &nbsp; rows = N/W &nbsp; chips = across × rows</p>
+          <p class="formula">addrBits = log<sub>2</sub>N &nbsp; chipBits = log<sub>2</sub>W &nbsp; select = addrBits − chipBits</p>
+          <p class="small" style="margin-bottom:0"><strong>Checks:</strong> chipBits + select = addrBits, and 2<sup>select</sup> = rows.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Wire</h3>
+          <p class="small">Word bits → every chip in the selected row (broadcast). Row bits → decoder → chip-select pins (one-hot).</p>
+          <p class="small" style="margin-bottom:0">The decoded bits need not be the top bits, and the decoder size follows from <em>rows</em>, never from the chip count.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Select</h3>
+          <p class="formula">range size = 2<sup>(address bits − fixed bits)</sup></p>
+          <p class="small" style="margin-bottom:0">Base = fixed bits written, free bits zero. Top = free bits one. Size comes from the free bits, not from the chip.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Interleave</h3>
+          <p class="formula">low-order: bank = addr mod m &nbsp;&nbsp; high-order: bank = top bits</p>
+          <p class="formula">interval = max(t<sub>bus</sub>, t<sub>c</sub>/m) &nbsp;&nbsp; bandwidth = word width / interval</p>
+          <p class="small" style="margin-bottom:0">Low-order spreads a sequential stream; high-order keeps a block in one bank.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The condition, stated before the formula</h3>
+          <p class="formula">T(n) = t<sub>c</sub> + (n−1)t<sub>bus</sub> &nbsp; only if &nbsp; m·t<sub>bus</sub> ≥ t<sub>c</sub></p>
+          <p class="small" style="margin-bottom:0">If it fails, the bus waits and the true time is larger. Simulate: word <em>i</em> goes to bank <em>i</em> mod <em>m</em>, starts at the later of its bus slot and that bank's freedom, and occupies it for <em>t<sub>c</sub></em>.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps, in one line each</h3>
+          <p class="small">1. Bits read as bytes — divide by the word size before taking a logarithm.</p>
+          <p class="small">2. One division for both axes — the chip count is right and the array shape is wrong.</p>
+          <p class="small">3. Chips counted where rows are asked — the row decoder's size is the depth ratio.</p>
+          <p class="small">4. Range size taken from the chip — it comes from the undecoded bits.</p>
+          <p class="small" style="margin-bottom:0">5. The formula used without its condition — two banks at 40/10 breaks it.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Numbers worth remembering</h3>
+          <p class="small" style="margin-bottom:0">16K × 16 from 1K × 8 → 32 chips, 4-to-16 decoder, 5 two-to-four decoders. 32K × 32 from 128 × 8 → 1024 chips. 256 KB from 32K × 1 → 64 chips. Five fixed bits in a 16-bit address → 2048 addresses. Decoder at bits 4 and 3 → blocks at 0, 8, 16, 24. Four banks, 40 ns cycle, 10 ns bus, eight words → 110 ns; two banks → 170 ns. Eight modules of 600 ns behind a 100 ns bus → 10 000 stores initiated per ms. 24 banks of 2 bytes, 64-byte block → 184 ns.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson actually read</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind, each entry saying what it supports. Nothing here is listed that was not opened. Where a year attribution rests on a topic-indexed aggregation of past papers rather than on a paper PDF this lesson read, that is said in the entry.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> — the Section 3 wording quoted on the Overview tab, including the phrase "Memory interfacing and hierarchy". This is the authority for the topic being Class A.</p>
+          <p class="small" style="margin-bottom:0"><strong>Answer keys</strong> for GATE 2023 (IIT Kanpur) and GATE 2014 Set 2 — the answers 0, 8, 16, 24 and 10 000 respectively, as reported by the sources below alongside their official keys.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year questions</h3>
+          <p class="small"><strong>GATE CSE 1991, Q1(ii)</strong> — low-order against high-order interleaving, from the GATE Overflow question page for that paper.</p>
+          <p class="small"><strong>GATE CSE 2006, Q41</strong> — 24 banks, 2-byte width, 64-byte block. The GATE Overflow page carries several answers, including the 172 ns reading, which is why the lesson names the disagreement.</p>
+          <p class="small"><strong>GATE CSE 2013, Q46</strong> — 2-to-4 decoders with enable, answer 5.</p>
+          <p class="small"><strong>GATE CSE 2014 Set 2</strong> — 8 modules, 100 ns bus, 600 ns module, answer 10 000. Attested by the GATE Overflow page for that set, a paper mirror, and an aggregation of the official paper with its key.</p>
+          <p class="small"><strong>GATE CSE 2019</strong> — chip-select range C800 to CFFF.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE 2023, Q42</strong> — four 1 KB blocks, answer 0, 8, 16, 24, with the official key attributed to IIT Kanpur.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook-level references</h3>
+          <p class="small"><strong>Hamacher, Vranesic and Zaky, <em>Computer Organization</em>, §5.6</strong> — bank organisation, the address split into bank number and word-in-bank, and the interleaved-access timing model. Cited by several solutions to the 2006 question as the source of its model.</p>
+          <p class="small"><strong>CMU 18-548 main-memory handout</strong> — interleaving as replication, the "address x is in bank x mod b" rule, the minimum-chip and minimum-memory-size consequences, and the distinction between peak and sustained bandwidth.</p>
+          <p class="small" style="margin-bottom:0"><strong>Bosworth, <em>Memory Organization and Addressing</em></strong> — the address space and address-line counting used in the first scene.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small"><strong>GATE Overflow</strong> threads for 1991, 2006, 2013 and 2014 Set 2 — the reasoning in the answers, and the documented disagreement on 2006. Community answers are treated as observations about how the question is read, never as authority.</p>
+          <p class="small" style="margin-bottom:0"><strong>Topic-indexed archives</strong> (a coaching site's "Memory Interfacing" page and two question-bank mirrors) — the year and paper attributions for the 2015 (64 chips) and 2017 (1024 chips) chip-count items. Those two are quoted in the Build-up tab as worked examples rather than as headline previous-year questions, precisely because their attribution was not checked against a paper PDF.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">No official marks distribution exists for GATE CSE, and none is claimed here. The count of 73 items on one archive's "Memory Interfacing" label is that archive's own tagging and includes cache questions; it is reported as a community observation, not as evidence of weightage. The 2006 question's official key was not read as a PDF — the answer 184 is reported as what published keys give, with the dissent stated. Two chip-count items are attributed from an aggregation rather than a paper, and are labelled as such wherever they appear. Everything numerical in the animation is computed by the page's own model and listed in its check panel, so it can be audited rather than trusted.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
