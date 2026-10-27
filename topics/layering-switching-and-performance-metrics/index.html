@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layering, Switching and Performance Metrics — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Layering, Switching and Performance Metrics</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../number-representation-and-arithmetic/index.html">Number representation</a>
+      <a href="../graph-traversals-mst-shortest-paths/index.html">Graph traversals</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The first clause of Section 10 of the official GATE 2027 CS syllabus — principles of layering, the three switching designs (circuit, packet, virtual circuit), and performance metrics. Layering is taught as the mechanism that makes the other two teachable: a message grows a header at each layer down and loses one at each layer up, and the arithmetic of a network is the arithmetic of what each header and each hop costs.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Name the layer that owns any given job and the unit of data it carries; explain why the link-layer header is rewritten at every router while the network-layer header is not; distinguish circuit, datagram and virtual-circuit switching by what is set up and what is reserved; and compute end-to-end delay, throughput and bandwidth-delay product for one packet, for many packets, and for a circuit, from the question's own numbers.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one arithmetic, asked three ways</em>. Whatever the question, you name the links, name the packet size, name what each hop costs, and add. Circuit switching adds a setup and no per-hop packet time; one packet adds one transmission term per link; many packets add the same total minus the overlap. The lesson builds that single sum and then reuses it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 10 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>) opens: <em>"Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics"</em>. This lesson is that clause, in full.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One syllabus commentary published for the 2027 cycle notes that this section was revised and that "performance metrics" is newly named, while the enumeration of OSI and TCP/IP layers as a list was dropped from the wording. That is one commentary's reading of the change, not an official statement of what will be asked.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item in this lesson names its year and paper, and every answer was recomputed by the model on this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">The coverage tracker records no prerequisite lesson for this topic, and that is honest: the arithmetic needs nothing beyond school algebra. Two lessons in this repository do make the units and the later routing mathematics easier.</p>
+          <p class="small"><strong>Number representation and arithmetic</strong> — <a href="../number-representation-and-arithmetic/index.html">number-representation-and-arithmetic</a>. Bits, bytes, and powers of ten against powers of two. Nearly every wrong answer in this topic is a unit error rather than a conceptual one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Graph traversals, MST and shortest paths</strong> — <a href="../graph-traversals-mst-shortest-paths/index.html">graph-traversals-mst-shortest-paths</a>. Not needed for this lesson, but the next Computer Networks lesson on distance-vector and link-state routing is exactly Dijkstra and Bellman-Ford on a graph of routers.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas this lesson turns on</h3>
+          <ol class="step-list small">
+            <li><strong>A layer is a promise, not a wire.</strong> Layer <em>n</em> talks to layer <em>n</em> only in the header it writes. The bits always travel down and up.</li>
+            <li><strong>Headers are per hop or per journey.</strong> Link-layer headers are rewritten at every router; the network-layer header survives to the far end. That single fact decides which address means what.</li>
+            <li><strong>Transmission delay is L/R, propagation delay is d/v.</strong> The packet size changes the first and never the second. This is the confusion the chapter is built on.</li>
+            <li><strong>Store-and-forward pays one transmission time per link.</strong> Many packets overlap those payments, so P packets over N links cost N + P − 1 transmission times, not N × P.</li>
+            <li><strong>Circuits buy a guarantee with a setup.</strong> A circuit costs setup + F/R; packets cost F/R + (N − 1)·L/R. The circuit wins exactly when the setup is the smaller of the two.</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, five minutes, one timeline. Scene 1 shows why one large problem is split into four and how the message grows a wrapper. Scene 2 puts the seven OSI layers beside the five Internet layers. Scene 3 follows one message through two routers and shows the link header being rewritten. Scene 4 runs a circuit through setup, data and teardown. Scene 5 sets datagram against virtual circuit and shows store-and-forward at one switch. Scene 6 separates the four delays on one link. Scene 7 computes a single packet end to end on the GATE 2022 item. Scene 8 builds the pipelined staircase and checks it against GATE 2012 and GATE 2024. Scene 9 shows the header-overhead trade-off of GATE 2014 and the setup-versus-pipelining inequality. Scene 10 is the procedure.</p>
+          <p class="small" style="margin-bottom:0">Approximate learning time: <strong>45 to 60 minutes</strong>, including the twelve practice questions. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>One line to keep</h3>
+          <p class="small" style="margin-bottom:0">Name the links, name the packet size, and ask what one hop costs — then add. Every question in this chapter is that sum, asked about one packet, many packets, or a reserved circuit.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 1 of 2 — layers, headers, and the one hop that is not like the others</h3>
+              <p class="small" style="margin-bottom:0">Levels 1 to 4: the analogy, the definitions, the structure, and the first worked decision. Nothing here needs the animation to be running.</p>
+            </div>
+
+            <div class="card">
+              <h3>Intuition: the letter with four envelopes</h3>
+              <p class="small">You write a letter. You put it in an envelope addressed to a person in a building. You put that envelope in a sack labelled for a sorting office. You put the sack in a lorry booked to a city. Each wrapper answers a different question, and each is opened by a different person.</p>
+              <p class="small">The person in the building never sees the lorry label. The sorting office never reads the letter. That is the whole of layering: each wrapper is addressed to exactly one reader, and that reader ignores everything inside.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the mechanism — one wrapper per reader, opened in order — and not the terminology. What makes the analogy exact is that the lorry label is replaced at every depot while the envelope inside keeps the same name on it.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: layer, service, protocol, PDU</h3>
+              <p class="small">A <strong>layer</strong> is a set of functions that solves one class of problem. A layer offers a <strong>service</strong> to the layer above it — a promise about what the data will look like on arrival — and uses the service of the layer below.</p>
+              <p class="small">A <strong>protocol</strong> is the agreement between two peer layers on the same level, and it is realised entirely in the <strong>header</strong> that layer writes. The unit of data a layer hands down is its <strong>PDU</strong>: message, segment, packet, frame, bit.</p>
+              <div class="formula">header<sub>n</sub> + (everything above) = the PDU of layer n<span class="gloss">The layer below never parses what it carries. It reads its own header, and treats the rest as an opaque block of bytes.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The five-layer Internet stack used here — application, transport, network, link, physical — is the presentation in the standard networking texts (Kurose and Ross; Tanenbaum and Wetherall). OSI names seven by splitting the application layer three ways and keeping the physical and link layers apart.</p>
+            </div>
+
+            <div class="card">
+              <h3>What each layer is allowed to know</h3>
+              <p class="small"><strong>Application</strong> — the conversation. HTTP, DNS, mail. Knows about documents and names, nothing about wires.</p>
+              <p class="small"><strong>Transport</strong> — end to end, process to process. Knows about ports and about reliability. Runs only in the two end hosts.</p>
+              <p class="small"><strong>Network</strong> — host to host across many networks. Knows about addresses and routes. This is the highest layer a router implements.</p>
+              <p class="small"><strong>Link</strong> — one hop on one wire. Knows about frames and hardware addresses. Rewritten at every router.</p>
+              <p class="small" style="margin-bottom:0"><strong>Physical</strong> — bits as signals. Knows about voltages, wavelengths and pins, and nothing about meaning.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The consequence that earns the marks</h3>
+              <p class="small">Because the link layer is scoped to one hop and the network layer to the whole journey, a router must <em>decapsulate to the network layer</em>: strip the old link header, read the destination address in the network header, choose a next hop, and write a new link header for that hop.</p>
+              <p class="small">So the link-layer destination address on the last hop names the previous router, not the original sender. The network-layer destination address is the only one that stays constant from end to end.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A header written by a layer that runs in <em>k</em> devices must be rewritten <em>k</em> − 1 times. The link layer runs in every router on the path, so it is rewritten at every hop. The network layer runs in the two hosts and is only <em>read</em> by routers, so it is never rewritten.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev disabled>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button data-pager-next>Next &rarr;</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 2 of 2 — switching, and the arithmetic of a hop</h3>
+              <p class="small" style="margin-bottom:0">Levels 5 to 7: the boundaries, the edge cases, and the arithmetic that GATE actually asks for. Every number below is computed by the model on this page.</p>
+            </div>
+
+            <div class="card">
+              <h3>Circuit switching: three phases and a reservation</h3>
+              <p class="small"><strong>Setup.</strong> A setup message walks the path and every switch reserves a fixed slice of capacity. If one link cannot spare it, the call is refused.</p>
+              <p class="small"><strong>Data.</strong> Bits stream straight through the reserved slice. No switch stores a whole packet, so no switch pays a per-packet transmission delay.</p>
+              <p class="small"><strong>Teardown.</strong> The reservation is released.</p>
+              <p class="small" style="margin-bottom:0">Cost: <code>T = S + F/R + &Sigma;d<sub>i</sub>/v</code> where S is the setup time and F the total bits. The reservation buys a constant rate and no contention, and charges for silence.</p>
+            </div>
+
+            <div class="card">
+              <h3>Packet switching: datagram against virtual circuit</h3>
+              <p class="small"><strong>Datagram.</strong> No setup. Every packet carries a full destination address and is routed independently. Two packets of one message may take different paths and arrive out of order.</p>
+              <p class="small"><strong>Virtual circuit.</strong> A label is established once, in every switch along the path. Every packet of the flow carries the short label and follows the same path, in order. But no capacity is reserved, so a virtual circuit can still queue and still lose packets.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Both designs are packet-switched, and the distinction is exactly the one above: per-packet routing state against per-flow routing state. This is the standard treatment in the networking texts and in the syllabus's own three-way wording.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The four delays, precisely</h3>
+              <p class="small"><strong>Transmission delay</strong> <code>T<sub>t</sub> = L/R</code>. L is the packet size in bits, R the link rate in bits per second. It is the time to push every bit of the packet onto the wire.</p>
+              <p class="small"><strong>Propagation delay</strong> <code>T<sub>p</sub> = d/v</code>. d is the link length in metres, v the propagation speed in the medium. It is the time for one bit to cross the wire.</p>
+              <p class="small"><strong>Processing delay</strong> — reading the header and choosing an output port.</p>
+              <p class="small" style="margin-bottom:0"><strong>Queuing delay</strong> — waiting in the output buffer behind other packets. Unless the question gives them, processing and queuing are taken as zero, and the lesson says so each time it does it.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The three totals you will be asked for</h3>
+              <div class="formula">one packet: &Sigma;(L/R<sub>i</sub>) + &Sigma;(d<sub>i</sub>/v)<span class="gloss">One transmission term and one propagation term per link. With unequal links, sum link by link; there is no single "the" rate.</span></div>
+              <div class="formula">P packets, N equal links: (N + P &minus; 1)&middot;L/R + N&middot;d/v<span class="gloss">The first packet pays every link; each of the remaining P &minus; 1 pays exactly one transmission time, because the pipeline is already full.</span></div>
+              <div class="formula">throughput = min R<sub>i</sub>&nbsp;&nbsp;·&nbsp;&nbsp;bits in flight = R &times; T<sub>p</sub><span class="gloss">Bits cannot arrive faster than the narrowest link can carry them, and the bandwidth-delay product says how much data must be outstanding to keep even that rate busy.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The second formula is not a convention: the model on this page simulates every packet on every link, event by event, and the checks below confirm the simulation equals the closed form on five equal-link configurations.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Boundaries — when these formulas do not apply</h3>
+              <p class="small">The pipelined formula assumes store-and-forward at every node, packets of equal size sent back to back, and no queuing beyond waiting behind earlier packets. Cut-through switching forwards after reading the header only, and breaks the per-hop transmission term entirely.</p>
+              <p class="small">The throughput minimum assumes links in series and no other traffic. With a shared bottleneck, throughput becomes the minimum of each flow's share on every link it crosses.</p>
+              <p class="small" style="margin-bottom:0">The bandwidth-delay product uses the <em>one-way</em> propagation delay. R &times; RTT gives the bits in flight over a whole round trip, which is a different number and answers a different question.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 2 of 2</span>
+            <button data-pager-next disabled>Next &rarr;</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Two computers, one wire, and four unrelated problems at once.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why a network is built out of layers</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with the problem layering exists to solve.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2 — two previous-year items, worked line by line</h3>
+              <p class="small" style="margin-bottom:0">Every answer below was recomputed by the model on this page, not copied from a key. The Animation tab draws the same arithmetic in scenes 7 and 8.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 — GATE CSE 2022, Q59</h3>
+              <p class="small">A 100 Mbps link between an earth station and a satellite at 2100 km. Signal speed 3 &times; 10<sup>8</sup> m/s. Time for the receiver to <em>completely receive</em> a 1000-byte packet, in milliseconds.</p>
+              <p class="small"><strong>Step 1, units.</strong> 1000 bytes = 8000 bits. 100 Mbps = 10<sup>8</sup> bits/s. 2100 km = 2.1 &times; 10<sup>6</sup> m. One link.</p>
+              <p class="small"><strong>Step 2, transmission.</strong> T<sub>t</sub> = 8000 / 10<sup>8</sup> = 8 &times; 10<sup>&minus;5</sup> s = <strong>0.08 ms</strong>.</p>
+              <p class="small"><strong>Step 3, propagation.</strong> T<sub>p</sub> = 2.1 &times; 10<sup>6</sup> / 3 &times; 10<sup>8</sup> = 7 &times; 10<sup>&minus;3</sup> s = <strong>7 ms</strong>.</p>
+              <p class="small" style="margin-bottom:0"><strong>Step 4, add.</strong> 0.08 + 7 = <strong>7.08 ms</strong>. Propagation is 87.5 times the transmission delay, which is the sanity check: on a satellite link, distance is the whole cost.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — GATE CSE 2012, Q44</h3>
+              <p class="small">A 10<sup>6</sup>-bit file sent from S to D over two routers and three links. Each link 100 km, signal at 10<sup>8</sup> m/s, each link 1 Mbps. The file is broken into 1000 packets of 1000 bits. Total transmission plus propagation delay.</p>
+              <p class="small"><strong>Step 1, per link per packet.</strong> T<sub>t</sub> = 1000 / 10<sup>6</sup> = 1 ms. T<sub>p</sub> = 10<sup>5</sup> / 10<sup>8</sup> = 1 ms. Three links, 1000 packets.</p>
+              <p class="small"><strong>Step 2, the transmission terms.</strong> N + P &minus; 1 = 3 + 1000 &minus; 1 = 1002, so 1002 ms.</p>
+              <p class="small"><strong>Step 3, the propagation terms.</strong> One per link, regardless of how many packets: 3 &times; 1 = 3 ms.</p>
+              <p class="small" style="margin-bottom:0"><strong>Step 4, add.</strong> 1002 + 3 = <strong>1005 ms</strong>. The tempting wrong answer is 3 &times; 1000 + 3 = 3003 ms, which multiplies the transmission by the link count for every packet and forgets that the links overlap.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev disabled>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button data-pager-next>Next &rarr;</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2 — the two items that punish a remembered formula</h3>
+              <p class="small" style="margin-bottom:0">Both of these were built so that a formula applied without reading the question gives one of the offered wrong options.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 — GATE 2024 CS1, Q36</h3>
+              <p class="small">Path P&mdash;Q&mdash;R. P sends 10<sup>6</sup> bytes split into chunks of 10<sup>3</sup> bytes, back to back. Both links 10<sup>6</sup> bits/s, propagation and processing negligible. Q can receive and transmit simultaneously. When does R have the whole file?</p>
+              <p class="small"><strong>Step 1.</strong> 10<sup>6</sup> / 10<sup>3</sup> = 1000 chunks, each 8000 bits. Per link per chunk: 8000 / 10<sup>6</sup> = 0.008 s.</p>
+              <p class="small"><strong>Step 2, the first link alone.</strong> The last chunk finishes arriving at Q at 1000 &times; 0.008 = 8.000 s.</p>
+              <p class="small"><strong>Step 3, the second link.</strong> Q has been forwarding throughout, so link Q&mdash;R is free the instant each chunk arrives. The last chunk needs one more 0.008 s.</p>
+              <p class="small" style="margin-bottom:0"><strong>Step 4.</strong> 8.000 + 0.008 = <strong>8.008 s</strong>. The formula gives the same thing: (2 + 1000 &minus; 1) &times; 0.008 = 8.008. The option 16.000 s is the answer to a question where Q waited for the entire file before forwarding anything.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — GATE CSE 2014 Set 2</h3>
+              <p class="small">A 10<sup>3</sup>-byte file from A to B over two routers, three links of 10<sup>6</sup> bytes/s. Each packet carries 100 bytes of header. The file is sent whole, then in 10 parts, then in 20 parts. Transmission time only. Order T1, T2, T3.</p>
+              <p class="small"><strong>Case 1, one packet.</strong> 1000 + 100 = 1100 bytes. (3 + 1 &minus; 1) &times; 1100 = <strong>3300 &micro;s</strong>.</p>
+              <p class="small"><strong>Case 2, ten packets.</strong> 100 + 100 = 200 bytes each. (3 + 10 &minus; 1) &times; 200 = 12 &times; 200 = <strong>2400 &micro;s</strong>.</p>
+              <p class="small"><strong>Case 3, twenty packets.</strong> 50 + 100 = 150 bytes each. (3 + 20 &minus; 1) &times; 150 = 22 &times; 150 = <strong>3300 &micro;s</strong>.</p>
+              <p class="small" style="margin-bottom:0">So T1 = T3 and T3 &gt; T2. Splitting helps until the repeated headers outweigh the extra pipelining, and here the finest split has returned to exactly the cost of sending the file whole.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 5 — original worked example: circuit against packet</h3>
+              <p class="small"><span class="claim-chip claim-chip--unverified">Original example</span> 640 kbit to send over three links of 64 kbps. Circuit setup is 0.5 s. Packet switching uses 1 kbit packets with no setup. Propagation negligible. Which is faster, and by how much?</p>
+              <p class="small"><strong>Circuit.</strong> 0.5 + 640000/64000 = 0.5 + 10 = <strong>10.5 s</strong>.</p>
+              <p class="small"><strong>Packet.</strong> P = 640 packets, N = 3, so (3 + 640 &minus; 1) &times; (1000/64000) = 642 &times; 0.015625 = <strong>10.031 s</strong>.</p>
+              <p class="small"><strong>The crossover.</strong> Packet switching costs (N &minus; 1)&middot;L/R = 2 &times; 0.015625 = 0.03125 s more in overhead than a circuit's data phase. So the circuit wins iff S &lt; 0.03125 s. Here S = 0.5 s, far above it, so packets win by about 0.47 s.</p>
+              <p class="small" style="margin-bottom:0">This is the point of the inequality: neither design is faster in general. A 5 ms setup on the same path would reverse the answer.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — a path of three unequal links</h3>
+              <p class="small"><span class="claim-chip claim-chip--community">Reported previous-year item</span> A 4-million-byte file crosses links of 2 Mbps, 500 kbps and 1 Mbps. Processing, propagation and headers negligible. Total time?</p>
+              <p class="small"><strong>Step 1, bits.</strong> 4 &times; 10<sup>6</sup> bytes = 32 &times; 10<sup>6</sup> bits.</p>
+              <p class="small"><strong>Step 2, the bottleneck.</strong> min(2 Mbps, 500 kbps, 1 Mbps) = 500 kbps. Bits cannot arrive faster than the narrowest link carries them.</p>
+              <p class="small"><strong>Step 3.</strong> 32 &times; 10<sup>6</sup> / 5 &times; 10<sup>5</sup> = <strong>64 s</strong>.</p>
+              <p class="small" style="margin-bottom:0">This item is reproduced from one question archive that names it as GATE 2026 CS2, Q21, and offers 731, 64, 8 and 16 as the options. The arithmetic above is mine and matches one of those options, but I did not check it against the paper itself, so treat the attribution as a single source rather than a verified fact.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 2 of 2</span>
+            <button data-pager-next disabled>Next &rarr;</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Edge cases, boundary cases and one genuine counterexample</h3>
+          <p class="small" style="margin-bottom:0">These are the cases where the formula is right but the question is not the one you assumed.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: more bandwidth does not mean less delay</h3>
+          <p class="small">Take the GATE 2022 satellite link: 8000 bits, 2100 km, 100 Mbps. Total 7.08 ms. Now raise the rate to 10 Gbps — a hundredfold increase.</p>
+          <p class="small">Transmission delay falls from 0.08 ms to 0.0008 ms. Propagation delay stays at exactly 7 ms. The total falls from 7.08 ms to 7.0008 ms, a change of about one percent.</p>
+          <p class="small" style="margin-bottom:0">So "buy more bandwidth to make it faster" is false as a general claim. It is true only when the transmission term dominates, which happens on slow links or with very large packets, and not on long fast ones.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: more packets is not monotonically better</h3>
+          <p class="small">The GATE CSE 2014 Set 2 item is a clean counterexample to "split the file finer and it goes faster". Splitting once (1 packet) costs 3300 &micro;s; ten ways costs 2400 &micro;s; twenty ways costs 3300 &micro;s again.</p>
+          <p class="small">Two effects pull in opposite directions. More packets means more pipelining, which helps. More packets means more headers, which hurts, and the header cost is linear in the number of packets while the pipelining gain saturates at N &minus; 1 extra packet times.</p>
+          <p class="small" style="margin-bottom:0">Once the split is fine enough that (N &minus; 1)&middot;L/R is no longer the limiting term, every extra packet is pure overhead.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: one link, N = 1</h3>
+          <p class="small">With one link the pipelined formula collapses to (1 + P &minus; 1)&middot;L/R + T<sub>p</sub> = P&middot;L/R + T<sub>p</sub>, which is exactly right: with no store-and-forward in between, there is nothing to overlap and the transmission times simply add.</p>
+          <p class="small" style="margin-bottom:0">This is the check that catches the error of subtracting one from the packet count instead of from the total. On one link, P &minus; 1 would give an answer that is one packet time too small.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: propagation speed is given, never assumed</h3>
+          <p class="small">Questions supply v, and the supplied value is not always 3 &times; 10<sup>8</sup> m/s. Copper and fibre are commonly given as 2 &times; 10<sup>8</sup>, and one recent item gave 5 nanoseconds per metre, which is 2 &times; 10<sup>8</sup> m/s expressed as a rate per unit length.</p>
+          <p class="small" style="margin-bottom:0">Assuming the speed of light in vacuum is a silent 33 percent error. Read v off the question every time.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: "completely receive" and "first bit arrives"</h3>
+          <p class="small">The GATE 2022 item asks when the receiver has <em>completely received</em> the packet, which is transmission plus propagation. A question that asked when the <em>first bit</em> arrives would want only the propagation delay.</p>
+          <p class="small" style="margin-bottom:0">On a store-and-forward path the difference compounds: the last bit of the last packet finishes a full transmission time after the first bit of it arrives.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary: a switch that forwards before it finishes receiving</h3>
+          <p class="small">Store-and-forward is an assumption, not a law. A cut-through switch reads only the destination address at the front of the frame and begins forwarding immediately, so it does <em>not</em> pay a full transmission time per hop.</p>
+          <p class="small" style="margin-bottom:0">Every GATE item I checked states or implies store-and-forward. When a question is silent, say which you assumed — the two answers differ, and the assumption is worth stating in one line.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: unequal links break the closed form</h3>
+          <p class="small">(N + P &minus; 1)&middot;L/R assumes every link has the same rate. With unequal links there is no single R, and the answer depends on how the packets queue behind each other at each rate change.</p>
+          <p class="small" style="margin-bottom:0">The model on this page therefore simulates each packet on each link rather than using the closed form, and the closed form is checked against that simulation only for equal links, where it is valid.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary: units, which is where most marks go</h3>
+          <p class="small">Rates use powers of ten: 1 Mbps = 10<sup>6</sup> bits/s. Sizes may use either convention, and the question tells you. 1 KB may be 1000 or 1024 bytes; a rate of 1 kbps is always 1000 bits/s even when sizes in the same question use 1024.</p>
+          <p class="small" style="margin-bottom:0">Convert everything to bits and seconds before dividing, then convert back to the unit the question asked for. The 2012 item is in milliseconds; the 2024 item is in seconds; the 2014 item is in microseconds.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Ten things that are commonly believed and are not true</h3>
+          <p class="small" style="margin-bottom:0">Each entry names the belief, the correction, and the smallest case that shows the difference.</p>
+        </div>
+
+        <div class="card">
+          <h3>1. "Higher bandwidth means lower latency."</h3>
+          <p class="small"><strong>Correction.</strong> Bandwidth changes the transmission delay L/R and nothing else. Propagation delay d/v is set by distance and medium.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> A 1000-byte packet over a 2100 km satellite link: at 100 Mbps the total is 7.08 ms; at 10 Gbps it is 7.0008 ms.</p>
+        </div>
+
+        <div class="card">
+          <h3>2. "Propagation delay depends on the packet size."</h3>
+          <p class="small"><strong>Correction.</strong> Propagation delay is the time for <em>one bit</em> to cross the wire. A bigger packet takes longer to push onto the wire, not longer to travel along it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> Doubling L doubles T<sub>t</sub> and leaves T<sub>p</sub> unchanged — checked in the model on this page.</p>
+        </div>
+
+        <div class="card">
+          <h3>3. "A switch waits for the whole file."</h3>
+          <p class="small"><strong>Correction.</strong> A store-and-forward switch waits for one <em>packet</em>, then forwards it while the next is still arriving. That overlap is the whole of the pipelining arithmetic.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> GATE 2024 CS1: 1000 chunks over two links take 8.008 s, not 16 s.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. "Layer n on the sender talks directly to layer n on the receiver."</h3>
+          <p class="small"><strong>Correction.</strong> The conversation is logical. It exists only in the header layer n writes; the bits travel down the sender's stack, across the wire, and up the receiver's.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> A transport header written once by the sender and read once by the receiver, while passing through every router unread.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. "The Internet runs OSI."</h3>
+          <p class="small"><strong>Correction.</strong> OSI is a reference model. The deployed protocols follow the Internet stack, which merges OSI's application, presentation and session into one application layer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> There is no presentation-layer header on an HTTP request. HTTP does its own character encoding and its own TLS handshake sits between application and transport.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. "A virtual circuit reserves bandwidth like a circuit."</h3>
+          <p class="small"><strong>Correction.</strong> A virtual circuit sets up <em>state</em>, not capacity. It shares the circuit's setup phase and the datagram network's contention.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> An ATM or frame-relay virtual circuit can still queue and still lose cells when the path is congested.</p>
+        </div>
+
+        <div class="card">
+          <h3>7. "Throughput equals bandwidth."</h3>
+          <p class="small"><strong>Correction.</strong> Bandwidth is a link's capacity. Throughput is the rate actually delivered, capped by the slowest link on the path and by the sender's window.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> Links of 2 Mbps, 500 kbps and 1 Mbps in series deliver 500 kbps, not 1.17 Mbps.</p>
+        </div>
+
+        <div class="card">
+          <h3>8. "Transmission delay is paid once for the journey."</h3>
+          <p class="small"><strong>Correction.</strong> Store-and-forward pays it once per link, per packet. With three links and one packet, that is three transmission delays.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> One packet over three links: 3&middot;L/R, not L/R.</p>
+        </div>
+
+        <div class="card">
+          <h3>9. "P packets over N links cost N &times; P transmission times."</h3>
+          <p class="small"><strong>Correction.</strong> They cost N + P &minus; 1, because after the first packet the pipeline is full and each later packet finishes one transmission time after the previous one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> GATE CSE 2012: 1002 terms, not 3000. The difference is 2000 ms on a five-mark question.</p>
+        </div>
+
+        <div class="card">
+          <h3>10. "The link-layer destination is the final destination."</h3>
+          <p class="small"><strong>Correction.</strong> The link-layer destination names the next hop only, and is rewritten at every router. Only the network-layer address survives end to end.</p>
+          <p class="small" style="margin-bottom:0"><strong>Smallest case.</strong> On the last hop, the link-layer destination is the destination host; on every earlier hop it is a router.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this topic is actually asked, and what each shape demands</h3>
+          <p class="small" style="margin-bottom:0">Four question shapes cover every item I checked. The pattern to notice is that the numbers change and the structure does not.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — one packet, given link parameters</h3>
+          <p class="small">The question gives L, R, d, v and the number of links, and asks for the delay to deliver one packet. Sum one transmission and one propagation term per link.</p>
+          <p class="small"><strong>What it tests.</strong> Whether you know that transmission is paid per hop and that the two delays have different inputs.</p>
+          <p class="small" style="margin-bottom:0"><strong>Example seen.</strong> GATE CSE 2022 Q59, one link, answer 7.08 ms. The item is easy arithmetic on top of a distinction people get wrong.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — many packets, asked as a total time</h3>
+          <p class="small">A file is split into P packets over N store-and-forward links. Use (N + P &minus; 1)&middot;L/R + N&middot;T<sub>p</sub>, and be careful whether headers are included in L.</p>
+          <p class="small"><strong>What it tests.</strong> The overlap. The wrong options are almost always N&middot;P&middot;L/R and P&middot;L/R.</p>
+          <p class="small" style="margin-bottom:0"><strong>Examples seen.</strong> GATE CSE 2012 Q44 (1005 ms) and GATE 2024 CS1 Q36 (8.008 s).</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — a comparison or an ordering</h3>
+          <p class="small">Compute two or three configurations and put them in order, or decide which of four statements is true. No single number is the answer.</p>
+          <p class="small"><strong>What it tests.</strong> Whether you can carry two competing effects at once — pipelining against header overhead.</p>
+          <p class="small" style="margin-bottom:0"><strong>Example seen.</strong> GATE CSE 2014 Set 2, where T1 = T3 and T3 &gt; T2. The equality is the trap: it looks like a mistake in your arithmetic.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — a conceptual MCQ or MSQ with no numbers</h3>
+          <p class="small">Which layer owns a job, which device reads which header, which of these statements about switching is true. These are the layering marks, and they are cheap if the stack is solid.</p>
+          <p class="small"><strong>What it tests.</strong> The scope of each layer: end to end against hop by hop.</p>
+          <p class="small" style="margin-bottom:0"><strong>Example seen.</strong> Several items in the archive ask which device may need to broadcast, or which layer a function belongs to; I did not pin those to a year and a paper, so they are not reproduced here as previous-year items.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The three traps that account for most lost marks</h3>
+          <p class="small"><strong>Multiplying instead of pipelining.</strong> N&middot;P&middot;L/R instead of (N + P &minus; 1)&middot;L/R. On the 2012 item this is the difference between 1005 and 3003 ms.</p>
+          <p class="small"><strong>Forgetting the header in the packet size.</strong> On the 2014 item, using 100 bytes instead of 200 for the ten-way split gives 1200 &micro;s and reverses the ordering.</p>
+          <p class="small" style="margin-bottom:0"><strong>Dropping propagation when it dominates.</strong> On the 2022 item, propagation is 87.5 times the transmission delay; omitting it gives 0.08 ms instead of 7.08 ms.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The decision procedure, in one place</h3>
+          <ol class="step-list small">
+            <li>Write L, R, d, v, P and N in consistent units — bits, bits/s, metres, m/s.</li>
+            <li>Ask: one packet, many packets, or a circuit?</li>
+            <li>Read which delays the question says to ignore, and drop only those.</li>
+            <li>Compute the dominant term first and estimate the answer's magnitude.</li>
+            <li>Convert back to the unit asked for, and compare with the options.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Step 4 is the one people skip. Estimating 7 ms before computing 7.08 ms tells you immediately that an answer of 0.08 ms is wrong, and on a multiple-choice paper that is often enough on its own.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — twelve questions</h3>
+          <p class="small">Five are previous-year items with their year and paper named; seven are original practice written for this lesson and labelled as such. Answers are hidden until you reveal them, and each solution states why the wrong options are wrong.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q1 (MCQ)</strong></div>
+          <p class="q-body">Which layer is the highest layer that a router must implement?</p>
+          <p class="small">(A) Transport (B) Network (C) Data link (D) Application</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> A router reads the destination address in the network header to choose a next hop, so it must implement the network layer. It does not need anything above it.</p>
+            <p class="small">(A) is the tempting one, because people think of "the Internet layer" as the top of the stack. A transport header is read only in the two end hosts. (C) is a layer the router certainly implements, but not the highest. (D) is implemented only by hosts.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--msq">Original practice</span> <strong>Q2 (MSQ)</strong></div>
+          <p class="q-body">A packet of L bits crosses one link of rate R and length d at propagation speed v. Which statements are true?</p>
+          <p class="small">(A) Doubling L doubles the transmission delay. (B) Doubling L doubles the propagation delay. (C) Doubling R halves the transmission delay. (D) Doubling d doubles the propagation delay.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A), (C) and (D).</strong> T<sub>t</sub> = L/R is linear in L and inversely linear in R. T<sub>p</sub> = d/v is linear in d.</p>
+            <p class="small">(B) is the misconception this whole lesson is aimed at: T<sub>p</sub> does not contain L at all, so no change to the packet size can affect it. The model on this page checks all four relations directly.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--nat">GATE CSE 2022, Q59</span> <strong>Q3 (NAT, 2 marks)</strong></div>
+          <p class="q-body">A 100 Mbps link between an earth station and a satellite at 2100 km. Signal speed 3 &times; 10<sup>8</sup> m/s. The time for the receiver to completely receive a 1000-byte packet, in milliseconds (two decimal places), is ______.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>7.08.</strong> Transmission 8000/10<sup>8</sup> = 0.08 ms; propagation 2.1 &times; 10<sup>6</sup>/3 &times; 10<sup>8</sup> = 7 ms; total 7.08 ms.</p>
+            <p class="small">0.08 is the answer if you compute only transmission delay. 7 is the answer if you drop the transmission term as negligible — closer, but not the accepted value. The model on this page recomputes 7.08 independently.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--nat">GATE CSE 2012, Q44</span> <strong>Q4 (NAT)</strong></div>
+          <p class="q-body">A 10<sup>6</sup>-bit file from S to D over two routers and three 100 km links at 1 Mbps, signal at 10<sup>8</sup> m/s, split into 1000 packets of 1000 bits. Total transmission plus propagation delay, in ms, is ______.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>1005.</strong> (3 + 1000 &minus; 1) &times; 1 ms of transmission, plus 3 &times; 1 ms of propagation.</p>
+            <p class="small">3003 is N&middot;P&middot;L/R plus propagation, which forgets the overlap. 1004 subtracts one from the packet count instead of the total, which is right only for N = 2 by accident. 2003 comes from adding only the propagation of one link.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE 2024 CS1, Q36</span> <strong>Q5 (MCQ, 2 marks)</strong></div>
+          <p class="q-body">P sends 10<sup>6</sup> bytes to R via router Q, in chunks of 10<sup>3</sup> bytes sent back to back. Both links 10<sup>6</sup> bits/s, propagation, processing and queuing negligible. Q forwards each chunk immediately and can receive and transmit at the same time. When does R have the whole file?</p>
+          <p class="small">(A) 8.000 s &nbsp; (B) 8.008 s &nbsp; (C) 15.992 s &nbsp; (D) 16.000 s</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> 1000 chunks of 8000 bits at 10<sup>6</sup> bits/s: 8 ms each. (2 + 1000 &minus; 1) &times; 8 ms = 8.008 s.</p>
+            <p class="small">(A) forgets that the second link adds one chunk time. (D) assumes Q buffers the whole file before forwarding, giving 8 + 8 s. (C) subtracts the final chunk time instead of adding it, which is the same error as (A) with the wrong sign.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2014 Set 2</span> <strong>Q6 (MCQ, 2 marks)</strong></div>
+          <p class="q-body">A 10<sup>3</sup>-byte file from A to B over two routers and three links of 10<sup>6</sup> bytes/s, each packet carrying 100 bytes of header. The file is sent whole, then in 10 parts, then in 20 parts; times are T1, T2, T3. Transmission time only. Which is correct?</p>
+          <p class="small">(A) T1 &lt; T2 &lt; T3 &nbsp; (B) T1 &gt; T2 &gt; T3 &nbsp; (C) T2 = T3, T3 &lt; T1 &nbsp; (D) T1 = T3, T3 &gt; T2</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(D).</strong> 3 &times; 1100 = 3300; 12 &times; 200 = 2400; 22 &times; 150 = 3300 microseconds.</p>
+            <p class="small">(A) and (B) both assume the ordering is monotone in the number of packets. (C) is the right shape with the wrong comparison: T2 and T3 differ by 900 &micro;s. The equality T1 = T3 is exact, not approximate, which is what makes the item disconcerting.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--nat">Original practice</span> <strong>Q7 (NAT)</strong></div>
+          <p class="q-body">A 100 Mbps link has a one-way propagation delay of 5 ms. How many kilobits can be in flight on the link in one direction at one instant when it is completely full?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>500.</strong> Bandwidth-delay product = 10<sup>8</sup> &times; 0.005 = 5 &times; 10<sup>5</sup> bits = 500 kbit.</p>
+            <p class="small">1000 comes from using the round-trip time (10 ms) instead of the one-way delay. 50 comes from treating 5 ms as 0.0005 s. The one-way convention is what "in one direction" fixes.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q8 (MCQ)</strong></div>
+          <p class="q-body">Which of these is a genuine difference between circuit switching and a virtual circuit?</p>
+          <p class="small">(A) A circuit sets up state before data flows; a virtual circuit does not. (B) A circuit reserves capacity on every link; a virtual circuit does not. (C) A circuit carries data in packets; a virtual circuit carries bits. (D) A circuit can lose data; a virtual circuit cannot.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> The reservation of a fixed slice is what makes a circuit a circuit. A virtual circuit sets up state and a label, but reserves nothing, so it can still queue and still lose packets.</p>
+            <p class="small">(A) is false: both set up state, which is why the two are so easily confused. (C) reverses the truth — a circuit carries a bit stream, a virtual circuit carries packets. (D) reverses it again: a circuit does not lose data, a virtual circuit can.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q9 (MSQ)</strong></div>
+          <p class="q-body">A message from host A to host B crosses two routers. Which headers are rewritten on the way?</p>
+          <p class="small">(A) The transport header (B) The network header (C) The link header (D) None of them</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(C) only.</strong> The link header is scoped to one hop and is rewritten at every router; the network and transport headers are written once by the sender and read once by the receiver.</p>
+            <p class="small">(A) is wrong for a reason worth stating: a router never looks inside a transport header, so it could not rewrite one. (B) is the most tempting, because the network header's <em>time-to-live</em> field is decremented at each router — but decrementing a field is not re-encapsulation, and the addresses in it are unchanged.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q10 (NAT)</strong></div>
+          <p class="q-body">Three links in series run at 2 Mbps, 500 kbps and 1 Mbps. Propagation, processing and headers are negligible. How many seconds does a 4-million-byte file take?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>64.</strong> 4 &times; 10<sup>6</sup> bytes = 32 &times; 10<sup>6</sup> bits. The bottleneck is 500 kbps, so 32 &times; 10<sup>6</sup> / 5 &times; 10<sup>5</sup> = 64 s.</p>
+            <p class="small">16 comes from dividing by 2 Mbps, the fastest link. 8 comes from dividing 4 million by 500 000 and forgetting the factor of eight between bytes and bits. 731 comes from adding the three links' times as if they did not overlap in the wrong direction — a deliberate distractor in the archive's option list.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q11 (MCQ)</strong></div>
+          <p class="q-body">A 640 kbit transfer over three links of 64 kbps. Packet switching uses 1 kbit packets with no setup; a circuit needs a 0.5 s setup. Propagation is negligible. Which is faster?</p>
+          <p class="small">(A) The circuit, by about 0.47 s (B) Packet switching, by about 0.47 s (C) They are equal (D) The circuit, by about 0.03 s</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> Circuit: 0.5 + 10 = 10.5 s. Packet: (3 + 640 &minus; 1) &times; 0.015625 = 10.031 s. Packets win by 0.469 s.</p>
+            <p class="small">(A) has the right magnitude and the wrong sign — a plausible outcome, since the setup is 16 times the overhead. (D) confuses the crossover setup time, 0.03125 s, with the difference in totals. (C) would need the setup to equal 0.03125 s exactly.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q12 (MCQ)</strong></div>
+          <p class="q-body">A 1-bit message is sent over a 2100 km link at 3 &times; 10<sup>8</sup> m/s, first at 100 Mbps and then at 10 Gbps. What happens to the end-to-end delay?</p>
+          <p class="small">(A) It falls by a factor of about 100 (B) It falls by a factor of about 2 (C) It is essentially unchanged (D) It rises, because the higher rate means shorter bits</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(C).</strong> Propagation is 7 ms and the transmission delay is 10<sup>&minus;8</sup> s at 100 Mbps and 10<sup>&minus;10</sup> s at 10 Gbps. Both are invisible next to 7 ms.</p>
+            <p class="small">(A) is the belief this lesson exists to correct: it is true of the transmission term alone, which is not the total. (B) is right for a large packet on a short fast link, not for this one. (D) invents a mechanism — the physical length of a bit on the wire does change with rate, but that does not change the propagation delay of the signal.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — everything this lesson asks you to carry</h3>
+          <p class="small" style="margin-bottom:0">Definitions, formulas, the decision procedure, the traps, and the counterexamples. Read this in the last week, not the first.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas</h3>
+          <p class="small"><strong>Transmission delay</strong> T<sub>t</sub> = L / R, bits over bits per second.</p>
+          <p class="small"><strong>Propagation delay</strong> T<sub>p</sub> = d / v, metres over metres per second.</p>
+          <p class="small"><strong>One packet over N links</strong> &Sigma;(L/R<sub>i</sub>) + &Sigma;(d<sub>i</sub>/v).</p>
+          <p class="small"><strong>P packets over N equal links</strong> (N + P &minus; 1)&middot;L/R + N&middot;d/v.</p>
+          <p class="small"><strong>Circuit</strong> S + F/R + &Sigma;d<sub>i</sub>/v.</p>
+          <p class="small"><strong>Crossover</strong> circuit beats packet iff S &lt; (N &minus; 1)&middot;L/R.</p>
+          <p class="small"><strong>Throughput</strong> min R<sub>i</sub> over the path.</p>
+          <p class="small" style="margin-bottom:0"><strong>Bandwidth-delay product</strong> R &times; T<sub>p</sub>, bits in flight one way.</p>
+        </div>
+
+        <div class="card">
+          <h3>The stack, in one column</h3>
+          <p class="small"><strong>Application</strong> — message. HTTP, DNS. End to end.</p>
+          <p class="small"><strong>Transport</strong> — segment. Ports. End to end, processes.</p>
+          <p class="small"><strong>Network</strong> — packet. IP addresses. Host to host; routers stop here.</p>
+          <p class="small"><strong>Link</strong> — frame. Hardware addresses. One hop; rewritten at every router.</p>
+          <p class="small" style="margin-bottom:0"><strong>Physical</strong> — bit. Signals. One hop.</p>
+        </div>
+
+        <div class="card">
+          <h3>The three switching designs side by side</h3>
+          <p class="small"><strong>Circuit</strong> — setup reserves capacity; data streams through; no store-and-forward; constant rate; wastes idle capacity.</p>
+          <p class="small"><strong>Datagram</strong> — no setup; every packet routed independently; may reorder; shares capacity.</p>
+          <p class="small" style="margin-bottom:0"><strong>Virtual circuit</strong> — setup establishes a label and per-flow state; all packets follow one path in order; no capacity reserved; shares capacity.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, in the order they cost marks</h3>
+          <p class="small">1. N&middot;P&middot;L/R instead of (N + P &minus; 1)&middot;L/R.</p>
+          <p class="small">2. Forgetting the header when the question adds one.</p>
+          <p class="small">3. Omitting propagation on a long link, or transmission on a slow one.</p>
+          <p class="small">4. Using RTT where the question said one way, or one way where it said round trip.</p>
+          <p class="small">5. Assuming the speed of light when v was given.</p>
+          <p class="small" style="margin-bottom:0">6. Reporting the answer in the wrong unit — ms, &micro;s and s all appear in the items in this lesson.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexamples worth remembering</h3>
+          <p class="small"><strong>Bandwidth is not latency.</strong> 100 Mbps to 10 Gbps on a satellite link moves 7.08 ms to 7.0008 ms.</p>
+          <p class="small"><strong>More packets is not better.</strong> GATE CSE 2014 Set 2: 3300, 2400, 3300 &micro;s for 1, 10 and 20 packets.</p>
+          <p class="small" style="margin-bottom:0"><strong>A virtual circuit is not a circuit.</strong> It sets up state, not capacity, and it can still lose packets.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Four lines to say out loud before the exam</h3>
+          <p class="small">Transmission is L/R and depends on the packet; propagation is d/v and depends on the wire.</p>
+          <p class="small">Store-and-forward pays transmission once per link; many packets overlap, so the count is N + P &minus; 1.</p>
+          <p class="small">A circuit trades a setup for no per-hop packet time; the crossover is S against (N &minus; 1)&middot;L/R.</p>
+          <p class="small" style="margin-bottom:0">Throughput is the slowest link; the bandwidth-delay product is what it takes to fill it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Sources — what each one supports, and where the research stopped</h3>
+          <p class="small" style="margin-bottom:0">Official documents first, then textbook material, then community material used only as observation.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>. Supports the scope: Section 10 reads "Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; data link layer: error detection, Medium Access Control, Ethernet; Distance vector and link state routing; IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP - flow control and congestion control, socket API; DNS and HTTP." Verified 2026-10-28 against the syllabus PDF text.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE 2027 information brochure, IIT Madras</strong> — <code>gate2027ib.iitm.ac.in/GATE2027-IB.pdf</code>. Supports the statement that the 2027 syllabus was revised and that the paper carries MCQs, MSQs and NATs. No official answer key was read line by line for the previous-year items below.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook material</h3>
+          <p class="small">The five-layer Internet stack, the four delays, the store-and-forward delay expression and the bandwidth-delay product follow the standard networking treatment (Kurose and Ross, <em>Computer Networking</em>; Tanenbaum and Wetherall, <em>Computer Networks</em>). The three-way switching taxonomy — circuit, datagram, virtual circuit — is stated in the form those texts and the syllabus use.</p>
+          <p class="small" style="margin-bottom:0">The crossover inequality S against (N &minus; 1)&middot;L/R is not quoted from a text; it is derived on the Build-up tab from the two cost expressions, and the model on this page checks both sides of it numerically.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year items used, with what was checked</h3>
+          <p class="small">GATE CSE 2012 Q44 — answer 1005 ms. GATE CSE 2014 Set 2, store-and-forward packet switching — answer T1 = T3 and T3 &gt; T2. GATE CSE 2022 Q59 — answer 7.08 ms. GATE 2024 CS1 Q36 — answer 8.008 s, reported as the official key of that paper.</p>
+          <p class="small" style="margin-bottom:0">Each was checked against at least one published reproduction, and every answer was recomputed by the model on this page from the question's own numbers. For the 2014 and 2012 items the arithmetic is reproduced in full on the Examples tab rather than asserted.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">One question-indexed study page lists seven Computer Networks performance items from recent papers, including a 2026 item on link utilisation, a 2025 stop-and-wait utilisation item and a 2026 three-link throughput item, together with the formulas and conventions it uses. That page is the source for the conventions stated here — powers of ten for rates, sizes in either convention as the question defines, v as given.</p>
+          <p class="small" style="margin-bottom:0">The 2026 three-link item (4 million bytes over 2 Mbps, 500 kbps and 1 Mbps) is reproduced in Example 6 from that archive's own listing, which names it GATE 2026 CS2 Q21 and offers 731, 64, 8 and 16 as options. I checked the arithmetic, which gives 64 and matches one option, but I did not check the paper itself, so the attribution rests on one source.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">Four previous-year items were checked against published reproductions and every answer was recomputed by the model on this page; none was checked against an original paper PDF, and one item rests on a single archive. Items I could not pin to a year and a paper are not reproduced here as previous-year items — that is why the layering questions in the practice set are labelled original even where a similar item certainly exists. The lesson does not cover sliding-window utilisation, Go-Back-N and Selective Repeat sequence-number arithmetic, error detection and CRC, MAC protocols, Ethernet framing, IP fragmentation, CIDR, NAT, routing algorithms, TCP congestion control or the socket API: those are the other five clauses of Section 10 and belong to their own lessons, and the stop-and-wait utilisation formula in particular is deliberately deferred rather than half-taught here. Propagation speed is taken as given in every example; the lesson makes no claim about the speed of light in any particular medium. The model's checks run on every load and are reported under the canvas, so a bug in it would be visible as a failing count rather than as a quiet error.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>

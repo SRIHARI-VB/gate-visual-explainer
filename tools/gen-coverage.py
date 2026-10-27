@@ -1890,13 +1890,46 @@ topics.append(topic(
 
 topics.append(topic(
     "Computer Networks", "Fundamentals", "Layering, switching and performance metrics",
-    ["principles of layering", "circuit, packet and virtual circuit switching",
-     "bandwidth, delay, throughput calculations"],
+    [
+        "principles of layering",
+        "OSI and Internet reference stacks",
+        "encapsulation and per-hop addressing",
+        "circuit, packet and virtual circuit switching",
+        "store-and-forward",
+        "bandwidth, delay, throughput calculations",
+        "bandwidth-delay product and bottleneck throughput"
+    ],
     prereq=["none"],
     related=["data link layer", "transport layer"],
     importance="high",
     evidence="GATE 2027 Section 10 names 'Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics'.",
-    difficulty="medium"))
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="layering-switching-and-performance-metrics",
+    path="topics/layering-switching-and-performance-metrics/index.html",
+    execution="published 2026-10-28; check-lesson.mjs PASS 43/43 model checks, audit-geometry.mjs clean",
+    microtopics=[
+        "peer layers and the logical conversation",
+        "service, protocol and interface",
+        "PDU names and which device reads which header",
+        "encapsulation and re-encapsulation at a router",
+        "link-layer address is per hop, network-layer address is end to end",
+        "circuit setup, data and teardown",
+        "reserved capacity and no store-and-forward",
+        "datagram routing per packet",
+        "virtual circuit label and per-flow state",
+        "store-and-forward versus cut-through",
+        "transmission delay L/R",
+        "propagation delay d/v",
+        "processing and queuing delay",
+        "end-to-end delay for one packet over N links",
+        "pipelined total (N+P-1)L/R + N d/v",
+        "header overhead inside the packet size",
+        "circuit versus packet crossover S < (N-1)L/R",
+        "throughput as the bottleneck rate",
+        "bandwidth-delay product",
+        "unit conventions for rates and sizes"
+    ]))
 
 topics.append(topic(
     "Computer Networks", "Data link layer", "Error detection, MAC and Ethernet",
@@ -1964,7 +1997,7 @@ topics.append(topic(
 # microtopics that run verified.
 import os
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
-            "microtopics", "coverage_note")
+            "microtopics", "coverage_note", "last_verified_date")
 if os.path.exists("syllabus-coverage.json"):
     try:
         with open("syllabus-coverage.json") as f:
