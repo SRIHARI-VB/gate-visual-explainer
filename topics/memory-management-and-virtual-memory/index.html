@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Management and Virtual Memory — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Memory Management and Virtual Memory</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Memory management — logical against physical addressing, contiguous allocation and its fragmentation, paging and address translation, page table size and multi-level tables, the translation lookaside buffer and effective access time, demand paging and the page fault, the three replacement policies, Belady's anomaly and the stack property, the alternative table structures, segmentation, thrashing and the working set. This is the clause <em>"Memory management and virtual memory"</em> of Section 8 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a configuration — address width, page size, entry width, frames, hit ratio, fault rate — compute the split of an address into page number and offset, the size of a page table, the effective memory access time, and the number of page faults under a named policy; and say which of two policies can show the anomaly and why.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one arithmetic and one simulation</em>. The arithmetic turns a configuration into bits, bytes and nanoseconds; the simulation turns a reference string into frame contents and fault counts. Almost every question in this topic is one of those two, so the animation does both and prints its work.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 8 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, lists Operating Systems as: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A question-indexed archive tags at least one memory-management question to GATE 2009, 2010, 2011, 2014 (both sets 1 and 3), 2015 (Set 1), 2020, 2022, 2024 (Set 2) and 2025 (Set 1). Another archive's subject page lists Operating Systems at 6 to 10 marks per paper across recent sets. Those are two archives' tagging of their own indexes, not official counts and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted carries its year and set, and every numerical answer in this lesson was recomputed by the model on this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Powers of two.</strong> The whole topic is exponent arithmetic. If 2<sup>10</sup> = 1 KB, 2<sup>20</sup> = 1 MB and 2<sup>30</sup> = 1 GB are not automatic, revise them first.</li>
+            <li><strong>Processes and threads.</strong> A page table is per process, and a context switch changes which table the hardware uses. Built in <a href="../processes-threads-and-ipc/index.html">Processes, Threads and IPC</a>.</li>
+            <li><strong>Memory hierarchy and cache.</strong> A TLB is a cache of translations, and the language of hit ratio and effective access time comes from there. Built in <a href="../memory-hierarchy-and-cache/index.html">Memory Hierarchy and Cache</a>.</li>
+            <li><strong>Binary search trees and heaps, only as a comparison.</strong> B and B+ trees are the file-system half of this clause and are a separate lesson; nothing here depends on them.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing from Digital Logic is assumed. Where a claim depends on the hardware — that the page table lives in memory, that a TLB miss costs one extra reference per level — the assumption is stated in the scene.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Holes and fragmentation.</strong> Five holes, four requests, first-fit against best-fit.</li>
+            <li><strong>Paging.</strong> One address split, one table lookup, one offset copied through.</li>
+            <li><strong>Page table size.</strong> Entries times width, and the split that fits each table in a page.</li>
+            <li><strong>The TLB.</strong> Two paths, one weighted average, and the line between them.</li>
+            <li><strong>Demand paging.</strong> Six steps of a fault, and the fault rate in the time formula.</li>
+            <li><strong>Replacement.</strong> FIFO, LRU and optimal on one string, simulated cell by cell.</li>
+            <li><strong>Belady.</strong> Nine faults then ten, and the inclusion test that explains it.</li>
+            <li><strong>Counting.</strong> A rate, a reversal, and a bounded lookahead.</li>
+            <li><strong>Structures.</strong> Two-level page counts, inverted and hashed tables, segmentation, thrashing.</li>
+            <li><strong>The procedure.</strong> Four steps and five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>An address is a page number and an offset. Only the page number is translated; the offset is copied. Offset bits are the base-two logarithm of the page size.</li>
+            <li>Page table size is entries times entry width. Multi-level paging exists to keep each table inside one page, and it costs references rather than saving them.</li>
+            <li>Effective access time is always a weighted average of written-out paths. The weights are the hit ratio or the fault rate, and the paths are where the marks are.</li>
+            <li>A page fault count is a simulation, not a memory test. Draw one column per reference, evict by the rule the policy names, and mark every fault including the first touch of each page.</li>
+            <li>Belady's anomaly is a property of first in first out, not of paging. It cannot happen for a policy whose priority order does not depend on the frame count — recency and next-use distance are such orders, arrival time is not.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 80–100 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis, and the caption timings are estimated from a speaking rate, not measured from audio. File systems are the other half of the syllabus clause and are <em>not</em> covered here; they are a separate lesson and the coverage tracker records them separately. Working-set models, buddy allocation and slab allocation are named but not developed, because the clause does not reach them and the paper rarely does. Where two archives disagree on a question number, both numbers are given rather than one being chosen silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: a library that lends by the shelf</h3>
+              <p>A library lends shelf space, not bookshelves of a fixed size. A reader arrives wanting four metres; the librarian finds the first gap of at least four metres and hands over the front of it. Gaps appear and disappear as readers come and go, and eventually a reader wants six metres while the library has nine metres free in three separate gaps of three. Nothing is wrong with the arithmetic; the space is simply the wrong shape.</p>
+              <p class="small">The fix a paging system makes is to stop lending metres and start lending fixed one-metre slots. Then any request of six metres becomes six slots, and any free slot will do. That is the whole idea of paging, and it is why a page table is needed: the six slots are scattered, so something has to remember which slot holds which metre of the reader's text.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy fixes two things: fragmentation is about the largest free run rather than the total, and paging trades a lookup for the freedom to place any page anywhere. It says nothing about which page to evict when memory is full, which is the replacement material below.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definitions</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Logical address</strong> — an address as the program sees it, relative to the start of its own space.</li>
+                <li><strong>Physical address</strong> — an address on the memory bus, produced by the memory management unit.</li>
+                <li><strong>Page</strong> — a fixed-size block of a process's address space. <strong>Frame</strong> — a block of physical memory of the same size.</li>
+                <li><strong>Page table</strong> — one entry per page, holding the frame number and control bits.</li>
+                <li><strong>Internal fragmentation</strong> — waste inside the last page or partition of an allocation.</li>
+                <li><strong>External fragmentation</strong> — enough total free memory, but no single run large enough.</li>
+                <li><strong>TLB</strong> — a small cache of recent page-number to frame-number translations.</li>
+                <li><strong>Page fault</strong> — an access to a page whose valid bit is clear, so it is not in memory.</li>
+                <li><strong>Demand paging</strong> — loading a page only when it is first touched.</li>
+                <li><strong>Thrashing</strong> — a state where the resident working sets do not fit, so faults feed on themselves.</li>
+                <li><strong>Working set</strong> — the pages a process has used in the last delta references.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>The arithmetic, symbol by symbol</h3>
+              <p class="formula">offset bits = log<sub>2</sub>(page size)
+                <span class="gloss">"How many bits are needed to name a byte inside one page." A 4 KB page needs 12.</span></p>
+              <p class="formula">page bits = address bits − offset bits
+                <span class="gloss">"Everything above the offset names the page." A 32-bit address with 4 KB pages leaves 20.</span></p>
+              <p class="formula">page table bytes = 2<sup>page bits</sup> × entry width
+                <span class="gloss">"One entry per page, each entry a fixed width." 2<sup>20</sup> × 4 B = 4 MB.</span></p>
+              <p class="formula">physical = frame × page size + offset
+                <span class="gloss">"The frame number moves in front of the offset; the offset itself does not change."</span></p>
+              <p class="small" style="margin-bottom:0">Four lines answer the structural half of this topic. Notice that none of them mentions the size of physical memory: the page table is per process and indexes that process's pages.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>What every answer depends on</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Where the page table lives.</strong> If it is in memory, a miss costs one reference per level; if a cache or a register holds it, fewer. Questions usually say.</li>
+                <li><strong>What a fault costs.</strong> A clean victim costs one disk transfer, a dirty victim two. If the question gives "page transfer time" rather than "page fault service time", say which reading you used.</li>
+                <li><strong>Whether the fault rate applies to accesses or to misses.</strong> A page cannot fault on a TLB hit, so the two readings differ by a factor of the miss ratio.</li>
+                <li><strong>Initial frame contents.</strong> "All frames initially empty" and "the first k pages are already resident" give different counts.</li>
+                <li><strong>Ties in optimal.</strong> When two resident pages are never used again, either may be evicted and the fault count is the same.</li>
+              </ul>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>From structure to time, and from time to simulation</h3>
+              <p>The build-up so far is about <em>space</em>: where a page sits and how the table records it. The second half is about <em>time</em>: what a translation costs, what a fault costs, and which page should leave when there is no free frame. The bridge is that both halves are the same kind of arithmetic — a weighted average of written-out paths — and the same kind of verification, a number recomputed rather than remembered.</p>
+              <p class="small" style="margin-bottom:0">That is why this is one lesson rather than three: the page table makes the TLB necessary, the TLB miss makes the page fault visible, and the page fault is what forces a replacement decision. Cut the chain anywhere and the later parts become formulas to memorise.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The three replacement policies</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>First in first out (FIFO)</strong> — evict the page that has been resident longest. A queue; a hit does not change the order.</li>
+                <li><strong>Least recently used (LRU)</strong> — evict the page whose most recent use is oldest. A stack ordered by last use; a hit moves the page to the top.</li>
+                <li><strong>Optimal (OPT, MIN)</strong> — evict the page whose next use is furthest in the future. Needs the future, so it is a lower bound rather than an implementation.</li>
+                <li><strong>Second chance / clock</strong> — FIFO with a reference bit, so a recently used page gets one reprieve. An approximation of LRU.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>The two time formulas</h3>
+              <p class="formula">EMAT = h(t<sub>tlb</sub> + t<sub>mem</sub>) + (1 − h)(t<sub>tlb</sub> + 2t<sub>mem</sub>)
+                <span class="gloss">"A hit pays the buffer plus one memory access; a miss pays the buffer plus two." Weight by the hit ratio h.</span></p>
+              <p class="formula">EAT = (1 − p)·t<sub>mem</sub> + p·t<sub>service</sub>
+                <span class="gloss">"With probability 1 − p the access is normal; with probability p it pays the fault service time instead."</span></p>
+              <p class="small" style="margin-bottom:0">Both are weighted averages of two paths. Neither is a law of nature: the first assumes a one-level page table in memory, the second assumes the fault rate is per access and that the service time already includes the transfer. Change either assumption and the formula changes.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The words that decide the question</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><em>"Initially empty"</em> — every first touch is a fault, and they all count.</li>
+                <li><em>"In megabytes"</em> — the unit is part of the answer; 4 and 4194304 are the same quantity and only one is marked right.</li>
+                <li><em>"The page table is in memory"</em> — a miss costs one extra reference per level.</li>
+                <li><em>"Round to one decimal place"</em> — a rate, not a count. Nine fifteenths is 0.6, not 9.</li>
+                <li><em>"Dirty pages are written back"</em> — add a second transfer to the miss path.</li>
+              </ul>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A program is written with logical addresses; the MMU turns them into physical ones at run time.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why memory needs managing: holes and fragmentation</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A program is written with logical addresses; the MMU turns them into physical ones at run time.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Read the narration aloud with the browser voice">Voice</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2 — space</h3>
+              <p class="small" style="margin-bottom:0">Every number below is produced by the model in this lesson and re-checked on load. Where a step is a definition rather than a calculation, the step says so.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 — first-fit against best-fit on the same holes</h3>
+              <p class="small">Holes of 100, 500, 200, 300 and 600 K; requests of 212, 417, 112 and 426 K, in that order.</p>
+              <div class="step-list small">
+                <p><strong>1. First-fit.</strong> 212 into the 500 hole (288 left), 417 into the 600 hole (183 left), 112 into the remainder of that first hole (176 left). The scan restarts from the bottom each time.</p>
+                <p><strong>2.</strong> The fourth request needs 426. The holes left are 100, 176, 200, 300 and 183, so the largest is 300 and it waits. Three of four placed, with 959 K free in total.</p>
+                <p><strong>3. Best-fit.</strong> 212 into the 300 hole (88 left), 417 into the 500 hole (83 left), 112 into the 200 hole (88 left), 426 into the 600 hole (174 left).</p>
+                <p><strong>4.</strong> All four placed, leaving 100, 83, 88, 88 and 174. Both runs conserve total memory: the free list plus the placed requests equals 1700 K in each case.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The difference is not arithmetic but order: first-fit spends the big hole early and has nothing left for the big request.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — one address, translated</h3>
+              <p class="small">32-bit logical address, 4 KB pages, page 3 sits in frame 7, offset 498.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> 4 KB is 2<sup>12</sup>, so the low 12 bits are the offset and the high 20 bits are the page number.</p>
+                <p><strong>2.</strong> The entry for page 3 holds frame 7. Physical address = 7 × 4096 + 498 = 29170.</p>
+                <p><strong>3.</strong> Check: 29170 mod 4096 = 498. The offset came through unchanged, which is the invariant.</p>
+                <p><strong>4.</strong> The same process of 10,000 bytes needs 3 pages, occupies 12,288 bytes and wastes 2,288.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The invariant "offset unchanged" is worth checking on every translation you write down; it catches a whole class of slips.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 — page table size, one level and two</h3>
+              <p class="small">32-bit addresses, 4 KB pages, 4-byte entries. This is GATE 2015 Set 1.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Pages = 2<sup>32</sup> / 2<sup>12</sup> = 2<sup>20</sup> = 1,048,576.</p>
+                <p><strong>2.</strong> Size = 2<sup>20</sup> × 4 B = 2<sup>22</sup> B = 4 MB. The paper's key is 4.</p>
+                <p><strong>3.</strong> Two levels: one table page holds 4096 / 4 = 1024 entries, so each level gets 10 bits, and 10 + 10 + 12 = 32.</p>
+                <p><strong>4.</strong> Each level table is 1024 × 4 = 4096 B, which is exactly one page — the reason the split is 10 and 10 rather than 12 and 8.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The question text and the key (4 MB) were confirmed against two independent reproductions of the GATE 2015 Set 1 paper.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — the TLB, two paths and one average</h3>
+              <p class="small">GATE 2014 Set 3: 10 ms to search the buffer, 80 ms per memory access, hit ratio 0.6.</p>
+              <div class="step-list small">
+                <p><strong>1. Hit path.</strong> 10 + 80 = 90 ms. The frame number comes from the buffer, then the data is read.</p>
+                <p><strong>2. Miss path.</strong> 10 + 80 + 80 = 170 ms. The buffer fails, the page table entry is read, then the data.</p>
+                <p><strong>3. Weight.</strong> 0.6 × 90 + 0.4 × 170 = 54 + 68 = 122 ms.</p>
+                <p><strong>4. Sanity.</strong> 122 lies between 90 and 170, and a hit ratio of 1 would give exactly 90.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2014 Set 3, key 122 ms. One index numbers this question Q33 and another Q43; both quote the same numbers.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2 — time and faults</h3>
+              <p class="small" style="margin-bottom:0">These four are the shapes the paper actually uses: a fault rate, a simulation, an anomaly, and a page count.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 5 — the fault rate in the time formula</h3>
+              <p class="small">GATE 2011: memory access 20 ns, fault service 10 ms, one fault per 10<sup>6</sup> accesses.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Convert: 10 ms = 10<sup>7</sup> ns. This is the step where the marks are lost.</p>
+                <p><strong>2.</strong> EAT = (1 − 10<sup>−6</sup>) × 20 + 10<sup>−6</sup> × 10<sup>7</sup> ≈ 20 + 10 = 30 ns.</p>
+                <p><strong>3.</strong> The same formula at 10<sup>−3</sup> gives 19.98 + 10,000 ≈ 10,019.98 ns.</p>
+                <p><strong>4.</strong> A thousandfold rise in the fault rate is a 334-fold rise in time, because the second term dominates once p is not tiny.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2011 Q20, key 30 ns.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — LRU simulated, cell by cell</h3>
+              <p class="small">GATE 2014 Set 3: string 4, 7, 6, 1, 7, 6, 1, 2, 7, 2 with 3 frames, all empty.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> 4, 7, 6 fill the frames: three faults.</p>
+                <p><strong>2.</strong> 1 faults and evicts 4, the least recently used: four faults.</p>
+                <p><strong>3.</strong> 7, 6, 1 are hits, in that order, so the recency order becomes 7, 6, 1 → 6, 1, 7 → 1, 7, 6.</p>
+                <p><strong>4.</strong> 2 faults, evicting 7. 7 faults, evicting 6. 2 is a hit. Total six faults, four hits.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2014 Set 3 Q20, key 6. The simulation on the Animation tab reproduces every cell independently.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 — Belady's anomaly, measured</h3>
+              <p class="small">String 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5, simulated with three frames and with four.</p>
+              <div class="step-list small">
+                <p><strong>1. FIFO.</strong> 9 faults with three frames, 10 with four. More memory, more faults.</p>
+                <p><strong>2. LRU.</strong> 10 with three, 8 with four. Fewer, as expected.</p>
+                <p><strong>3. Optimal.</strong> 7 with three, 6 with four. Also fewer, and the smallest of the three.</p>
+                <p><strong>4. Inclusion test.</strong> The three-frame resident set is a subset of the four-frame set at every step for LRU and optimal, and not for FIFO — the failing step is where the anomaly is created.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> This is the standard textbook string for the anomaly; the counts here are recomputed, not quoted.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 8 — how many pages a two-level table needs</h3>
+              <p class="small">GATE 2024 Set 2: 32-bit system, 4 KB pages, 4-byte entries, 2000 distinct pages touched, outer table allocated at creation.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> One table page holds 4096 / 4 = 1024 entries, so the 20-bit page number splits 10 and 10.</p>
+                <p><strong>2. Minimum.</strong> Two inner pages hold 2048 entries, enough for 2000, plus one outer page: 3.</p>
+                <p><strong>3. Maximum.</strong> One valid entry in each of as many inner pages as possible; the outer table has 1024 entries, so at most 1024 inner pages: 1025.</p>
+                <p><strong>4.</strong> The paper asks for X + Y = 3 + 1025 = 1028.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2024 Set 2 Q54, key 1028.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries, counterexamples and the condition each one violates</h3>
+          <p class="small" style="margin-bottom:0">Each card names the smallest example that breaks a tempting rule, and the exact assumption the rule needed.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: optimal can tie with the best real policy</h3>
+          <p class="small">On 4, 7, 6, 1, 7, 6, 1, 2, 7, 2 with three frames, optimal takes 5 faults and LRU takes 6 — a gap of one. On other strings the gap is zero.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition violated by the tempting rule:</strong> "optimal is much better than LRU" needs a long string with a repeating pattern. On short strings the difference can vanish, so it cannot be used to identify a policy from its count.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: one more frame can hurt</h3>
+          <p class="small">FIFO on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 takes 9 faults with three frames and 10 with four.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition violated by the tempting rule:</strong> "more frames never hurt" needs the stack property, which FIFO does not have. Adding a frame changes which page is oldest at the next eviction.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a dirty victim costs double</h3>
+          <p class="small">A fault that evicts a page which has been written must write it back before reading the new one: two transfers, not one. A question that says "20% of faults are dirty" is telling you to weight the two.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> the one-transfer fault path assumes a clean victim. Drop that and the miss path has two components.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a small page size is not automatically better</h3>
+          <p class="small">Smaller pages waste less inside the last page and allow finer sharing, but they mean more entries, a bigger page table, more TLB pressure, and more faults per byte of data. The trade is real and the paper sometimes asks for it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> "less internal fragmentation is better" ignores the table size and the fault rate. All three move together.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: the last page of a process</h3>
+          <p class="small">A process of exactly 4096 bytes needs one page and wastes nothing. A process of 4097 bytes needs two pages and wastes 4095 bytes — almost an entire page. Internal fragmentation is worst just after a page boundary, and that is where the exam numbers are chosen.</p>
+          <p class="small" style="margin-bottom:0">A process of size zero is a special case with no pages at all; a question that gives a process size in bytes and asks for pages wants the ceiling, not the floor.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: the fault rate that applies to misses</h3>
+          <p class="small">A page cannot fault on a TLB hit, so a stated fault rate is either per access or per miss. GATE 2020 Q53 gives a hit ratio and a fault rate and the two readings give answers that differ by roughly a factor of five; the official key accepts the per-miss reading.</p>
+          <p class="small" style="margin-bottom:0">Read the sentence twice. If it says "page fault rate is 10%" with no reference, say which reading you used and why.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Trap: ties in optimal and in LRU</h3>
+          <p class="small">When two resident pages will never be used again, optimal may evict either, and the fault count is unchanged. When two pages have the same last-use time under LRU — possible only if the question defines recency by something coarser than the reference — the choice matters.</p>
+          <p class="small" style="margin-bottom:0">Answer the count, not the frame contents, unless the question prints the frame table and asks you to fill it in.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Trap: the page table is not the frame table</h3>
+          <p class="small">An inverted page table has one entry per frame and is indexed by frame, so its size is memory divided by page size, times entry width. A normal page table is indexed by virtual page, so its size is address space divided by page size, times entry width.</p>
+          <p class="small" style="margin-bottom:0">The two formulas look alike and give wildly different numbers; the phrase "inverted" or "one entry per frame" is the only signal.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that cost marks</h3>
+          <p class="small" style="margin-bottom:0">Each one names the belief, why it is tempting, the smallest counterexample, and the rule that replaces it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "The whole address is translated"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the word "translation" suggests a mapping of the address.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> offset 498 in page 3, frame 7: the answer 29170 ends in the same 498.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> only the page-number field changes. Check the invariant "physical mod page size = offset" every time.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Paging removes fragmentation"</h3>
+          <p class="small"><strong>Why it tempts:</strong> any page fits any frame, so nothing ever "does not fit".</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 10,000 bytes with 4 KB pages occupies 12,288 bytes and wastes 2,288.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> paging removes external fragmentation and keeps internal fragmentation. Say which one the question means.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "More levels means faster translation"</h3>
+          <p class="small"><strong>Why it tempts:</strong> multi-level structures are usually presented as an improvement.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> two levels means two table references on a miss instead of one, before the data access.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> multi-level paging saves space for sparse address spaces and costs time. The TLB, not the level count, is what makes translation fast.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "A page fault is an error"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the word "fault" sounds like a failure.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the first touch of every page of a program is a fault, and the program is correct.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a fault is the mechanism of demand paging. Only an access outside the process's legal pages is refused.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "More frames never hurt"</h3>
+          <p class="small"><strong>Why it tempts:</strong> more memory is more capacity, and the intuition is about capacity.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> FIFO, 1 2 3 4 1 2 5 1 2 3 4 5: 9 faults with three frames, 10 with four.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> monotonicity needs the stack property. LRU and optimal have it; FIFO does not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "LRU and FIFO give the same answer because both evict the oldest"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are queues, and on the first few references they agree.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> on the 2014 string they both give 6, which hides the difference; on 1 2 3 4 1 2 5 1 2 3 4 5 they give 10 and 9 with three frames.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> FIFO orders by arrival and a hit does not reorder it; LRU orders by last use and a hit moves the page to the top.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>One sentence that replaces all six</h3>
+          <p class="small" style="margin-bottom:0">Every question here is either <em>a configuration turned into bits and nanoseconds</em> or <em>a reference string turned into a frame table</em>. Write the configuration as exponents, write the paths out, simulate the named policy, and read the answer off your own work.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The six question families, and the reasoning each demands</h3>
+          <p class="small" style="margin-bottom:0">Families are ordered roughly from the most frequent to the least. Frequency here is a reading of indexed archives, not an official count.</p>
+        </div>
+
+        <div class="card">
+          <h3>1. Page fault count or rate under a named policy</h3>
+          <p class="small"><strong>Shape:</strong> a reference string, a frame count, a policy; find the faults, or the faults per access to one decimal place.</p>
+          <p class="small"><strong>Reasoning:</strong> draw a table, one column per reference. Mark a fault on every first touch. Evict by the rule the policy names, and keep the policy's own order — arrival for FIFO, last use for LRU, next use for optimal.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> recalling a similar question. The counts are not portable between strings.</p>
+        </div>
+
+        <div class="card">
+          <h3>2. Address translation and page table size</h3>
+          <p class="small"><strong>Shape:</strong> address width, page size, entry width; find the bits per field, the number of entries, or the table size in a named unit.</p>
+          <p class="small"><strong>Reasoning:</strong> convert everything to powers of two. Offset bits = log<sub>2</sub> page size; page bits = the rest; size = 2<sup>page bits</sup> × entry width.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> using physical memory size instead of the logical address space, or answering in bytes when megabytes were asked for.</p>
+        </div>
+
+        <div class="card">
+          <h3>3. Effective access time with a TLB</h3>
+          <p class="small"><strong>Shape:</strong> buffer time, memory time, hit ratio, sometimes the number of levels; find the average access time.</p>
+          <p class="small"><strong>Reasoning:</strong> write the hit path and the miss path with their reference counts, then weight by the ratio. Add one reference per level of page table on the miss path if the question gives several levels.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> charging two references on a hit, or ignoring the buffer time on a miss.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. Effective access time with page faults</h3>
+          <p class="small"><strong>Shape:</strong> memory time, fault service time, fault rate, sometimes a dirty-page fraction; find the average access time.</p>
+          <p class="small"><strong>Reasoning:</strong> (1 − p) × normal + p × service, with the service path including the write-back when the victim is dirty. Check whether the rate applies to accesses or to misses.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> mixing nanoseconds and milliseconds. Convert first, and write the unit beside every number.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Multi-level table occupancy</h3>
+          <p class="small"><strong>Shape:</strong> address width, page size, entry width, a number of distinct pages touched; find the minimum and maximum table pages, or their sum.</p>
+          <p class="small"><strong>Reasoning:</strong> entries per table page = page size / entry size. Minimum packs the touched pages into as few inner tables as possible; maximum spreads them, bounded by the number of outer entries.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> using the number of touched pages as the maximum inner count, ignoring the outer table's capacity.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. Anomaly, and comparisons between policies</h3>
+          <p class="small"><strong>Shape:</strong> which policy can show Belady's anomaly; or on this string, which relation holds between FIFO, LRU and optimal.</p>
+          <p class="small"><strong>Reasoning:</strong> ask whether the policy's priority order depends on the frame count. If it does not — recency, next use — the anomaly is impossible and the count is non-increasing in frames.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> answering from the counts alone. Two policies can tie on one string, so the counts may not distinguish them.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The two sentences to carry into the exam</h3>
+          <p class="small" style="margin-bottom:0">For structure: <em>convert the configuration to powers of two, then offset bits from the page size and everything else from what remains.</em> For behaviour: <em>write the paths out, or simulate the named policy column by column — never quote a number you did not produce on this question.</em></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="row" style="margin-bottom:10px">
+        <label class="row small" style="gap:6px;cursor:pointer">
+          <input type="checkbox" id="mock-toggle">
+          <span>Mock-test mode (answers stay hidden until you reveal them all)</span>
+        </label>
+        <button class="btn" id="mock-submit" hidden>Reveal all answers</button>
+        <span class="small muted">Learning mode reveals each answer after your attempt.</span>
+      </div>
+
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 1 of 2 — previous-year items</h3>
+              <p class="small" style="margin-bottom:0">Answers are hidden until you reveal them. Every numerical answer here was recomputed by the model on this page. Where an archive numbers a question differently from another archive, the disagreement is stated instead of resolved silently.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2015 Set 1</span></div>
+              <div class="q-body">
+                <p>Consider a system with byte-addressable memory, 32-bit logical addresses, 4 kilobyte page size and page table entries of 4 bytes each. The size of the page table in the system in megabytes is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 4</span></p>
+                  <p class="small">Pages = 2<sup>32</sup> / 2<sup>12</sup> = 2<sup>20</sup>. Size = 2<sup>20</sup> × 4 B = 2<sup>22</sup> B = 4 MB.</p>
+                  <p class="small" style="margin-bottom:0">The question asks for megabytes, so 4194304 is the same quantity in the wrong unit. One index numbers this item Q12 and another Q29; the wording and the key (4) are the same in both.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2014 Set 3, Q20</span></div>
+              <div class="q-body">
+                <p>A system uses 3 page frames for storing process pages in main memory. It uses the least recently used page replacement policy. Assume that all the page frames are initially empty. What is the total number of page faults that will occur while processing the page reference string 4, 7, 6, 1, 7, 6, 1, 2, 7, 2?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 6</span></p>
+                  <p class="small">4, 7, 6 fill the frames (three faults). 1 faults and evicts 4. Then 7, 6, 1 are hits. 2 faults and evicts 7; 7 faults and evicts 6; 2 is a hit. Six faults, four hits.</p>
+                  <p class="small" style="margin-bottom:0">The trap is evicting by frame position rather than by last use: after the three hits the recency order is 1, 7, 6, which is not the arrival order.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2022, Q64</span></div>
+              <div class="q-body">
+                <p>Consider a demand paging system with four page frames (initially empty) and LRU page replacement policy. For the page reference string 7, 2, 7, 3, 2, 5, 3, 4, 6, 7, 7, 1, 5, 6, 1 the page fault rate, defined as the ratio of number of page faults to the number of memory accesses (rounded off to one decimal place) is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 0.6</span></p>
+                  <p class="small">Faults occur on 7, 2, 3, 5, 4, 6, 7, 1 and 5: nine faults in fifteen accesses. 9 / 15 = 0.6.</p>
+                  <p class="small" style="margin-bottom:0">(a) Dividing by the number of distinct pages (six) instead of the fifteen accesses, and (b) counting only the faults after the frames fill, are the two wrong answers the options are built around.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2011, Q20</span></div>
+              <div class="q-body">
+                <p>Let the page fault service time be 10 ms in a computer with average memory access time being 20 ns. If one page fault is generated for every 10<sup>6</sup> memory accesses, what is the effective access time for the memory?</p>
+                <p class="small">(A) 21 ns &nbsp; (B) 30 ns &nbsp; (C) 23 ns &nbsp; (D) 35 ns</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) 30 ns</span></p>
+                  <p class="small">10 ms = 10<sup>7</sup> ns. EAT = (1 − 10<sup>−6</sup>) × 20 + 10<sup>−6</sup> × 10<sup>7</sup> ≈ 20 + 10 = 30 ns.</p>
+                  <p class="small" style="margin-bottom:0">(A) is what you get by taking 10 ms as 10<sup>6</sup> ns, which is the unit slip the question is testing. The option letters here are reconstructed; the keyed value 30 ns is not.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 2 of 2 — three more previous-year items and one original</h3>
+              <p class="small" style="margin-bottom:0">The original item is labelled as original. Nothing here is labelled a previous-year question unless its year and set were confirmed.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2010</span></div>
+              <div class="q-body">
+                <p>A system uses FIFO policy for page replacement. It has 4 page frames with no pages loaded to begin with. The system first accesses 100 distinct pages in some order and then accesses the same 100 pages but now in the reverse order. How many page faults will occur?</p>
+                <p class="small">(A) 196 &nbsp; (B) 192 &nbsp; (C) 197 &nbsp; (D) 195</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) 196</span></p>
+                  <p class="small">The forward pass faults on all 100, and the four frames end holding the last four pages. The reverse pass begins with those four, so four hits, then 96 faults. 100 + 96 = 196.</p>
+                  <p class="small" style="margin-bottom:0">The closed form is n + (n − k) for k frames. (C) and (D) come from miscounting the overlap; (B) from assuming eight hits. One index numbers this Q34 and another Q24.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2024 Set 2, Q54</span></div>
+              <div class="q-body">
+                <p>A 32-bit system has 4 KB page size and 4-byte page table entries, and uses a 2-level page table with an outer page directory and an inner page table. The outer directory is allocated as one page at process creation; an inner page is allocated only if it holds at least one valid entry. An active process accesses 2000 unique pages and none is swapped out. Let X be the minimum and Y the maximum number of pages across the two levels. X + Y is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 1028</span></p>
+                  <p class="small">One table page holds 1024 entries. Minimum: ceil(2000 / 1024) = 2 inner pages plus 1 outer = 3. Maximum: one valid entry in each of up to 1024 inner pages (the outer table's capacity) plus 1 outer = 1025. 3 + 1025 = 1028.</p>
+                  <p class="small" style="margin-bottom:0">Answering 2001 for the maximum is the standard error: the outer table can point at no more than 1024 inner pages, so the address space bounds the count, not the 2000 touched pages.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2025 Set 1, Q54</span></div>
+              <div class="q-body">
+                <p>In the optimal page replacement algorithm all future references are known. A modification predicts only the next 4 page references, including the current one, when a frame is allocated. A process accesses pages 1, 3, 2, 4, 2, 3, 1, 2, 4, 3, 1, 4. With three initially empty frames, the number of page faults is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 6</span></p>
+                  <p class="small">Pages 1, 3, 2 fill the frames (three faults). 4 faults; inside the window 4, 2, 3, 1 the resident pages are next used at positions 5, 6 and 7, so the page used furthest away is evicted. 2 and 3 hit. 1 faults and evicts the page whose next use inside 1, 2, 4, 3 is furthest. 2 and 4 hit. 3 faults and evicts the page absent from the window. 1 and 4 hit. Six faults.</p>
+                  <p class="small" style="margin-bottom:0">Full optimal also gives six here, so the lookahead costs nothing on this string. The error the question is built to catch is using unlimited lookahead, which gives the same count here but not the same table.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge badge--orig">Original GATE-style</span></div>
+              <div class="q-body">
+                <p>A system has 32-bit virtual addresses, 4 KB pages and 4-byte page table entries, and uses a two-level page table in which each level's table occupies exactly one page. Which one of the following is TRUE?</p>
+                <p class="small">(A) The offset is 12 bits and the two index fields are 10 bits each.<br>
+                (B) The offset is 12 bits and the two index fields are 11 and 9 bits.<br>
+                (C) The offset is 12 bits, the two index fields are 10 bits each, and the two levels reduce the number of memory references per access.<br>
+                (D) The offset is 14 bits because the table has two levels.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A)</span></p>
+                  <p class="small">4 KB is 2<sup>12</sup>, so the offset is 12 bits and 20 bits name the page. One table page holds 4096 / 4 = 1024 = 2<sup>10</sup> entries, so a level that occupies exactly one page can index at most 2<sup>10</sup> entries. Splitting 20 into 10 and 10 satisfies that exactly, and 10 + 10 + 12 = 32.</p>
+                  <p class="small" style="margin-bottom:0">(B) fails the constraint: an 11-bit level needs 2<sup>11</sup> entries, which is 8192 bytes, two pages, not one. (C) is false for the reason the third misconception names: two levels means more references per access, not fewer. (D) confuses the level count with the page size, which alone fixes the offset. This question is original.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the four arithmetic lines, the two time formulas, the three policies and the traps, in the order a question uses them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Logical address</strong> — what the program uses; <strong>physical</strong> — what the bus uses.</li>
+            <li><strong>Page / frame</strong> — equal-sized block of the process / of memory.</li>
+            <li><strong>Page table</strong> — one entry per page: frame number plus control bits.</li>
+            <li><strong>Internal fragmentation</strong> — waste inside the last page.</li>
+            <li><strong>External fragmentation</strong> — enough total free memory, no run large enough.</li>
+            <li><strong>TLB</strong> — cache of recent translations.</li>
+            <li><strong>Page fault</strong> — access to a page whose valid bit is clear.</li>
+            <li><strong>Demand paging</strong> — load on first touch.</li>
+            <li><strong>FIFO / LRU / OPT</strong> — evict by arrival, by last use, by next use.</li>
+            <li><strong>Stack property</strong> — the resident set with n frames is contained in the set with n + 1.</li>
+            <li><strong>Thrashing</strong> — working sets no longer fit, so faults feed on themselves.</li>
+            <li><strong>Working set</strong> — pages used in the last delta references.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas and their licences</h3>
+          <p class="formula">offset = log<sub>2</sub>(page size);  page bits = address bits − offset
+            <span class="gloss">Licence: byte-addressable memory, page size a power of two.</span></p>
+          <p class="formula">table bytes = 2<sup>page bits</sup> × entry width
+            <span class="gloss">Licence: a single-level table with one entry per page of the process.</span></p>
+          <p class="formula">physical = frame × page size + offset
+            <span class="gloss">Licence: page and frame are the same size, so the offset is unchanged.</span></p>
+          <p class="formula">EMAT = h(t<sub>tlb</sub> + t<sub>mem</sub>) + (1 − h)(t<sub>tlb</sub> + 2t<sub>mem</sub>)
+            <span class="gloss">Licence: one-level page table in memory; add t<sub>mem</sub> per extra level on the miss path.</span></p>
+          <p class="formula">EAT = (1 − p)t<sub>mem</sub> + p·t<sub>service</sub>
+            <span class="gloss">Licence: p is per access; add a second transfer when the victim is dirty.</span></p>
+          <p class="small" style="margin-bottom:0">None of these is universal. The first three are arithmetic facts given the configuration; the last two are models with assumptions written beside them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Write the configuration as powers of two: address bits, page size, entry width, frames.</li>
+            <li>Structure question → offset from the page size, page bits from the remainder, table size from entries × width.</li>
+            <li>Time question → write the hit path and the miss path in full, then weight.</li>
+            <li>Fault question → draw one column per reference, mark every first touch, evict by the named rule.</li>
+            <li>Anomaly question → does the policy's priority order depend on the frame count?</li>
+            <li>Table-count question → entries per table page, then pack (minimum) or spread (maximum) within the outer table's capacity.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Nanoseconds and milliseconds mixed in one expression.</li>
+            <li>Translating the offset, which is copied through unchanged.</li>
+            <li>Assuming multi-level paging is faster; it costs references and saves space.</li>
+            <li>Assuming more frames never hurt; false for FIFO.</li>
+            <li>Generalising a policy comparison from one reference string.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Two sentences</h3>
+          <p class="small" style="margin-bottom:0">Structure: <em>convert to powers of two, then offset bits from the page size and everything else from what remains.</em> Behaviour: <em>write the paths out, or simulate the named policy column by column — never quote a number you did not produce on this question.</em></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind. Official material is separated from textbook material, and community material is labelled as observation rather than proof.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> — the clause "Memory management and virtual memory" in Section 8 (Operating Systems). This is the source for the Class A classification and for the scope boundary that leaves file systems to a separate lesson.</p>
+          <p class="small" style="margin-bottom:0"><strong>Previous-year papers</strong> — the wording of GATE 2015 Set 1 (page table size), GATE 2014 Set 3 Q20 (LRU) and Q33 (TLB), GATE 2011 Q20 (fault rate), GATE 2010 (FIFO reversal), GATE 2022 Q64 (fault rate), GATE 2024 Set 2 Q54 (two-level count) and GATE 2025 Set 1 Q54 (bounded lookahead). Each was read from indexed reproductions that agree with each other on wording; every numerical answer in this lesson was recomputed by the model here rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Textbook-level references</h3>
+          <p class="small"><strong>Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em></strong> — contiguous allocation and the fit rules, paging and the page table, TLB and effective access time, demand paging and the fault sequence, the replacement algorithms, Belady's anomaly and the stack property, frame allocation, thrashing and the working set.</p>
+          <p class="small" style="margin-bottom:0"><strong>Tanenbaum and Bos, <em>Modern Operating Systems</em></strong> — multi-level and inverted page tables, segmentation compared with paging, and the working-set model as a way to bound the fault rate.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">Two question-indexed archives and a subject page, which agree on the year and question number for most of the items quoted and disagree on a few: the 2015 page-table item appears as Q12 and as Q29, the 2010 FIFO item as Q34 and as Q24, and the 2014 Set 3 TLB item as Q33 and as Q43. Both numbers are given where they differ.</p>
+          <p class="small" style="margin-bottom:0">Discussion threads for the 2022 fault-rate item and the 2024 two-level item, used to check the reasoning — not as proof. The observation that memory management appears in most recent papers is one archive's tagging of its own index, not an official count.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">GATE 2020 Q53 is named in the Edge cases tab and deliberately not used as practice: the paper gives a "page transfer time" rather than a "page fault service time" and a fault rate that could apply to accesses or to misses, and the discussion around it reports several defensible readings with answers between roughly 155 and 738 nanoseconds. That ambiguity is itself worth knowing about, but it is not a reliable practice item. The Belady string is the standard textbook one and is not attributed to a GATE year, because the year could not be confirmed. The 2025 item's answer is quoted from the key and reproduced by the simulation here. The audio narration is a script only; no audio file exists, and caption timings are estimated.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
