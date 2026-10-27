@@ -1,0 +1,160 @@
+1
+00:00:00,000 --> 00:00:07,500
+A database file lives on disk in blocks. One block is one disk read, and a disk read is thousands of times slower than a memory read.
+
+2
+00:00:07,500 --> 00:00:15,000
+Without an index, finding one record means reading blocks until it appears. On average that is half the file: five thousand block reads here.
+
+3
+00:00:15,000 --> 00:00:22,500
+An index is a second, much smaller file: sorted (key, block pointer) entries, organised as a tree whose nodes are blocks too.
+
+4
+00:00:22,500 --> 00:00:30,000
+Three index blocks plus the one record block: four reads instead of five thousand. That ratio is the whole reason this topic exists.
+
+5
+00:00:30,000 --> 00:00:37,500
+How records are laid out is a separate decision from how they are indexed. Heap: append anywhere, search by scanning.
+
+6
+00:00:37,500 --> 00:00:45,000
+A sorted file allows a sparse index: one entry per block, pointing at that block's first key. A heap file needs a dense index: one entry per record.
+
+7
+00:00:45,000 --> 00:00:52,500
+Clustered: the file is sorted on the index key, so matching records sit in neighbouring blocks. Unclustered: each match can be on any block.
+
+8
+00:00:52,500 --> 00:01:00,000
+The index is a file too, so it can be indexed. That is a multilevel index, and its top level is usually small enough to stay in memory.
+
+9
+00:01:00,000 --> 00:01:07,500
+The order p is the maximum number of children a node may have. Such a node holds p-1 keys and p pointers, and each key carries a record pointer.
+
+10
+00:01:07,500 --> 00:01:15,000
+In a B-tree each key appears exactly once in the whole tree, so a search can stop at an internal node — the record is right there.
+
+11
+00:01:15,000 --> 00:01:22,500
+Every leaf is at the same depth. That is what "balanced" means, and it is the answer GATE 2016 Set 2 keys: equal root-to-leaf path lengths.
+
+12
+00:01:22,500 --> 00:01:30,000
+Occupancy: every node except the root holds between ceil(p/2)-1 and p-1 keys. The root is exempt, and may hold as little as one key.
+
+13
+00:01:30,000 --> 00:01:37,500
+The B+ tree moves every record pointer down to the leaves. Internal nodes keep only separators, so they hold more keys per block.
+
+14
+00:01:37,500 --> 00:01:45,000
+A separator equals the smallest key in the subtree to its right. This is the copy-up rule GATE 2025 Set 2 states outright.
+
+15
+00:01:45,000 --> 00:01:52,500
+The leaves are chained left to right, in key order. A range scan is one descent plus a walk along that chain.
+
+16
+00:01:52,500 --> 00:02:00,000
+So every successful search costs exactly the height, leaves included, and a key may appear twice: once in a leaf, once as a separator above it.
+
+17
+00:02:00,000 --> 00:02:07,500
+Order is not chosen, it is solved. A node must fit in one block: p child pointers plus p-1 keys, each of known size.
+
+18
+00:02:07,500 --> 00:02:15,000
+GATE 2015 Set 3: block 1024, key 12, pointer 8. So 8p + 12(p-1) is at most 1024, giving p at most 51, so at most 50 keys.
+
+19
+00:02:15,000 --> 00:02:22,500
+A leaf holds (key, record pointer) pairs plus one pointer to the next leaf. GATE 2007: 16n + 6 is at most 1024, so n is 63.
+
+20
+00:02:22,500 --> 00:02:30,000
+GATE 2020: order 205, leaf capacity 204, one million records, so three levels, so three index reads plus one for the record: four.
+
+21
+00:02:30,000 --> 00:02:37,500
+Insertion begins with one descent to the leaf that owns the key. Here the tree allows at most three keys per node, so a fourth forces a split.
+
+22
+00:02:37,500 --> 00:02:45,000
+The overflowed leaf splits into two halves, and the smallest key of the new right leaf is copied up into the parent.
+
+23
+00:02:45,000 --> 00:02:52,500
+The parent can now overflow too, and repairs the same way one level up. Nine keys, three splits in this run.
+
+24
+00:02:52,500 --> 00:03:00,000
+A split at the root creates a new root. That is the only way a B+ tree grows taller, so the height rises by one and never by more.
+
+25
+00:03:00,000 --> 00:03:07,500
+Deletion removes the key from its leaf. If the leaf still holds at least the minimum number of keys, nothing else changes.
+
+26
+00:03:07,500 --> 00:03:15,000
+Underflow means fewer keys than the minimum. The first repair is to borrow from an adjacent sibling that has a key to spare.
+
+27
+00:03:15,000 --> 00:03:22,500
+If both siblings are already at the minimum, borrow is impossible. Merge the two nodes into one and drop the separator that divided them.
+
+28
+00:03:22,500 --> 00:03:30,000
+A merge can make the parent underfull, so the repair cascades upward. If the root ends with no keys, its only child becomes the root.
+
+29
+00:03:30,000 --> 00:03:37,500
+A point query fetches one node per level, so its cost is exactly the height. The comparison is in block reads, never in key comparisons.
+
+30
+00:03:37,500 --> 00:03:45,000
+A range query costs the descent plus one extra read for each additional leaf it must visit. The chain turns a range into a walk.
+
+31
+00:03:45,000 --> 00:03:52,500
+GATE 2015 Set 2: for keys from 7 up to but not including 15, the model fetches five nodes — root, one internal node, and three leaves.
+
+32
+00:03:52,500 --> 00:04:00,000
+Fifteen is excluded, so the last leaf is still needed for thirteen. The bound is on nodes fetched, which is why the answer is five and not four.
+
+33
+00:04:00,000 --> 00:04:07,500
+Same nine keys, same minimum degree: the B-tree needs three levels and the B+ tree needs two. The model builds both and measures.
+
+34
+00:04:07,500 --> 00:04:15,000
+The B-tree spends block space on record pointers in every node. The B+ tree spends it on keys, so more keys fit, so the fan-out is larger.
+
+35
+00:04:15,000 --> 00:04:22,500
+The B+ tree stores nine keys as twelve copies: nine in the leaves and three separators. The B-tree stores nine, once each. That is the price.
+
+36
+00:04:22,500 --> 00:04:30,000
+A full scan of a B+ tree is a walk along the leaf chain. In a B-tree it is a traversal. Range queries decided the choice.
+
+37
+00:04:30,000 --> 00:04:37,500
+Step one: decide which node the question is about, then write that node's byte equation. Internal and leaf equations have different shapes.
+
+38
+00:04:37,500 --> 00:04:45,000
+Step two: solve the inequality and round down. The largest integer that fits is the order, and the key count is one less.
+
+39
+00:04:45,000 --> 00:04:52,500
+Step three, for occupancy: order is maximum keys plus one, and the minimum for a non-root node is ceil(order/2) minus one. The root is exempt.
+
+40
+00:04:52,500 --> 00:05:00,000
+Steps four and five: for cost, fan-out, then levels, then the record block. For a drawn tree, count the descent plus the leaves scanned.
+

@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Organisation and Indexing (B and B+ Trees) — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">File Organisation and Indexing (B and B+ Trees)</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../functional-dependencies-and-normal-forms/index.html">Normal forms</a>
+      <a href="../trees-bst-and-heaps/index.html">Trees and heaps</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> File organisation and indexing — heap, sorted and hashed files; dense, sparse, clustered and unclustered indexes; the multilevel index; the structure of the B-tree and the B+ tree; insertion and deletion; and the cost of a query in block reads. This is the clause "File organization, indexing (e.g., B and B+ trees)" in Section 9 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a block size and the field sizes, compute the order of a B-tree or B+ tree node; given a maximum key count, compute the minimum occupancy; given an index, count the nodes a point query or a range query fetches; and carry out an insertion or a deletion with splits, borrows and merges while keeping every node within its bounds — with the reason, not by memory.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>two computations and one structure</em>, not a list of definitions. The two computations are the block equation and the occupancy rule; the structure is a tree whose nodes are disk blocks. Every question in this area is one of those three, and the lesson teaches them in that order.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 9 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>) reads: <em>"ER-model. Relational model: relational algebra, tuple calculus, SQL. Integrity constraints, normal forms. File organization, indexing (e.g., B and B+ trees). Transactions and concurrency control."</em> This lesson is the fourth sentence of that section, in full.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One question-indexed archive reports 21 items tagged "indexing and storage" across GATE CSE papers from 1998 to 2026, with items in 2024, 2025 and 2026. That is one archive tagging its own index; it is not an official count and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item in this lesson carries its year and paper, and every answer was recomputed by the model on this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Read these first if any is unfamiliar. Each is a full lesson in this repository.</p>
+          <p class="small"><strong>Trees, binary search trees and heaps</strong> — <a href="../trees-bst-and-heaps/index.html">trees-bst-and-heaps</a>. A B-tree is a search tree with more than two children, and the vocabulary of height, root and leaf is used unchanged.</p>
+          <p class="small"><strong>Asymptotic complexity</strong> — <a href="../asymptotic-complexity/index.html">asymptotic-complexity</a>. The height bound of a B+ tree is a logarithm with the fan-out as its base, and the cost of a query is stated as a function of the height.</p>
+          <p class="small"><strong>Relational algebra and SQL</strong> — <a href="../relational-algebra-and-sql/index.html">relational-algebra-and-sql</a>. An index exists to answer a selection and a range predicate faster; the lesson assumes you know what those predicates are.</p>
+          <p class="small" style="margin-bottom:0"><strong>Linked lists</strong> — <a href="../linked-lists/index.html">linked-lists</a>. The chain of leaf pointers is a linked list of blocks, and it is the reason a range scan is cheap.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas this lesson turns on</h3>
+          <ol class="step-list small">
+            <li><strong>Cost is counted in blocks.</strong> A node is a block. A query costs one block read per level plus one per extra leaf. Nothing else is being measured.</li>
+            <li><strong>Order is solved, not chosen.</strong> A node must fit in a block, so the order is a floor of a ratio of byte sizes. Every order question is one inequality.</li>
+            <li><strong>Occupancy is order arithmetic.</strong> Maximum keys are order minus one; the minimum for a non-root node is <code>ceil(order/2) - 1</code>; the root is exempt.</li>
+            <li><strong>The B+ tree moves every record pointer to the leaves.</strong> That single change raises the fan-out, shortens the tree, and creates the leaf chain that makes range scans sequential.</li>
+            <li><strong>A separator is a copy.</strong> The key above a leaf duplicates a key in it, so key slots outnumber keys — and the number of records is the number of leaf entries, never the total.</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate learning time: <strong>50 to 65 minutes</strong>, including the twelve practice questions. That figure is an estimate, not a measurement.</p>
+          <p class="small">Work the tabs in order the first time. The Animation tab runs ten scenes in five minutes and is the fastest way to see the whole mechanism; Build-up is where the definitions are stated precisely; Examples is where the two computations are run on real papers.</p>
+          <p class="small" style="margin-bottom:0">The model panel under the canvas reports how many of the page's own consistency checks passed. Every number printed on the canvas — every order, every key count, every node fetch, every separator — is computed by that model, and the trees drawn are real trees built by real insertions.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>One line to keep</h3>
+          <p class="small" style="margin-bottom:0">A node is a block, so an index question is always a question about how many blocks fit — write the byte equation, floor it, and count the levels.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 1 of 2 — from a slow disk to a tree of blocks</h3>
+              <p class="small" style="margin-bottom:0">Level 1 is the analogy, level 2 is the definition, level 3 is the structure. Nothing here needs the animation to be running.</p>
+            </div>
+
+            <div class="card">
+              <h3>Intuition: the library and the card catalogue</h3>
+              <p class="small">A library keeps its books on shelves in no particular order. To find one book you walk the shelves. That is a heap file, and the walk is the cost.</p>
+              <p class="small">A card catalogue is a small set of drawers listing title and shelf position, in alphabetical order. You look up the card, then go straight to the shelf. The catalogue is the index: it holds one column plus an address, so it is far smaller than the shelves.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the cost argument, not the structure. What makes the catalogue fast is not that it is alphabetical; it is that it is small enough to search in three steps.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: what a file is</h3>
+              <p class="small">A file is a sequence of <strong>records</strong>, stored in <strong>blocks</strong> of a fixed size, read from disk one block at a time. The <strong>blocking factor</strong> is the number of records that fit in one block.</p>
+              <div class="formula">blocking factor = floor(block size / record size)<span class="gloss">How many records share one disk read. It is a floor: a partial record does not fit.</span></div>
+              <p class="small"><strong>File organisation</strong> is the rule that decides which block a record goes in:</p>
+              <p class="small">— <strong>heap</strong>: any block with free space. Insert is one block; search is a full scan.<br>
+              — <strong>sequential (sorted)</strong>: records kept in key order. Search is a binary search; an insert may have to move records across blocks.<br>
+              — <strong>hashed</strong>: block chosen by a hash of the key. Equality lookup is one block; a range query is useless.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The syllabus names file organisation as a separate item from indexing. They are separate decisions: a file can be a heap and still carry an index.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: what an index is</h3>
+              <p class="small">An <strong>index</strong> is a file of <strong>entries</strong>, each holding a <strong>search key</strong> and a <strong>pointer</strong> to where the record (or the block) lives, kept sorted on the search key.</p>
+              <p class="small">Four adjectives describe it, and they are two independent pairs:</p>
+              <p class="small"><strong>Dense / sparse</strong> — how many entries. Dense: one per record. Sparse: one per block, holding that block's first key.</p>
+              <p class="small"><strong>Clustered / unclustered</strong> — whether the file order matches the key order. Clustered (also called primary): the file is sorted on this key, so matches sit in neighbouring blocks. Unclustered (secondary): the records are scattered.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A sparse index requires a sorted file. Without order, the entries would not delimit blocks: you could not tell which block a key between two entries fell into.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 4, worked once: why an index is cheap</h3>
+              <p class="small">One million records, one hundred per block, so ten thousand data blocks.</p>
+              <ol class="step-list small">
+                <li>No index: expected half the file. <strong>5,000 block reads.</strong></li>
+                <li>Index entry: key plus block pointer. On the GATE 2020 figures, one block holds 204 entries.</li>
+                <li>Leaves needed: <code>ceil(10<sup>6</sup>/204) = 4,902</code>.</li>
+                <li>Internal nodes at order 205: <code>ceil(4,902/205) = 24</code>, then <code>ceil(24/205) = 1</code> root.</li>
+                <li>Three index levels, then one read for the record. <strong>4 block reads.</strong></li>
+              </ol>
+              <p class="small" style="margin-bottom:0">The ratio, about 1,250 to 1, is the entire argument for the rest of the lesson. Every number in step 2 onwards is computed by the model on this page.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The sentence this page earns</h3>
+              <p class="small" style="margin-bottom:0">An index is fast because it is small and sorted, not because it is clever: three levels of it replace five thousand reads.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 2 of 2 — the two trees, precisely</h3>
+              <p class="small" style="margin-bottom:0">Page 1 said why an index exists. This page says what a B-tree and a B+ tree are, and gives the occupancy and height bounds the questions test.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definition: order and occupancy</h3>
+              <p class="small">The <strong>order</strong> <code>p</code> of a B-tree or B+ tree is the <em>maximum number of children</em> a node may have. A node of order <code>p</code> therefore holds at most <code>p - 1</code> keys and <code>p</code> child pointers.</p>
+              <p class="small">The model in this lesson is parameterised by the <strong>minimum degree</strong> <code>t</code> instead, because the bounds are then unambiguous:</p>
+              <div class="formula">max keys = 2t - 1&nbsp;&nbsp;&nbsp;&nbsp;min keys (non-root) = t - 1<span class="gloss">Two ways of saying the same thing: order p = 2t, so max keys = p - 1 and min keys = ceil(p/2) - 1.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> <code>ceil(p/2) - 1</code> with <code>p = 2t</code> gives <code>t - 1</code>. Both formulas are the same rule; the second is easier to apply without an off-by-one.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definition: the B-tree</h3>
+              <p class="small">A <strong>B-tree</strong> of order <code>p</code> is a search tree in which:</p>
+              <p class="small">— every node holds at most <code>p - 1</code> keys in sorted order and at most <code>p</code> children;<br>
+              — every key carries a <strong>record pointer</strong>, in internal nodes as well as leaves;<br>
+              — a key appears <strong>exactly once</strong> in the whole tree;<br>
+              — every leaf is at the <strong>same depth</strong>;<br>
+              — every non-root node holds at least <code>ceil(p/2) - 1</code> keys.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> "Same depth" is what the word <em>balanced</em> means here. GATE 2016 Set 2 asks for exactly this and keys the option "the lengths of the paths from the root to all leaf nodes are all equal".</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definition: the B+ tree</h3>
+              <p class="small">A <strong>B+ tree</strong> is a B-tree in which:</p>
+              <p class="small">— <strong>every</strong> record pointer lives in a leaf; internal nodes hold only keys and child pointers;<br>
+              — the leaves hold all <code>(key, record pointer)</code> entries, in key order;<br>
+              — the leaves are <strong>chained</strong> left to right by pointers;<br>
+              — a key may therefore appear <strong>twice</strong>: once in a leaf and once as a separator above it.</p>
+              <p class="small">The separator rule, which the questions depend on:</p>
+              <div class="formula">keys[j] = smallest key in the subtree of children[j+1]<span class="gloss">The key copied up is the smallest key of the new right node. So "at least the separator" means "go right".</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2025 Set 2 states this rule in the question: "when a leaf is created, the smallest key in it is copied up into its parent". The model on this page uses exactly that convention.</p>
+            </div>
+
+            <div class="card">
+              <h3>The height bound, computed</h3>
+              <p class="small">For order <code>p</code> and height <code>h</code> (a root alone counts as height 1), a B+ tree packed full holds</p>
+              <div class="formula">max keys = (p - 1) &middot; p<sup>h-1</sup><span class="gloss">Every leaf holds p-1 keys, and there are p^(h-1) leaves when every internal node is full.</span></div>
+              <p class="small">and a B+ tree at its emptiest holds</p>
+              <div class="formula">min keys = ceil(p/2)<sup>h-1</sup> &middot; (ceil(p/2) - 1)<span class="gloss">Every internal node keeps only its minimum number of children, and every leaf only its minimum number of keys.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both are computed by the model, and the lesson's own tree is checked against them: nine keys at order 4 lie between the minimum of 2 and the maximum of 12 for height 2, which is why its height is 2 and not 1 or 3.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The sentence this page earns</h3>
+              <p class="small" style="margin-bottom:0">Both structures are search trees of blocks; the only structural difference that matters is where the record pointers live, and every cost difference follows from it.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A database file lives on disk in blocks. One block is one disk read.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why a database keeps a tree beside its data</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A table is not a list you can walk cheaply.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2 — the block equation, four times</h3>
+              <p class="small" style="margin-bottom:0">Each step carries its justification. Every number below is computed by the model on this page and printed on the canvas in the same scene.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 — internal node keys, GATE CSE 2015 Set 3</h3>
+              <p class="small">Search key 12 bytes, block 1024 bytes, record pointer 10 bytes, block pointer 8 bytes. Maximum keys in a <em>non-leaf</em> node?</p>
+              <ol class="step-list small">
+                <li>A non-leaf node of order <code>p</code> holds <code>p</code> block pointers and <code>p - 1</code> keys. <strong>No record pointers</strong> — they are all in the leaves.</li>
+                <li>Bytes: <code>8p + 12(p - 1) &le; 1024</code>.</li>
+                <li><code>20p - 12 &le; 1024</code>, so <code>20p &le; 1036</code>, so <code>p &le; 51.8</code>.</li>
+                <li>Floor: <code>p = 51</code>. Keys: <code>51 - 1 = 50</code>.</li>
+              </ol>
+              <div class="formula">50<span class="gloss">The paper's key. The 10-byte record pointer is a decoy: including it gives order 34 and 33 keys.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Reported as Q46 of GATE CSE 2015 Set 3 by one archive and Q56 by another; the year and set are agreed, the question number is not. Answer 50.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — leaf order, GATE CSE 2007</h3>
+              <p class="small">Block 1K = 1024 bytes, data record pointer 7 bytes, value field 9 bytes, block pointer 6 bytes. Order of a <em>leaf</em> node?</p>
+              <ol class="step-list small">
+                <li>A leaf entry is a <code>(value, record pointer)</code> pair, so 16 bytes each.</li>
+                <li>Plus <strong>one</strong> pointer to the next leaf: 6 bytes, counted once.</li>
+                <li><code>16n + 6 &le; 1024</code>, so <code>16n &le; 1018</code>.</li>
+                <li><code>n &le; 63.625</code>, so <code>n = 63</code>.</li>
+              </ol>
+              <div class="formula">63<span class="gloss">Forgetting the single chain pointer gives 64, which is option B in the original paper and is wrong.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2007, Q42. Answer 63.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 — levels and accesses, GATE CSE 2020</h3>
+              <p class="small">Block 4 KB = 4096 bytes, search key 12 bytes, tree/disk pointer 8 bytes, one million records, each record in one block. Minimum disk accesses to retrieve any record?</p>
+              <ol class="step-list small">
+                <li>Internal order: <code>8p + 12(p-1) &le; 4096</code> gives <code>p &le; 205.4</code>, so <code>p = 205</code>.</li>
+                <li>Leaf capacity: <code>20n + 8 &le; 4096</code> gives <code>n = 204</code>.</li>
+                <li>Leaves: <code>ceil(10<sup>6</sup>/204) = 4,902</code>. Above them <code>ceil(4,902/205) = 24</code>, then one root.</li>
+                <li>Three index levels, then one read for the record's block.</li>
+              </ol>
+              <div class="formula">3 + 1 = 4<span class="gloss">Three index blocks plus the record. Answering 3 forgets the record itself.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2020, Q54. Answer 4.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — occupancy, GATE CSE 2010</h3>
+              <p class="small">A B+ tree in which the maximum number of keys in a node is 5. Minimum number of keys in any <em>non-root</em> node?</p>
+              <ol class="step-list small">
+                <li>Maximum keys 5 means maximum children 6, so the order is 6.</li>
+                <li>Minimum children for a non-root node: <code>ceil(6/2) = 3</code>.</li>
+                <li>Minimum keys: children minus one, so <code>3 - 1 = 2</code>.</li>
+              </ol>
+              <div class="formula">2<span class="gloss">Answering 3 is the child count. Answering 4 assumes the maximum, not the minimum.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2010, Q18. Answer 2, option (B).</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2 — counting nodes fetched</h3>
+              <p class="small" style="margin-bottom:0">The second computation: not how wide a node is, but how many nodes a query touches.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 5 — a range query, GATE CSE 2015 Set 2</h3>
+              <p class="small">A B+ tree index of order 1, with leaves <code>[1,3] [5,7] [9,11] [13,15]</code>, internal nodes <code>[5]</code> and <code>[13]</code>, and root <code>[9]</code>. Minimum nodes fetched for <code>7 &le; key &lt; 15</code>?</p>
+              <ol class="step-list small">
+                <li>Root <code>[9]</code>: <code>7 &lt; 9</code>, so go left. <strong>1 node.</strong></li>
+                <li><code>[5]</code>: <code>7 &ge; 5</code>, so go right. <strong>2 nodes.</strong></li>
+                <li>Leaf <code>[5,7]</code> holds the lower bound. <strong>3 nodes.</strong></li>
+                <li>Follow the chain to <code>[9,11]</code>. <strong>4 nodes.</strong></li>
+                <li>Follow the chain to <code>[13,15]</code>, needed for 13. <strong>5 nodes.</strong></li>
+              </ol>
+              <div class="formula">5<span class="gloss">3 in the descent, 2 more from the chain. Keys returned: 7, 9, 11, 13.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2015 Set 2. Answer 5. The model rebuilds this index and runs the traversal: it fetches 5 nodes and returns exactly 7, 9, 11 and 13.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — a point query on the same index</h3>
+              <p class="small">Same tree, searching for key 11.</p>
+              <ol class="step-list small">
+                <li>Root <code>[9]</code>: <code>11 &ge; 9</code>, go right.</li>
+                <li><code>[13]</code>: <code>11 &lt; 13</code>, go left.</li>
+                <li>Leaf <code>[9,11]</code>: found.</li>
+              </ol>
+              <div class="formula">3 nodes = the height<span class="gloss">A point query costs exactly the height, because no B+ tree search can end above the leaves.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> This is not a coincidence of this tree: with no record pointer above the leaf level, every search must reach a leaf, so every search costs the height. The model checks that the measured count equals the height for this index.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 — dense against sparse, on one file</h3>
+              <p class="small">A sorted file of 10,000 records, 50 records per block.</p>
+              <ol class="step-list small">
+                <li>Dense index: one entry per record, so <strong>10,000 entries</strong>.</li>
+                <li>Sparse index: one entry per block, so <code>10,000/50 = </code> <strong>200 entries</strong>.</li>
+                <li>Both answer an equality query in the same number of index levels, but the sparse index is 50 times shorter, so its tree is shallower.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The saving is exactly the blocking factor, because a sparse entry replaces a whole block's worth of dense entries. The condition is that the file is sorted: on a heap file the 200 entries would not delimit anything.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 8 — how many keys fit at a given height</h3>
+              <p class="small">A B+ tree of order 100, height 3.</p>
+              <ol class="step-list small">
+                <li>Full internal nodes: each has 100 children, so <code>100<sup>2</sup> = 10,000</code> leaves.</li>
+                <li>Each leaf holds <code>100 - 1 = 99</code> keys.</li>
+                <li>Total: <code>99 &times; 10,000 = 990,000</code> keys in three levels.</li>
+                <li>At the other extreme, every node at its minimum: <code>50<sup>2</sup> &times; 49 = 122,500</code> keys.</li>
+              </ol>
+              <div class="formula">122,500 &le; keys &le; 990,000<span class="gloss">Any key count in this range is consistent with height 3. Below 99,001 keys, height 2 may suffice.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both bounds are computed by the model from the two formulas on the Build-up tab, and checked against the lesson's own nine-key tree, whose count lies between the height-2 bounds of 2 and 12.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Edge cases — where the rules stop applying, and what breaks</h3>
+          <p class="small" style="margin-bottom:0">Each card states the boundary, the condition that fails, and what the correct answer becomes. Every counterexample is recomputed by the model.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The root is exempt from the occupancy rule</h3>
+          <p class="small">A non-root node must hold at least <code>ceil(p/2) - 1</code> keys. The root must not: a two-level tree needs a root with a single key and two children.</p>
+          <p class="small">The lesson's own tree is exactly this case. Its root holds one key, <code>40</code>, and two children — below the minimum for a non-root node, and correct.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2024 Set 1 asks which node the half-full requirement is relaxed for, and keys "only the root node".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A sparse index over a heap file does not exist</h3>
+          <p class="small">Sparse means one entry per block. It works only if the file is sorted on the key, so that each block owns a contiguous key range.</p>
+          <p class="small">In a heap file the records in a block are unrelated in key order, so no single entry can stand for the block. The only legal index is dense.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A sparse lookup works by finding the last entry at or below the key, then scanning that one block. Without order, "the last entry at or below" does not identify the block.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An open upper bound still costs the last leaf</h3>
+          <p class="small">For <code>7 &le; key &lt; 15</code> on the GATE 2015 Set 2 index, the leaf <code>[13,15]</code> must be read because it holds 13. Fifteen itself is excluded, and that is irrelevant.</p>
+          <p class="small">Change the bound to <code>&lt; 13</code> and the answer becomes 4. Change it to <code>&le; 15</code> and the answer stays 5, because 15 is already in a leaf that was read.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The cost is the number of leaves whose key range intersects the query range. The last leaf's range is <code>[13, 15]</code>, which intersects <code>[7,15)</code> because of 13.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The leaf equation has exactly one chain pointer</h3>
+          <p class="small">A leaf of a B+ tree carries a pointer to the next leaf. It is counted once per node, not once per entry, and the last leaf carries none — but the capacity is computed for the worst case, so it is always subtracted.</p>
+          <p class="small">GATE 2007 turns on exactly 6 bytes: <code>16n + 6 &le; 1024</code> gives 63, while <code>16n &le; 1024</code> gives 64.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2007, Q42. The options include both 63 and 64.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Two textbooks, two definitions of "order"</h3>
+          <p class="small">Most GATE material defines order as the maximum number of <em>children</em>. Some texts define it as the maximum number of <em>keys</em>. Under the first, a node of order 5 has 4 keys; under the second, 5.</p>
+          <p class="small">GATE 2005 says "B-tree of order 5 (maximum number of children a node can have is 5)" and asks for the maximum keys: 4. The paper disambiguates in the question, which is a signal that the examiners know the clash exists.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The clash is a recurring source of disagreement in published solution threads, which is why the wording of the question, not the textbook, decides.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A B-tree search can end early; a B+ tree search cannot</h3>
+          <p class="small">In a B-tree the record pointer sits beside the key in every node, so finding the key at an internal node ends the search. In a B+ tree the internal node holds no record pointer, so the search always continues to a leaf.</p>
+          <p class="small">Consequence: in a B+ tree, a successful and an unsuccessful search cost the same number of blocks. In a B-tree they can differ.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The model measures this: a point query for a key that is absent costs the same as one for a key that is present, both equal to the height.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Duplicate keys break the separator rule</h3>
+          <p class="small">If the search key is not unique, two leaves can begin with the same value, and "the smallest key of the right node" no longer separates them: a lookup for that value cannot tell which leaf to enter.</p>
+          <p class="small">Real systems index <code>(key, record id)</code> so the index key is unique. Every tree in this lesson uses distinct keys, which is why the rule is stated without qualification.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The separator rule needs strict ordering across the boundary. Equal boundary values satisfy "at least the separator" on both sides, so the descent is ambiguous.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An empty tree is one leaf, not zero levels</h3>
+          <p class="small">Deleting every key leaves a single empty leaf as the root. Height 1, no keys, no children. A tree with height 0 does not occur in this model.</p>
+          <p class="small">The model deletes all nine keys of the lesson tree one at a time and checks the result: a single leaf with no keys, and every invariant still holding.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Counting height as the number of node levels, a root-only tree has height 1. The height-decrease event is a root contraction, which can only take height from 2 to 1.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Misconceptions — the wrong belief, why it tempts, and the smallest thing that refutes it</h3>
+          <p class="small" style="margin-bottom:0">Each card gives one belief, the reason it feels right, a counterexample small enough to check by hand, and the rule to use instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "Order p means a node holds p keys"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the word order is used loosely, and a node does hold about p things — but they are pointers.</p>
+          <p class="small"><strong>Counterexample:</strong> a B-tree of order 5 has at most 4 keys. GATE 2005 asks exactly this, and 5 is an offered option.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> order counts children. Maximum keys = order - 1. Say the sentence "order p, so p pointers and p-1 keys" before computing anything.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "The minimum keys per node is ceil(p/2)"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the half-full rule is stated as a fraction of the node, and the fraction is of the pointers.</p>
+          <p class="small"><strong>Counterexample:</strong> maximum keys 5, so order 6, so minimum children 3, so minimum keys <strong>2</strong> — not 3. GATE 2010 offers 3.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> compute children first, then subtract one. In minimum-degree form, min keys = <code>t - 1</code> with no subtraction to remember.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "A B+ tree stores each key once, like a B-tree"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is a search tree, and a search tree normally stores each key once.</p>
+          <p class="small"><strong>Counterexample:</strong> the lesson's tree holds nine keys but <strong>12 key slots</strong> — nine in the leaves and three separators. The model counts them.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> the number of records is the number of <em>leaf entries</em>. Separators are copies. GATE 2025 Set 2's copy-up rule is the mechanism that creates them.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Round the order to the nearest integer"</h3>
+          <p class="small"><strong>Why it tempts:</strong> 51.8 looks like 52, and 52 is a tidier number.</p>
+          <p class="small"><strong>Counterexample:</strong> GATE 2015 Set 3 gives <code>p &le; 51.8</code>. Order 52 needs <code>8(52) + 12(51) = 1028</code> bytes, which does not fit in 1024. The node would not exist.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> floor, always. A capacity that does not fit is not a capacity. Then check the arithmetic by substitution.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "A B+ internal node needs a record pointer too"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the question gives a record pointer size, so it must be used somewhere.</p>
+          <p class="small"><strong>Counterexample:</strong> including the 10-byte record pointer in GATE 2015 Set 3 gives <code>30p - 22 &le; 1024</code>, so order 34 and 33 keys — not 50.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> ask what the node holds before writing the equation. A B+ internal node holds keys and child pointers only. The record pointer appears only in a B-tree internal node, or in a B+ leaf.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Balanced means the paths differ by at most one"</h3>
+          <p class="small"><strong>Why it tempts:</strong> that is what balanced means for an AVL tree, and the word is reused.</p>
+          <p class="small"><strong>Counterexample:</strong> a B-tree's paths are <em>equal</em>, not nearly equal. GATE 2016 Set 2 offers "differ from each other by at most 1" as option B, and it is wrong.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> every leaf at the same depth. That is why the worst-case search cost is exactly the height, with no slack term.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. "Clustered and dense are the same property"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both describe how an index relates to its file, and textbooks introduce them together.</p>
+          <p class="small"><strong>Counterexample:</strong> a clustered index can be sparse (sorted file, one entry per block) and an unclustered index must be dense. Both combinations exist.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> dense/sparse is about <em>how many entries</em>; clustered/unclustered is about <em>whether the file order matches</em>. Two questions, two answers.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>8. "The animation is the proof"</h3>
+          <p class="small"><strong>Why it tempts:</strong> a picture of a tree that satisfies the bounds looks like a demonstration that it must.</p>
+          <p class="small"><strong>Counterexample:</strong> a single correct tree proves nothing about all trees. The lesson's model instead <em>validates every node</em> against the invariant list after every operation, and reports the count under the canvas.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> a picture is an example; the invariant check is the argument. State which one you are relying on.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>GATE patterns — five question shapes, and the reasoning each one demands</h3>
+          <p class="small" style="margin-bottom:0">This is not a forecast. It is a description of the shapes that have appeared, with the procedure each one rewards. No year is claimed for a shape unless a verified item is cited.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — order from byte sizes</h3>
+          <p class="small">Given block size, key size, pointer sizes, and a node type, find the order or the number of keys. Usually NAT, sometimes MCQ.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> decide what the node holds, write one inequality, floor it, then convert pointers to keys if asked.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> using the leaf equation for an internal node, or including a record pointer that the node does not hold. Both produce an option that is present.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — occupancy and bounds</h3>
+          <p class="small">Given a maximum key count or an order, find the minimum keys, the maximum keys, or the number of nodes.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> convert to order, apply <code>ceil(order/2) - 1</code>, and exempt the root.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> reporting the child count as the key count. GATE 2010 is this question with options 1, 2, 3, 4.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — count the nodes a query fetches</h3>
+          <p class="small">A drawn tree plus a range predicate, asking for the minimum nodes fetched. NAT.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> walk the descent comparing against the separators, then follow the chain while the leaf's range intersects the query, and stop as soon as a leaf begins at or above the upper bound.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> counting only the leaves, or treating an open bound as closed. GATE 2015 Set 2 is this shape, and the answer is 5.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — disk accesses including the record</h3>
+          <p class="small">Fan-out, record count, and a request for the minimum accesses to retrieve a record.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> order, then leaf capacity, then levels, then <strong>add one</strong> for the record's block.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> stopping at the index levels. GATE 2020 keys 4 where 3 is the tempting answer.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 — insertion and deletion on a drawn tree</h3>
+          <p class="small">A small tree, one key inserted or deleted, then a question about what changed: the number of splits, whether the height rose, what a separator became.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> descend, insert, split on overflow copying the smallest key of the right node up, and propagate; for deletion, remove, then borrow before merging.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> moving the separator instead of copying it, which changes a key in the leaf and breaks the search rule below.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Recently seen variants, described but not reproduced</h3>
+          <p class="small">GATE 2025 Set 1 carries an MSQ in which a value is inserted into a drawn B+ tree and the options ask whether a node splits, whether the node count changes, and whether the height rises. GATE 2025 Set 2 carries a NAT that asks for a particular separator value after an insertion, and states the copy-up rule explicitly.</p>
+          <p class="small" style="margin-bottom:0">I have not reproduced either question here, because I did not verify their figures node by node, and inventing a tree to match a remembered answer would be worse than omitting it. The shapes are what matters: both are Shape 5, and both are decided by the copy-up rule on the B+ tab.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The habit that covers all five</h3>
+          <p class="small" style="margin-bottom:0">Before computing, write one sentence: "this node holds ___, so its bytes are ___." Every one of the five shapes is decided by that sentence being right.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 1 of 2 — previous-year items</h3>
+              <p class="small" style="margin-bottom:0">Learning mode: each answer is hidden until you reveal it. Every answer here was recomputed by the model on this page, not copied from a key. Switch on mock mode to hide all answers and reveal them together at the end.</p>
+              <p class="small" style="margin-top:8px">
+                <label><input type="checkbox" id="mock-toggle"> Mock-test mode (hide answers until submit)</label>
+                <button class="btn" id="mock-submit" hidden>Submit and reveal all</button>
+              </p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2010, Q18</span></div>
+              <div class="q-body">
+                <p>Consider a B<sup>+</sup>-tree in which the maximum number of keys in a node is 5. What is the minimum number of keys in any non-root node?</p>
+                <p class="small">(A) 1 &nbsp; (B) 2 &nbsp; (C) 3 &nbsp; (D) 4</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) 2</span></p>
+                  <p class="small">Maximum keys 5 means maximum children 6, so the order is 6. A non-root node must have at least <code>ceil(6/2) = 3</code> children, and a node with 3 children has 2 keys.</p>
+                  <p class="small" style="margin-bottom:0">Option (C) is the child count, not the key count. Option (A) is the minimum for the <em>root</em>. Option (D) would be the minimum if the rule were "at least two thirds full", which it is not. The model evaluates <code>ceil(order/2) - 1</code> for every odd maximum from 3 to 31 and reports the same rule each time.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2015 Set 3</span></div>
+              <div class="q-body">
+                <p>Consider a B<sup>+</sup> tree in which the search key is 12 bytes long, block size is 1024 bytes, record pointer is 10 bytes long and block pointer is 8 bytes long. The maximum number of keys that can be accommodated in each non-leaf node of the tree is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 50</span></p>
+                  <p class="small">A non-leaf node holds <code>p</code> block pointers and <code>p - 1</code> keys, and no record pointers. So <code>8p + 12(p - 1) &le; 1024</code>, giving <code>20p &le; 1036</code> and <code>p &le; 51.8</code>. Floor: <code>p = 51</code>, so keys <code>= 50</code>.</p>
+                  <p class="small" style="margin-bottom:0">Two wrong routes, both available: including the 10-byte record pointer gives <code>30p - 22 &le; 1024</code>, order 34, 33 keys; rounding 51.8 up gives order 52, which needs 1028 bytes and does not fit. The model computes this from the field sizes rather than storing 50.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2007, Q42</span></div>
+              <div class="q-body">
+                <p>The order of a leaf node in a B<sup>+</sup> tree is the maximum number of (value, data record pointer) pairs it can hold. Given that the block size is 1K bytes, data record pointer is 7 bytes long, the value field is 9 bytes long and a block pointer is 6 bytes long, what is the order of the leaf node?</p>
+                <p class="small">(A) 63 &nbsp; (B) 64 &nbsp; (C) 67 &nbsp; (D) 68</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) 63</span></p>
+                  <p class="small">Each entry costs 9 + 7 = 16 bytes, and the leaf carries one 6-byte pointer to the next leaf. <code>16n + 6 &le; 1024</code>, so <code>16n &le; 1018</code>, so <code>n &le; 63.6</code>, so 63.</p>
+                  <p class="small" style="margin-bottom:0">Option (B) is the answer if the chain pointer is forgotten: <code>1024/16 = 64</code>. Options (C) and (D) come from dropping the record pointer or the value field. The model solves the same inequality from the four sizes and floors it.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2015 Set 2</span></div>
+              <div class="q-body">
+                <p>With reference to the B<sup>+</sup> tree index of order 1 shown below, the minimum number of nodes (including the root node) that must be fetched in order to satisfy the following query: "Get all records with a search key greater than or equal to 7 and less than 15" is ______.</p>
+                <p class="small">The figure: leaves <code>[1,3] [5,7] [9,11] [13,15]</code> chained left to right; internal nodes <code>[5]</code> and <code>[13]</code>; root <code>[9]</code>.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 5</span></p>
+                  <p class="small">Root <code>[9]</code> (1), then <code>[5]</code> because 7 &lt; 9 (2), then the leaf <code>[5,7]</code> because 7 &ge; 5 (3), then the chain to <code>[9,11]</code> (4), then the chain to <code>[13,15]</code> (5). Keys returned: 7, 9, 11, 13.</p>
+                  <p class="small" style="margin-bottom:0">Four is the tempting answer, and it is wrong because 13 lies in the last leaf even though 15 is excluded. Three counts only the leaves. The model rebuilds this exact index, runs the traversal, and reports 5 nodes fetched and the key list 7, 9, 11, 13.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2020, Q54</span></div>
+              <div class="q-body">
+                <p>Consider a database implemented using B<sup>+</sup> tree for file indexing and installed on a disk drive with block size of 4 KB. The size of search key is 12 bytes and the size of tree/disk pointer is 8 bytes. Assume that the database has one million records. Also assume that no node of the B<sup>+</sup> tree and no records are present initially in main memory. Consider that each record fits into one disk block. The minimum number of disk accesses required to retrieve any record in the database is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 4</span></p>
+                  <p class="small">Internal order <code>8p + 12(p-1) &le; 4096</code> gives <code>p = 205</code>. Leaf capacity <code>20n + 8 &le; 4096</code> gives <code>n = 204</code>. Leaves needed <code>ceil(10<sup>6</sup>/204) = 4,902</code>; above them <code>ceil(4,902/205) = 24</code> nodes, then one root. Three index levels, plus one read for the record block.</p>
+                  <p class="small" style="margin-bottom:0">Three is the standard error: it stops at the leaf and forgets that the record lives in its own block. Two comes from assuming a two-level index. The model computes the order, the leaf capacity and the level count from the given sizes and reports 3 + 1.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2016 Set 2</span></div>
+              <div class="q-body">
+                <p>B<sup>+</sup> trees are considered <em>balanced</em> because</p>
+                <p class="small">(A) the lengths of the paths from the root to all leaf nodes are all equal.<br>
+                (B) the lengths of the paths from the root to all leaf nodes differ from each other by at most 1.<br>
+                (C) the number of children of any two non-leaf sibling nodes differ by at most 1.<br>
+                (D) the number of records in any two leaf nodes differ by at most 1.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A)</span></p>
+                  <p class="small">The split and merge rules preserve one invariant about depth: all leaves sit at the same level. That is what makes the worst-case search cost exactly the height.</p>
+                  <p class="small" style="margin-bottom:0">(B) is the AVL definition, imported by association. (C) and (D) are false even in a valid tree: a node may have 2 children beside a sibling with 5, and one leaf may hold 1 key beside a sibling holding 3. The model's own tree shows both — leaves hold two keys except the last, which holds three.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 2 of 2 — two more papers, then original questions</h3>
+              <p class="small" style="margin-bottom:0">Questions 7 and 8 are previous-year items. Questions 9 to 12 are <strong>original practice questions written for this lesson</strong>; they are not previous-year questions and are labelled as original.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2024 Set 1</span></div>
+              <div class="q-body">
+                <p>In a B<sup>+</sup> tree, the requirement of at least half-full (50%) node occupancy is relaxed for which one of the following cases?</p>
+                <p class="small">(A) Only the root node &nbsp; (B) All leaf nodes &nbsp; (C) All internal nodes &nbsp; (D) Only the leftmost leaf node</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) Only the root node</span></p>
+                  <p class="small">A two-level tree needs a root with one key and two children, which is below half of any order above 3. Every other node must respect the minimum, leaves and internal nodes alike.</p>
+                  <p class="small" style="margin-bottom:0">(D) is a distractor built on the leaf chain: the leftmost leaf is not special, and it must meet the same minimum as any other. The model checks that its own tree's root holds one key while every non-root node holds at least one.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2005</span></div>
+              <div class="q-body">
+                <p>Consider a B-tree of order 5 (maximum number of children a node can have is 5). What is the maximum number of keys that can be stored in a single node?</p>
+                <p class="small">(A) 5 &nbsp; (B) 4 &nbsp; (C) 3 &nbsp; (D) 2</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) 4</span></p>
+                  <p class="small">A node with <code>p</code> children separates them with <code>p - 1</code> keys. With <code>p = 5</code>, that is 4.</p>
+                  <p class="small" style="margin-bottom:0">Option (A) is the definition confusion this question is built to catch: order counts children, not keys. The question even parenthesises the definition, which tells you the examiners expect the confusion.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">Original practice — not a PYQ</span></div>
+              <div class="q-body">
+                <p>A B<sup>+</sup> tree is built with the rule that a node holds at most 7 keys. What is the minimum number of keys in a non-root node?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 3</span></p>
+                  <p class="small">Maximum keys 7 means order 8. Minimum children <code>ceil(8/2) = 4</code>, so minimum keys <code>4 - 1 = 3</code>. In minimum-degree form, <code>2t - 1 = 7</code> gives <code>t = 4</code>, and <code>t - 1 = 3</code>.</p>
+                  <p class="small" style="margin-bottom:0">The two forms must agree; if they do not, the order was computed from the wrong quantity. Here both give 3.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">Original practice — not a PYQ</span></div>
+              <div class="q-body">
+                <p>An index is built on a file with block size 2048 bytes. The search key is 10 bytes and every pointer, whether a child pointer or a record pointer, is 6 bytes. A B<sup>+</sup> tree is used, with 2 bytes reserved at the start of every node for its header. What is the maximum number of keys in a non-leaf node?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 127</span></p>
+                  <p class="small">Usable bytes: <code>2048 - 2 = 2046</code>. A non-leaf node holds <code>p</code> child pointers and <code>p - 1</code> keys: <code>6p + 10(p - 1) &le; 2046</code>, so <code>16p - 10 &le; 2046</code>, so <code>16p &le; 2056</code>, so <code>p &le; 128.5</code>. Floor: <code>p = 128</code> pointers, so <code>128 - 1 = 127</code> keys.</p>
+                  <p class="small" style="margin-bottom:0">Check by substitution: <code>6(128) + 10(127) = 768 + 1270 = 2038 &le; 2046</code>. One more key needs 129 pointers and 128 keys: <code>774 + 1280 = 2054</code>, which does not fit, so 127 is the maximum. Answering 128 forgets to subtract one for the key count; answering 129 also forgets the 2-byte header. The header must come out of the block before the inequality, not after.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">Original practice — not a PYQ</span></div>
+              <div class="q-body">
+                <p>A sorted file holds 10,000 records at 50 records per block. A dense index and a sparse index are both built on the key. How many entries does each have?</p>
+                <p class="small">(A) dense 10,000, sparse 10,000<br>
+                (B) dense 10,000, sparse 200<br>
+                (C) dense 200, sparse 10,000<br>
+                (D) dense 10,000, sparse 50</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) dense 10,000, sparse 200</span></p>
+                  <p class="small">Dense: one entry per record, so 10,000. Sparse: one entry per block, and <code>10,000/50 = 200</code> blocks, so 200.</p>
+                  <p class="small" style="margin-bottom:0">(D) confuses the blocking factor with the block count. (C) reverses the definitions. (A) is the belief that the two index types differ in nothing, which is misconception 7 on the previous tab in another form.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">Original practice — not a PYQ</span></div>
+              <div class="q-body">
+                <p>Which of the following statements are TRUE of a B<sup>+</sup> tree used as a database index? Select all that apply.</p>
+                <p class="small">(A) Every successful search fetches exactly one node per level, down to a leaf.<br>
+                (B) The same key value may be stored in two different nodes.<br>
+                (C) A search may terminate at an internal node when the key is found there.<br>
+                (D) The total number of keys stored in the tree equals the number of records.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) and (B)</span></p>
+                  <p class="small">(A) is true because internal nodes carry no record pointer, so no search can end above the leaf level. (B) is true because a separator is a copy of a key that also sits in a leaf.</p>
+                  <p class="small" style="margin-bottom:0">(C) describes a B-tree, not a B+ tree — the distinction the two structures turn on. (D) is false for the same reason as (B): the lesson's tree holds nine records in twelve key slots. The model counts both numbers and reports 9 and 12.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — one screen, everything load-bearing</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the two computations, the decision procedure, and the traps. Every number here is computed by the model on this page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions</h3>
+          <p class="small"><strong>Blocking factor</strong> = floor(block size / record size).</p>
+          <p class="small"><strong>Order p</strong> = maximum children. A node has at most <code>p - 1</code> keys and <code>p</code> pointers.</p>
+          <p class="small"><strong>Dense</strong> = one entry per record. <strong>Sparse</strong> = one entry per block, and it requires a sorted file.</p>
+          <p class="small"><strong>Clustered</strong> = file order matches key order. <strong>Unclustered</strong> = it does not.</p>
+          <p class="small"><strong>B-tree</strong>: record pointers in every node; each key once; search may end at an internal node.</p>
+          <p class="small" style="margin-bottom:0"><strong>B+ tree</strong>: record pointers only in leaves; leaves chained; separators are copies; every search reaches a leaf.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four equations</h3>
+          <div class="formula">internal: p&middot;ptr + (p-1)&middot;key &le; block<span class="gloss">No record pointer in a B+ internal node.</span></div>
+          <div class="formula">leaf: n&middot;(key+recptr) + one chain ptr &le; block<span class="gloss">Exactly one next-leaf pointer per node.</span></div>
+          <div class="formula">min keys = ceil(order/2) - 1<span class="gloss">Non-root nodes only. The root is exempt.</span></div>
+          <div class="formula">max keys at height h = (p-1)&middot;p<sup>h-1</sup><span class="gloss">All nodes full. Minimum is ceil(p/2)^(h-1) &middot; (ceil(p/2)-1).</span></div>
+          <p class="small" style="margin-bottom:0">Order is always a <strong>floor</strong>. Keys are always one fewer than the pointers that hold them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small">
+            <li>Name the node: internal or leaf, B-tree or B+ tree.</li>
+            <li>Write its byte equation and floor the solution.</li>
+            <li>Re-read what is asked: pointers, keys, or entries.</li>
+            <li>Occupancy: order = max keys + 1, then <code>ceil(order/2) - 1</code>, root exempt.</li>
+            <li>Cost: fan-out, then levels, then add one for the record block. For a drawn tree: descent plus extra leaves.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Insertion: descend, insert, split on overflow, copy the smallest key of the right node up, propagate; a root split is the only height increase. Deletion: remove, borrow from a sibling with spare keys, merge only if neither can spare, and contract the root when it empties.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, in the order they cost marks</h3>
+          <p class="small">1. Forgetting the final record block — GATE 2020, answer 4 not 3.</p>
+          <p class="small">2. Treating an open upper bound as closed — GATE 2015 Set 2, answer 5 not 4.</p>
+          <p class="small">3. Reporting the child count as the key count — GATE 2010, answer 2 not 3.</p>
+          <p class="small">4. Putting a record pointer in a B+ internal node — GATE 2015 Set 3, answer 50 not 33.</p>
+          <p class="small">5. Forgetting the single leaf chain pointer — GATE 2007, answer 63 not 64.</p>
+          <p class="small" style="margin-bottom:0">6. Rounding the order up — 51.8 gives 51, because 52 does not fit in the block.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Three sentences worth memorising</h3>
+          <p class="small">A node is a block, so every question is a byte count.</p>
+          <p class="small">A separator is a copy, so key slots outnumber keys.</p>
+          <p class="small" style="margin-bottom:0">A B+ tree spends its internal nodes on keys alone, and buys a shorter tree and a leaf chain with the duplication.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Sources — what each one supports, and where the research stopped</h3>
+          <p class="small" style="margin-bottom:0">Official documents first, then textbooks, then community material used only as observation.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>. Supports the scope: Section 9 reads "File organization, indexing (e.g., B and B+ trees)". Verified 2026-10-26.</p>
+          <p class="small" style="margin-bottom:0">No official answer key was consulted for the previous-year items below. Each answer was recomputed by the model on this page from the question's own figures, and then compared with the reported keys of two or more independent reproductions.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook material</h3>
+          <p class="small">The structural definitions — order, occupancy, the separator convention, split and merge — follow the standard database-systems treatment (Silberschatz, Korth and Sudarshan; Elmasri and Navathe), which is also the source of the "smallest key of the right node" convention used throughout.</p>
+          <p class="small" style="margin-bottom:0">The minimum-degree formulation and the pre-emptive-split B-tree insertion follow the algorithms literature (Cormen, Leiserson, Rivest and Stein), which is where <code>2t - 1</code> and <code>t - 1</code> come from. The two formulations are equivalent; the lesson uses the minimum-degree form internally because the bounds have no off-by-one.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year items used, with what was checked</h3>
+          <p class="small">GATE CSE 2010 Q18 — answer 2. GATE CSE 2015 Set 3 — answer 50 (sources disagree on the question number, Q46 or Q56; the year and set agree). GATE CSE 2007 Q42 — answer 63. GATE CSE 2015 Set 2 — answer 5. GATE CSE 2020 Q54 — answer 4. GATE CSE 2016 Set 2 — balanced means equal path lengths. GATE CSE 2024 Set 1 — the root is the relaxed case. GATE CSE 2005 — order 5 means 4 keys.</p>
+          <p class="small" style="margin-bottom:0">Each item was checked against at least one independent reproduction of the question and its key, and most against two; every figure was re-solved by the model here, and the recomputed answer agreed in every case. None was checked against an original paper PDF, and where a reproduction was single-sourced I have no second witness for the wording.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">One question-indexed archive reports 21 items tagged "indexing and storage" across GATE CSE papers from 1998 to 2026, with items in 2024, 2025 and 2026. That is one archive tagging its own index; it is not an official count and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Published answer discussions for GATE 2015 Set 3 and GATE 2010 agree on the answers and document the two conventions for "order", which is why the Edge cases tab states both and defers to the question's own wording.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">The eight previous-year items were checked against published reproductions — at least two for most of them, one for GATE 2005, GATE 2016 Set 2 and GATE 2024 Set 1 — and every answer was recomputed by the model on this page; none was checked against a paper PDF. GATE 2025 Set 1 and Set 2 carry B+ tree insertion questions whose figures I did not verify node by node, so they are described as question shapes on the GATE patterns tab and are not reproduced or answered. The trees drawn in the animation are built by this page's own insertion and deletion code — no database engine was queried — so a bug in that code would be a bug in the lesson, which is why 39 self-checks run on every load and are reported under the canvas. The instances are small and hand-sized, so no complexity claim is made about them. This lesson does not cover external sorting and merge joins, bitmap and hash indexes, multivalued or spatial indexes, or transaction and recovery behaviour; the first two are outside the named syllabus clause and the last is a separate entry in the coverage tracker.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
