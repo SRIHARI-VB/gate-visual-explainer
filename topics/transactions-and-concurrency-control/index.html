@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transactions and Concurrency Control — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Transactions and Concurrency Control</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../relational-algebra-and-sql/index.html">Relational algebra and SQL</a>
+      <a href="../synchronisation-and-deadlock/index.html">Synchronisation and deadlock</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Transactions and concurrency control — ACID as four separate promises; the conflict relation; the precedence graph and conflict serialisability; view serialisability and the blind write that separates them; the recoverable, cascadeless and strict ladder; two-phase locking; and timestamp ordering with the Thomas write rule. This is the last clause of Section 9 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given any schedule of two or three transactions, decide conflict serialisability by drawing one graph; name the serial order it is equivalent to, or produce the cycle that forbids one; test recoverability, cascadelessness and strictness from the commit positions; decide whether two-phase locking could have produced the schedule; and count the conflict-serialisable interleavings of a small pair by enumeration rather than by a remembered formula.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one test, applied five times</em>. The test is: find the conflicts, turn each into an edge, and ask whether the edges can all be satisfied at once. Conflict serialisability asks it of the schedule; view serialisability asks a weaker version; locking asks whether a lock assignment can exist; counting asks it of every interleaving. The lesson teaches the test first and then reuses it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 9 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>) ends with the sentence: <em>"File organization, indexing (e.g., B and B+ trees). Transactions and concurrency control."</em> This lesson is that last clause, in full.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One question-indexed archive lists fourteen one-mark and several two-mark items under "Transactions and Concurrency" across GATE CSE papers, with items in 2024, 2025 and 2026. That is one archive tagging its own index; it is not an official count and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item in this lesson carries its year and paper, and every answer was recomputed by the model on this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Read these first if any is unfamiliar. Each is a full lesson in this repository.</p>
+          <p class="small"><strong>Relational algebra and SQL</strong> — <a href="../relational-algebra-and-sql/index.html">relational-algebra-and-sql</a>. A transaction reads and writes items; the lesson assumes you know what a relation and a row are, and treats a data item as one addressable value.</p>
+          <p class="small"><strong>Graphs: connectivity and structure</strong> — <a href="../graphs-connectivity/index.html">graphs-connectivity</a>. The precedence graph is a directed graph and the whole decision is a cycle test plus a topological order.</p>
+          <p class="small"><strong>Synchronisation and deadlock</strong> — <a href="../synchronisation-and-deadlock/index.html">synchronisation-and-deadlock</a>. Locking in an operating system and locking in a database are the same idea at different granularity; the deadlock cycle is identical.</p>
+          <p class="small" style="margin-bottom:0"><strong>Relations and their properties</strong> — <a href="../relations-and-their-properties/index.html">relations-and-their-properties</a>. Serialisability is an equivalence relation on schedules, and view equivalence is the quotient it defines.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas this lesson turns on</h3>
+          <ol class="step-list small">
+            <li><strong>A conflict is three conditions at once.</strong> Same item, different transactions, at least one write. Read-read is never a conflict, which is where most marks are won.</li>
+            <li><strong>One conflict, one edge.</strong> Each conflict pins an order the interleaving has already committed to. The precedence graph is the set of those pins.</li>
+            <li><strong>Acyclic is the whole test.</strong> Conflict serialisable means the pins are satisfiable at once, and that is exactly no cycle. The topological order is the serial schedule.</li>
+            <li><strong>Conflict serialisability is sufficient, not necessary.</strong> Blind writes let a cyclic schedule stay equivalent to a serial one. That is view serialisability, and the containment is strict.</li>
+            <li><strong>Protocols guarantee; they do not test.</strong> Two-phase locking forbids a shape of schedule, timestamp ordering refuses late operations. Each buys one property and pays for it somewhere else.</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, five minutes, one timeline. Scene 1 shows the lost update that motivates the chapter. Scene 2 maps ACID to mechanisms. Scene 3 states the conflict test and rejects read-read. Scene 4 draws both precedence graphs of GATE 2014 Set 3. Scene 5 shows the blind-write schedule that has a cycle and is still serialisable. Scene 6 reproduces the 2017 count by enumeration. Scene 7 places the three recovery properties on a ladder. Scene 8 reads lock spans off S1 and shows 2PL cannot produce it. Scene 9 runs the timestamp trace including the Thomas write rule. Scene 10 is the decision procedure.</p>
+          <p class="small" style="margin-bottom:0">Approximate learning time: <strong>45 to 60 minutes</strong>, including the twelve practice questions. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>One line to keep</h3>
+          <p class="small" style="margin-bottom:0">Write down the conflicts, draw one edge per conflict, and look for a cycle — every question in this chapter is that, asked about something slightly different.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 1 of 2 — from a lost update to the graph</h3>
+              <p class="small" style="margin-bottom:0">Levels 1 to 4: the analogy, the definitions, the structure, and the first worked decision. Nothing here needs the animation to be running.</p>
+            </div>
+
+            <div class="card">
+              <h3>Intuition: two clerks and one ledger</h3>
+              <p class="small">Two clerks each update the same ledger line. Each reads the current figure, does arithmetic on it, and writes the result back. If both read before either writes, the second write silently erases the first clerk's work.</p>
+              <p class="small">The ledger is a data item. A clerk is a transaction. "Read, compute, write back" is the read-modify-write pattern that makes concurrency dangerous.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the failure mode, not the terminology. What makes the update lost is not that two clerks exist; it is that both acted on the same stale copy.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: transaction, schedule, serial</h3>
+              <p class="small">A <strong>transaction</strong> is a sequence of operations — read an item, write an item, commit, abort — that must be executed as a unit. Write <code>r<sub>i</sub>(X)</code> for "transaction <em>i</em> reads item X" and <code>w<sub>i</sub>(X)</code> for "transaction <em>i</em> writes item X".</p>
+              <p class="small">A <strong>schedule</strong> is an interleaving of the operations of several transactions that keeps each transaction's own operations in their own order. A schedule is <strong>serial</strong> when no two transactions interleave at all.</p>
+              <div class="formula">S is serialisable &hArr; S is equivalent to some serial schedule<span class="gloss">Equivalent in the sense the next paragraph fixes. Serialisability is always "equivalent to a serial order", never "is a serial order".</span></div>
+              <p class="small" style="margin-bottom:0">Two equivalence definitions are used. <strong>Conflict equivalence</strong> compares the order of conflicting operations. <strong>View equivalence</strong> compares only what each read saw and who wrote last. Conflict equivalence is stricter.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the conflict</h3>
+              <p class="small">Operations <code>a</code> and <code>b</code>, from different transactions, <strong>conflict</strong> when all three hold: they act on the <em>same item</em>; they belong to <em>different transactions</em>; at least one of them is a <em>write</em>.</p>
+              <p class="small">That gives exactly three shapes: read-then-write, write-then-read, write-then-write. Read-then-read is not among them, and cannot be: neither operation changes the item, so their order cannot matter to anyone.</p>
+              <p class="small" style="margin-bottom:0">The <strong>precedence graph</strong> of a schedule has one vertex per transaction and a directed edge <code>T<sub>i</sub> &rarr; T<sub>j</sub></code> whenever an operation of <em>i</em> conflicts with a later operation of <em>j</em>. Duplicate conflicts between the same pair collapse into one edge.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The theorem, with its assumption stated</h3>
+              <p class="small"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A schedule is conflict serialisable <em>if and only if</em> its precedence graph is acyclic. <em>Only if</em>: a cycle demands that some transaction come both before and after another, which no serial order satisfies, so no serial order is conflict equivalent. <em>If</em>: when the graph is acyclic, any topological order gives a serial schedule; every edge points forward in that order, so every conflicting pair keeps its relative order, which is precisely conflict equivalence.</p>
+              <p class="small" style="margin-bottom:0">The theorem assumes nothing about how the schedule was produced. It is a test on a finished schedule, which is why it is used to mark answers rather than to build systems.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Where the intuition fails</h3>
+              <p class="small">"The graph is acyclic, so this is a good schedule" is a correct inference about conflict equivalence and a wrong inference about everything else. An acyclic graph says nothing about recoverability, nothing about deadlock, and nothing about whether the transactions preserved any business rule.</p>
+              <p class="small" style="margin-bottom:0">Scene 7 of the animation shows three schedules whose graphs are all identical — one transaction, one write — and which differ only in where the commits sit. Two of the three are unsafe.</p>
+            </div>
+
+            <div class="card card--recessed span-2">
+              <h3>Page 1 summary</h3>
+              <p class="small" style="margin-bottom:0">A schedule interleaves transactions. Conflicting operations pin orders. The graph collects the pins. Acyclic means conflict serialisable, and the topological order names the serial schedule it is equivalent to. Everything after this page reuses that one test.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev disabled>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button data-pager-next>Next &rarr;</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 2 of 2 — view equivalence, recovery, and the two protocols</h3>
+              <p class="small" style="margin-bottom:0">Levels 5 to 7: boundaries, the weaker equivalence, the recovery ladder, and what each protocol actually promises.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>View equivalence, and the blind write</h3>
+              <p class="small">Two schedules are <strong>view equivalent</strong> when three things match: every read sees a value written by the same transaction (or the initial value); every item's final write comes from the same transaction; and the same transaction performs each item's first read. A schedule is <strong>view serialisable</strong> when it is view equivalent to some serial schedule.</p>
+              <p class="small">A <strong>blind write</strong> is a write with no read of that item earlier in the same transaction. Blind writes are what make view serialisability strictly larger: they are the only reason a cyclic schedule can still match a serial one.</p>
+              <p class="small" style="margin-bottom:0">The witness used in this lesson is <code>r<sub>1</sub>(A) w<sub>2</sub>(A) w<sub>1</sub>(A) w<sub>3</sub>(A)</code>. Its graph has both T1&rarr;T2 and T2&rarr;T1, yet T1 reads the initial value and T3 writes last — exactly as in the serial order T1, T2, T3.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The recovery ladder, defined by commit positions</h3>
+              <p class="small"><strong>Recoverable:</strong> if T<sub>j</sub> reads a value written by T<sub>i</sub>, then T<sub>i</sub> commits before T<sub>j</sub> commits. Only the two commit points are compared.</p>
+              <p class="small"><strong>Cascadeless</strong> (also called ACA): no transaction reads an item until the transaction that last wrote it has committed. The commit is compared with the <em>read</em>.</p>
+              <p class="small"><strong>Strict:</strong> no transaction reads <em>or writes</em> an item until its last writer has committed. The commit is compared with any access.</p>
+              <div class="formula">strict &rArr; cascadeless &rArr; recoverable<span class="gloss">Each implication is one-way. Neither converse holds, and the animation gives a one-line witness for each failure.</span></div>
+              <p class="small" style="margin-bottom:0">Recoverable is the minimum for a system to be able to undo a failed transaction without leaving a committed transaction built on a value that never existed.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Two-phase locking</h3>
+              <p class="small">A transaction may acquire locks only during a <strong>growing phase</strong>, and may release them only during a <strong>shrinking phase</strong>. The instant of the last acquisition is the <strong>lock point</strong>. Once a lock is released, no further lock may be taken.</p>
+              <p class="small"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 2PL produces only conflict-serialisable schedules. If T<sub>i</sub> &rarr; T<sub>j</sub> is an edge, then T<sub>i</sub> held the conflicting item's lock at the moment of its own operation and T<sub>j</sub> could only obtain it after T<sub>i</sub> released it, which is after T<sub>i</sub>'s lock point; so T<sub>i</sub>'s lock point precedes T<sub>j</sub>'s. A cycle would make some lock point precede itself.</p>
+              <p class="small" style="margin-bottom:0">The converse fails: conflict serialisable does not mean 2PL could produce the schedule. Scene 8 uses S1 of GATE 2014 Set 3 as the witness, and the model on this page verifies it.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Timestamp ordering</h3>
+              <p class="small">Every transaction gets a timestamp, and every item X keeps two numbers: <code>R_TS(X)</code>, the largest timestamp of any transaction that has read X, and <code>W_TS(X)</code>, the largest that has written it.</p>
+              <p class="small">A read <code>r<sub>i</sub>(X)</code> is refused when <code>ts(T<sub>i</sub>) &lt; W_TS(X)</code>: a later transaction has already written, so this read is too late. A write is refused when <code>ts(T<sub>i</sub>) &lt; R_TS(X)</code>: a later transaction has already read.</p>
+              <p class="small" style="margin-bottom:0">The <strong>Thomas write rule</strong> handles the remaining case. If <code>ts(T<sub>i</sub>) &lt; W_TS(X)</code> on a write, this write is obsolete — a later write already landed — so it is skipped instead of aborting the transaction. Nothing observable changes.</p>
+            </div>
+
+            <div class="card card--trap span-2">
+              <h3>The boundary this chapter keeps crossing</h3>
+              <p class="small" style="margin-bottom:0">Serialisability is about the <em>result</em> of an interleaving. Recoverability is about what happens <em>after</em> an abort. Deadlock freedom is about whether a protocol ever makes a transaction wait. Locking and timestamps are two answers to the same problem with opposite trade-offs: locks wait and can deadlock, timestamps refuse and restart. No single protocol in the syllabus gives all four properties at once, and a question that offers one usually has an option claiming it does.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 2 of 2</span>
+            <button data-pager-next disabled>Next &rarr;</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Two transactions, one account balance. Run them one after the other and the arithmetic is right.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why a database cannot just run transactions one at a time</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with the problem the whole chapter exists to solve.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2 — three previous-year schedules, worked line by line</h3>
+              <p class="small" style="margin-bottom:0">Every answer below was recomputed by the model on this page, not copied from a key. The Animation tab draws the same graphs in scenes 4, 5 and 6.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 — GATE CSE 2014 Set 3</h3>
+              <p class="small">T1: r1(X); r1(Z); w1(X); w1(Z). T2: r2(Y); r2(Z); w2(Z). T3: r3(Y); r3(X); w3(Y). Two schedules S1 and S2 use exactly these operations in different orders; the question asks which statement is true.</p>
+              <p class="small"><strong>S1:</strong> r1(X); r3(Y); r3(X); r2(Y); r2(Z); w3(Y); w2(Z); r1(Z); w1(X); w1(Z).</p>
+              <p class="small"><strong>Step 1, find conflicts.</strong> On X: r3(X) precedes w1(X), so T3&rarr;T1. On Y: r2(Y) precedes w3(Y), so T2&rarr;T3. On Z: w2(Z) precedes r1(Z) and w1(Z), so T2&rarr;T1.</p>
+              <p class="small"><strong>Step 2, look for a cycle.</strong> Edges T2&rarr;T3, T3&rarr;T1, T2&rarr;T1. Acyclic. Topological order: T2, T3, T1, and it is the only one.</p>
+              <p class="small" style="margin-bottom:0"><strong>S2</strong> moves r1(Z) to before w2(Z), which adds T1&rarr;T2 while T2&rarr;T1 survives. Cycle. Answer: <strong>only S1 is conflict serialisable</strong>, option A.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — GATE CSE 2022</h3>
+              <p class="small">S: r4(X) r2(X) r3(X) r1(Y) w1(Y) w2(X) w3(Y) r4(Y). The question asks which serial order S is conflict equivalent to.</p>
+              <p class="small"><strong>Conflicts on X:</strong> r4(X) before w2(X) gives T4&rarr;T2; r3(X) before w2(X) gives T3&rarr;T2.</p>
+              <p class="small"><strong>Conflicts on Y:</strong> r1(Y) before w3(Y) gives T1&rarr;T3; w1(Y) before r4(Y) gives T1&rarr;T4; w3(Y) before r4(Y) gives T3&rarr;T4.</p>
+              <p class="small"><strong>The graph:</strong> T1&rarr;T3, T1&rarr;T4, T3&rarr;T4, T3&rarr;T2, T4&rarr;T2. Acyclic, and the model finds exactly one topological order.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> T1 &rarr; T3 &rarr; T4 &rarr; T2. Note that r4(X) being first does not put T4 first: T4 also reads Y, and that read must come after T1's and T3's writes.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 — GATE CSE 2016 Set 2</h3>
+              <p class="small">The question gives a serialisable schedule S and its precedence graph, and asks which ordering of the vertices is <em>guaranteed</em> to yield a serial schedule. Options: topological order, depth-first order, breadth-first order, ascending order of transaction index.</p>
+              <p class="small"><strong>Reasoning.</strong> A serial order that is conflict equivalent must respect every edge, because each edge is a conflict the interleaving already fixed. Respecting every edge is the definition of a topological order. DFS and BFS orders respect no edges in general, and index order is unrelated to the conflicts.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> topological order. The word <em>guaranteed</em> is doing the work — index order <em>might</em> happen to work on a given schedule, which is why it is the tempting wrong option.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Why these three are on one page</h3>
+              <p class="small">All three are the same computation with a different question attached: which statement is true (2014), which serial order (2022), which ordering is guaranteed (2016). The graph answers all three.</p>
+              <p class="small" style="margin-bottom:0">If you can draw the graph and read a topological order off it, you can answer any of them. If you memorise answers, you can answer none of them on a new schedule.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev disabled>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button data-pager-next>Next &rarr;</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2 — the counting question, and the blind write</h3>
+              <p class="small" style="margin-bottom:0">One numerical-answer question and one structural counterexample. Both are computed, not recalled.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — GATE CSE 2017 Set 2, the count</h3>
+              <p class="small">T1: r1(X) w1(X) r1(Y) w1(Y). T2: r2(Y) w2(Y) r2(Z) w2(Z). The question asks for the total number of conflict-serialisable schedules the two can form. This is a numerical-answer question.</p>
+              <p class="small"><strong>Step 1, count all interleavings.</strong> Eight operations in total, and choosing which four slots belong to T1 fixes the schedule, because each transaction then fills its own slots in order. C(8,4) = 70.</p>
+              <p class="small"><strong>Step 2, find where conflicts can occur.</strong> X belongs only to T1 and Z only to T2, so no conflict can involve them. Only Y is shared: T1 touches it at its third and fourth operations, T2 at its first and second.</p>
+              <p class="small"><strong>Step 3, split by direction.</strong> For T1&rarr;T2 we need w1(Y) before r2(Y) — T1's last operation before T2's first — so only the fully serial order T1, T2 qualifies: 1 schedule. Everything else that is conflict serialisable runs T2 before T1: 53 schedules.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer: 1 + 53 = 54.</strong> The model on this page enumerates all 70 interleavings, tests each one's graph, and reports 54.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 5 — the blind-write counterexample</h3>
+              <p class="small">T1: r1(A) w1(A). T2: w2(A). T3: w3(A). Consider S: r1(A) w2(A) w1(A) w3(A).</p>
+              <p class="small"><strong>Conflicts.</strong> r1(A) before w2(A) gives T1&rarr;T2. r1(A) before w3(A) gives T1&rarr;T3. w2(A) before w1(A) gives T2&rarr;T1. w2(A) before w3(A) gives T2&rarr;T3. The graph has T1&rarr;T2 and T2&rarr;T1, so it has a cycle and S is not conflict serialisable.</p>
+              <p class="small"><strong>Yet.</strong> In S, T1 reads A from the initial value, and T3 is the last writer. In the serial order T1, T2, T3, T1 also reads the initial value and T3 is also the last writer. Same reads-from relation, same final writer: S is view equivalent to a serial schedule.</p>
+              <p class="small" style="margin-bottom:0"><strong>The lesson.</strong> T2's write is a blind write — it never read A. That is what lets the order of T2's write be irrelevant to what anyone observes, and therefore what lets a cyclic schedule stay serialisable.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — the same schedule under two-phase locking</h3>
+              <p class="small">Return to S1 of GATE 2014 Set 3, which is conflict serialisable. Could 2PL have produced it?</p>
+              <p class="small"><strong>Spans.</strong> T1 accesses X at positions 0 and 8, so its lock on X spans 0 to 8. T3 accesses X only at position 2. T2's own spans are Y at 3 and Z at 4 to 6.</p>
+              <p class="small"><strong>The overlap.</strong> T1 needs X across 0&ndash;8 while T3 needs X at 2. Whichever holds the lock, the other cannot be inside its own span. So no lock assignment can produce this interleaving, and 2PL cannot generate S1.</p>
+              <p class="small" style="margin-bottom:0"><strong>Conclusion.</strong> Conflict serialisable is necessary for a schedule to be 2PL-producible but not sufficient. The model reports the overlap on X between T1 and T3 and the fact that S1 is nevertheless acyclic.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>What these three pages establish</h3>
+              <p class="small">A graph test that answers existence questions; an enumeration that answers counting questions; and two structural witnesses — the blind write for view serialisability, and the X-span for 2PL.</p>
+              <p class="small" style="margin-bottom:0">Every number on these pages is printed on the canvas in the corresponding scene, because both read the same computation.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 2 of 2</span>
+            <button data-pager-next disabled>Next &rarr;</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Edge cases, boundaries, and the questions that turn on them</h3>
+          <p class="small" style="margin-bottom:0">Each of these changes the answer while leaving the schedule looking familiar. They are the boundary conditions of the definitions on the Build-up tab.</p>
+        </div>
+
+        <div class="card">
+          <h3>A serial schedule is trivially serialisable</h3>
+          <p class="small">Its precedence graph has edges only in one direction along the execution order, so it cannot have a cycle. A question that includes "the serial schedules are also counted" is asking you not to exclude them: in the 2017 count, the single T1-before-T2 schedule <em>is</em> the fully serial one.</p>
+          <p class="small" style="margin-bottom:0">This is the difference between 53 and 54, and it is the most common single-mark loss in the chapter.</p>
+        </div>
+
+        <div class="card">
+          <h3>Duplicate conflicts collapse to one edge</h3>
+          <p class="small">If T1 and T2 conflict on three different items, the precedence graph still has one edge T1&rarr;T2. Counting conflicts and counting edges are different counts.</p>
+          <p class="small" style="margin-bottom:0">In GATE 2014 Set 3, S1 has several conflicting pairs but exactly three distinct edges. A cycle test on the deduplicated graph is what the theorem is about.</p>
+        </div>
+
+        <div class="card">
+          <h3>One transaction alone is always serialisable, and always recoverable</h3>
+          <p class="small">With a single transaction there is no other transaction to conflict with, no uncommitted value to read, and no cycle possible. Questions sometimes use this as a degenerate case to test whether you are applying a definition or a pattern.</p>
+          <p class="small" style="margin-bottom:0">The one thing that does not collapse: a single transaction can still deadlock if it re-locks an item it already holds, which is why lock upgrades are handled explicitly in real systems.</p>
+        </div>
+
+        <div class="card">
+          <h3>A cycle of length two is the common case, not the only one</h3>
+          <p class="small">Most exam schedules produce T1&rarr;T2 and T2&rarr;T1. But T1&rarr;T2&rarr;T3&rarr;T1 is equally fatal, and it is easy to miss if you only compare pairs.</p>
+          <p class="small" style="margin-bottom:0">Run a topological sort rather than scanning for mutual edges: if the sort does not consume every vertex, there is a cycle, of whatever length.</p>
+        </div>
+
+        <div class="card">
+          <h3>Recoverability is about commits, not about order of operations</h3>
+          <p class="small">Two schedules can differ only in where the two commits sit and have completely different recovery properties while sharing the same precedence graph. The graph sees reads and writes; recoverability sees commits.</p>
+          <p class="small" style="margin-bottom:0">This is why "conflict serialisable, therefore safe" is a wrong inference: serialisability and recoverability are properties of different things in the same schedule.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>View serialisability without blind writes</h3>
+          <p class="small">For two transactions, if neither contains a blind write, view serialisability and conflict serialisability coincide. So a question that asks "is it view serialisable" and shows no blind write is asking the conflict question with different wording.</p>
+          <p class="small" style="margin-bottom:0">Check for a write with no preceding read of that item in the same transaction before you reach for the view test. If there is none, you do not need it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Timestamp ordering and the equal-timestamp boundary</h3>
+          <p class="small">The tests are strict inequalities: a read is refused when <code>ts(T<sub>i</sub>) &lt; W_TS(X)</code>, not when it is equal. Timestamps are unique in practice, so equality does not arise, but a question that writes <code>&le;</code> is testing whether you know which side the boundary is on.</p>
+          <p class="small" style="margin-bottom:0">The Thomas write rule fires only on a write, only when <code>ts(T<sub>i</sub>) &lt; W_TS(X)</code>, and only after the read test has already passed.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Strict 2PL is not the same as 2PL plus "strict"</h3>
+          <p class="small">2PL says: no acquisition after a release. Strict 2PL adds: no release until commit. The second is a restriction on <em>when</em> the shrinking phase starts, not a separate property of the schedule.</p>
+          <p class="small" style="margin-bottom:0">A schedule can be strict without being 2PL-producible and 2PL-producible without being strict. The two are independent constraints on different things.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce wrong answers, and the one-line correction for each</h3>
+          <p class="small" style="margin-bottom:0">Each is stated as a learner would state it, then refuted with a minimal case rather than a paragraph.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. "Serialisable means the transactions do not interleave."</h3>
+          <p class="small"><strong>Wrong.</strong> Serialisable means <em>equivalent to</em> some serial order, and the point of the whole chapter is that most serialisable schedules do interleave.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case:</strong> r1(X) w1(X) r2(Y) w2(Y) interleaves two transactions on two different items and is trivially serialisable, because they never conflict.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. "Two reads of the same item conflict, since they both touch it."</h3>
+          <p class="small"><strong>Wrong.</strong> A conflict needs at least one write. Two reads leave the item unchanged, so their order cannot affect anything any transaction observes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case:</strong> r1(X) r2(X) — no edge in either direction. Reverse the two operations and every reads-from relation is identical.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. "Conflict serialisable and view serialisable are the same thing."</h3>
+          <p class="small"><strong>Wrong, and strictly.</strong> Conflict serialisable is contained in view serialisable, and the containment is proper whenever a blind write is present.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case:</strong> r1(A) w2(A) w1(A) w3(A) has a cycle and is still view equivalent to T1, T2, T3. Without the blind write by T2, no such example exists for two transactions.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. "If the schedule is conflict serialisable, it is safe."</h3>
+          <p class="small"><strong>Wrong.</strong> Conflict serialisability says nothing about what happens after an abort. A conflict-serialisable schedule can still be non-recoverable if the commits sit in the wrong order.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case:</strong> w1(X) r2(X) c2 c1 — one transaction, two writes, no conflict at all, and T2 commits on a value that T1 then rolls back.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. "Two-phase locking prevents deadlock, because it forces an order."</h3>
+          <p class="small"><strong>Wrong.</strong> 2PL forces the <em>schedule</em> to be conflict serialisable. It does nothing about two transactions each holding one lock and waiting for the other.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case:</strong> T1 locks X then requests Y; T2 locks Y then requests X. Both are in their growing phase, both are legal 2PL, and neither can proceed. Timestamp ordering is the protocol in the syllabus that avoids this by never waiting.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. "Timestamp ordering is strictly better, since it cannot deadlock."</h3>
+          <p class="small"><strong>Wrong.</strong> It trades waiting for restarting. A transaction with a small timestamp can be aborted repeatedly, and the work it did is lost each time.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case:</strong> the trace in scene 9 — T1 with timestamp 10 reads X after T2 with timestamp 20 has written it, and must restart. Nothing waited; work was still lost.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The pair most often confused: <em>recoverable</em> and <em>cascadeless</em></h3>
+          <p class="small">Both are about reading uncommitted data, and both are about commits, so they read as synonyms. They are not: <strong>recoverable</strong> compares the two <em>commit</em> points and permits the dirty read as long as the writer commits first; <strong>cascadeless</strong> forbids the dirty read outright.</p>
+          <p class="small" style="margin-bottom:0">One schedule separates them completely: <code>w1(X) r2(X) c1 c2</code>. T2 reads X before T1 commits, so it is not cascadeless; but T1 commits before T2 does, so an abort of T1 would still be recoverable. Recoverable yes, cascadeless no. Add the commit earlier — <code>w1(X) c1 r2(X) c2</code> — and both hold, and the schedule is also strict.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this topic is asked, and the procedure that answers each shape</h3>
+          <p class="small" style="margin-bottom:0">Five shapes cover every item in this chapter that I checked. Each is the same graph computation with a different question attached.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — "which statement about these schedules is true?"</h3>
+          <p class="small">Two or three schedules, one statement each. Draw both graphs; do not compare the schedules line by line.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen as:</strong> GATE CSE 2014 Set 3 (S1 and S2 over three transactions). <strong>Procedure:</strong> one graph per schedule, then a cycle test on each.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — "which serial order is it conflict equivalent to?"</h3>
+          <p class="small">The graph has one topological order and the options are permutations. Compute the edges and read the order off.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen as:</strong> GATE CSE 2022. <strong>Procedure:</strong> deduplicate edges, then topologically sort. If the sort is not unique the question would be ill-posed, so a unique order is a useful self-check.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — "how many conflict-serialisable schedules?"</h3>
+          <p class="small">A numerical-answer question. Total interleavings is a binomial coefficient; the filter is the graph.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen as:</strong> GATE CSE 2017 Set 2, answer 54. <strong>Procedure:</strong> C(total operations, one transaction's count), then split by which transaction must precede which, then add. Include the serial schedules.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — "which protocol gives which guarantees?"</h3>
+          <p class="small">A multiple-select question listing properties. The answer is a set, and the wrong options are properties the protocol does <em>not</em> give.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> 2PL gives conflict serialisability only. Strict 2PL adds recoverability, cascadelessness and strictness. Timestamp ordering gives conflict serialisability and deadlock freedom, but not starvation freedom, and the Thomas rule weakens it to view serialisability.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 — "which schedule(s) is/are conflict serialisable?"</h3>
+          <p class="small">Four candidate interleavings of the same two transactions, in a multiple-select question. The trap is a second, later conflict in the opposite direction.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen as:</strong> GATE CSE 2025 Set 2, answer B only. <strong>Procedure:</strong> for each option, scan every pair, not just the first conflict you notice — the second R1(X) after W2(X) is what creates the cycle in three of the four options.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The exam traps, ranked by how often they cost a mark</h3>
+          <p class="small">Forgetting that serial schedules count as conflict serialisable (53 instead of 54). Treating a read-read pair as a conflict. Answering "view serialisable" when the question said conflict, or the reverse. Assuming 2PL can produce every conflict-serialisable schedule. Reading "deadlock-free" as "better".</p>
+          <p class="small" style="margin-bottom:0">None of these is a knowledge gap. All five are a misread of which test was requested.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The procedure, in five steps</h3>
+          <ol class="step-list small">
+            <li><strong>Read what is asked.</strong> Conflict, view, recovery or locking — four tests, one schedule.</li>
+            <li><strong>Lay the schedule out as a table</strong>, one column per transaction and one row per position, so every conflict is a pair of cells in the same item.</li>
+            <li><strong>Add one edge per ordered pair of conflicting transactions</strong>, deduplicated, then run a topological sort.</li>
+            <li><strong>If the sort consumes every vertex</strong>, read the order off and answer. <strong>If not</strong>, name the cycle and answer.</li>
+            <li><strong>For counting or locking</strong>, switch to arithmetic: binomial coefficient then filter, or access spans then overlap.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Step 1 is the one that decides the mark. Steps 2 to 5 are mechanical.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — twelve questions</h3>
+          <p class="small">Six are previous-year items with their year and paper named; six are original practice written for this lesson and labelled as such. Answers are hidden until you reveal them, and each solution states why the wrong options are wrong.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q1 (MCQ)</strong></div>
+          <p class="q-body">Which of these pairs of operations is <em>not</em> a conflict?</p>
+          <p class="small">(A) r<sub>1</sub>(X) and w<sub>2</sub>(X) &nbsp; (B) w<sub>1</sub>(X) and r<sub>2</sub>(X) &nbsp; (C) w<sub>1</sub>(X) and w<sub>2</sub>(X) &nbsp; (D) r<sub>1</sub>(X) and r<sub>2</sub>(X)</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(D).</strong> Two reads leave the item unchanged, so their relative order cannot change any value anyone sees.</p>
+            <p class="small">(A), (B) and (C) each contain at least one write on the same item by different transactions, which is exactly the definition.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2014 Set 3</span> <strong>Q2 (MCQ, 2 marks)</strong></div>
+          <p class="q-body">With T1: r1(X); r1(Z); w1(X); w1(Z); T2: r2(Y); r2(Z); w2(Z); T3: r3(Y); r3(X); w3(Y), and S1, S2 as in Example 1, which statement is true?</p>
+          <p class="small">(A) Only S1 is conflict serialisable. (B) Only S2 is conflict serialisable. (C) Both are. (D) Neither is.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A).</strong> S1's graph is T2&rarr;T3, T3&rarr;T1, T2&rarr;T1 — acyclic, order T2, T3, T1. S2 adds T1&rarr;T2 on Z while T2&rarr;T1 survives, so it has a cycle.</p>
+            <p class="small">(B) and (C) fail on that cycle. (D) fails because S1 has none. Sources disagree on whether this is Q25 or Q29 of the paper; the year, the set and the schedule agree.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2016 Set 2</span> <strong>Q3 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">Given a serialisable schedule S and its precedence graph, which ordering of the vertices is <em>guaranteed</em> to yield a serial schedule?</p>
+          <p class="small">(A) Topological order &nbsp; (B) Depth-first order &nbsp; (C) Breadth-first order &nbsp; (D) Ascending order of transaction indices</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A).</strong> A conflict-equivalent serial order must respect every edge, and respecting every edge is the definition of a topological order.</p>
+            <p class="small">(B) and (C) respect no edges in general. (D) is unrelated to the conflicts — it may happen to work on a particular schedule, which is why it tempts.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--nat">GATE CSE 2017 Set 2</span> <strong>Q4 (NAT)</strong></div>
+          <p class="q-body">For T1: r1(X) w1(X) r1(Y) w1(Y) and T2: r2(Y) w2(Y) r2(Z) w2(Z), the total number of conflict-serialisable schedules is ______.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>54.</strong> C(8,4) = 70 interleavings; 1 is equivalent to T1 then T2, 53 are equivalent to T2 then T1.</p>
+            <p class="small">53 forgets the serial order T1, T2. 55 double-counts both serial orders. This page's model enumerates all 70 and reports 54 independently.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--msq">GATE CSE 2025 Set 2</span> <strong>Q5 (MSQ, 2 marks)</strong></div>
+          <p class="q-body">T1 is R1(X), W1(Y), R1(X), W1(X), COMMIT. T2 is W2(X), W2(Y), COMMIT. Which schedule(s) is/are conflict serialisable? (Each option is one interleaving of the same two transactions.)</p>
+          <p class="small">(A) R1(X), W2(X), W1(Y), W2(Y), R1(X), W1(X) &nbsp; (B) W2(X), R1(X), W2(Y), W1(Y), R1(X), W1(X) &nbsp; (C) R1(X), W1(Y), W2(X), W2(Y), R1(X), W1(X) &nbsp; (D) W2(X), R1(X), W1(Y), W2(Y), R1(X), W1(X)</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B) only.</strong> Every conflicting pair in (B) gives T2&rarr;T1 and no pair gives T1&rarr;T2, so the graph is acyclic.</p>
+            <p class="small">(A) and (C) both contain the second R1(X) <em>after</em> W2(X), which adds T2&rarr;T1 while the first R1(X) already gave T1&rarr;T2 — a cycle. (D) has W1(Y) before W2(Y), giving T1&rarr;T2, alongside T2&rarr;T1 from X.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2022</span> <strong>Q6 (MCQ, 2 marks)</strong></div>
+          <p class="q-body">For S: r4(X) r2(X) r3(X) r1(Y) w1(Y) w2(X) w3(Y) r4(Y), which serial schedule is conflict equivalent to S?</p>
+          <p class="small">(A) T1&rarr;T3&rarr;T4&rarr;T2 &nbsp; (B) T1&rarr;T4&rarr;T3&rarr;T2 &nbsp; (C) T4&rarr;T1&rarr;T3&rarr;T2 &nbsp; (D) T3&rarr;T1&rarr;T4&rarr;T2</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A).</strong> Edges: T4&rarr;T2 and T3&rarr;T2 on X; T1&rarr;T3, T1&rarr;T4 and T3&rarr;T4 on Y. The unique topological order is T1, T3, T4, T2.</p>
+            <p class="small">(B) reverses T3 and T4, contradicting T3&rarr;T4. (C) puts T4 first, contradicting T1&rarr;T4. (D) puts T3 first, contradicting T1&rarr;T3.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q7 (MSQ)</strong></div>
+          <p class="q-body">Which of these does <em>strict</em> two-phase locking guarantee?</p>
+          <p class="small">(A) Conflict serialisability (B) Recoverability (C) Cascadelessness (D) Freedom from deadlock</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A), (B) and (C).</strong> Strict 2PL holds every lock until commit, so no transaction reads or writes an uncommitted value — which is strictness, and strictness implies cascadelessness and recoverability. It is still 2PL, so it is conflict serialisable.</p>
+            <p class="small">(D) is the wrong option: holding locks until commit makes deadlock <em>more</em> likely, not less. Deadlock freedom is timestamp ordering's contribution.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q8 (NAT)</strong></div>
+          <p class="q-body">Two transactions have three operations each and act on the same two items. How many distinct interleavings are there?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>20.</strong> Choosing which three of the six positions belong to T1 fixes the whole schedule, since each transaction keeps its own order: C(6,3) = 20.</p>
+            <p class="small">720 = 6! counts all permutations of six operations, ignoring that each transaction's internal order is fixed. The binomial is always the right base case.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q9 (MCQ)</strong></div>
+          <p class="q-body">The schedule w1(X) r2(X) c1 c2 is:</p>
+          <p class="small">(A) not recoverable (B) recoverable but not cascadeless (C) cascadeless but not strict (D) strict</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> T2 reads X before T1 commits, so it is not cascadeless. But T1 commits before T2 does, so an abort of T1 would still be recoverable.</p>
+            <p class="small">(A) is wrong because the commits are in the right order. (C) and (D) are wrong because the read happened before T1's commit at all. Moving the commit earlier gives w1(X) c1 r2(X) c2, which is all three.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q10 (MCQ)</strong></div>
+          <p class="q-body">Under timestamp ordering, T1 has timestamp 10 and T2 has timestamp 20. T2 has written X, so W_TS(X) = 20. T1 now issues r1(X). What happens?</p>
+          <p class="small">(A) The read proceeds and R_TS(X) becomes 10. (B) The read is refused and T1 is aborted. (C) The read is silently ignored, as under the Thomas write rule. (D) T1 waits until T2 commits.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> The read test is <code>ts(T<sub>i</sub>) &lt; W_TS(X)</code>: 10 &lt; 20, so T1 would have to read a value written by a later transaction, which breaks timestamp order. It restarts.</p>
+            <p class="small">(A) would silently violate timestamp order. (C) is the write rule, not the read rule, and applies only to writes. (D) is what a lock-based protocol would do; timestamp ordering never waits, which is why it cannot deadlock.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q11 (MSQ)</strong></div>
+          <p class="q-body">For the schedule r1(A) w2(A) w1(A) w3(A), with T1: r1(A) w1(A), T2: w2(A), T3: w3(A), which statements are true?</p>
+          <p class="small">(A) It is conflict serialisable. (B) It is view serialisable. (C) Its precedence graph has a cycle. (D) T2's write is a blind write.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B), (C) and (D).</strong> The graph has T1&rarr;T2 and T2&rarr;T1, so (C) holds and (A) fails. T1 reads the initial value and T3 writes last, matching the serial order T1, T2, T3, so (B) holds. T2 never reads A, so (D) holds.</p>
+            <p class="small">This is the standard witness that conflict serialisability is strictly stronger than view serialisability. Option (A) is the one to resist: a cycle and "not conflict serialisable" are the same statement.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q12 (MCQ)</strong></div>
+          <p class="q-body">S1 of GATE 2014 Set 3 is conflict serialisable. Which is the correct statement about it?</p>
+          <p class="small">(A) 2PL could produce it. (B) 2PL could not produce it, because T1 and T3 both need X over overlapping spans. (C) 2PL could not produce it, because it has a cycle. (D) 2PL could produce it only with a strict variant.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> T1 accesses X at positions 0 and 8, so its lock on X spans 0 to 8; T3 accesses X at position 2. Whichever transaction holds the lock, the other cannot be inside its own span.</p>
+            <p class="small">(C) is a contradiction: S1 has no cycle. (A) and (D) fail for the same reason as (B) — no lock assignment exists, and strictness is a separate restriction that does not create one.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — definitions, decision rules, traps</h3>
+          <p class="small" style="margin-bottom:0">One screen, no narrative. Everything here is derived on the Build-up tab and computed by the model on this page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions to state exactly</h3>
+          <p class="small"><strong>Conflict:</strong> same item, different transactions, at least one write. Three shapes only.</p>
+          <p class="small"><strong>Conflict serialisable:</strong> precedence graph acyclic. The topological order is the equivalent serial schedule.</p>
+          <p class="small"><strong>View serialisable:</strong> same reads-from relation, same final writer, same first reader per item, as some serial schedule. Strictly weaker than conflict serialisable; blind writes are what separate them.</p>
+          <p class="small"><strong>Recoverable:</strong> reader's commit after writer's commit. <strong>Cascadeless:</strong> read only after the writer commits. <strong>Strict:</strong> read or write only after the last writer commits.</p>
+          <p class="small" style="margin-bottom:0"><strong>2PL:</strong> no acquisition after any release. <strong>Strict 2PL:</strong> no release before commit.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Decision rules</h3>
+          <p class="small">Conflict serialisable? Draw edges, run a topological sort. Sort consumes all vertices &rarr; yes.</p>
+          <p class="small">View serialisable? Only ask if a blind write exists. Compare reads-from and final writer with each serial order.</p>
+          <p class="small">Recoverable? Compare commit positions only. Cascadeless? Compare commit with read position. Strict? Compare commit with any access.</p>
+          <p class="small">2PL-producible? Write each transaction's access span per item; any overlap between two transactions on the same item means no.</p>
+          <p class="small" style="margin-bottom:0">Counting? C(total, one transaction's count), then filter by the graph. Include serial schedules.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>What each protocol buys</h3>
+          <p class="small"><strong>2PL:</strong> conflict serialisability. Not deadlock freedom. Not strictness.</p>
+          <p class="small"><strong>Strict 2PL:</strong> conflict serialisability, strictness, cascadelessness, recoverability. Still deadlocks.</p>
+          <p class="small"><strong>Timestamp ordering:</strong> conflict serialisability, deadlock freedom. Not starvation freedom. Aborts instead of waiting.</p>
+          <p class="small" style="margin-bottom:0"><strong>Timestamp ordering with Thomas write rule:</strong> the same, but only view serialisability is guaranteed, since an obsolete write is skipped rather than refused.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps, five corrections</h3>
+          <p class="small">Read-read is not a conflict.</p>
+          <p class="small">Serial schedules are counted; that is the 53-versus-54 difference.</p>
+          <p class="small">Conflict serialisable does not imply recoverable — the graph does not see commits.</p>
+          <p class="small">Conflict serialisable does not imply 2PL could produce it.</p>
+          <p class="small" style="margin-bottom:0">Deadlock-free is not the same as better: timestamps pay with restarts and possible starvation.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Three witnesses to keep in memory</h3>
+          <p class="small"><strong>View but not conflict:</strong> <code>r1(A) w2(A) w1(A) w3(A)</code> — cycle, still equivalent to T1, T2, T3, because T2's write is blind.</p>
+          <p class="small"><strong>Conflict but not 2PL:</strong> S1 of GATE 2014 Set 3 — acyclic, but T1 and T3 both need X across overlapping spans.</p>
+          <p class="small" style="margin-bottom:0"><strong>Recoverable but not cascadeless:</strong> <code>w1(X) r2(X) c1 c2</code> — the dirty read happened, but the commits are in the safe order.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>One line to keep</h3>
+          <p class="small" style="margin-bottom:0">Conflicts give edges; a cycle forbids a serial order; commits decide recovery; spans decide locking. Four questions, one schedule, four different things being read off it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Sources — what each one supports, and where the research stopped</h3>
+          <p class="small" style="margin-bottom:0">Official documents first, then textbook material, then community material used only as observation.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>. Supports the scope: Section 9 reads "Transactions and concurrency control". Verified 2026-10-28 against the syllabus PDF text.</p>
+          <p class="small" style="margin-bottom:0">No official answer key was read line by line for the previous-year items below. Each answer was recomputed by the model on this page from the question's own schedule, and then compared with the reported keys of two or more independent reproductions.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook material</h3>
+          <p class="small">The definitions of conflict and view serialisability, the recoverable / cascadeless / strict ladder, two-phase locking and timestamp ordering follow the standard database-systems treatment (Silberschatz, Korth and Sudarshan; Ramakrishnan and Gehrke). The Thomas write rule is stated in the form those texts use.</p>
+          <p class="small" style="margin-bottom:0">The cycle criterion and the topological-order reading of a precedence graph are the standard graph formulation; the proof sketch on the Build-up tab is the usual lock-point argument, written out rather than cited.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year items used, with what was checked</h3>
+          <p class="small">GATE CSE 2014 Set 3 — answer A, only S1. GATE CSE 2016 Set 2 Q22 — topological order. GATE CSE 2017 Set 2 — answer 54. GATE CSE 2022 — answer T1, T3, T4, T2. GATE CSE 2025 Set 2 Q53 — answer B only.</p>
+          <p class="small" style="margin-bottom:0">Each was checked against at least two independent reproductions, and every answer was re-derived by the model here. For 2017 the model enumerates all 70 interleavings rather than trusting the arithmetic of a solution; for 2025 it tests all four options' graphs. Sources disagree on the question number of the 2014 item (Q25 or Q29) and the 2017 item (Q44 or Q47); the year, the set and the schedules agree.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">One question-indexed archive lists fourteen one-mark items and several two-mark items tagged "Transactions and Concurrency" across GATE CSE papers, including items in 2024, 2025 and 2026. That is one archive tagging its own index; it is not an official count and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Published answer discussions for the 2014 and 2017 items agree on the answers and document the 53-versus-54 confusion, which is why the Counting scene and Q4 both name it explicitly.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">Five previous-year items were checked against published reproductions — two or more for each — and every answer was recomputed by the model on this page; none was checked against an original paper PDF. Items I could not pin to a year and a set are not reproduced here, and no question is presented as a previous-year item without both. The lesson does not cover multi-version concurrency control, snapshot isolation, validation-based (optimistic) protocols, logging and ARIES recovery, or isolation levels as defined in the SQL standard: the syllabus clause names "transactions and concurrency control", and those are either beyond it or belong to the recovery half of a full course. The schedules used are hand-sized, so no complexity claim is made about them; the counting routine enumerates 70 interleavings and would not be used at scale. The model's checks run on every load and are reported under the canvas, so a bug in it would be visible as a failing count rather than as a quiet error.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
