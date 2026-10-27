@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Disk Scheduling (I/O Scheduling) — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Disk Scheduling</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../cpu-scheduling/index.html">CPU scheduling</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> I/O scheduling — disk scheduling. The arm of a hard disk has to visit a set of cylinders in some order; six rules for choosing that order, and the arithmetic that scores each one. This is the "I/O" half of the clause "CPU and I/O scheduling" in Section 8 of the official GATE 2027 CS syllabus. The CPU half is the separate lesson <a href="../cpu-scheduling/index.html">CPU Scheduling</a>.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a disk range, a starting head position, a direction where one is stated and a queue of cylinder requests, write the service order for FCFS, SSTF, SCAN, C-SCAN, LOOK or C-LOOK, sum the head movement, convert it to seek time or to power when the question supplies a rate, and say which request is served before which. State the one property each rule buys and the one it costs.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one list and one sum</em>. Every rule here produces a permutation of the queue; every question is either "what is your permutation" or "what does your permutation cost". The rules differ only in what they are allowed to look at — arrival order, distance, or direction — and the whole difficulty is bookkeeping: the physical end of the disk, the jump in the circular variants, and the request that sits exactly under the head.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 8 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>) lists Operating Systems as: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em> "I/O scheduling" is the clause covered here; the same clause is why the CPU lesson exists beside it.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One question-indexed archive tags 15 GATE CSE Operating Systems questions to disk scheduling between 1999 and 2020, and lists 2020, 2018, 2017, 2016, 2015, 2014, 2009, 2007, 2004 and 1999 among the years. That is one archive's tagging of its own index, not an official count and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted in this lesson carries its year and set, and every numerical answer was recomputed by the model on this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Absolute value and summing gaps.</strong> Every total in this topic is $$\sum |c_{i+1} - c_i|$$ — the sum of the distances between consecutive cylinders, never the sum of the cylinder numbers.</li>
+            <li><strong>A line of numbers as a picture of a disk.</strong> Cylinders are integers on a line from 0 to the last cylinder. The head is a point on it that moves.</li>
+            <li><strong>Average of a rotation.</strong> A sector is equally likely to be anywhere, so the expected wait for it is half a rotation. Built in <a href="../cpu-scheduling/index.html">CPU Scheduling</a> only as far as averages go; the rotation itself is defined on the Build-up tab here.</li>
+            <li><strong>What a seek is, in hardware terms.</strong> The arm moves in one dimension only. Sector and platter numbers never change the seek distance — they are why rotational latency and head switching exist, which is a different cost.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing from file systems is assumed. Where a question needs the block-to-cylinder mapping, it is stated: a block maps to exactly one cylinder, and that is all the scheduler needs.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument. The picture is a <em>head-movement profile</em>: time runs left to right as cumulative movement, and the vertical axis is the cylinder the head is on. Every diagonal is a real journey.</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Geometry and access time.</strong> Seek 10 ms, rotation 4.17 ms, transfer 0.04 ms — and only the first is a decision.</li>
+            <li><strong>FCFS.</strong> The reference queue, 640 cylinders, and the two crossings that cost it.</li>
+            <li><strong>SSTF.</strong> 236 on the same queue, and the far request that is served last.</li>
+            <li><strong>Greedy is not optimal.</strong> Four requests, 139 against 118.</li>
+            <li><strong>SCAN.</strong> 331, including 16 cylinders of travel that serve nothing.</li>
+            <li><strong>C-SCAN.</strong> 382, of which the jump is more than half.</li>
+            <li><strong>LOOK and C-LOOK.</strong> 299, 322, and GATE 2016's 346.</li>
+            <li><strong>GATE 2015.</strong> 130 against 140, and why the key is 10.</li>
+            <li><strong>Cost models.</strong> GATE 2018's 85 mW, from 200 cylinders and 3 reversals.</li>
+            <li><strong>The procedure.</strong> Five steps and five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Every policy is a permutation of the queue plus a sum of absolute differences. Write the order down first; the total is a reading of it.</li>
+            <li>SSTF is greedy and is not optimal: on head 50 with requests 11, 40, 60 and 90 it travels 139 where 118 is possible. It can also starve a request indefinitely.</li>
+            <li>SCAN holds a direction to the <em>physical end</em> of the disk; LOOK reverses at the <em>last request</em>. That single difference is 331 against 299 on the reference queue.</li>
+            <li>C-SCAN and C-LOOK jump back without serving anything, and the jump is charged. On the reference queue it is 199 of C-SCAN's 382 cylinders.</li>
+            <li>Movement is not the only score. A question can charge per cylinder, per reversal, or per millisecond, and the cheapest schedule can change between those models.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 60–80 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. The 0.1 ms-per-cylinder seek and the 100 MB/s transfer rate in scene 1 are stated parameters for arithmetic, not measurements of any drive. Historical frequency figures are one archive's tagging, not a prediction. The 2015 item's published key is 10 and the paper's word "additional" is ambiguous in the direction it names; that ambiguity is discussed rather than smoothed over. This lesson covers disk scheduling only — it does not teach disk hardware construction, RAID, or the file-system layout questions that share the same paper section.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: a lift that only goes up until the top floor</h3>
+              <p>A building has floors 0 to 199 and one lift. People press buttons. The lift's motor is slow, and every floor it passes costs the same whether it stops or not. The question is what rule the lift follows.</p>
+              <p class="small"><strong>Rule one, first come first served:</strong> answer the buttons in the order they were pressed. A press for floor 183, then one for floor 37, sends the lift up and straight back down, and the person at 65 waits through both trips.</p>
+              <p class="small"><strong>Rule two, nearest first:</strong> always go to the closest pressed button. The lift never travels far in one go, and total travel falls a lot — but the person at 183 is only ever served if no nearer button appears, and on a busy day it never does.</p>
+              <p class="small"><strong>Rule three, the elevator rule:</strong> keep going up until the top floor, then keep going down until the bottom. Everyone is served within two sweeps. The cost is that the lift visits the top floor even when nobody asked for it.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the mechanism exactly: one moving object, positions on a line, a cost per unit of travel, and rules that differ only in what they are allowed to look at. It does not carry the timing: a real disk also waits for rotation, which the lift has no analogue for.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal statement</h3>
+              <p class="small">A disk has cylinders numbered from $$L$$ (lowest) to $$H$$ (highest). A <em>request</em> is a cylinder number in that range. The <em>head</em> is at some cylinder $$h$$. A schedule is an ordering $$c_1, \dots, c_n$$ of the pending requests, and its cost in head movement is</p>
+              <p class="small formula">$$\text{movement} = |c_1 - h| + \sum_{i=1}^{n-1} |c_{i+1} - c_i|$$<span class="gloss">the distance from the head to the first request, plus every distance between consecutive requests</span></p>
+              <p class="small" style="margin-bottom:0">A <em>seek</em> is the arm moving between cylinders. If one cylinder of travel costs $$s$$ milliseconds, seek time is $$s \times \text{movement}$$. Nothing in the definition mentions time of arrival unless the rule being defined uses it — FCFS does, and the other five do not.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Access time, term by term</h3>
+              <p class="small"><strong>Seek time:</strong> the arm moves to the right cylinder. Proportional to the distance in cylinders, at a rate the question states.</p>
+              <p class="small"><strong>Rotational latency:</strong> the right sector rotates under the head. At $$r$$ rotations per second the full turn takes $$1/r$$, and the average wait is $$1/(2r)$$ because the sector is equally likely to be anywhere. At 7200 rpm that is 8.33 ms per turn and 4.17 ms on average.</p>
+              <p class="small"><strong>Transfer time:</strong> the bytes move. Size divided by transfer rate; 4 KB at 100 MB/s is about 0.04 ms.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The three add. With the stated parameters a 100-cylinder access is $$10 + 4.17 + 0.04 = 14.21$$ ms, and the seek is 70% of it. That dominance is the entire justification for a scheduler that only reorders.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The two families, in one line each</h3>
+              <p class="small"><strong>Position-based:</strong> FCFS looks at arrival, SSTF at distance. Neither has a direction, so neither can guarantee a bound on waiting.</p>
+              <p class="small"><strong>Direction-based:</strong> SCAN, C-SCAN, LOOK and C-LOOK all hold a direction and sweep. The sweep is what bounds the wait; the difference between the four is where the head turns round and whether the return trip serves anything.</p>
+              <p class="small" style="margin-bottom:0">Every question in this topic is answerable from those two sentences plus the arithmetic. If a rule has no direction, it cannot bound starvation; if it has a direction, the direction must be stated.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The six rules, stated precisely</h3>
+              <p class="small" style="margin-bottom:0">Read these as algorithms, not descriptions. Each one takes the same three inputs — the pending set, the head position, and for the last four a direction — and returns an order.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>FCFS</h3>
+              <p class="small" style="margin-bottom:0">Serve the requests in the order they appear in the question. Ignore distance entirely. Never preempts, never reorders. Bound on waiting: one pass of the queue.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>SSTF</h3>
+              <p class="small" style="margin-bottom:0">Serve the pending request with the smallest $$|c - h|$$, move the head there, remove it, repeat. Ties need a stated rule; this lesson breaks a tie toward the lower cylinder and says so wherever it matters. Bound on waiting: none.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>SCAN (elevator)</h3>
+              <p class="small" style="margin-bottom:0">Hold the direction. Serve every request met on the way. Continue to the physical end of the disk ($$H$$ going up, $$L$$ going down) even with nothing pending there, then reverse and serve on the way back.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>C-SCAN</h3>
+              <p class="small" style="margin-bottom:0">Hold the direction, serve on the way, go to the physical end, then jump to the other end ($$H \to L$$ going up) without serving anything, and sweep in the same direction again. The jump is real movement and is charged.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>LOOK</h3>
+              <p class="small" style="margin-bottom:0">SCAN, except the head reverses at the last pending request in its direction rather than at the physical end. It "looks" for requests before turning. Same service order as SCAN, smaller total.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>C-LOOK</h3>
+              <p class="small" style="margin-bottom:0">C-SCAN, except the head reverses at the last pending request and jumps to the <em>lowest pending request</em> — not to $$L$$ — then sweeps in the same direction.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The one-line summary of the whole family</h3>
+              <p class="small" style="margin-bottom:0">SCAN and C-SCAN pay for a guarantee with a trip to the end of the disk; LOOK and C-LOOK keep the guarantee and drop the trip. Circular versions pay for uniform waiting with a jump that serves nothing. Everything else is arithmetic on the resulting order.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="pager">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="small muted" data-pager-count>Page 1 of 2</span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A disk is a stack of concentric tracks, and one arm reads all of them.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A stack of tracks, and the three parts of one access</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A disk is a stack of concentric tracks, and one arm reads all of them.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 — the reference queue, all six rules</h3>
+              <p class="small" style="margin-bottom:0">Cylinders 0 to 199, head at 53, pending requests <code>98, 183, 37, 122, 14, 124, 65, 67</code> in that arrival order. This is the queue the standard textbook example uses, and every total below was computed by the model on this page, then re-checked as the sum of its own legs.</p>
+            </div>
+
+            <div class="card">
+              <h3>The six totals</h3>
+              <table class="small" style="width:100%; border-collapse:collapse">
+                <tr><th style="text-align:left">Rule</th><th style="text-align:left">Service order</th><th style="text-align:right">Cylinders</th></tr>
+                <tr><td>FCFS</td><td>98, 183, 37, 122, 14, 124, 65, 67</td><td style="text-align:right">640</td></tr>
+                <tr><td>SSTF</td><td>65, 67, 37, 14, 98, 122, 124, 183</td><td style="text-align:right">236</td></tr>
+                <tr><td>SCAN up</td><td>65, 67, 98, 122, 124, 183, <em>199</em>, 37, 14</td><td style="text-align:right">331</td></tr>
+                <tr><td>SCAN down</td><td>37, 14, <em>0</em>, 65, 67, 98, 122, 124, 183</td><td style="text-align:right">236</td></tr>
+                <tr><td>C-SCAN up</td><td>65, 67, 98, 122, 124, 183, <em>199, 0</em>, 14, 37</td><td style="text-align:right">382</td></tr>
+                <tr><td>LOOK up</td><td>65, 67, 98, 122, 124, 183, 37, 14</td><td style="text-align:right">299</td></tr>
+                <tr><td>C-LOOK up</td><td>65, 67, 98, 122, 124, 183, 14, 37</td><td style="text-align:right">322</td></tr>
+              </table>
+              <p class="small" style="margin:8px 0 0">Italic entries are the ends of the disk, visited with nothing pending there. The best order over all 8! permutations is 208, so no rule here is optimal — and the 208 happens to be LOOK downward's total on this queue.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Why SCAN downward and SSTF tie at 236</h3>
+              <p class="small">SCAN downward: 53 down to 0 is 53, then 0 up to 183 is 183, total 236. SSTF happens to reach 236 by a completely different route. A coincidence of this queue, not a property.</p>
+              <p class="small" style="margin-bottom:0">This is worth internalising because a remembered number can look like understanding. Change one request and the two separate immediately; the arithmetic does not.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Counterexample: SSTF is not optimal</h3>
+              <p class="small">Head at 50, requests 11, 40, 60, 90. SSTF goes 40, 60, 90, 11 with legs 10, 20, 30, 79 — total 139. The order 11, 40, 60, 90 has legs 39, 29, 20, 30 — total 118.</p>
+              <p class="small" style="margin-bottom:0">The greedy rule minimised each step and lost by 21 cylinders, because the last leg is chosen for it. This is why "SSTF minimises total head movement" is a false statement, and why a question asking for the minimum needs an argument.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 2 — GATE CSE 2015 Set 1, Q30</h3>
+              <p class="small" style="margin-bottom:0">"Suppose the following disk request sequence (track numbers) for a disk with 100 tracks is given: 45, 20, 90, 10, 50, 60, 80, 25, 70. Assume that the initial position of the R/W head is on track 50. The additional distance that will be traversed by the R/W head when SSTF is used compared to SCAN (assuming SCAN moves towards 100 when it starts execution) is ______ tracks." Numerical answer item.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 1 — SSTF, with the head request included</h3>
+              <p class="small">From 50: distances are 5 to 45, 30 to 20, 40 to 90, 40 to 10, <strong>0 to 50</strong>, 10 to 60, 30 to 80, 25 to 25, 20 to 70. The nearest is 50 itself, so it is served first at zero cost.</p>
+              <p class="small" style="margin-bottom:0">Order 50, 45, 60, 70, 80, 90, 25, 20, 10 with legs 0, 5, 15, 10, 10, 10, 65, 5, 10, total <strong>130</strong>.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 2 — SCAN upward, with the trip to 100</h3>
+              <p class="small">Moving toward 100, it serves 60, 70, 80, 90, then continues to track 100 because SCAN goes to the end, then reverses through 45, 25, 20, 10.</p>
+              <p class="small" style="margin-bottom:0">Climb 50 to 100 is 50; return 100 to 10 is 90; total <strong>140</strong>. Legs 50, 10, 10, 10, 10, 55, 20, 5, 10.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Step 3 — the answer, and the ambiguity</h3>
+              <p class="small">The gap is $$|130 - 140| = 10$$, and the published key is <strong>10</strong>. Read strictly, SSTF travels ten cylinders <em>fewer</em>, so the word "additional" names the wrong direction; the key takes the magnitude, which is what a numerical answer item can accept.</p>
+              <p class="small" style="margin-bottom:0">Two other numbers are close enough to tempt: LOOK would give 120, so a LOOK/SSTF gap would be 10 as well — by coincidence — and dropping the request at 50 changes SSTF to 130 anyway, since its leg is zero.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>What the three wrong answers look like</h3>
+              <p class="small">Answering 120 or 130 comes from using LOOK's turning point or from stopping SCAN at the last request. Answering 0 comes from reading "additional" literally and rounding a negative up to zero. Answering 20 comes from charging the return trip twice.</p>
+              <p class="small" style="margin-bottom:0">All three are bookkeeping errors, not conceptual ones — which is the pattern across this topic.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 3 — GATE CSE 2016 Set 1, Q48 (C-LOOK) and GATE CSE 2018 Set 1 (power)</h3>
+              <p class="small" style="margin-bottom:0">Two items that look different and are the same procedure: write the order, then apply the cost model the question names.</p>
+            </div>
+
+            <div class="card">
+              <h3>2016: C-LOOK from 63</h3>
+              <p class="small">Queue 47, 38, 121, 191, 87, 11, 92, 10 on cylinders 0 to 199, head at 63 moving toward larger numbers.</p>
+              <p class="small">Climb: 87, 92, 121, 191. Then C-LOOK jumps to the <em>smallest pending request</em>, which is 10, and climbs again: 11, 38, 47.</p>
+              <p class="small" style="margin-bottom:0">Legs $$24 + 5 + 29 + 70 + 181 + 1 + 27 + 9 = 346$$. The jump alone is 181, more than half the answer. Jumping to 0 instead of 10 would give 356; that is the trap.</p>
+            </div>
+
+            <div class="card">
+              <h3>2018: SSTF, scored in power</h3>
+              <p class="small">Cylinders 72, 134, 20, 86, 116, 16; head at 80. SSTF order 86, 72, 116, 134, 20, 16 with legs 6, 14, 44, 18, 114, 4 — 200 cylinders.</p>
+              <p class="small">Directions: up, down, up, up, down, down. Reversals at 86, at 72 and at 134 — <strong>3</strong>. The starting direction is given, so the first move is not a reversal.</p>
+              <p class="small" style="margin-bottom:0">Power $$= 200/100 \times 20 + 3 \times 15 = 40 + 45 = 85$$ mW. The sector and platter numbers in the question are decoration.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Worked example 4 — GATE CSE 2014 Set 1, Q19</h3>
+              <p class="small">201 cylinders numbered 0 to 200, arm at 100, queue 30, 85, 90, 100, 105, 110, 135, 145. SSTF: when is cylinder 90 served?</p>
+              <p class="small">From 100 the nearest is 100 itself — the head is already there, distance 0 — then 105 (5), then 110 (5). From 110, 90 is 20 away and 85 is 25, so 90 is next.</p>
+              <p class="small" style="margin-bottom:0">Order 100, 105, 110, <strong>90</strong>, 85, 135, 145, 30. Cylinder 90 is served fourth, so <strong>after 3 requests</strong>. Missing the request at 100 gives 2; that is the whole question.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>The pattern behind all four</h3>
+              <p class="small" style="margin-bottom:0">Nothing here needed a new idea. Each item was: fix the four facts (range, head, direction, whether the head cylinder is in the queue), write the order by the named rule, sum the absolute differences, then convert to the unit asked. The exam varies the rule and the cost model, not the procedure.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="pager">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="small muted" data-pager-count>Page 1 of 3</span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the definitions bite</h3>
+          <p class="small" style="margin-bottom:0">Each card is a boundary case, the condition it violates, and the value it produces. These are the cases that separate a remembered formula from a computed answer.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case: the request under the head</h3>
+          <p class="small">If a request equals the head cylinder it is served first in SSTF at zero cost, and it is still a request. GATE 2015's queue contains 50 with the head at 50, and GATE 2014's contains 100 with the arm at 100.</p>
+          <p class="small" style="margin-bottom:0">Dropping it changes neither the total (its leg is 0) but it changes the <em>order</em>, and GATE 2014 asks about the order. That is why it is dangerous.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case: the last request is at the end of the disk</h3>
+          <p class="small">If the highest pending request is 199, then LOOK and SCAN agree exactly, and C-LOOK and C-SCAN agree exactly. The distinction is real but invisible on that particular queue.</p>
+          <p class="small" style="margin-bottom:0">So "SCAN = LOOK here" is true for that queue and false as a rule. A question that puts a request at the end is testing whether you noticed, not whether you memorised.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case: no request on one side of the head</h3>
+          <p class="small">Head at 150 moving up, every request below 150. SCAN climbs to 199, serves nothing, and comes all the way back: 49 cylinders of travel that served nothing before the first request. LOOK turns at once and costs 0 for that phase.</p>
+          <p class="small" style="margin-bottom:0">The same asymmetry is why a downward SCAN and an upward SCAN on one queue give different totals — 331 against 236 on the reference queue.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case: the jump in the circular variants</h3>
+          <p class="small">C-SCAN's jump is exactly $$H - L$$ (199 here). C-LOOK's jump is $$(\text{highest pending}) - (\text{lowest pending})$$, which is usually smaller: 169 against 199 on the reference queue.</p>
+          <p class="small" style="margin-bottom:0">Both are charged. A question that says "ignore the return movement" is asking for a different, non-standard quantity and must say so.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Edge case: a disk numbered 1 to 100</h3>
+          <p class="small">GATE 2015's queue is on "100 tracks", and the request set contains 10 and 90 but nothing at 100 or 1. If the numbering is 0 to 99, upward SCAN goes to 99 and the total is 138; if it is 1 to 100, upward SCAN goes to 100 and the total is 140.</p>
+          <p class="small" style="margin-bottom:0">The published key of 10 requires 140, so the paper reads the tracks as 1 to 100. This is a genuine ambiguity in the wording and it is worth noticing rather than memorising.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Edge case: ties in SSTF</h3>
+          <p class="small">Two requests equidistant from the head, or two arrivals in the same instant, make the schedule non-unique. On the reference queue no tie arises, which is why the total is safe to quote.</p>
+          <p class="small" style="margin-bottom:0">Where a tie does arise, an option list may contain both totals. The rule: the question must state a tie-break, and if it does not, say which one you used.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case: one request, or none</h3>
+          <p class="small">One request: movement is the distance from the head to it, and every policy gives that. No requests: movement is 0 and the head does not move — SCAN still has a direction, but with nothing pending there is nothing to sweep.</p>
+          <p class="small" style="margin-bottom:0">These are worth stating because a formula like "distance to the end plus distance back" has to be read as 0 rather than as a negative.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Edge case: the units</h3>
+          <p class="small">Cylinders, milliseconds, milliwatts, or "number of requests serviced before X" — four different quantities, all derived from the same order. Converting mid-sum is how 346 becomes 350.</p>
+          <p class="small" style="margin-bottom:0">Do the whole sum in cylinders, then multiply once. If a per-reversal charge exists, count reversals from the order, not from the picture.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that cost marks</h3>
+          <p class="small" style="margin-bottom:0">Each card states the wrong belief, why it is tempting, the smallest case that refutes it, and the rule that replaces it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "SSTF minimises total head movement"</h3>
+          <p class="small"><em>Tempting because</em> the name says shortest, and on the standard queue it beats FCFS by 404 cylinders.</p>
+          <p class="small"><em>Refuted by</em> head 50 with requests 11, 40, 60, 90: SSTF travels 139, the order 11, 40, 60, 90 travels 118.</p>
+          <p class="small" style="margin-bottom:0"><em>Rule:</em> SSTF minimises the next step only. It is a heuristic; the minimum over all orders needs its own argument.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "SCAN and LOOK are the same thing"</h3>
+          <p class="small"><em>Tempting because</em> the service order is identical on most queues, and the two names are used loosely.</p>
+          <p class="small"><em>Refuted by</em> the reference queue: LOOK 299, SCAN 331, a gap of 32 cylinders that served nothing.</p>
+          <p class="small" style="margin-bottom:0"><em>Rule:</em> SCAN turns at the physical end of the disk; LOOK turns at the last pending request.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "The C-SCAN return jump is free"</h3>
+          <p class="small"><em>Tempting because</em> nothing is read during the return, so it can feel like a reset.</p>
+          <p class="small"><em>Refuted by</em> the arithmetic: the jump is 199 of C-SCAN's 382 cylinders on the reference queue.</p>
+          <p class="small" style="margin-bottom:0"><em>Rule:</em> the arm physically travels the range. Movement is charged whether or not a request is served.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Average rotational latency is one full rotation"</h3>
+          <p class="small"><em>Tempting because</em> the rpm gives a rotation period directly and the half factor is easy to drop.</p>
+          <p class="small"><em>Refuted by</em> 7200 rpm: 8.33 ms per turn, 4.17 ms on average. Using 8.33 doubles every latency in the answer.</p>
+          <p class="small" style="margin-bottom:0"><em>Rule:</em> average wait is half a rotation, $$1/(2r)$$, because the sector is equally likely to be anywhere.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "More requests means more movement"</h3>
+          <p class="small"><em>Tempting because</em> each request is another stop.</p>
+          <p class="small"><em>Refuted by</em> adding a request at a cylinder the head already passes: the total is unchanged, and adding the head's own cylinder adds exactly 0.</p>
+          <p class="small" style="margin-bottom:0"><em>Rule:</em> movement is set by the spread of the set and the order, not by the count.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "The minimum-movement schedule also minimises time and power"</h3>
+          <p class="small"><em>Tempting because</em> seek time is proportional to movement, so the two look identical.</p>
+          <p class="small"><em>Refuted by</em> GATE 2018's model, which charges 15 mW per reversal: a schedule with slightly more movement and one fewer reversal can win.</p>
+          <p class="small" style="margin-bottom:0"><em>Rule:</em> read which quantity is being scored before choosing a policy.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. "The order does not matter, only the total"</h3>
+          <p class="small"><em>Tempting because</em> most questions ask for a number.</p>
+          <p class="small"><em>Refuted by</em> GATE 2020, which asks which statement about the order is false, and GATE 2014, which asks which request is served third.</p>
+          <p class="small" style="margin-bottom:0"><em>Rule:</em> write the order down every time. It costs one line and it answers half the questions in the topic.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six shapes of question, and the reasoning each demands</h3>
+          <p class="small" style="margin-bottom:0">Every item in this topic is one of these. The procedure is the same in all six; what changes is which line of the order the question reads.</p>
+        </div>
+
+        <div class="card">
+          <h3>1. Total head movement under a named rule</h3>
+          <p class="small">The default. Write the order, sum the absolute differences, report cylinders.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> summing the destinations, or omitting the physical-end visit or the jump.</p>
+        </div>
+
+        <div class="card">
+          <h3>2. Identify the algorithm from a service order</h3>
+          <p class="small">Look at the shape: monotone then reverse means SCAN or LOOK; a single long jump in the same direction means C-SCAN or C-LOOK; no pattern means FCFS or SSTF.</p>
+          <p class="small" style="margin-bottom:0"><em>Discriminator:</em> whether the head turned at the disk end or at a request, and whether anything was served on the return.</p>
+        </div>
+
+        <div class="card">
+          <h3>3. Which request is served k-th</h3>
+          <p class="small">Only the order answers this. GATE 2014 asks it with a request sitting exactly under the arm.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> computing a total and reading a position off it.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. True/false statements about the order</h3>
+          <p class="small">GATE 2020's form: five requests, SSTF, which statement is false. Produce the order once, then test each claim against it.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> checking only the first two services and guessing.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. A cost model that is not distance</h3>
+          <p class="small">Time per cylinder, power per hundred cylinders plus power per reversal, or a stated seek-time function. Convert once, at the end.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> counting the starting direction as a reversal, or letting sector numbers into the distance.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. Comparison of two rules on one queue</h3>
+          <p class="small">GATE 2015's form: the gap between SSTF and SCAN. Compute both totals on the same queue and subtract.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> reusing the first rule's order for the second, or assuming the gap is signed.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The four facts to extract from any question stem</h3>
+          <p class="small" style="margin-bottom:0">The cylinder range (and whether it starts at 0 or 1), the head position, the starting direction when the rule has one, and whether the head's own cylinder appears in the queue. Every wrong answer in this topic is traceable to one of those four being misread, and none of them is a conceptual error.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 1 of 3 — previous-year items</h3>
+              <p class="small" style="margin-bottom:0">Learning mode: each answer is hidden until you reveal it. Every answer here was recomputed by the simulation on this page. Switch on mock mode to hide all answers and reveal them together at the end.</p>
+              <p class="small" style="margin-top:8px">
+                <label><input type="checkbox" id="mock-toggle"> Mock-test mode (hide answers until submit)</label>
+                <button class="btn" id="mock-submit" hidden>Submit and reveal all</button>
+              </p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2020</span></div>
+              <div class="q-body">
+                <p>Five requests (P, 155), (Q, 85), (R, 110), (S, 30), (T, 115) are pending. The head is at cylinder 100 and SSTF is used. Which statement is <strong>FALSE</strong>?</p>
+                <p class="small">(A) T is serviced before P. (B) Q is serviced after S, but before T. (C) The head reverses direction between servicing Q and P. (D) R is serviced before P.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B)</span></p>
+                  <p class="small">Order: R (110), T (115), Q (85), S (30), P (155). Distances from 100: R 10, T 15, Q 15, S 70, P 55; from 110, T is 5. Total movement 225.</p>
+                  <p class="small" style="margin-bottom:0">Q is served third, T second and S fourth, so Q is after T and before S — the reverse of what B claims. (A), (C) and (D) all hold on the computed order.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2014 Set 1, Q19</span></div>
+              <div class="q-body">
+                <p>A disk has 201 cylinders numbered 0 to 200. The arm is at cylinder 100 and the queue is 30, 85, 90, 100, 105, 110, 135, 145. Under SSTF, the request for cylinder 90 is serviced after servicing ______ requests.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 3</span></p>
+                  <p class="small">Order: 100, 105, 110, 90, 85, 135, 145, 30. The request at 100 is the head position and is served first at zero cost, then 105, then 110; 90 is fourth.</p>
+                  <p class="small" style="margin-bottom:0">Answering 2 is the standard error: it comes from ignoring the request that equals the head position.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2016 Set 1, Q48</span></div>
+              <div class="q-body">
+                <p>Requests for cylinders 47, 38, 121, 191, 87, 11, 92, 10. C-LOOK is used, the head is at cylinder 63 moving toward larger numbers, and cylinders are numbered 0 to 199. Total head movement in cylinders is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 346</span></p>
+                  <p class="small">Climb 87, 92, 121, 191; jump to the smallest pending request 10; climb 11, 38, 47. Legs 24 + 5 + 29 + 70 + 181 + 1 + 27 + 9 = 346.</p>
+                  <p class="small" style="margin-bottom:0">Jumping to 0 instead of 10 gives 356. Jumping to 199 first and treating it as C-SCAN gives 191 + 199 + 47, which is not an option because the jump is to the lowest <em>request</em>.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2015 Set 1, Q30</span></div>
+              <div class="q-body">
+                <p>Disk of 100 tracks, request sequence 45, 20, 90, 10, 50, 60, 80, 25, 70, head initially at track 50. The additional distance traversed by SSTF compared with SCAN, with SCAN moving toward 100, is ______ tracks.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 10</span></p>
+                  <p class="small">SSTF: 50, 45, 60, 70, 80, 90, 25, 20, 10 with legs 0, 5, 15, 10, 10, 10, 65, 5, 10 = 130. SCAN upward: climb 50 to 100 = 50, return 100 to 10 = 90, total 140.</p>
+                  <p class="small" style="margin-bottom:0">The gap is 10, and the key is the magnitude. Note the word "additional" names the opposite direction to the arithmetic; LOOK would give 120, and SCAN over 0 to 99 would give 138.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2018 Set 1</span></div>
+              <div class="q-body">
+                <p>A disk has 200 cylinders 0 to 199. Requests arrive at cylinders 72, 134, 20, 86, 116, 16; the head is at cylinder 80. Power is 20 mW per 100 cylinders of movement and 15 mW per reversal of direction. Under SSTF, total power in mW is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 85</span></p>
+                  <p class="small">SSTF order 86, 72, 116, 134, 20, 16 with legs 6, 14, 44, 18, 114, 4 = 200 cylinders. Directions up, down, up, up, down, down: reversals at 86, 72, 134, so 3.</p>
+                  <p class="small" style="margin-bottom:0">Power = 200/100 × 20 + 3 × 15 = 40 + 45 = 85. Counting the initial direction as a reversal gives 100; counting only 2 reversals gives 70.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 2 of 3 — original questions</h3>
+              <p class="small" style="margin-bottom:0">These are written for this lesson, not taken from a paper, and are labelled as original. They use the reference queue of worked example 1: cylinders 0 to 199, head at 53, requests 98, 183, 37, 122, 14, 124, 65, 67.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>On the reference queue with the head at 53 moving toward <em>lower</em> cylinders, SCAN is used on cylinders 0 to 199. Total head movement in cylinders is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 236</span></p>
+                  <p class="small">Downward: 53 to 37 to 14, then to 0 (the end), then up through 65, 67, 98, 122, 124, 183. Movement = 53 + 183 = 236.</p>
+                  <p class="small" style="margin-bottom:0">236 is also SSTF's total on this queue. That is a coincidence of this request set, and the coincidence is exactly what a careless answer relies on.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>GATE 2016's queue — 47, 38, 121, 191, 87, 11, 92, 10, head at 63 moving toward larger numbers, cylinders 0 to 199 — is served by <strong>LOOK</strong> instead of C-LOOK. Total head movement in cylinders is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 309</span></p>
+                  <p class="small">Climb 87, 92, 121, 191, then reverse and serve on the way down: 47, 38, 11, 10. Legs 24 + 5 + 29 + 70 + 144 + 9 + 27 + 1 = 309.</p>
+                  <p class="small" style="margin-bottom:0">The difference from C-LOOK's 346 is the shape of the turn: LOOK serves on the return (144 + 9 + 27 + 1), C-LOOK jumps without serving (181) and climbs again (1 + 27 + 9).</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Easy</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>Which of the following are true of rotational latency?</p>
+                <p class="small">(A) On average it is half a rotation. (B) It doubles when the rotation speed doubles. (C) It is unaffected by the order in which requests are served. (D) At 7200 rpm the average is about 4.17 ms.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A), (C) and (D)</span></p>
+                  <p class="small">Average wait is $$1/(2r)$$ because the sector is equally likely to be anywhere. Nothing a scheduler does changes how long the platter takes to come round.</p>
+                  <p class="small" style="margin-bottom:0">(B) is false: doubling the speed <em>halves</em> the latency, since period and rate are inversely related.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>Which statement about disk scheduling is TRUE?</p>
+                <p class="small">(A) SSTF always achieves the minimum possible total head movement. (B) FCFS can starve a request indefinitely. (C) C-SCAN charges movement for the return trip even though nothing is served on it. (D) LOOK always travels further than SCAN.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C)</span></p>
+                  <p class="small">(C) is the definition: the jump is physical travel and is counted — 199 of C-SCAN's 382 cylinders on the reference queue.</p>
+                  <p class="small" style="margin-bottom:0">(A) is refuted by 139 against 118. (B) is false: FCFS serves everything within one pass of the queue. (D) is backwards: LOOK ≤ SCAN always, because it stops at the last request instead of the end.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 3 of 3 — traps and a distinction</h3>
+              <p class="small" style="margin-bottom:0">The last three items test the two things this topic gets wrong most often: a closely confused pair, and a cost model that is not distance.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>Head at 53, requests 98, 183, 37, 122, 14, 124, 65, 67, cylinders 0 to 199. Which pair of rules produces the <em>same service order</em> but <em>different totals</em>?</p>
+                <p class="small">(A) FCFS and SSTF &nbsp; (B) SCAN upward and LOOK upward &nbsp; (C) SCAN upward and C-SCAN &nbsp; (D) SSTF and C-LOOK</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B)</span></p>
+                  <p class="small">Both serve 65, 67, 98, 122, 124, 183, 37, 14 in that order. SCAN additionally travels to 199 and back, so 331 against LOOK's 299.</p>
+                  <p class="small" style="margin-bottom:0">This is the cleanest statement of the SCAN/LOOK distinction: the orders agree, the movement does not, and the gap is exactly the useless trip. (C) differs in order because C-SCAN does not serve on the return.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>A disk rotates at 6000 rpm and one cylinder of seek costs 0.2 ms. A request needs a 50-cylinder seek and transfers 8 KB from a drive that moves 50 MB per second. Average access time in milliseconds, rounded to two decimals, is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 15.16 ms</span></p>
+                  <p class="small">Seek 50 × 0.2 = 10.00 ms. Rotation period 60000/6000 = 10 ms, so average latency 5.00 ms. Transfer 8192 / (50 × 10<sup>6</sup>) = 0.164 ms.</p>
+                  <p class="small" style="margin-bottom:0">Total 10.00 + 5.00 + 0.16 = 15.16 ms. Using a full rotation instead of half gives 20.16; using 50 MB as 50 MiB gives 0.156 and the same rounded answer, which is worth knowing before spending time on the unit.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>Head at 100, cylinders 0 to 199, requests 60, 100, 140, 20. How many cylinders does <strong>C-LOOK</strong> travel if the head starts moving toward larger numbers?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 200</span></p>
+                  <p class="small">Order: 100 (the head's own cylinder, cost 0), 140, then the jump to the lowest pending request 20, then 60. Legs 0 + 40 + 120 + 40 = 200.</p>
+                  <p class="small" style="margin-bottom:0">C-SCAN on the same queue would be 99 up to 199, the 199-cylinder jump, then 60: 358. The 158-cylinder saving is exactly the difference between jumping to the end of the disk and jumping to the lowest request.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>How to use this set</h3>
+              <p class="small" style="margin-bottom:0">Attempt each item with the order written down before any arithmetic. If your total disagrees with the answer, the disagreement is almost always in the order — compare your sequence first, not your sum. Every one of these totals was recomputed from the service order before it was written here, which is the only check that catches a mis-ordered schedule.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="pager">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="small muted" data-pager-count>Page 1 of 3</span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything in this lesson that is worth carrying into the exam room. The numbers are from the reference queue: cylinders 0 to 199, head 53, requests 98, 183, 37, 122, 14, 124, 65, 67.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas</h3>
+          <p class="small formula">$$\text{movement} = |c_1 - h| + \sum |c_{i+1} - c_i|$$<span class="gloss">distance from the head to the first request, then between consecutive requests</span></p>
+          <p class="small formula">$$\text{access} = \text{seek} + \frac{1}{2r} + \frac{\text{bytes}}{\text{rate}}$$<span class="gloss">seek is distance × time per cylinder; the rotation term is half a turn</span></p>
+          <p class="small formula">$$\text{C-SCAN} = (H - h) + (H - L) + c_{\text{last after wrap}}$$<span class="gloss">climb to the end, the full-range jump, then the last request served after the wrap</span></p>
+          <p class="small formula" style="margin-bottom:0">$$\text{C-LOOK} = (c_{\max} - h) + (c_{\max} - c_{\min}) + (c_{\text{2nd}} - c_{\min})$$<span class="gloss">with $$c_{\min}$$ and $$c_{\max}$$ the lowest and highest pending requests</span></p>
+        </div>
+
+        <div class="card">
+          <h3>The six rules, one line each</h3>
+          <p class="small"><strong>FCFS</strong> — arrival order. 640 here. No starvation, longest travel.</p>
+          <p class="small"><strong>SSTF</strong> — nearest pending. 236 here. Greedy, not optimal, can starve.</p>
+          <p class="small"><strong>SCAN</strong> — sweep to the physical end, reverse, serve both ways. 331 up, 236 down.</p>
+          <p class="small"><strong>C-SCAN</strong> — sweep to the end, jump back without serving, sweep again. 382.</p>
+          <p class="small"><strong>LOOK</strong> — sweep to the last request, reverse, serve both ways. 299.</p>
+          <p class="small" style="margin-bottom:0"><strong>C-LOOK</strong> — sweep to the last request, jump to the lowest request, sweep again. 322.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>SCAN visits the end of the disk; LOOK does not. The gap is 32 cylinders here.</li>
+            <li>An unstated direction makes SCAN unanswerable — 331 against 236 here.</li>
+            <li>The C-SCAN and C-LOOK jump is charged; 199 of 382 here.</li>
+            <li>Average rotational latency is half a rotation, not one.</li>
+            <li>A request equal to the head position costs 0 but changes the order — and the order is often the question.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Properties worth remembering</h3>
+          <p class="small">LOOK ≤ SCAN and C-LOOK ≤ C-SCAN, always, because the only difference is a trip that serves nothing.</p>
+          <p class="small">The minimum over all orders is at most any policy's total; on the reference queue it is 208 and no named rule achieves it.</p>
+          <p class="small" style="margin-bottom:0">SSTF can starve; FCFS cannot; SCAN, C-SCAN, LOOK and C-LOOK bound the wait to about two sweeps, which is what "no starvation" means here.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Numbers to sanity-check against</h3>
+          <p class="small" style="margin-bottom:0">7200 rpm → 8.33 ms per turn, 4.17 ms average latency. 6000 rpm → 10 ms and 5 ms. GATE 2015 key 10; GATE 2014 key 3; GATE 2016 key 346; GATE 2018 key 85; GATE 2020 key (B). If your answer is off by exactly the jump or exactly one rotation, you know which line to re-read.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind. Official material is separated from textbook material, and community material is labelled as observation rather than proof.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> — the clause "CPU and I/O scheduling" in Section 8 (Operating Systems). Source for the Class A classification and for the scope boundary of this lesson.</p>
+          <p class="small" style="margin-bottom:0"><strong>Previous-year papers</strong> — the wording and data for 2014 Set 1 Q19, 2015 Set 1 Q30, 2016 Set 1 Q48, 2018 Set 1 (SSTF power) and 2020 (five requests, SSTF). Every numerical answer was recomputed by the model on this page; no answer was taken from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Textbook-level references</h3>
+          <p class="small"><strong>Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em></strong> — the mass-storage chapter: the access-time decomposition, the FCFS/SSTF/SCAN/C-SCAN/LOOK/C-LOOK catalogue, the starvation discussion, and the reference request queue used in scenes 2 to 7.</p>
+          <p class="small" style="margin-bottom:0"><strong>University operating-systems lecture notes</strong> — an Old Dominion University course page reproduces the same reference example and reports FCFS 640, SSTF 236 and C-SCAN 382, which agree with this page's computation. It also reports 208 for SCAN, which is the reverse-at-last-request schedule; a strict SCAN to cylinder 0 on that queue costs 236, and both numbers appear in this lesson with the difference explained.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">Two question-indexed archives and one discussion site, which agree with each other on the year, the set and the question number for the five previous-year items quoted here, and which are the source of the 15-question count reported on the Overview tab. That count is one archive's tagging of its own index.</p>
+          <p class="small" style="margin-bottom:0">Discussion threads for the 2015 item, which is where the ambiguity in the word "additional" is documented: several answers argue for 0 and the published key is 10. The disagreement is reported rather than resolved silently.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">The five previous-year items were checked against at least two independent reproductions each, and every answer was recomputed here; none was checked against a paper PDF. The 2015 item's track numbering (1 to 100 rather than 0 to 99) is inferred from the published key of 10 and is stated as an inference. The seek rate of 0.1 ms per cylinder and the transfer rate of 100 MB/s in scene 1 are teaching parameters, not measurements. The 2026 items in the same syllabus section are file-system and disk-hardware questions, not disk-scheduling questions, and are not used. This lesson does not cover disk construction, RAID levels, or disk-access-time questions that involve sector interleaving, which belong to the file-systems lesson.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
