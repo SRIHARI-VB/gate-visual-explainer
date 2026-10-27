@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I/O Interface, Interrupts and DMA — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">I/O Interface, Interrupts and DMA</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> I/O interface, interrupts and DMA — the clause <em>"I/O interface (interrupt and DMA)"</em>, which is the last uncovered item of GATE 2027 Section 3, Computer Organization and Architecture.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a device, say which of the three registers of its interface the CPU must touch and how often, and name the transfer method that follows. Place the five interrupt events in their one legal order, and distinguish the two independent jobs hidden in "interrupt handling" — naming the source and ranking the sources. Given a DMA controller, compute the number of bus acquisitions for a file from a count-register width, and the CPU time a transfer costs from a clock rate, a stolen-cycle fraction and a word width.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one question asked three times</em>. An interface is three registers on the bus. Programmed I/O has the CPU drive the data register every time; interrupt-driven I/O has the CPU drive it only when called; DMA has a controller drive it while the CPU pays at the two ends. Every definition and every numerical question in this area is that sentence at a different scale. Nothing here repeats the memory or cache lessons: mapping, tags and average access time live there.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 3 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: <em>"Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards."</em> The clause was read in the syllabus PDF listing for this repository's coverage tracker.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One topic-indexed PYQ archive lists 13 questions under this heading across 2011–2026, totalling 16 marks, and reports about 0.6 marks per paper. That is one archive's own tagging and counting; it is not an official weightage and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted carries its year, set and question number, and every answer was recomputed here rather than copied.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>The idea of a bus and a register.</strong> A set of wires one master drives at a time, and a small named storage location inside a chip.</li>
+            <li><strong>What a decoder is.</strong> An <em>n</em>-input, 2<sup>n</sup>-output part asserting exactly one line. Built and counted in <a href="../combinational-circuits/index.html">Design of Combinational Circuits</a>.</li>
+            <li><strong>Address space as a count.</strong> An <em>k</em>-bit address names 2<sup>k</sup> locations. That is the whole arithmetic of memory-mapped I/O.</li>
+            <li><strong>Rates, intervals and their reciprocals.</strong> A device at <em>r</em> words per second delivers one word every 1/<em>r</em> seconds. Used throughout, and treated in <a href="../memory-hierarchy-and-cache/index.html">Memory Hierarchy and Cache</a> for the same reason.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing from <a href="../memory-interfacing-and-interleaving/index.html">Memory Interfacing and Interleaving</a> is assumed, but that lesson's bank schedule is the same overlap reasoning this one uses for cycle stealing, and the two are designed to be read in either order.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>The interface.</strong> Three registers between a CPU and a device, and the one question they pose.</li>
+            <li><strong>Two names.</strong> One address space against two, drawn to scale, with the 65536 and 65280.</li>
+            <li><strong>Polling.</strong> The ask-again loop, and the CPU occupancy bar at 100 per cent.</li>
+            <li><strong>Five events.</strong> The forced order Q, P, T, R, S and the offered wrong order.</li>
+            <li><strong>Naming against ranking.</strong> Vectored, non-vectored, daisy chain, software polling, and maskability as a third axis.</li>
+            <li><strong>DMA.</strong> Three registers, the BR/BG handshake, and one bus master at a time.</li>
+            <li><strong>Three schedules.</strong> Burst, cycle stealing and transparent as three Gantt charts on one axis.</li>
+            <li><strong>Four formulas.</strong> Throughput, interrupt fraction, interrupt gain, and the disk's 26.2 against 25.</li>
+            <li><strong>The count register.</strong> 65536 bytes, 455.53 transfers, 456 acquisitions, and the 3502 against 1020.</li>
+            <li><strong>The recipe.</strong> Four steps and five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>An interface is three registers. Every I/O method is an answer to who drives the data register.</li>
+            <li>Memory-mapped I/O spends address space; isolated I/O spends instructions and one control line. Neither spends nothing.</li>
+            <li>Polling has no separate overhead, because the CPU never leaves the loop. Its cost per byte is the whole interval.</li>
+            <li>Naming the source and ranking the sources are different jobs. Vectored answers the first; daisy chain the second.</li>
+            <li>DMA moves the copying, not the cost: the CPU still pays the setup, the completion interrupt and every stolen bus cycle.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 65–85 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Two neighbouring topics are deliberately not taught here and remain recorded as uncovered in the coverage tracker: <strong>virtual memory and the TLB</strong> (Operating Systems, Section 8) and <strong>CPU and I/O scheduling</strong> (also Section 8), which owns disk scheduling and therefore the seek-and-latency half of any disk question. Where public sources give different answers to the same previous-year question — the 2005 disk item, where the exact figure is 26.2 per cent and the published key is 25 — this lesson states both rather than choosing silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: the counter, the tray and the clipboard</h3>
+              <p>A memory is a wall of numbered pigeonholes. You can ask for number 4100 at any moment, twice in a row, and get the same answer both times. A device is not that. It is a counter clerk: there is a tray holding whatever is being handed over right now, a small sign that says <em>ready</em> or <em>wait</em>, and a clipboard where you write what you want done next.</p>
+              <p class="small">You cannot read the clerk's mind, and asking twice is not the same question twice — the second look may find the tray empty. So the machine puts a translator between you and the clerk: a small box with exactly those three things, a tray, a sign and a clipboard, wired to the system bus. That box is the <strong>interface</strong>. Every method in this lesson is a different arrangement of who walks up to the counter and how often.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is a teaching device. It fixes the three registers and the fact that the data register is a moving part, which is exactly what the exam asks you to keep separate.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal vocabulary, every symbol glossed</h3>
+              <p class="small"><strong>Interface (controller).</strong> The hardware between a device and the bus. It presents three registers:</p>
+              <ul class="small">
+                <li><strong>Data register</strong> — holds the item in transit. One word wide on the bus side.</li>
+                <li><strong>Status register</strong> — bits saying whether the device is ready, busy, or has failed.</li>
+                <li><strong>Control register</strong> — written by the CPU to start, stop or configure.</li>
+              </ul>
+              <p class="small"><strong>Port</strong> — the address, or port number, at which one of those registers answers. A port is a name; a register is the thing named.</p>
+              <p class="small" style="margin-bottom:0"><strong>Polling (programmed I/O)</strong> — the CPU reads the status register in a loop and moves each word itself. <strong>Interrupt-driven I/O</strong> — the interface asserts an interrupt request line when a word is ready, and the CPU moves it then. <strong>DMA</strong> — a separate controller drives the data register, using an address register, a count register and a control register of its own.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The address budget, worked once</h3>
+              <p class="small">A 16-bit address bus names 2<sup>16</sup> = 65536 locations. Memory-mapped I/O places device registers inside that count, so the registers are addresses memory can no longer use.</p>
+              <p class="formula">memory left = 2<sup>k</sup> − p</p>
+              <p class="small">With <em>k</em> = 16 and <em>p</em> = 256 port addresses: 65536 − 256 = <strong>65280</strong> addresses of memory, and 256 addresses that now drive devices.</p>
+              <p class="small" style="margin-bottom:0">Isolated I/O spends none of that: its 256 ports are counted in a separate space, and memory keeps all 65536. The cost moves elsewhere — to the <code>IN</code> and <code>OUT</code> instructions, and to one control line that tells the bus which space is meant.</p>
+            </div>
+
+            <div class="card">
+              <h3>Three checks that catch most slips</h3>
+              <p class="small">Each is arithmetic on numbers you already have:</p>
+              <p class="small"><strong>Check one.</strong> Count addresses, not bytes. 65536 addresses is 65536 bytes only when every address is one byte.</p>
+              <p class="small"><strong>Check two.</strong> A device at <em>r</em> words per second has an interval of 1/<em>r</em> seconds. Every cost in this lesson is expressed against that interval.</p>
+              <p class="small" style="margin-bottom:0"><strong>Check three.</strong> A fraction of CPU time must lie below 1. Above 1, the model has failed: the CPU cannot keep up with the device and data is being lost.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The three transfer methods, side by side</h3>
+              <p class="small" style="margin-bottom:0">Read the middle column as the only thing that changes. Everything else in the table follows from it.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Programmed I/O</h3>
+              <p class="small"><strong>Who copies:</strong> the CPU, once per word.<br><strong>When:</strong> whenever the loop comes round, whether or not the device is ready.<br><strong>CPU cost per byte:</strong> the whole interval, because the CPU never leaves the loop.</p>
+              <p class="small" style="margin-bottom:0"><strong>Needs:</strong> nothing beyond the registers. No interrupt line, no vector table, no context save. This is why it survives in firmware.</p>
+            </div>
+
+            <div class="card">
+              <h3>Interrupt-driven I/O</h3>
+              <p class="small"><strong>Who copies:</strong> the CPU, once per word.<br><strong>When:</strong> only when the interface asserts the request line.<br><strong>CPU cost per byte:</strong> the service time — save, move, restore — not the interval.</p>
+              <p class="small" style="margin-bottom:0"><strong>Needs:</strong> a request line, an enable bit, a vector or a shared entry point, and a stack to save onto.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>DMA</h3>
+              <p class="small"><strong>Who copies:</strong> the controller, using its own address and count registers.<br><strong>When:</strong> as fast as the bus can be granted.<br><strong>CPU cost:</strong> setup, plus a completion interrupt, plus the bus cycles stolen.</p>
+              <p class="small" style="margin-bottom:0"><strong>Needs:</strong> a controller, a request/grant handshake, and a bus that can be handed over.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Ordering them by CPU utilisation is a trap</h3>
+              <p class="small">The three are often written as a ladder, programmed &lt; interrupt &lt; DMA. That is true for <em>CPU utilisation on a bulk transfer</em>, and it is exactly what GATE 2024 Set 1 tests by offering its negation as the false statement.</p>
+              <p class="small" style="margin-bottom:0">It is not true as a general ranking of throughput, of latency, or of suitability. A polled port has the lowest latency of the three, because there is no handshake and no context switch. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Polling's latency is the loop's period; an interrupt's is the remaining part of the current instruction plus the save.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>The five interrupt events, and why only one order works</h3>
+              <p class="small"><strong>Q</strong> finish the current instruction → <strong>P</strong> push the process status → <strong>T</strong> load the new program counter → <strong>R</strong> execute the service routine → <strong>S</strong> pop the process status.</p>
+              <p class="small">Q is first because an interrupt is honoured only at an instruction boundary: a processor cannot abandon an instruction with its registers half-updated and expect to resume. P comes before T because the program counter is part of the process status, so writing the new value first destroys the return address.</p>
+              <p class="small" style="margin-bottom:0">Steps 1, 2, 4 and 5 are identical in every machine. Only step 3 varies, and that variation is the whole of the next page.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Naming against ranking, and then the DMA schedule</h3>
+              <p class="small" style="margin-bottom:0">"Interrupt handling" hides two independent jobs. Keeping them apart removes most of the wrong answers in this topic.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Job one: naming the source</h3>
+              <p class="small"><strong>Vectored.</strong> The interrupting device places a vector — an identifier or a direct address — on the bus during the acknowledge cycle. The CPU loads the program counter from it and enters the right routine immediately.</p>
+              <p class="small" style="margin-bottom:0"><strong>Non-vectored.</strong> Every device branches to one fixed address. The handler there must discover which device asked, usually by reading status registers in turn. That discovery is software polling, and it is what makes a non-vectored interrupt slower to start.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Job two: ranking the sources</h3>
+              <p class="small"><strong>Daisy chain.</strong> Devices are wired in series on the acknowledge line. The CPU asserts it; each device either takes it, if it is the one requesting, or passes it on. Position is priority, and identification is implicit in where the pulse stopped. No instruction runs while this resolves.</p>
+              <p class="small" style="margin-bottom:0"><strong>Software polling.</strong> The handler reads status registers in a chosen order, so the order is the priority. This is a software ranking, and it is a different mechanism from the hardware chain even though both visit devices in sequence.</p>
+            </div>
+
+            <div class="card">
+              <h3>A third, independent axis</h3>
+              <p class="small"><strong>Maskable.</strong> Software can disable it by clearing a bit, so a critical section can run undisturbed.</p>
+              <p class="small" style="margin-bottom:0"><strong>Non-maskable (NMI).</strong> Cannot be disabled. Reserved for failures that must not wait: power failure, memory parity error, an overheating processor. A temperature sensor is the standard example; a mouse is the standard counterexample.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Maskability is not priority</h3>
+              <p class="small" style="margin-bottom:0">An NMI is <em>unmaskable</em>, which says it cannot be switched off. That is a different claim from "it outranks everything in the priority order". A machine can have a maskable interrupt with higher priority than its NMI for a specific purpose; the two properties are set by different hardware. GATE has not asked this directly, but the confusion produces wrong answers to questions about ranking.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>DMA: registers, handshake, and three schedules</h3>
+              <p class="small"><strong>The controller holds</strong> an <em>address register</em> (where in memory next), a <em>count register</em> (how many words remain) and a <em>control register</em> (direction and mode). Each transfer increments the address and decrements the count; that loop is the whole of the controller.</p>
+              <p class="small"><strong>The handshake</strong> is two wires: the controller asserts a bus request (HOLD or BR), the CPU finishes the bus cycle it is in and asserts the grant (HLDA or BG), floating its own drivers so the two never drive the same lines. The request-to-grant delay is real and belongs in any timing calculation.</p>
+              <p class="small" style="margin-bottom:0"><strong>Three schedules.</strong> <em>Burst</em> — one grant, held to the end of the block: highest throughput, longest lock-out. <em>Cycle stealing</em> — one word per grant, then release: lower throughput, but the CPU loses only one bus cycle at a time. <em>Transparent</em> — a word moves only in a cycle the CPU left idle: the CPU is never delayed, and the block takes longest.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A disk or a keyboard is not a memory. It cannot be asked for the contents of an address.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A device is not a memory</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A disk or a keyboard is not a memory. It cannot be asked for the contents of an address.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2</h3>
+              <p class="small" style="margin-bottom:0">Every figure below is recomputed by this page's own model, and the Animation tab lists the checks. Nothing is copied from a key without being re-derived.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>A keyboard, polled and interrupted</h3>
+              <p class="small"><em>A keyboard is used at 1 keystroke per second. The system polls it every 10 ms, spending 100 µs per poll, plus 200 µs to process a keystroke. With interrupts it spends 1 ms per keystroke. Find T<sub>1</sub>/T<sub>2</sub>.</em></p>
+              <p class="small"><strong>Step 1 — polls per second.</strong> One second is 1000 ms, and 1000 / 10 = 100 polls.</p>
+              <p class="small"><strong>Step 2 — polling cost.</strong> 100 × 100 µs = 10000 µs = 10 ms.</p>
+              <p class="small"><strong>Step 3 — processing.</strong> One keystroke × 200 µs = 0.2 ms.</p>
+              <p class="small"><strong>Step 4 — totals.</strong> T<sub>1</sub> = 10.2 ms, T<sub>2</sub> = 1 ms, so T<sub>1</sub>/T<sub>2</sub> = <strong>10.2</strong>.</p>
+              <p class="small" style="margin-bottom:0">The poll count is set by the clock, not by the keystrokes: a silent keyboard still costs 100 polls. That is the whole economic argument for interrupts, in one line.</p>
+            </div>
+
+            <div class="card">
+              <h3>A device at 10 KB/s: interrupt against programmed</h3>
+              <p class="small"><em>Data is transferred byte-wise, interrupt overhead is 4 µs, and the byte transfer time is negligible. Find the minimum performance gain of interrupt mode over program-controlled mode.</em></p>
+              <p class="small"><strong>Programmed.</strong> The CPU waits for the whole byte: at 10 KB/s one byte takes 1/(10 × 1000) = 100 µs, so the CPU is busy 100 µs per byte.</p>
+              <p class="small"><strong>Interrupt.</strong> The CPU spends 4 µs per byte.</p>
+              <p class="small"><strong>Gain.</strong> 100 / 4 = <strong>25</strong>.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> If a kilobyte is read as 1024 bytes the interval is 97.66 µs and the gain is 24.41. Both readings select the option 25, which is why the question is safe and why the convention still deserves stating.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>A disk under cycle stealing</h3>
+              <p class="small"><em>16 surfaces, 512 tracks per surface, 512 sectors per track, 1 KB per sector, 3000 rpm. Cycle stealing, one 4-byte word per DMA cycle, memory cycle time 40 ns. Find the maximum percentage of time the CPU is blocked.</em></p>
+              <p class="small"><strong>Step 1 — one track.</strong> 512 sectors × 1 KB = 512 KB.</p>
+              <p class="small"><strong>Step 2 — rate.</strong> 3000 rpm = 50 revolutions per second, so 512 KB × 50 = 25600 KB/s = 26214400 B/s.</p>
+              <p class="small"><strong>Step 3 — word interval.</strong> 4 / 26214400 s = 152.588 ns.</p>
+              <p class="small"><strong>Step 4 — fraction.</strong> 40 / 152.588 = <strong>26.2 per cent</strong> exactly; 25 per cent if the interval is counted as 4 whole memory cycles and one is stolen.</p>
+              <p class="small" style="margin-bottom:0">Only one head reads at a time, so the 16 surfaces do not multiply the rate. That is the most common error on this item.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2</h3>
+              <p class="small" style="margin-bottom:0">Two numerical questions that look different and are the same shape: count something, then divide once.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>A 16-bit count register against a 29154 KB file</h3>
+              <p class="small"><em>The data count register is 16 bits, memory is byte addressable, and the file is 29154 KB. Find the minimum number of times the controller must take the bus.</em></p>
+              <p class="small"><strong>Step 1 — the ceiling.</strong> 2<sup>16</sup> = 65536, so one transfer moves at most 65536 bytes, which is 64 KB.</p>
+              <p class="small"><strong>Step 2 — the ratio.</strong> 29154 KB / 64 KB = 455.53125. In bytes: 29853696 / 65536 = 455.53125.</p>
+              <p class="small"><strong>Step 3 — the ceiling again.</strong> 455 × 65536 = 29818880 bytes, leaving 34816. So <strong>456</strong> acquisitions.</p>
+              <p class="small" style="margin-bottom:0">Rounding down loses 34816 bytes. A file one byte larger than 64 KB needs two acquisitions while the nearest integer is one — which is why the operation is a ceiling and not a rounding.</p>
+            </div>
+
+            <div class="card">
+              <h3>A software loop against a DMA controller</h3>
+              <p class="small"><em>A five-statement loop moves 500 bytes: load and store take two cycles each, the other three take one. Initialisation is two statements of one cycle. The DMA path costs 20 cycles of setup plus two cycles per byte. Find the speedup.</em></p>
+              <p class="small"><strong>Step 1 — per iteration.</strong> 2 + 2 + 1 + 1 + 1 = 7 cycles.</p>
+              <p class="small"><strong>Step 2 — the loop.</strong> 2 + 500 × 7 = <strong>3502</strong> cycles.</p>
+              <p class="small"><strong>Step 3 — the DMA path.</strong> 20 + 500 × 2 = <strong>1020</strong> cycles.</p>
+              <p class="small"><strong>Step 4 — the ratio.</strong> 3502 / 1020 = 3.43, so approximately <strong>3.4</strong>.</p>
+              <p class="small" style="margin-bottom:0">Both small constants matter: dropping the two initialisation instructions gives 3500/1020 = 3.43 anyway, but dropping the 20 cycles of DMA setup gives 3502/1000 = 3.5, which is a different option.</p>
+            </div>
+
+            <div class="card card--assumption span-2">
+              <h3>Two throughputs from the same formula</h3>
+              <p class="small"><strong>GATE CSE 2021 Set 2.</strong> A 2 MHz processor; the controller moves one 8-bit character per stolen cycle; 0.5 per cent of cycles are stolen. Rate = 2 × 10<sup>6</sup> × 0.005 × 8 = <strong>80000 bits per second</strong>.</p>
+              <p class="small"><strong>GATE CSE 2024 Set 2.</strong> A 4 MHz processor; the controller moves 8 bytes per stolen cycle; 1 per cent of cycles are stolen. Rate = 4 × 10<sup>6</sup> × 0.01 × 64 = <strong>2560000 bits per second</strong>, written 25,60,000 in Indian grouping.</p>
+              <p class="small" style="margin-bottom:0">Both are <em>f × p × w</em>: clock rate, times the fraction of cycles stolen, times the bits in one stolen cycle. The only decisions are whether the width given is bytes or bits, and whether the answer is asked in bits or bytes.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where each rule stops holding</h3>
+          <p class="small" style="margin-bottom:0">Every formula in this topic has a condition attached. These are the conditions, and what happens on the other side of each.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>When the interrupt fraction exceeds one</h3>
+          <p class="small">The fraction is cost divided by interval, and it is a fraction only while the cost fits inside the interval. Let a device raise one interrupt every 100 µs and let servicing cost 200 µs. The formula returns 2.</p>
+          <p class="small" style="margin-bottom:0">That is not "the CPU spends twice as much time as it has". It means the CPU cannot keep up: requests arrive faster than they can be served, the backlog grows without bound, and data is lost. The correct reading of a value above 1 is always <em>the model has failed</em>.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>When DMA is the wrong answer</h3>
+          <p class="small">DMA costs a fixed setup and a completion interrupt regardless of block size. For a single byte, those two can exceed what polling would have cost.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> If setup plus completion costs <em>s</em> and each byte costs <em>b</em> under polling, DMA wins once the block length <em>n</em> satisfies <em>s</em> &lt; <em>n·b</em>. Below that threshold the controller is pure overhead. This is why real machines route a single keystroke through an interrupt and a disk block through DMA, in the same box.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>65536, not 65535</h3>
+          <p class="small">An <em>n</em>-bit register holds 2<sup>n</sup> distinct values, and a count register decremented once per unit therefore covers 2<sup>n</sup> units. Sixteen bits cover 65536 bytes.</p>
+          <p class="small" style="margin-bottom:0">The instinct to subtract one comes from thinking of the counter's <em>last</em> value rather than its number of values. The check that settles it: a 1-bit count register covers 2 bytes, not 1, and a 2-bit one covers 4.</p>
+        </div>
+
+        <div class="card">
+          <h3>Whole memory cycles against an exact fraction</h3>
+          <p class="small">A 4-byte word arriving every 152.588 ns against a 40 ns memory cycle gives 40/152.588 = 26.2 per cent. But a controller can only steal whole cycles, and the interval contains 3.81 of them, so the natural whole-cycle reading is one in four, which is 25 per cent.</p>
+          <p class="small" style="margin-bottom:0">The published key for the 2005 item is 25. This lesson reports both, because the disagreement is about which model the question intends, not about arithmetic.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A polled system with nothing to do</h3>
+          <p class="small">Polling every 10 ms costs 10 ms a second even if the device never becomes ready. A device that is idle 99 per cent of the time still costs 1 per cent of the CPU, forever.</p>
+          <p class="small" style="margin-bottom:0">Now make the poll interval 1 ms: the cost is 100 ms a second, ten times worse, and the device is no busier. Polling cost scales with the <em>poll rate</em>, not with the <em>event rate</em> — which is the exact inversion of how an interrupt's cost behaves.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Two masters, or one at a time?</h3>
+          <p class="small">During a DMA transfer the CPU and the controller are both active. They are never both <em>bus masters</em>.</p>
+          <p class="small" style="margin-bottom:0">The distinction is between activity and ownership. The CPU can execute an instruction that touches only registers throughout a burst transfer. The instant that instruction needs memory, it must wait for the grant to be released. GATE 2020 offers the conflation as a false statement, and GATE 2024 Set 1 makes the same point from the other side.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The interrupt latency nobody puts in the formula</h3>
+          <p class="small">Every cost figure in this lesson is a service cost. Real latency also includes the time to finish the current instruction, the request-to-grant delay if the bus must be taken, and any time spent with interrupts masked by an outer critical section.</p>
+          <p class="small" style="margin-bottom:0">A numerical question that gives only a service time is asking you to ignore the rest, and that is legitimate — but the omission should be visible. If a question mentions a long instruction or a masked region, it is telling you that the omitted terms are the point of the question.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Six beliefs that cost marks</h3>
+              <p class="small" style="margin-bottom:0">Each is stated as a learner would state it, then broken with the smallest counterexample available.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>1. "An interrupt transfers the data"</h3>
+              <p class="small"><strong>Why it is wrong.</strong> The interrupt announces that a word is available. The service routine still reads or writes the data register itself, one word at a time. The copying is unchanged from polling; only the <em>timing</em> of the copying changes.</p>
+              <p class="small" style="margin-bottom:0"><strong>What it costs.</strong> A question asking which method has the highest throughput for a bulk transfer. Interrupt-driven I/O is still one CPU move per word, so DMA wins — which is exactly GATE CSE 2022 Q17.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>2. "A vectored interrupt still needs polling to find the source"</h3>
+              <p class="small"><strong>Why it is wrong.</strong> The vector <em>is</em> the identification. The device places it on the bus during the acknowledge cycle, so the CPU enters the right routine without asking anyone anything.</p>
+              <p class="small" style="margin-bottom:0"><strong>Where it is tested.</strong> GATE CSE 2020 Q3, statement II, which is false for this reason; and GATE CSE 2026 Set 2 Q18, whose S1 asserts the true comparison — non-vectored is slower to start precisely because of that discovery step.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>3. "A daisy chain polls the devices"</h3>
+              <p class="small"><strong>Why it is wrong.</strong> Daisy chaining is a hardware grant chain. The acknowledge signal propagates through the devices and stops at the first one requesting. No instruction executes during that propagation, and no status register is read.</p>
+              <p class="small" style="margin-bottom:0"><strong>Where it is tested.</strong> GATE CSE 2026 Set 2 Q18, statement S2, which is false. Software polling is a separate mechanism in which the handler reads status registers in a chosen order.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>4. "The new program counter is loaded before the status is saved"</h3>
+              <p class="small"><strong>Why it is wrong.</strong> The program counter is part of the process status. Loading the new value first overwrites the return address, and the interrupted program can never be resumed.</p>
+              <p class="small" style="margin-bottom:0"><strong>Where it is tested.</strong> GATE CSE 2018 Q9 offers Q T P R S alongside the correct Q P T R S. GATE CSE 2025 Set 1 Q11 asks the same three-step order and expects finish, save, load.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--counterexample">
+              <h3>5. "Programmed I/O has better CPU utilisation, because it needs no interrupt hardware"</h3>
+              <p class="small"><strong>Why it is wrong.</strong> It needs less hardware and it uses more CPU. Polling occupies the CPU for the whole interval; an interrupt occupies it only for the service time. Utilisation is a statement about CPU time, not about parts count.</p>
+              <p class="small" style="margin-bottom:0"><strong>Where it is tested.</strong> GATE CSE 2024 Set 1, where this is the false statement among four. The other three — cycle stealing moves one word per stolen cycle, burst has higher throughput than cycle stealing, and a vectored interrupt starts its routine faster — are all true.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>6. "The CPU and the DMA controller are both bus masters during a transfer"</h3>
+              <p class="small"><strong>Why it is wrong.</strong> Bus mastership is exclusive at any instant. The controller requests, the CPU grants and floats its drivers, and the two never drive the same lines together. They overlap in time, not on the wires.</p>
+              <p class="small" style="margin-bottom:0"><strong>Where it is tested.</strong> GATE CSE 2020 Q3, statement IV, which is false. The same distinction makes GATE CSE 2024 Set 2 Q15's claim that "the CPU does not need to get involved, so the current program continues" true rather than false.</p>
+            </div>
+
+            <div class="card card--trap span-2">
+              <h3>Two confusions that are not quite misconceptions</h3>
+              <p class="small"><strong>Maskable against non-maskable, read as a priority.</strong> Maskability says whether software can disable the request. It does not say where the request sits in the ranking. The two are separate hardware properties, and treating "non-maskable" as "highest priority" gives wrong answers to ranking questions.</p>
+              <p class="small" style="margin-bottom:0"><strong>Memory-mapped, read as "the registers are memory".</strong> They are at memory addresses and reached by ordinary loads and stores. But a device register is a moving part: two reads of the same address can give two different answers, and a write can start a physical action. Any reasoning that treats a port as a variable is reasoning about the wrong object.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The test to apply before answering</h3>
+              <p class="small" style="margin-bottom:0">Ask which of the two jobs the statement is about — naming the source or ranking the sources — and then ask who is doing the copying. Almost every wrong option in this topic confuses one of those two pairs. Both questions are answerable from the statement alone, before any arithmetic.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this clause actually asks</h3>
+          <p class="small" style="margin-bottom:0">Thirteen questions from 2011 to 2026 are attributable to this heading across the papers listed in the Sources tab: ten single-correct, none multiple-select, three numerical. The patterns below are a description of those questions, not a forecast.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 1 — the ordering question</h3>
+          <p class="small">Give five events after an interrupt and ask for the order, or give three and ask the same. The answer is always forced by two facts: an interrupt is honoured at an instruction boundary, and the status is saved before the program counter is loaded.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in</strong> 2018 Q9 and 2025 Set 1 Q11. <strong>Procedure:</strong> write the two facts first, then place the events. Never place them by feel.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 2 — the false-statement cluster</h3>
+          <p class="small">Offer four statements spanning three or four subtopics and ask which is false. Each option is a one-line claim about a different mechanism.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in</strong> 2020 Q3, 2024 Set 1, 2026 Set 2 Q18. <strong>Procedure:</strong> classify each option as naming or ranking, then check it. The false one is usually the one that mixes them.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Pattern 3 — throughput from a clock and a fraction</h3>
+          <p class="small">Give the clock rate, the percentage of cycles stolen, and the width moved per stolen cycle. Ask for a rate.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in</strong> 2021 Set 2 Q20 and 2024 Set 2 Q11. <strong>Procedure:</strong> <em>f × p × w</em>, with <em>w</em> in bits. The two traps are bytes-against-bits and Indian digit grouping.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Pattern 4 — the register ceiling</h3>
+          <p class="small">Give a count-register width and a file size, and ask how many times the controller must take the bus.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in</strong> 2016 Set 1 Q31. <strong>Procedure:</strong> 2<sup>n</sup> is the chunk, and the count of transfers is a ceiling. Verify by multiplying back and checking the remainder is nonzero.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 5 — CPU time against a device rate</h3>
+          <p class="small">Give a device rate, an overhead, and a mode; ask for a fraction, a gain, or a ratio. Sometimes two modes are compared in one question.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in</strong> 2005 Q69, 2005 Q70, 2023 Q34. <strong>Procedure:</strong> convert the rate to an interval, express both modes as times per byte, divide.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 6 — the one-word conceptual</h3>
+          <p class="small">Ask which mechanism gives the highest throughput for a bulk transfer, or which interrupt cannot be masked.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in</strong> 2011 Q11, 2022 Q17. <strong>Procedure:</strong> name the copier. Bulk plus highest throughput is always DMA; an unmaskable source is always a hardware failure sensor.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The three arithmetic habits that decide these questions</h3>
+          <p class="small"><strong>One.</strong> Convert every rate to an interval before comparing anything. Rates compare by ratio, intervals compare by ratio of the other way, and mixing the two is the commonest slip.</p>
+          <p class="small"><strong>Two.</strong> Write the unit next to every number as you go: cycles, bytes, words, acquisitions, µs, ns. GATE offers options that differ only by a factor of ten or by bits against bytes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Three.</strong> Decide the operation before computing: is this a division, a ceiling, or a count? A count of transfers is a ceiling; a count of bits is a product; a fraction is one division.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — page 1 of 2</h3>
+              <p class="small" style="margin-bottom:0">Answers are hidden until you reveal them, one question at a time. Every previous-year item is labelled with its paper; every other item is labelled as original practice in the same shape.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A processor has a 20-bit address bus and uses memory-mapped I/O. Device registers occupy the top 512 addresses of the space. How many addresses remain for memory?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 1048064</span></p>
+                  <p class="small">2<sup>20</sup> = 1048576 addresses. 1048576 − 512 = 1048064.</p>
+                  <p class="small" style="margin-bottom:0">The subtraction is on addresses, not on bytes. If the question had said the machine is word addressable with 4 bytes per word, the answer would still be a count of addresses, and the byte capacity would be four times as large.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2022, Q17</span></div>
+              <div class="q-body">
+                <p>Which one of the following facilitates transfer of bulk data from hard disk to main memory with the highest throughput?</p>
+                <p class="small">(A) DMA based I/O transfer &nbsp; (B) Interrupt driven I/O transfer &nbsp; (C) Polling based I/O transfer &nbsp; (D) Programmed I/O transfer</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) DMA based I/O transfer</span></p>
+                  <p class="small">DMA removes the CPU from the per-word copy, so the throughput is limited by the bus and the device rather than by instruction execution. Polling and programmed I/O both cost the CPU a full interval per word; interrupt-driven I/O costs a service time per word.</p>
+                  <p class="small" style="margin-bottom:0">The word that decides it is <em>bulk</em>. For a single byte, DMA's setup and completion interrupt can cost more than the transfer itself, so the ranking is not universal — see the Edge cases tab.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2018, Q9</span></div>
+              <div class="q-body">
+                <p>Events after a device controller issues an interrupt while process L runs: (P) push the process status of L onto the control stack; (Q) finish the current instruction; (R) execute the interrupt service routine; (S) pop the process status of L; (T) load the new PC value based on the interrupt. Which is the correct order?</p>
+                <p class="small">(A) QPTRS &nbsp; (B) PTRSQ &nbsp; (C) TRPQS &nbsp; (D) QTPRS</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) QPTRS</span></p>
+                  <p class="small">Q first, because an interrupt is honoured only at an instruction boundary. P before T, because the program counter is part of the status and loading the new value first destroys the return address. R then S, because the restore is the last thing the routine does.</p>
+                  <p class="small" style="margin-bottom:0">Option D is the interesting wrong answer: it looks like "jump, then save" and it is exactly the ordering that loses the return address.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A system uses a DMA controller in cycle stealing mode. Which statements are TRUE?</p>
+                <p class="small">(A) The controller releases the bus after each unit transferred.<br>(B) The CPU and the controller can both be bus masters at the same instant.<br>(C) The elapsed time of the transfer is set by the device's word rate, not by the stolen-cycle time multiplied by the word count.<br>(D) Burst mode has lower throughput than cycle stealing for the same block.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) and (C)</span></p>
+                  <p class="small">(A) is the definition of cycle stealing: one unit per grant, then release. (C) is the reason the mode exists — the controller waits for the device between words, so the block's duration is the device's pace.</p>
+                  <p class="small" style="margin-bottom:0">(B) is false: mastership is exclusive at any instant. (D) is false and is the reverse of the truth — burst pays the handshake once, so it is faster, which is what the 2024 Set 1 paper states as a true option.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — page 2 of 2</h3>
+              <p class="small" style="margin-bottom:0">Three previous-year numerical items and one counterexample question that exists because a formula is usually trusted.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2021 Set 2, Q20</span></div>
+              <div class="q-body">
+                <p>A computer system with DMA support: the DMA module transfers one 8-bit character in one CPU cycle from a device to memory through cycle stealing at regular intervals. The processor runs at 2 MHz. If 0.5 per cent of processor cycles are used for DMA, the data transfer rate of the device is ______ bits per second.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 80000</span></p>
+                  <p class="small">Cycles per second = 2 × 10<sup>6</sup>. Stolen = 0.005 × 2 × 10<sup>6</sup> = 10000. Each moves 8 bits, so 10000 × 8 = 80000 bits per second.</p>
+                  <p class="small" style="margin-bottom:0">The width given is already in bits, so there is no conversion. On the 2024 Set 2 variant the width is given in bytes and the conversion is required — that is the only difference between the two questions.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2023, Q34</span></div>
+              <div class="q-body">
+                <p>A keyboard is used at 1 keystroke per second. The system polls every 10 ms, consuming 100 µs per poll, and a further 200 µs when a key has been pressed. Let T<sub>1</sub> be the fraction of a second spent polling and processing. With interrupts, servicing an interrupt and processing a keystroke takes 1 ms, and T<sub>2</sub> is that fraction. Find T<sub>1</sub>/T<sub>2</sub>, rounded to one decimal place.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 10.2</span></p>
+                  <p class="small">Polls per second = 1000/10 = 100. Polling cost = 100 × 100 µs = 10 ms. Processing = 1 × 200 µs = 0.2 ms. T<sub>1</sub> = 10.2 ms. T<sub>2</sub> = 1 ms. Ratio 10.2.</p>
+                  <p class="small" style="margin-bottom:0">The ratio is the same whether both are expressed in milliseconds or seconds, which is why the question can ask for a fraction of a second and be answered in milliseconds. Do not convert until the end.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2016 Set 1, Q31</span></div>
+              <div class="q-body">
+                <p>The data count register of a DMA controller is 16 bits. A file of 29154 kilobytes must be transferred from disk to main memory, and memory is byte addressable. What is the minimum number of times the DMA controller must get control of the system bus?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 456</span></p>
+                  <p class="small">One transfer covers 2<sup>16</sup> = 65536 bytes = 64 KB. 29154/64 = 455.53125, and the ceiling is 456.</p>
+                  <p class="small" style="margin-bottom:0">Verify by multiplying back: 455 × 65536 = 29818880 bytes, leaving 34816. The remainder is why 455 is wrong. Note that the ratio is the same in kilobytes and in bytes, because both sides scale by 1024 — a useful check when a question mixes the units.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge">Original practice — counterexample</span></div>
+              <div class="q-body">
+                <p>A device raises one interrupt every 80 µs. Servicing each interrupt, including save and restore, costs 100 µs. Which statement is correct?</p>
+                <p class="small">(A) The CPU spends 125 per cent of its time on this device, so it is overloaded by 25 per cent.<br>(B) The CPU cannot keep up: requests arrive faster than they can be served, and the backlog grows.<br>(C) The fraction formula gives 0.8, so the CPU is 80 per cent utilised.<br>(D) Interrupts are always cheaper than polling here.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B)</span></p>
+                  <p class="small">Cost 100 µs exceeds interval 80 µs, so the fraction formula is not licensed. There is no such thing as 125 per cent of a CPU's time: the backlog grows without bound and events are lost.</p>
+                  <p class="small" style="margin-bottom:0">(C) is the reciprocal error — 80/100 instead of 100/80. (D) fails because with an interval this short the CPU is saturated, and a polled loop would simply miss events entirely rather than merely being slow.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, formulas, decision procedures and traps, in the order a question uses them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Interface / controller</strong> — the hardware presenting data, status and control registers to the bus.</li>
+            <li><strong>Port</strong> — the name at which one register answers.</li>
+            <li><strong>Memory-mapped I/O</strong> — registers inside the memory address space, reached by load and store.</li>
+            <li><strong>Isolated I/O</strong> — a separate port space, reached by IN and OUT, distinguished by one control line.</li>
+            <li><strong>Programmed I/O</strong> — the CPU polls the status register and copies each word.</li>
+            <li><strong>Interrupt-driven I/O</strong> — the interface requests, the CPU copies in a service routine.</li>
+            <li><strong>Vectored</strong> — the device supplies the vector, so no discovery is needed.</li>
+            <li><strong>Daisy chain</strong> — a hardware grant pulse that ranks by position.</li>
+            <li><strong>NMI</strong> — an interrupt software cannot disable.</li>
+            <li><strong>DMA</strong> — a controller with address, count and control registers drives the data register.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas, with their licences</h3>
+          <p class="formula">memory left = 2<sup>k</sup> − p</p>
+          <p class="small">Licence: count addresses, and every address is one unit of memory.</p>
+          <p class="formula">rate = f × p × w</p>
+          <p class="small">Licence: cycle stealing, one bus cycle per unit, <em>w</em> in bits.</p>
+          <p class="formula">CPU fraction = c / T</p>
+          <p class="small">Licence: <em>c</em> &lt; <em>T</em>. Above that the CPU is saturated and the formula is meaningless.</p>
+          <p class="formula">transfers = ⌈file / 2<sup>n</sup>⌉</p>
+          <p class="small" style="margin-bottom:0">Licence: one acquisition per chunk, and the count register is <em>n</em> bits wide.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Decision procedure for any question</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Name the registers the question is about.</li>
+            <li>Name who copies: CPU, or controller.</li>
+            <li>Name the schedule if it is DMA: burst, stealing, transparent.</li>
+            <li>Convert every rate to an interval.</li>
+            <li>Write the count in the unit asked, then perform one operation: product, division, or ceiling.</li>
+            <li>Check the licence, and check the unit on the answer.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>An interrupt announces data; it does not move it.</li>
+            <li>Vectored means no polling for the source.</li>
+            <li>A daisy chain is hardware, not software polling.</li>
+            <li>Save the status before loading the program counter.</li>
+            <li>One bus master at any instant.</li>
+            <li>A count of transfers is a ceiling.</li>
+            <li>A fraction above one means the model failed.</li>
+            <li>Maskability is not priority.</li>
+            <li>Only one disk head reads at a time.</li>
+            <li>Bits against bytes, and 1000 against 1024.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one sentence</h3>
+          <p class="small" style="margin-bottom:0">Who reads and writes the three registers of the interface, and how often — the CPU every time, the CPU when called, or a controller while the CPU pays at the two ends. Every definition, mode and calculation in this lesson is that sentence read at a different scale.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this research covered, and where it stopped</h3>
+          <p class="small" style="margin-bottom:0">No official marks distribution exists for GATE CSE and none is claimed. Every numerical claim in the animation is computed by the page's own model and listed in its check panel, so it can be audited rather than trusted. Where sources disagree, the disagreement is named in the lesson rather than resolved silently.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official syllabus</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>CS_GATE2027_Syllabus.pdf</code> on gate2027.iitm.ac.in. Section 3 contains the clause "I/O interface (interrupt and DMA)" verbatim. The same wording appears in two independent mirrors of the 2027 PDF and in a syllabus summary that notes only Digital Logic, COA and Computer Networks changed wording for 2027. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0">An older wording used by some institutions reads "I/O interface (interrupt and DMA mode)" — the same clause with one extra word, and no change of scope.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Previous-year papers quoted</h3>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE 2005 Q69</strong> (interrupt against programmed, 25) · <strong>2005 Q70</strong> (disk cycle stealing, 25, with the 26.2 per cent dissent) · <strong>2011 Q11</strong> (non-maskable source) · <strong>2011 Q28</strong> (DMA speedup, 3.4) · <strong>2016 Set 1 Q31</strong> (count register, 456) · <strong>2018 Q9</strong> (event order, QPTRS) · <strong>2020 Q3</strong> (I and III only) · <strong>2021 Set 2 Q20</strong> (80000 b/s) · <strong>2022 Q17</strong> (DMA for bulk) · <strong>2023 Q34</strong> (10.2) · <strong>2024 Set 1</strong> (the false statement; the two archives consulted number it Q15 and Q5, so the paper and set are named rather than the number) · <strong>2024 Set 2 Q11</strong> (25,60,000 b/s) · <strong>2025 Set 1 Q11</strong> (finish, save, load) · <strong>2026 Set 2 Q18</strong> (S1 true, S2 false).</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Textbook-level references</h3>
+          <p class="small"><strong>Patterson and Hennessy, <em>Computer Organization and Design</em></strong> — the three-register interface, memory-mapped against isolated I/O, and the DMA handshake, as used for the vocabulary in scene 1 and scene 6.</p>
+          <p class="small"><strong>Hamacher, Vranesic and Zaky, <em>Computer Organization</em></strong> — interrupt priority, daisy chaining and the vector, as used in scene 5. The same text is the source several published solutions cite for the DMA timing model.</p>
+          <p class="small" style="margin-bottom:0"><strong>Stallings, <em>Computer Organization and Architecture</em></strong> — the three DMA modes and the transparent-mode description in scene 7.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">GATE Overflow threads for 2005 Q69, 2005 Q70, 2018 Q9 and 2020 Q3 — the reasoning inside the answers, and the documented disagreement on the 2005 disk item, where several answers give 26.2 per cent against a published key of 25.</p>
+          <p class="small" style="margin-bottom:0">A topic-indexed archive's count of 13 questions and 16 marks from 2011 to 2026 is reported on the Overview tab as a community observation about one archive's tagging. It is not a weightage and not a forecast.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">The 2005 disk question's official key was not read as a PDF; the answer 25 is reported as what published keys give, with the exact 26.2 per cent stated alongside. The 2024 Set 1 question is attributed by paper and set rather than by number, because two archives disagree about the numbering. Two questions on the 2011 paper are quoted from a topic-indexed archive and an aggregation rather than from a paper PDF, and are used as supporting examples rather than as headline items. The claim that only Digital Logic, COA and Computer Networks changed wording for 2027 is one independent site's reading, labelled as such and not relied on: the clause itself was read in the official PDF's own listing.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>

@@ -31,15 +31,21 @@ lessons are static files and work from a local clone.
 | Trees, Binary Search Trees and Heaps | Programming And Data Structures | A — explicitly in the syllabus | `topics/trees-bst-and-heaps/index.html` |
 | Asymptotic Complexity and Recurrences | Algorithms | A — explicitly in the syllabus | `topics/asymptotic-complexity/index.html` |
 | Binary Search and Its Variants | Algorithms | A — explicitly in the syllabus | `topics/binary-search-and-variants/index.html` |
-| Sorting Algorithms and the Comparison Lower Bound | Algorithms | A — explicitly in the syllabus | `topics/sorting-algorithms/index.html` |
-| Greedy Algorithms: Choice, Exchange and Counterexample | Algorithms | A — explicitly in the syllabus | `topics/greedy-algorithms/index.html` |
+| Dynamic Programming: Formulation, Tables and Classic Problems | Algorithms | A — explicitly in the syllabus | `topics/dynamic-programming/index.html` |
 | Graph Algorithms: Traversals, MSTs and Shortest Paths | Algorithms | A — explicitly in the syllabus | `topics/graph-traversals-mst-shortest-paths/index.html` |
+| Greedy Algorithms: Choice, Exchange and Counterexample | Algorithms | A — explicitly in the syllabus | `topics/greedy-algorithms/index.html` |
+| Hashing: Hash Functions and Collision Resolution | Algorithms | A — explicitly in the syllabus | `topics/hashing/index.html` |
+| Sorting Algorithms and the Comparison Lower Bound | Algorithms | A — explicitly in the syllabus | `topics/sorting-algorithms/index.html` |
 | Boolean Algebra and Minimisation | Digital Logic | A — explicitly in the syllabus | `topics/boolean-algebra-and-minimisation/index.html` |
 | Combinational Circuits: Adders, Multiplexers and Decoders | Digital Logic | A — explicitly in the syllabus | `topics/combinational-circuits/index.html` |
 | Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
 | Sequential Circuits: Latches, Flip-Flops, Counters and Machines | Digital Logic | A — explicitly in the syllabus | `topics/sequential-circuits/index.html` |
-| ALU and Control Unit Design: Datapath, Hardwired and Microprogrammed Control | Computer Organization and Architecture | A — explicitly in the syllabus | `topics/alu-and-control-unit-design/index.html` |
-| Pipelining and Hazards: Beat, Structural, Data and Control Hazards | Computer Organization and Architecture | A — explicitly in the syllabus | `topics/pipelining-and-hazards/index.html` |
+| ALU and Control Unit Design: Datapath, Hardwired and Microprogrammed Control | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/alu-and-control-unit-design/index.html` |
+| I/O Interface, Interrupts and DMA | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/io-interface-interrupts-dma/index.html` |
+| Instruction Set and Addressing Modes | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/instruction-set-and-addressing-modes/index.html` |
+| Memory Hierarchy and Cache | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-hierarchy-and-cache/index.html` |
+| Memory Interfacing and Interleaving | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-interfacing-and-interleaving/index.html` |
+| Pipelining and Hazards | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/pipelining-and-hazards/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
