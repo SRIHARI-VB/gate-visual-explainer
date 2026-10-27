@@ -750,6 +750,22 @@ topics.append(topic(
     related=["operating systems: virtual memory"],
     importance="high",
     evidence="GATE 2027 Section 3 names 'Memory hierarchy: cache memory - mapping'.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="memory-hierarchy-and-cache",
+    path="topics/memory-hierarchy-and-cache/index.html",
+    execution="published 2026-10-27 (earlier run)"))
+
+topics.append(topic(
+    "Computer Organization and Architecture", "Memory", "Memory interfacing and interleaving",
+    ["chip-level interfacing: address and data bus width, chip select",
+     "number of chips for a given word length and capacity",
+     "high-order against low-order interleaving",
+     "memory cycle time, bandwidth and refresh"],
+    prereq=["number-representation-and-arithmetic"],
+    related=["memory hierarchy and cache"],
+    importance="medium",
+    evidence="The words 'Memory interfacing' open the memory clause of GATE 2027 Section 3. The cache lesson teaches the hierarchy and mapping halves only; this entry exists so the uncovered half is visible rather than assumed done.",
     difficulty="medium"))
 
 topics.append(topic(
@@ -1272,7 +1288,10 @@ topics.append(topic(
     importance="high",
     evidence="GATE 2027 Section 5 names 'Algorithm design techniques: greedy, dynamic programming and divide-and-conquer'.",
     difficulty="hard",
-    execution="not started - divide-and-conquer recurrences are already solved in the published recurrence-relations lesson, so this entry covers DP only"))
+    status="PUBLISHED",
+    slug="dynamic-programming",
+    path="topics/dynamic-programming/index.html",
+    execution="published 2026-10-27 - 11 scenes, 330s, 44 caption cues, 30/30 model checks passed"))
 
 topics.append(topic(
     "Algorithms", "Graph algorithms", "Traversals, MSTs and shortest paths",
