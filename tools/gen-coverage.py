@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-10-27"  # the date this tracker was regenerated
+RUN_DATE = "2026-10-28"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -1445,7 +1445,35 @@ topics.append(topic(
     related=["compiler design: lexical analysis"],
     importance="high",
     evidence="GATE 2027 Section 6 names 'Regular expressions and finite automata'.",
-    difficulty="medium"))
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="regular-expressions-and-finite-automata",
+    path="topics/regular-expressions-and-finite-automata/index.html",
+    execution="published 2026-10-28",
+    microtopics=[
+        "alphabet, string, empty string, Sigma-star, language",
+        "the five-tuple and why delta must be single-valued and total",
+        "extended transition function and membership as one evaluation",
+        "nondeterminism as a set of live states, and existential acceptance",
+        "epsilon-closure, and closing the start set",
+        "subset construction, and reachable subsets against the 2^n bound",
+        "the 2^n bound as a ceiling and not a floor (2018 Q6)",
+        "distinguishability by suffix and the Myhill-Nerode classes",
+        "minimal state counts for ends-with, contains and does-not-contain",
+        "table filling, merge classes, and the quotient machine",
+        "the 7-state last-two machine minimised to 4 (2017 Set 1)",
+        "counters modulo m, the product construction, and the lcm rule",
+        "residue 0 is divisible by every modulus (2020)",
+        "product modulo 7 over four symbols, six nonzero residues (2025 Set 2)",
+        "contains 011 against ends with 011, both 4 states, witness 0110",
+        "union, concatenation, star, and precedence of plus",
+        "Thompson's construction, its cost per operation, and its 14 states for (a|b)*abb",
+        "state elimination, and the (0 + 10*1)* recovery",
+        "closure under union, intersection and complement, and the product bound",
+        "the pumping lemma derived from the pigeonhole principle",
+        "pumping lemma is necessary but not sufficient",
+        "counting strings of bounded length inside a language (2024 Set 1, Set 2)",
+    ]))
 
 topics.append(topic(
     "Theory of Computation", "Context-free languages", "CFG, PDA and pumping lemma",
