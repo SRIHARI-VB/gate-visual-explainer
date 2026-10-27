@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Link Layer: Error Detection, MAC and Ethernet — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Error Detection, MAC and Ethernet</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../layering-switching-and-performance-metrics/index.html">Layering and metrics</a>
+      <a href="../boolean-algebra-and-minimisation/index.html">Boolean algebra</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The second clause of Section 10 of the official GATE 2027 CS syllabus — the link layer: error detection, Medium Access Control, and Ethernet. Three jobs that look unrelated and share one question: what can a receiver conclude from bits that may be wrong, and what can several stations conclude from a wire they must share?</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Compute a CRC remainder by modulo-2 division and state exactly which error patterns the generator catches; read a code's minimum Hamming distance and convert it into a detection and a correction capability; compute an Internet checksum and explain the error pattern that passes it; compute the vulnerable period of pure ALOHA, slotted ALOHA and carrier-sense protocols and the throughput ceiling each one implies; and derive the minimum Ethernet frame size from a round trip, solving for whichever of the four quantities a question leaves out.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one question asked at three depths</em>. Detection asks "is this wrong?". Correction asks "what was it?". Medium access asks "was anybody else talking?". Every formula in the clause is a consequence of one of those three, and the practice set is built on that reading.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 10 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>) reads: <em>"Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; link layer: error detection, Medium Access Control, Ethernet; Distance vector and link state routing; IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP- flow control and congestion control, socket API; DNS and HTTP."</em></p>
+          <p class="small">This lesson is the clause <em>link layer: error detection, Medium Access Control, Ethernet</em>, in full. The clause before it is taught in <a href="../layering-switching-and-performance-metrics/index.html">layering, switching and performance metrics</a>.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Historical frequency is an observation about past papers, never a prediction, and nothing in this lesson is offered as a forecast.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small"><strong>Layering, switching and performance metrics</strong> — <a href="../layering-switching-and-performance-metrics/index.html">that lesson</a>. Transmission delay L/R, propagation delay d/v, and the fact that the link layer is scoped to one hop are assumed throughout. Every question in this clause is that arithmetic with a link-layer question attached.</p>
+          <p class="small"><strong>Boolean algebra and minimisation</strong> — <a href="../boolean-algebra-and-minimisation/index.html">that lesson</a>. CRC arithmetic is XOR and nothing else, and parity is XOR written as a sum modulo two.</p>
+          <p class="small" style="margin-bottom:0"><strong>Sets, relations and counting</strong> — <a href="../counting-and-combinatorics/index.html">counting and combinatorics</a>. Counting codewords and counting error patterns is what the distance arguments actually are.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas this lesson turns on</h3>
+          <ol class="step-list small">
+            <li><strong>Detection is a parity question; correction is a distance question.</strong> One bit of redundancy can say "wrong". Naming a position needs enough redundancy to encode a position.</li>
+            <li><strong>CRC is division, and its guarantees come from the generator's algebra.</strong> Degree r bounds the burst length it catches; a constant term makes bursts detectable at all; x+1 being a factor is what catches every odd-weight error.</li>
+            <li><strong>d<sub>min</sub> ≥ s+1 detects s errors; d<sub>min</sub> ≥ 2t+1 corrects t.</strong> Distance three corrects one error, not three.</li>
+            <li><strong>ALOHA's cost is the vulnerable period.</strong> Two frame times without listening, one with slots, one propagation delay with carrier sense. The ceilings 18.4% and 36.8% follow from that.</li>
+            <li><strong>The minimum frame is a round trip turned into bits.</strong> L ≥ 2τR, and every CSMA/CD question is that line solved for whichever quantity is missing.</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate learning time: <strong>2 to 3 hours</strong> for the whole page, about 45 minutes for a revision pass. That is an estimate, not a measurement.</p>
+          <p class="small">The <em>Animation</em> tab is ten scenes of thirty seconds. Captions are on by default, and the caption-mode selector switches to a detailed version, a keyword version and an exam-trap version without restarting. Play, pause, restart, previous and next scene, scrub and speed all work; so does the reduced-motion toggle.</p>
+          <p class="small" style="margin-bottom:0">Everything numeric on the canvas is computed by the model in <code>lesson.js</code> and re-checked against its own definition. The count of passing checks is printed under the canvas on every load, so a broken computation shows up as a failing count rather than as a quiet wrong answer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 1 of 2 — framing, detection, and the algebra behind a CRC</h3>
+              <p class="small" style="margin-bottom:0">Levels 1 to 4: the analogy, the definitions, the structure, and the first worked computation. Nothing here needs the animation running.</p>
+            </div>
+
+            <div class="card">
+              <h3>Intuition: a parcel, a checklist, and a doorway</h3>
+              <p class="small">A parcel arrives. Three separate questions get asked about it, by three different people. Is this a complete parcel or two parcels stuck together? (framing) Is anything inside damaged? (error detection) Was somebody else pushing a parcel through the same door at the same time? (medium access).</p>
+              <p class="small">The packing slip is the checksum: cheap, quick, catches a dropped item. The sealed tamper strip is the CRC: harder to fake. The doorway argument is settled by listening before you push.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the separation of the three jobs, which is the thing learners collapse. It does not carry the terminology, and a packing slip is not a checksum in any formal sense.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definitions</h3>
+              <p class="small">A <strong>frame</strong> is the unit the link layer hands to the physical layer: a bounded block of bits with a header, a payload and a trailer. <strong>Framing</strong> is the rule that makes its boundaries recoverable.</p>
+              <p class="small">An <strong>error-detecting code</strong> maps each message to a longer codeword; the <strong>minimum Hamming distance</strong> d<sub>min</sub> is the smallest number of positions in which two distinct codewords differ.</p>
+              <p class="small">A <strong>medium access control</strong> protocol decides which station transmits next on a shared channel. A <strong>collision domain</strong> is the set of stations whose transmissions can collide.</p>
+              <div class="formula">d<sub>min</sub> ≥ s + 1 &nbsp;⟹&nbsp; detects s errors &nbsp;&nbsp;·&nbsp;&nbsp; d<sub>min</sub> ≥ 2t + 1 &nbsp;⟹&nbsp; corrects t errors<span class="gloss">Detection needs every error pattern to land off the code. Correction needs the radius-t balls around codewords to stay disjoint, which costs twice as much distance.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Both inequalities are standard coding-theory results, stated in this form in Tanenbaum and Wetherall, <em>Computer Networks</em>, and in Forouzan, <em>Data Communications and Networking</em>.</p>
+            </div>
+
+            <div class="card">
+              <h3>Framing, precisely</h3>
+              <p class="small"><strong>Character count</strong> — a length field. One corrupted count destroys the rest of the stream, which is why it is rarely used alone.</p>
+              <p class="small"><strong>Flag bytes with byte stuffing</strong> — a delimiter, escaped inside the data with an escape byte.</p>
+              <p class="small"><strong>Flag bits with bit stuffing</strong> — the HDLC rule: the flag is 01111110, so the sender inserts a 0 after every run of five 1s, and the receiver deletes it.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Five 1s followed by an inserted 0 can never become six 1s, so the flag cannot occur in stuffed data. The rule never looks ahead, so sender and receiver agree without negotiation. GATE CSE 2014 Set 3 Q24 is this rule run backwards: stuffed 01111100101 destuffs to 0111110101.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>CRC: the arithmetic, in one paragraph</h3>
+              <p class="small">Treat the message bits as coefficients of a polynomial over GF(2). Pick a generator G of degree r. Append r zeros to the message, divide by G using XOR at each step, and the r-bit remainder is the check value. Transmit message followed by remainder.</p>
+              <div class="formula">T(x) = x<sup>r</sup>·M(x) + R(x), &nbsp; where R(x) = x<sup>r</sup>M(x) mod G(x)<span class="gloss">The transmitted word is a multiple of the generator by construction, so the receiver's division gives remainder zero unless something changed.</span></div>
+              <p class="small">The receiver divides the whole received word by G. Remainder zero: no detected error. Anything else: detected, and the remainder is the syndrome.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This construction, and the three guarantees below, are the standard treatment in Forouzan chapter 10 and Tanenbaum section 3.2. The lesson recomputes every example rather than quoting a key.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>What a generator guarantees, and what it does not</h3>
+              <p class="small"><strong>Guaranteed:</strong> every single-bit error, if the constant term is 1. Every burst of length at most r, under the same condition. Every odd-weight error, exactly when x+1 divides G.</p>
+              <p class="small"><strong>Not guaranteed:</strong> bursts of length r+1. The generator itself, used as an error pattern, is a burst of length r+1 and is a multiple of G, so it passes. The model on this page finds that pattern for G = 1011 and reports it.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> x+1 divides G exactly when G(1) = 0, which over GF(2) means G has an even number of ones. 1011 has three ones, so it does not divide, and the model exhibits an odd-weight error it misses. 1001 has two ones, so it does, and the model checks all odd-weight patterns on a 12-bit codeword.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev disabled>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button data-pager-next>Next &rarr;</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 2 of 2 — sharing a wire, and the arithmetic of a slot</h3>
+              <p class="small" style="margin-bottom:0">Levels 5 to 7: the boundaries, the edge cases, and the arithmetic GATE actually asks for. Every number below is computed by the model on this page.</p>
+            </div>
+
+            <div class="card">
+              <h3>Checksum and 2-D parity: the weaker pair</h3>
+              <p class="small">The <strong>Internet checksum</strong> adds the data as 16-bit words in one's complement, wrapping any carry into the low bit, and complements the total. It costs one pass through an adder, which is why IP, TCP and UDP all carry one.</p>
+              <p class="small"><strong>Two-dimensional parity</strong> appends a parity bit to every row and every column. One flip fails one row check and one column check, and their crossing names the bit — so the grid corrects single errors as well as detecting them.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Two flips in a row restore that row's parity, and two in a column restore the column's. Four flips at the corners of a rectangle therefore leave every check satisfied. That is the minimal blind spot, and the model verifies it on the 4×7 grid from the classic GATE item.</p>
+            </div>
+
+            <div class="card">
+              <h3>Hamming code: correction by syndrome</h3>
+              <p class="small">Place check bits at positions 1, 2, 4, 8, …, so every position has a unique binary address. Choose r so that 2<sup>r</sup> ≥ m + r + 1. For m = 8, r = 4 and the codeword is 12 bits.</p>
+              <p class="small">At the receiver, recompute each check group. Each failing group contributes its own position number to the syndrome. Syndrome 0 means no single-bit error; syndrome k means bit k flipped.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The model encodes d8…d1 = 10110010 into 101001110010, then flips each of the twelve positions in turn and confirms the syndrome equals the position every time. It then flips positions 3 and 5 together and shows the syndrome naming bit 6, which is innocent: single-error correction is a promise about at most one error.</p>
+            </div>
+
+            <div class="card">
+              <h3>Random access: the vulnerable period is the whole story</h3>
+              <p class="small"><strong>Pure ALOHA</strong> transmits at will. A frame survives only if no other frame begins within one frame time either side, so the vulnerable period is 2T and throughput is G·e<sup>−2G</sup>, peaking at 1/(2e) ≈ 18.4% when G = 0.5.</p>
+              <p class="small"><strong>Slotted ALOHA</strong> allows starts only at slot boundaries. The window halves to T, throughput is G·e<sup>−G</sup>, and the peak is 1/e ≈ 36.8% at G = 1.</p>
+              <p class="small"><strong>CSMA</strong> listens first, so only a station that began before your first bit arrived can hurt you: the window is one propagation delay τ.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Both closed forms and both ceilings are the standard results in Tanenbaum section 4.2. The lesson also simulates both protocols with a fixed seed over 40 000 frame times and checks the simulated throughput against the closed form to within 1.5 percentage points.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>CSMA/CD: the condition that forces a minimum frame</h3>
+              <p class="small">With collision detection the sender learns of a collision only when the corrupted signal returns, one round trip after it began. So the frame must still be in transit then:</p>
+              <div class="formula">L / R ≥ 2τ &nbsp;&nbsp;⟺&nbsp;&nbsp; L ≥ 2τR, &nbsp; τ = d / v<span class="gloss">τ is one way; the factor of two is the round trip. The condition is about the worst case: the station at the far end starting just before your first bit arrives.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This is the standard derivation, and GATE CSE 2015 Set 3 Q6 is the same line solved for v: 1250 bytes at 10<sup>8</sup> bps over 1 km gives 2 × 10<sup>7</sup> m/s, which the model recomputes.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The 802.3 frame, field by field</h3>
+              <p class="small">Destination 6 bytes, source 6, type or length 2, payload 46 to 1500, frame check sequence 4. That is 18 bytes of overhead and a frame of 64 to 1518 bytes. The preamble (7 bytes) and start-of-frame delimiter (1 byte) are transmitted but are not counted in that 64.</p>
+              <p class="small">Slot time is 512 bit times, which is 51.2 µs at 10 Mbps. The 2500-metre maximum diameter at 2 × 10<sup>8</sup> m/s has a round trip of 25 µs, and the remaining margin pays for repeaters and transceivers.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Field widths and the 64-byte minimum are IEEE 802.3. The claim that the whole 51.2 µs is needed for propagation alone is <em>not</em> correct and is not made here: propagation accounts for about half of it.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Level 5 to 7 in one line each</h3>
+              <p class="small"><strong>Boundary:</strong> every guarantee above is conditional. No constant term, no burst guarantee. No x+1 factor, no odd-error guarantee. No collision detection, no factor of two.</p>
+              <p class="small"><strong>Edge case:</strong> a code with d<sub>min</sub> = 2 detects one error and corrects none. A hub is one collision domain; a switch gives each port its own.</p>
+              <p class="small" style="margin-bottom:0"><strong>GATE application:</strong> four question shapes cover almost every item — compute a remainder, read a distance, compute a vulnerable window, and solve L = 2τR for the missing quantity. The next tab names them.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 2 of 2</span>
+            <button data-pager-next disabled>Next &rarr;</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A receiver sees a stream of bits. Nothing in the stream says where one message stops.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Frames: how the receiver knows where a message ends</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with the problem framing exists to solve.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Examples, page 1 of 2 — detection, worked digit by digit</h3>
+              <p class="small" style="margin-bottom:0">Every arithmetic step below is reproduced by the model on this page; none is copied from an answer key.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 — CRC, GATE CSE 2017 Set 1 Q32</h3>
+              <p class="small">Message 01011011, generator x<sup>3</sup> + x + 1, that is 1011. Degree 3, so append three zeros: 01011011000. Divide modulo 2.</p>
+              <ol class="step-list small">
+                <li>Take the first four bits 0101. Leading bit 0, so shift with no XOR.</li>
+                <li>Bring down to 1011, XOR 1011 → 0000, continue.</li>
+                <li>Each subsequent pass XORs 1011 only where the running remainder has a leading 1.</li>
+                <li>The three bits left at the end are 101.</li>
+              </ol>
+              <div class="formula">transmitted = 01011011 &nbsp;·&nbsp; 101 = 01011011101<span class="gloss">Option (C) on the paper. The model divides the codeword again and gets remainder 000, which is the check that the append was right.</span></div>
+              <p class="small" style="margin-bottom:0">The wrong options are instructive: 01011011010 keeps two of the three check bits correctly, and 01011011000 is the message with the zeros still appended and no division done at all.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — CRC, GATE CSE 2021 Set 2 Q34</h3>
+              <p class="small">Message m4…m0 = 11000, same generator 1011, check bits c2c1c0 appended. Append three zeros: 11000000. Divide by 1011.</p>
+              <p class="small">XOR passes give 0111, then 0101, then 0001, and after bringing the last zeros down the remainder is 100.</p>
+              <div class="formula">c<sub>2</sub>c<sub>1</sub>c<sub>0</sub> = 100<span class="gloss">The model computes this independently and also confirms that 11000100 divides by 1011 with remainder zero.</span></div>
+              <p class="small" style="margin-bottom:0">A five-bit message with a degree-three generator gives an eight-bit codeword. Getting 1000 or 010 here usually means one extra or one missing bring-down.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 — two-dimensional parity, and its rectangle</h3>
+              <p class="small">The classic 4×7 data block, padded with an even-parity column d0 and an even-parity row r4, is transmitted as 40 bits.</p>
+              <p class="small">Flip one bit: exactly one row check and one column check fail, and their crossing is the flipped bit. The model confirms the located row and column.</p>
+              <p class="small">Flip four bits at the corners of a rectangle — say (r0,d7), (r0,d5), (r2,d7), (r2,d5). Each affected row now has two flips and each affected column two, so every check passes and the receiver reports a clean block.</p>
+              <p class="small" style="margin-bottom:0">Flip three bits anywhere and at least one check fails: the model tests a triple and detects it. That is the whole content of the honest claim "all patterns of weight up to three".</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — the Internet checksum, and two errors that cancel</h3>
+              <p class="small">Words 0x1234, 0x5678, 0x9ABC, 0xDEF0. Add with end-around carry, then complement.</p>
+              <p class="small">Now raise the first word by 1 to 0x1235 and lower the second by 1 to 0x5677. The word sum is unchanged, so the receiver's total including the check value is still 0xFFFF, and the error passes.</p>
+              <div class="formula">checksum = complement of the one's complement sum &nbsp;·&nbsp; receiver tests sum = 0xFFFF<span class="gloss">The blind spot is structural: any change whose per-word deltas sum to zero is invisible. That is why a checksum is called weak and a CRC is not.</span></div>
+              <p class="small" style="margin-bottom:0">The model computes both blocks and reports that both verify — the honest way to show a weakness is to exhibit it, not to assert it.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev disabled>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 1 of 2</span>
+            <button data-pager-next>Next &rarr;</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Examples, page 2 of 2 — correction, sharing, and the link arithmetic</h3>
+              <p class="small" style="margin-bottom:0">The same discipline: compute, then check the computation against its own definition.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 5 — a Hamming codeword, built and repaired</h3>
+              <p class="small">Data d8…d1 = 10110010. m = 8 needs r = 4, because 2<sup>3</sup> = 8 &lt; 13 and 2<sup>4</sup> = 16 ≥ 13. Positions 1, 2, 4, 8 carry check bits; data fills 3, 5, 6, 7, 9, 10, 11, 12.</p>
+              <p class="small">Even parity over each check group gives the codeword 101001110010.</p>
+              <p class="small">Flip bit 7: the syndrome is 7, so the receiver flips position 7 back. The model repeats this for all twelve positions and gets the position every time.</p>
+              <p class="small" style="margin-bottom:0">Now flip bits 3 and 5 together. The syndrome is 6, which points confidently at bit 6 — a bit that was never touched. Correcting it makes the word three bits wrong. This is why the guarantee is stated as "at most one error".</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — reading a distance, GATE CSE 2017 Set 2 Q34</h3>
+              <p class="small">Codewords 00000, 01011, 10101, 11110. All six pairwise distances are 3, 3, 4, 4, 3, 3, so d<sub>min</sub> = 3.</p>
+              <div class="formula">t = ⌊(d<sub>min</sub> − 1) / 2⌋ = ⌊2/2⌋ = 1<span class="gloss">Distance 3 detects two errors and corrects one. The two answers are different numbers, which is the trap.</span></div>
+              <p class="small" style="margin-bottom:0">The model recomputes all six distances and the floor, so the answer on the page is derived rather than quoted.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 — ALOHA by simulation and by formula</h3>
+              <p class="small">Pure ALOHA at G = 0.5 over 40 000 frame times: a frame succeeds only if no other arrival falls within one frame time either side. The simulation reports its own measured throughput.</p>
+              <p class="small">Slotted ALOHA at G = 1 over 40 000 slots: a slot carries a frame only if exactly one arrival lands in it.</p>
+              <div class="formula">S<sub>pure</sub> = G·e<sup>−2G</sup>, max 1/(2e) ≈ 0.1839 &nbsp;·&nbsp; S<sub>slotted</sub> = G·e<sup>−G</sup>, max 1/e ≈ 0.3679<span class="gloss">The seed is fixed, so the numbers on the canvas are reproducible. Agreement is checked to within 1.5 percentage points, and the check is one of the forty reported under the canvas.</span></div>
+              <p class="small" style="margin-bottom:0">The model also verifies that slotted ALOHA is never worse than pure ALOHA at any load in (0, 1].</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 8 — minimum frame size, both directions</h3>
+              <p class="small"><strong>Given L, R, d; find v.</strong> GATE CSE 2015 Set 3 Q6: 1250 bytes = 10<sup>4</sup> bits, R = 10<sup>8</sup> bps, d = 1000 m. From L = 2dR/v, v = 2·1000·10<sup>8</sup>/10<sup>4</sup> = 2 × 10<sup>7</sup> m/s = 20000 km/s.</p>
+              <p class="small"><strong>Given v, d, R; find L.</strong> A 1 km segment at 10 Mbps with v = 2 × 10<sup>8</sup> m/s: τ = 5 µs, so L = 2 × 5 µs × 10<sup>7</sup> = 100 bits. That is why real Ethernet at 10 Mbps has a maximum diameter of 2500 m rather than 1 km: the standard chose 512 bits and derived the diameter.</p>
+              <div class="formula">L ≥ 2τR &nbsp;·&nbsp; τ = d/v &nbsp;·&nbsp; a = τ/T<sub>t</sub> &nbsp;·&nbsp; U<sub>stop-and-wait</sub> = 1/(1 + 2a)<span class="gloss">On a 1 km, 10 Mbps LAN with 8000-bit frames, a is about 0.006 and the utilisation about 98.8%: small a means the wire is busy.</span></div>
+              <p class="small" style="margin-bottom:0">All three quantities are computed on the canvas, not typed into it.</p>
+            </div>
+
+          </div>
+          <div class="pager" style="margin-top:14px">
+            <button data-pager-prev>&larr; Previous</button>
+            <span class="count" data-pager-count>Page 2 of 2</span>
+            <button data-pager-next disabled>Next &rarr;</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries and counterexamples</h3>
+          <p class="small" style="margin-bottom:0">Each card names the condition that fails and the smallest structure that shows the failure. Every counterexample here is computed by the model on this page.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: the generator as an error pattern</h3>
+          <p class="small">With G = 1011 on the 13-bit codeword from GATE 2017 Set 1, flip the four bits aligned exactly with the generator. The received word differs by G, which is a multiple of G, so the remainder is still zero and the error passes.</p>
+          <p class="small" style="margin-bottom:0">Condition violated: "a CRC catches every burst". It catches bursts of length <em>at most</em> r = 3. This one has length 4. The model searches for it and reports the offset.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: an odd number of errors that passes</h3>
+          <p class="small">G = 1011 has three ones, so x+1 does not divide it, so the odd-error guarantee does not apply. The model finds an odd-weight pattern on that codeword with remainder zero.</p>
+          <p class="small" style="margin-bottom:0">Condition violated: "a CRC catches all odd numbers of errors". True only when G has an even number of ones, which is why 1001 — x<sup>3</sup> + 1 — does have the guarantee and the model checks all 4096 patterns to confirm it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: four parity errors that cancel</h3>
+          <p class="small">On the 4×7 parity grid, flip the four corners of any rectangle. Every row check and every column check still passes.</p>
+          <p class="small" style="margin-bottom:0">Condition violated: "two-dimensional parity detects up to four errors". It detects every pattern of weight up to three, and a weight-four pattern only when the four bits do not form a rectangle.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: two checksum errors that cancel</h3>
+          <p class="small">Raise one 16-bit word by 1 and lower another by 1. The one's complement sum is unchanged, so the receiver's total is still 0xFFFF.</p>
+          <p class="small" style="margin-bottom:0">Condition violated: "the checksum detects corruption". It detects changes whose word deltas do not sum to zero. This is a structural weakness, not an unlucky accident.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a syndrome that names an innocent bit</h3>
+          <p class="small">Flip bits 3 and 5 of the 12-bit Hamming codeword. The syndrome is 6, and the receiver "corrects" bit 6, leaving three bits wrong.</p>
+          <p class="small" style="margin-bottom:0">Condition violated: "a Hamming code corrects errors". It corrects at most one. With two errors it fails silently, which is worse than detecting nothing — this is why real memories use an extra overall parity bit to make SEC-DED.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary: a code with d<sub>min</sub> = 2</h3>
+          <p class="small">Single parity has d<sub>min</sub> = 2. It detects one error and corrects none: ⌊(2−1)/2⌋ = 0. Every "detect" and "correct" question must therefore be answered with two separate numbers.</p>
+          <p class="small" style="margin-bottom:0">A repetition code of three bits has d<sub>min</sub> = 3 and corrects one error, at the cost of tripling every bit. Distance is bought with redundancy, and there is no free lunch in the table.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary: CSMA/CD on a satellite link</h3>
+          <p class="small">Take d = 36 000 km and v = 3 × 10<sup>8</sup> m/s: τ = 0.12 s, so at 10 Mbps the minimum frame would be 2.4 × 10<sup>6</sup> bits, about 300 KB. No practical frame is that long.</p>
+          <p class="small" style="margin-bottom:0">That is the boundary of the protocol, not a numerical curiosity: CSMA/CD is a LAN protocol because the 2τR product must stay smaller than a sensible frame. On a satellite link you use a different MAC entirely.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary: what the 64 bytes does not include</h3>
+          <p class="small">The 64-byte minimum counts destination, source, type, payload and FCS. It does not count the 7-byte preamble, the 1-byte start-of-frame delimiter, or the 12-byte interframe gap.</p>
+          <p class="small" style="margin-bottom:0">A question that asks for "the minimum transmission time of a frame" usually means 64 bytes = 512 bit times; one that asks for "wire time including preamble and gap" means 84 bytes. Read which one is asked, and say which you used.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Six wrong beliefs that cost marks</h3>
+          <p class="small" style="margin-bottom:0">Each is stated as a learner would state it, then killed with the smallest structure that does the job. The ones marked <span class="claim-chip claim-chip--community">Community observation</span> are reported difficulties in study forums, not measurements.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A CRC catches every burst error."</h3>
+          <p class="small"><strong>Why it tempts:</strong> the textbook sentence says "burst errors", and the qualifier "of length at most r" gets dropped in revision.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the generator is itself a multiple of the generator. A burst of length r+1 aligned with it passes.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> G = 1011 on the 13-bit codeword, error pattern 1011 at the start. Remainder zero.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> every burst of length ≤ r is caught, provided the constant term is 1. Longer bursts are caught with high probability, not certainty. <span class="claim-chip claim-chip--community">Community observation</span></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Distance three corrects three errors."</h3>
+          <p class="small"><strong>Why it tempts:</strong> the number in the formula and the number in the question look the same.</p>
+          <p class="small"><strong>Why it is wrong:</strong> correction needs disjoint radius-t balls, which costs 2t+1 distance.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the four codewords of GATE 2017 Set 2 Q34 have d<sub>min</sub> = 3 and correct exactly one error.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> t = ⌊(d<sub>min</sub> − 1)/2⌋ and s = d<sub>min</sub> − 1. Different questions, different formulas.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"ALOHA efficiency is 18.4%, so that is the throughput."</h3>
+          <p class="small"><strong>Why it tempts:</strong> the figure is memorable and appears in every summary table.</p>
+          <p class="small"><strong>Why it is wrong:</strong> it is the maximum over load, reached only at G = 0.5. At light load the throughput is close to the offered load.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> at G = 0.05, S = 0.05·e<sup>−0.1</sup> ≈ 4.5%, which is far below 18.4% — the figure is a ceiling, not a constant.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> S = G·e<sup>−2G</sup>. Quote the peak and the load at which it occurs together, or not at all.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The minimum frame size has a 2 because there are two stations."</h3>
+          <p class="small"><strong>Why it tempts:</strong> CSMA/CD involves a sender and a receiver, and the factor is unexplained in most one-line summaries.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the 2 is the round trip: the collision signal must travel to the far end and back before the sender can know.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the same formula with one station would still carry a factor of two; the factor survives because it is a time, not a count.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> L ≥ 2τR with τ one way. Doubling the distance or the rate doubles the minimum frame; adding stations does not change it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A checksum is a CRC."</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are called "check bits" and both go in a trailer.</p>
+          <p class="small"><strong>Why it is wrong:</strong> one is addition, the other is polynomial division; they catch different error families.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> two errors that cancel in the sum pass the checksum, while a CRC with a constant term would detect them.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> checksum for speed, CRC for strength. A question that names one is not asking for the other, and an Ethernet FCS is a CRC while the IP header check is a checksum.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A switch and a hub differ in speed."</h3>
+          <p class="small"><strong>Why it tempts:</strong> switches are faster in practice, so speed is assumed to be the definition.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the defining difference is that a hub repeats every bit to every port, so all ports share one collision domain, while a switch forwards per port.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a two-port hub and a two-port switch can run at the same bit rate; only the switch lets both ports transmit at once.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a switch splits collision domains, not broadcast domains. Both are one broadcast domain unless a VLAN or router intervenes.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Question categories that apply here</h3>
+          <p class="small" style="margin-bottom:0">Six of the eight standard categories fit this clause. Category D (construction) appears only as "build a codeword", and category H (multi-step) is rare — most items are one computation with one trap. A and B are covered in the Build-up tab; C and G dominate the papers.</p>
+        </div>
+
+        <div class="card">
+          <h3>C — Calculation: the CRC remainder</h3>
+          <p class="small"><strong>Reasoning path:</strong> read the generator as a bit pattern, take its degree r, append r zeros, divide by XOR, read the last r bits, append them to the message.</p>
+          <p class="small"><strong>Common wrong approach:</strong> appending the wrong number of zeros, or subtracting with borrows instead of XOR.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> dividing the codeword must give remainder zero. If it does not, the append was wrong, not the division.</p>
+        </div>
+
+        <div class="card">
+          <h3>C — Calculation: the vulnerable window</h3>
+          <p class="small"><strong>Reasoning path:</strong> name the protocol, then name its window — 2T for pure ALOHA, T for slotted, τ for sensing, 2τ for detection — and convert the question's numbers into that window.</p>
+          <p class="small"><strong>Common wrong approach:</strong> using 2τ for a protocol that never detects collisions. GATE CSE 2018 Q55 is exactly this trap: sensing only, so one τ.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> does the protocol ever learn that a collision happened? If not, no factor of two.</p>
+        </div>
+
+        <div class="card">
+          <h3>B — Property verification: distance and capability</h3>
+          <p class="small"><strong>Reasoning path:</strong> compute all pairwise distances, take the minimum, then apply t = ⌊(d<sub>min</sub>−1)/2⌋ for correction and s = d<sub>min</sub>−1 for detection.</p>
+          <p class="small"><strong>Common wrong approach:</strong> computing only the distance between two convenient codewords, or reading d<sub>min</sub> as the correction capability.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> for k codewords there are k(k−1)/2 distances. Four codewords means six distances, and one of them may be the smallest.</p>
+        </div>
+
+        <div class="card">
+          <h3>G — Misconception trap: Ethernet statements</h3>
+          <p class="small"><strong>Reasoning path:</strong> test each statement against the mechanism, not against the vocabulary. "Stops sensing" is false because detection requires sensing during transmission; "jamming pads frames" is false because padding is a separate mechanism.</p>
+          <p class="small"><strong>Common wrong approach:</strong> accepting a statement because the words are all real Ethernet words.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> every option in GATE CSE 2016 Set 2 Q24 names a real mechanism. Only one names the right purpose.</p>
+        </div>
+
+        <div class="card">
+          <h3>A — Direct definition: framing rules</h3>
+          <p class="small"><strong>Reasoning path:</strong> for bit stuffing, find the runs of five ones and delete the zero after each. For byte stuffing, find the escape byte.</p>
+          <p class="small"><strong>Common wrong approach:</strong> counting six ones and removing the bit after them.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> after destuffing, no run of five ones should still be followed by a zero that was inserted — the result should look like ordinary data.</p>
+        </div>
+
+        <div class="card">
+          <h3>F — Multiple conditions: which guarantee applies</h3>
+          <p class="small"><strong>Reasoning path:</strong> a CRC question can ask about single-bit, burst, or odd-weight errors. Each has its own condition — constant term 1 for the first two, x+1 dividing G for the third.</p>
+          <p class="small"><strong>Common wrong approach:</strong> answering "all of them" because the generator is "good".</p>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> count the ones in the generator. Even means x+1 divides it and the odd-error guarantee holds; odd means it does not.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — twelve questions</h3>
+          <p class="small">Seven are previous-year items with year and paper named and every answer recomputed by the model on this page. Five are original practice written for this lesson and labelled as such. Answers are hidden until you reveal them.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2014 Set 3, Q24</span> <strong>Q1 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">A bit-stuffing based framing protocol uses an 8-bit delimiter pattern 01111110. If the output bit-string after stuffing is 01111100101, then the input bit-string is:</p>
+          <p class="small">(A) 0111110100 &nbsp; (B) 0111110101 &nbsp; (C) 0111111101 &nbsp; (D) 0111111111</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> After the run of five ones the sender inserted one 0. Delete that single bit: 011111 0101.</p>
+            <p class="small">(A) deletes the wrong bit, turning the trailing 0101 into 0100. (C) deletes nothing and invents a one. (D) treats the stuffed output as if all zeros were data. The model performs the deletion and compares against the stated input.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2017 Set 1, Q32</span> <strong>Q2 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">A computer network uses polynomials over GF(2) for error checking with 8 information bits and generator x<sup>3</sup> + x + 1. The message 01011011 is transmitted as:</p>
+          <p class="small">(A) 01011011010 &nbsp; (B) 01011011011 &nbsp; (C) 01011011101 &nbsp; (D) 01011011100</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(C).</strong> Generator 1011, degree 3, so append 000 and divide. Remainder 101. Frame = 01011011 · 101 = 01011011101.</p>
+            <p class="small">(A) and (B) carry a plausible-looking but wrong remainder, which is what a single mis-shifted bring-down produces. (D) has the right length and the wrong bits. The model recomputes the remainder and then divides the codeword again to confirm remainder zero.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2021 Set 2, Q34</span> <strong>Q3 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">CRC with generator X<sup>3</sup> + X + 1. Message m<sub>4</sub>…m<sub>0</sub> = 11000. Check bits c<sub>2</sub>c<sub>1</sub>c<sub>0</sub> are appended. The value of c<sub>2</sub>c<sub>1</sub>c<sub>0</sub> is:</p>
+          <p class="small">(A) 000 &nbsp; (B) 010 &nbsp; (C) 100 &nbsp; (D) 110</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(C).</strong> 11000 with three zeros appended is 11000000. Dividing by 1011 leaves 100.</p>
+            <p class="small">(A) is what you get by assuming the remainder is always the appended zeros — a common guess. (B) and (D) come from stopping the division one step early. The model computes the remainder and confirms 11000100 divides exactly by 1011.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2017 Set 2, Q34</span> <strong>Q4 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">A binary code has exactly four valid codewords: 00000, 01011, 10101, 11110. Let the minimum Hamming distance be p and the maximum number of erroneous bits that can be corrected be q. Then p and q are:</p>
+          <p class="small">(A) p = 3, q = 1 &nbsp; (B) p = 3, q = 2 &nbsp; (C) p = 4, q = 1 &nbsp; (D) p = 4, q = 2</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A).</strong> The six pairwise distances are 3, 3, 4, 4, 3, 3, so p = 3. Correction is ⌊(3−1)/2⌋ = 1.</p>
+            <p class="small">(B) reads p as q. (C) and (D) take the largest distance instead of the smallest, which is the other common error. The model computes all six distances.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2015 Set 3, Q6</span> <strong>Q5 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">A CSMA/CD network transmits at 100 Mbps over a 1 km cable with no repeaters. The minimum frame size required is 1250 bytes. The signal speed in the cable, in km/sec, is:</p>
+          <p class="small">(A) 8000 &nbsp; (B) 10000 &nbsp; (C) 16000 &nbsp; (D) 20000</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(D).</strong> L = 2dR/v, so v = 2·1·10<sup>8</sup>/10<sup>4</sup> = 2 × 10<sup>4</sup> km/s.</p>
+            <p class="small">(B) drops the factor of two and gives half the answer — the single most common slip on this item. (A) and (C) come from using the frame size in bytes rather than bits. The model solves the equation and then re-derives the frame size from the answer as a check.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--nat">GATE CSE 2018, Q55</span> <strong>Q6 (NAT)</strong></div>
+          <p class="q-body">Nodes use a carrier-sense protocol: sense for 5 time units, then transmit for 20; no collision detection. Signal speed 10 m per unit time. P starts at t = 0 after sensing; Q has a frame at t = 0 and starts sensing. The maximum distance d, in metres, that lets Q avoid a collision is ______.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>50.</strong> Q must hear P within its 5-unit window, so d/10 ≤ 5, giving d ≤ 50 m.</p>
+            <p class="small">The trap is using 2τ: these nodes never detect collisions, so only the one-way delay against the sensing window matters. 250 and 100 both come from adding the 20-unit transmission time into the inequality, which is not what the protocol requires. The model computes the window and the distance.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2016 Set 2, Q24</span> <strong>Q7 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">In an Ethernet local area network, which one of the following statements is TRUE?</p>
+          <p class="small">(A) A station stops sensing the channel once it starts transmitting. (B) The jamming signal pads frames smaller than the minimum. (C) A station continues to transmit after detecting a collision. (D) Exponential backoff reduces the probability of collision on retransmissions.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(D).</strong> The backoff window doubles with each collision, spreading retransmissions apart.</p>
+            <p class="small">(A) is false: sensing during transmission is precisely how a collision is detected. (B) confuses jamming with padding, which are separate mechanisms. (C) is the opposite of CSMA/CD: the station aborts and jams. The model computes the backoff ranges and confirms the window doubles up to ten collisions.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2007, Q73</span> <strong>Q8 (MCQ, 2 marks)</strong></div>
+          <p class="q-body">The message 11001001 is transmitted using the CRC polynomial x<sup>3</sup> + 1 to protect it from errors. The message that should be transmitted is:</p>
+          <p class="small">(A) 11001001000 &nbsp; (B) 11001001011 &nbsp; (C) 11001010 &nbsp; (D) 110010010011</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> Generator 1001, degree 3, append 000, divide: remainder 011. Frame = 11001001 · 011.</p>
+            <p class="small">(A) is the message with the zeros still attached and no division done. (D) appends four bits for a degree-three generator. (C) drops the check bits entirely. The model computes remainder 011 and confirms the codeword divides exactly.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q9 (NAT)</strong></div>
+          <p class="q-body">A generator polynomial has degree 5 and a non-zero constant term. How many check bits are appended, and what is the longest burst of bit errors that is guaranteed to be detected? Give the burst length as a number of bits.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>5 check bits; every burst of length up to 5 is guaranteed detected.</strong></p>
+            <p class="small">The degree sets both numbers: r bits of remainder, and a guaranteed burst-detection length of r. The constant term is what makes bursts detectable at all — without it, a burst aligned at the end of the word can divide exactly. The model checks this claim exhaustively for r = 3 on both of its generators and finds the length-4 pattern that escapes.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q10 (MSQ)</strong></div>
+          <p class="q-body">Which of the following are true of the 802.3 frame?</p>
+          <p class="small">(A) The minimum frame is 64 bytes including the FCS. (B) The preamble is counted in the 64 bytes. (C) A payload shorter than 46 bytes is padded. (D) The FCS is a CRC, not a checksum.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A), (C) and (D).</strong></p>
+            <p class="small">(B) is false: the 7-byte preamble and 1-byte start-of-frame delimiter are transmitted but sit outside the frame length the 64-byte minimum refers to. The model adds the fields: 6 + 6 + 2 + 46 + 4 = 64, and 6 + 6 + 2 + 1500 + 4 = 1518.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q11 (MCQ)</strong></div>
+          <p class="q-body">A slotted ALOHA channel carries an offered load of G = 1. A pure ALOHA channel carries the same load. Which statement is correct?</p>
+          <p class="small">(A) Both achieve 1/e. (B) Slotted achieves 1/e, pure achieves 1/e<sup>2</sup>. (C) Slotted achieves 1/e, pure achieves e<sup>−2</sup>. (D) Pure is better because it needs no synchronisation.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(C).</strong> Slotted: G·e<sup>−G</sup> = 1·e<sup>−1</sup> = 1/e ≈ 0.368. Pure: G·e<sup>−2G</sup> = e<sup>−2</sup> ≈ 0.135.</p>
+            <p class="small">(A) is the peak-versus-load confusion: 1/(2e) is pure ALOHA's peak, at G = 0.5, not at G = 1. (D) is a real advantage but not a throughput one — at equal load slotted is always at least as good, which the model verifies across (0, 1].</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q12 (NAT)</strong></div>
+          <p class="q-body">A CSMA/CD LAN runs at 1 Gbps over a 1 km cable with signal speed 2 × 10<sup>8</sup> m/s. What is the minimum frame size in bits?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>10000 bits.</strong> τ = 1000/2 × 10<sup>8</sup> = 5 µs, so L ≥ 2 × 5 µs × 10<sup>9</sup> = 10<sup>4</sup> bits.</p>
+            <p class="small">That is 1250 bytes — which is why gigabit Ethernet extends the slot rather than shortening the frame, and why the classic 1 Gbps textbook exercise and the 2015 paper share an answer. Dropping the factor of two gives 5000 bits, the most common wrong answer. The model computes both quantities from the same formula.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">One screen: the definitions, the formulas with their conditions, the decision procedures, and the traps with the counterexample that defuses each.</p>
+        </div>
+
+        <div class="card">
+          <h3>Definitions in one line</h3>
+          <p class="small"><strong>Frame</strong> — the bounded block the link layer hands down. <strong>Framing</strong> — the rule that makes boundaries recoverable.</p>
+          <p class="small"><strong>d<sub>min</sub></strong> — smallest number of positions in which two codewords differ.</p>
+          <p class="small"><strong>Syndrome</strong> — the remainder after dividing a received word by the generator, or the failed-check number in a Hamming code.</p>
+          <p class="small"><strong>Vulnerable period</strong> — the interval in which another station's start destroys your frame.</p>
+          <p class="small" style="margin-bottom:0"><strong>Collision domain</strong> — the stations whose transmissions can collide. A hub is one; each switch port is its own.</p>
+        </div>
+
+        <div class="card">
+          <h3>Formulas, with the condition attached</h3>
+          <p class="small">CRC: append r zeros, divide by G, remainder has r bits. <em>Condition:</em> r is the degree of G.</p>
+          <p class="small">Guarantees: all single-bit errors and all bursts of length ≤ r, <em>if</em> the constant term is 1. All odd-weight errors <em>iff</em> x+1 divides G, i.e. G has an even number of ones.</p>
+          <p class="small">Detect s: d<sub>min</sub> ≥ s+1. Correct t: d<sub>min</sub> ≥ 2t+1, so t = ⌊(d<sub>min</sub>−1)/2⌋.</p>
+          <p class="small">Hamming: smallest r with 2<sup>r</sup> ≥ m + r + 1; check bits at 1, 2, 4, 8.</p>
+          <p class="small">ALOHA: S<sub>pure</sub> = G·e<sup>−2G</sup>, peak 1/(2e) at G = 0.5. S<sub>slotted</sub> = G·e<sup>−G</sup>, peak 1/e at G = 1.</p>
+          <p class="small">CSMA/CD: L ≥ 2τR with τ = d/v one way.</p>
+          <p class="small" style="margin-bottom:0">Stop-and-wait: U = 1/(1+2a) with a = τ/T<sub>t</sub>. Ethernet: min frame 64 B, max 1518 B, overhead 18 B, slot time 512 bit times.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedures</h3>
+          <p class="small"><strong>To compute a CRC:</strong> write G as bits, r = len−1, append r zeros, XOR at each leading one, take the last r bits, append to the message, then verify by dividing the whole word.</p>
+          <p class="small"><strong>To find what a code can do:</strong> list all codewords, compute all pairwise distances, take the minimum, apply the two inequalities.</p>
+          <p class="small"><strong>To repair a Hamming word:</strong> recompute each check group, add the position numbers of the failing groups, flip that position. Zero means no single-bit error.</p>
+          <p class="small" style="margin-bottom:0"><strong>To choose the window:</strong> does the protocol sense? does it detect? Sense only → τ. Detect → 2τ. Slots only → T. Nothing → 2T.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, each with its defusing counterexample</h3>
+          <p class="small">"CRC catches all bursts" — the generator itself is a length r+1 burst that passes.</p>
+          <p class="small">"d<sub>min</sub> = 3 corrects 3" — the four-codeword code corrects one.</p>
+          <p class="small">"18.4% is the throughput" — at G = 0.05 pure ALOHA gives 4.5%.</p>
+          <p class="small">"2-D parity catches four errors" — the rectangle of four is invisible.</p>
+          <p class="small">"Checksum catches corruption" — a +1/−1 pair passes.</p>
+          <p class="small" style="margin-bottom:0">"The 2 is two stations" — it is the round trip, and it survives with one station.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Six questions to test yourself, answers below</h3>
+          <p class="small">1. Generator 1011, message 1101: what is the remainder? &nbsp; 2. A code has d<sub>min</sub> = 4: how many errors can it detect and correct? &nbsp; 3. Pure ALOHA at G = 0.25: what is the throughput? &nbsp; 4. Why does the minimum frame size double when the rate doubles? &nbsp; 5. Which single condition makes a CRC catch every odd-weight error? &nbsp; 6. A frame arrives with syndrome 0 in a Hamming code: is it certainly correct?</p>
+          <p class="small" style="margin-bottom:0"><strong>Answers.</strong> 1. 1101 with 000 appended is 1101000; dividing by 1011 leaves 001. &nbsp; 2. Detects 3, corrects 1. &nbsp; 3. 0.25·e<sup>−0.5</sup> ≈ 0.1516. &nbsp; 4. Because L ≥ 2τR: the same round trip at twice the rate needs twice as many bits. &nbsp; 5. x+1 must divide G, equivalently G has an even number of ones. &nbsp; 6. No — syndrome 0 rules out a single-bit error, not a two-bit error that mimics a valid codeword.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson rests on</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind, each with what it supports. Where a claim rests on a single archive, it says so.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus PDF</strong>, IIT Madras — <code>https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>. Supports: the wording of Section 10, including the clause "link layer: error detection, Medium Access Control, Ethernet" that this lesson covers. Read on 2026-10-26.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE question papers and answer keys</strong> as reproduced in the public archives listed below. Supports: the year, set and question number of every previous-year item here. No item was checked against an original paper PDF, and every answer was recomputed by the model rather than copied from a key.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbooks and standards</h3>
+          <p class="small"><strong>Tanenbaum and Wetherall, <em>Computer Networks</em></strong> — framing and bit stuffing, ALOHA and slotted ALOHA with their ceilings, CSMA/CD, Ethernet, binary exponential backoff, the d<sub>min</sub> inequalities.</p>
+          <p class="small"><strong>Forouzan, <em>Data Communications and Networking</em></strong> — the CRC construction and its three guarantees, the Internet checksum, Hamming codes and the 2<sup>r</sup> ≥ m + r + 1 inequality, two-dimensional parity.</p>
+          <p class="small" style="margin-bottom:0"><strong>Kurose and Ross, <em>Computer Networking</em></strong> — the link-layer framing of error detection and multiple access, and the CSMA/CD efficiency discussion this lesson deliberately does not reduce to a single formula.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year reproductions used</h3>
+          <p class="small">GATE CSE 2014 Set 3 Q24; 2015 Set 3 Q6; 2016 Set 2 Q24; 2017 Set 1 Q32; 2017 Set 2 Q34; 2018 Q55; 2007 Q73 — each confirmed by at least two independent archives, several of which reproduce the official paper's own numbering.</p>
+          <p class="small" style="margin-bottom:0">GATE CSE 2021 Set 2 Q34 — confirmed by two archives. GATE 2026 CS2 Q43 appears in the animation and the notes: two archives give remainder 100 and one gives 000. The model's own division gives 100, and the codeword 110001011100 divides exactly by 1001, so 100 is the value this lesson teaches; the disagreement is recorded rather than hidden.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">Eight previous-year items were checked against published reproductions and every answer was recomputed by the model on this page; none was checked against an original paper PDF. Two items rest on two archives rather than three, and one 2026 item has a disagreeing archive, recorded above. Items I could not pin to a year and a paper are not reproduced as previous-year items — that is why the Hamming codeword construction in Example 5 and the slotted-versus-pure comparison in Q11 are labelled original even where a similar GATE item probably exists. The lesson does not cover bridging and the spanning tree protocol, CSMA/CA and 802.11 in detail, token ring, sliding-window sequence-number arithmetic, or the efficiency formula for CSMA/CD as a single closed expression: the first four belong to other clauses of Section 10 or to a deeper data-link lesson, and the last is presented as an inequality and a ratio rather than as a formula whose constants differ between textbooks. Every number in the animation is computed on load and checked, and the pass count is printed under the canvas.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
