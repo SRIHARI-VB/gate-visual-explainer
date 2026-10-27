@@ -46,7 +46,16 @@ lessons are static files and work from a local clone.
 | Memory Hierarchy and Cache | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-hierarchy-and-cache/index.html` |
 | Memory Interfacing and Interleaving | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-interfacing-and-interleaving/index.html` |
 | Pipelining and Hazards | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/pipelining-and-hazards/index.html` |
+| CPU Scheduling | Operating Systems | A — explicitly in the syllabus | `topics/cpu-scheduling/index.html` |
+| Disk Scheduling (I/O Scheduling) | Operating Systems | A — explicitly in the syllabus | `topics/disk-scheduling/index.html` |
+| File Systems | Operating Systems | A — explicitly in the syllabus | `topics/file-systems/index.html` |
+| Memory Management and Virtual Memory | Operating Systems | A — explicitly in the syllabus | `topics/memory-management-and-virtual-memory/index.html` |
 | Processes, Threads and IPC | Operating Systems | A — explicitly in the syllabus | `topics/processes-threads-and-ipc/index.html` |
+| Synchronisation and Deadlock | Operating Systems | A — explicitly in the syllabus | `topics/synchronisation-and-deadlock/index.html` |
+| File Organisation and Indexing (B and B+ Trees) | Databases | A — explicitly in the syllabus | `topics/file-organisation-and-indexing/index.html` |
+| Functional Dependencies, Normal Forms and Decomposition | Databases | A — explicitly in the syllabus | `topics/functional-dependencies-and-normal-forms/index.html` |
+| Relational Algebra, Tuple Calculus and SQL | Databases | A — explicitly in the syllabus | `topics/relational-algebra-and-sql/index.html` |
+| Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
