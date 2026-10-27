@@ -1495,7 +1495,35 @@ topics.append(topic(
     related=["CPU scheduling", "synchronisation"],
     importance="high",
     evidence="GATE 2027 Section 8 names 'System calls, processes, threads, inter-process communication'.",
-    difficulty="medium"))
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="processes-threads-and-ipc",
+    path="topics/processes-threads-and-ipc/index.html",
+    execution="published 2026-10-27",
+    microtopics=[
+        "program against process; two runs of one program are two processes",
+        "process = address space + execution context + PCB, and what the PCB does not hold",
+        "the five states: new, ready, running, blocked, terminated",
+        "the six legal edges, and why blocked->running and ready->blocked are absent",
+        "preemption (running->ready) against blocking (running->blocked)",
+        "context switch as a save plus a load; no user instruction retires",
+        "what is saved: program counter, stack pointer, general registers",
+        "process switch against thread switch: the address space and the TLB",
+        "switch fraction s/(q+s) and the 0.99 against 9.09 per cent",
+        "fork: one call, two returns; 0 in the child, the child pid in the parent",
+        "copy on write, and why the printed virtual addresses match (GATE 2005)",
+        "n sequential forks give 2^n processes and 2^n - 1 children (GATE 2012)",
+        "fork in a loop with wait: prints 2+4+8 = 14 against 8 processes (GATE 2024 Set 1)",
+        "exec replaces the image without changing the pid; wait reaps; zombies and orphans",
+        "threads: shared code, data, heap, files, address space; private PC, registers, stack",
+        "what is saved on a thread switch, and the page table base register that is not (GATE 2023)",
+        "user-level against kernel-level threads: who schedules, blocking, parallelism, switch cost",
+        "IPC shared memory against message passing: one mapping against two copies",
+        "message channel capacity: zero (rendezvous), bounded k, and the unbounded fiction",
+        "pipes as byte streams with no boundaries; named pipes and the file-system name",
+        "signals carry a number and no data; sockets cross machines; queues keep boundaries",
+        "which events always force a context switch (GATE 2024 Set 2)"
+    ]))
 
 topics.append(topic(
     "Operating Systems", "Concurrency", "Synchronisation and deadlock",

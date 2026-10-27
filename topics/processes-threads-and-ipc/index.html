@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Processes, Threads and IPC — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Processes, Threads and IPC</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Processes, threads and inter-process communication — the opening clause of GATE 2027 Section 8, Operating Systems, which reads <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization."</em> This lesson takes the first four items. Concurrency and synchronisation get their own lesson, and deadlock, scheduling, memory and file systems follow.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a question, decide which of three things it is asking: which state transition is legal, how many processes or prints a fork sequence produces, or which resources a thread or process owns. Then answer it from a diagram rather than from memory — the edge list, the process tree, or the shared and private columns. Given a switch cost and a time slice, compute the fraction of CPU time lost. Given an IPC mechanism, say what it can carry and who may use it.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one question asked three times</em>: what does this thing own, and what does it share? A process owns an address space and an execution context. A thread owns an execution context and shares the address space. Two things that share nothing need a kernel mechanism to talk. Every definition, count and mechanism below is that sentence at a different scale.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 8 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, lists: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em> Two independent renderings of that PDF agree on the wording.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One topic-indexed archive's own tagging records Operating Systems at between 6 and 10 marks per paper across 2021–2026, averaging about 8. That is one archive's count of its own tagging, not an official weightage and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted carries its year and set, and every answer was recomputed here rather than copied.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>What a function call does to the stack.</strong> A call pushes a frame and a return address; returning pops it. Built in <a href="../recursion/index.html">Recursion</a>.</li>
+            <li><strong>What a variable in memory is.</strong> A named location whose address can be taken and printed. Built in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>Address spaces and page tables, at the level of "an address is translated".</strong> Introduced in <a href="../memory-hierarchy-and-cache/index.html">Memory Hierarchy and Cache</a> and taken further in the virtual-memory lesson still to come.</li>
+            <li><strong>Counting by doubling.</strong> The fork count is 2 to the power n. Built in <a href="../counting-and-combinatorics/index.html">Counting and Combinatorics</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing from the COA lessons is assumed beyond "a register holds a value" and "a page table translates an address". Where a fact needs the C standard — what <code>fork</code> returns — the POSIX specification is quoted, not remembered.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>File against run.</strong> One program, two processes, and the three parts of a process.</li>
+            <li><strong>Five states.</strong> The legal edges, and the two that do not exist.</li>
+            <li><strong>The switch.</strong> Save, load, and the 0.99 per cent.</li>
+            <li><strong>fork.</strong> One call, two returns, and the same virtual address twice.</li>
+            <li><strong>Counting.</strong> 1, 2, 4, 8 processes; 2, 4, 8 prints.</li>
+            <li><strong>Threads.</strong> The shared column and the private column.</li>
+            <li><strong>User against kernel threads.</strong> Who schedules, and what blocking costs.</li>
+            <li><strong>Two IPC models.</strong> A shared region against a kernel buffer.</li>
+            <li><strong>Five mechanisms.</strong> What each carries and who may use it.</li>
+            <li><strong>The recipe.</strong> Three questions, five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A process is an address space, an execution context and a PCB. A program is none of those; it is a file.</li>
+            <li>Ready waits for the CPU; blocked waits for an event. A woken process always joins the ready queue, which is why blocked to running does not exist.</li>
+            <li>fork copies the caller, so every process alive executes it: n sequential forks give 2<sup>n</sup> processes and 2<sup>n</sup> − 1 children.</li>
+            <li>Threads share everything except the program counter, the registers and the stack, so a thread switch need not touch the page table.</li>
+            <li>Shared memory maps once and then needs synchronisation; message passing copies every message and can block instead.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 70–90 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Two neighbouring topics are deliberately not taught here and remain recorded as uncovered in the coverage tracker: <strong>concurrency, synchronisation and deadlock</strong> (the next lesson in Section 8) and <strong>CPU and I/O scheduling</strong>. Where a previous-year question is quoted, the year and set are given; where two archives number a question differently, the paper and set are named and the disagreement is stated rather than resolved silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: the recipe, the cook, and the kitchen</h3>
+              <p>A recipe is a piece of paper. It does nothing on its own. A cook following it is a different kind of thing: the cook is standing somewhere, holding a spoon, halfway through step three. Two cooks following the same recipe are two cooks, each with their own spoon and their own place in the method, and if one adds salt to their pot the other pot does not get saltier.</p>
+              <p class="small">That is the whole difference between a program and a process. The paper is the program; the cook at work is the process. The cook's hands and their place in the recipe are the <strong>execution context</strong>; the pots and ingredients are the <strong>address space</strong>; and the note the kitchen keeps on the wall saying who is on which station is the <strong>process control block</strong>.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy fixes one thing and only one thing: a process is an active thing with a position, not a passive list of steps. It is not a model of the scheduler, and it says nothing about memory.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal vocabulary, every symbol glossed</h3>
+              <p class="small"><strong>Program.</strong> A file of instructions and initial data on secondary storage.</p>
+              <p class="small"><strong>Process.</strong> A program in execution, identified by a process identifier (pid), owning an address space and an execution context.</p>
+              <p class="small"><strong>Address space.</strong> The set of addresses the process may name, holding code, global data, the heap and the stack.</p>
+              <p class="small"><strong>Execution context.</strong> The program counter, the stack pointer and the general registers — what must be saved to resume exactly here.</p>
+              <p class="small"><strong>PCB (process control block).</strong> The kernel's record for one process: its state, its saved context, its pid, its accounting and its open resources.</p>
+              <p class="small" style="margin-bottom:0"><strong>Thread.</strong> One execution context inside a process. A process has at least one thread; with more than one, the address space is shared and the contexts are not.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>What the PCB actually holds</h3>
+              <ul class="small">
+                <li><strong>State</strong> — new, ready, running, blocked or terminated.</li>
+                <li><strong>Saved context</strong> — program counter, stack pointer, registers.</li>
+                <li><strong>Identity and accounting</strong> — pid, parent pid, owner, CPU time used.</li>
+                <li><strong>Scheduling information</strong> — priority, queue pointers.</li>
+                <li><strong>Memory information</strong> — a pointer to the page table or base and limit registers.</li>
+                <li><strong>Open resources</strong> — the file descriptor table.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0">Notice what is missing: the code and the variables. Those live in the address space. The PCB holds what the kernel needs in order to <em>resume</em> the process, not the process's data.</p>
+            </div>
+
+            <div class="card">
+              <h3>Three checks that catch most slips</h3>
+              <p class="small"><strong>Check one.</strong> Ask whether the thing you are counting is a process, a child process, a print, or a byte. Each of the four appears in a real previous-year question, and three of them differ from each other.</p>
+              <p class="small"><strong>Check two.</strong> For any state transition, ask what the process is waiting for. Waiting for the CPU means ready; waiting for anything else means blocked.</p>
+              <p class="small" style="margin-bottom:0"><strong>Check three.</strong> For any sharing question, ask whether the item belongs to the execution or to the process. The execution column is private; the process column is shared.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The five states, and why two edges are missing</h3>
+              <p class="small" style="margin-bottom:0">Every state question is answered from this list and nothing else. Learn the six edges; the missing ones follow.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The six legal edges</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>new → ready</strong> — admitted by the long-term scheduler.</li>
+                <li><strong>ready → running</strong> — dispatched by the short-term scheduler.</li>
+                <li><strong>running → ready</strong> — preempted, typically by a timer interrupt.</li>
+                <li><strong>running → blocked</strong> — the process itself asks for something not yet available.</li>
+                <li><strong>blocked → ready</strong> — the awaited event has happened.</li>
+                <li><strong>running → terminated</strong> — it exits, by returning or by <code>exit()</code>.</li>
+              </ul>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Two edges that do not exist, and why</h3>
+              <p class="small"><strong>blocked → running.</strong> The event happening does not hand over the CPU. The CPU may be busy, and the scheduler must still choose. So the process moves to ready and waits its turn. This is the statement GATE 2020 Q12 marks false.</p>
+              <p class="small" style="margin-bottom:0"><strong>ready → blocked.</strong> Blocking is something a process does by executing a request, and executing requires the CPU. A process that is not running cannot ask for anything. This is one of the two transitions GATE 2024 Set 1 Q15 asks you to reject.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Ready is not "almost running"</h3>
+              <p class="small">The two words sound interchangeable and are not. A ready process is fully able to run: if the scheduler chose it this instant, it would execute. A blocked process is unable to run at all, no matter what the scheduler wants, because the thing it needs has not happened.</p>
+              <p class="small" style="margin-bottom:0">So "how many processes can run right now" is the ready queue plus the one running. A blocked process is never in that count.</p>
+            </div>
+
+            <div class="card">
+              <h3>Where the 2<sup>n</sup> comes from</h3>
+              <p class="small">A fork call is executed by every process that is alive when the call is reached. After the first call there are two processes, and both reach the second call, so each creates one child and the population doubles. After n sequential calls the population is 2<sup>n</sup>.</p>
+              <p class="formula">processes = 2<sup>n</sup> &nbsp;&nbsp; children = 2<sup>n</sup> − 1</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> By induction on n. With n = 0 there is one process, and 2<sup>0</sup> = 1. If after k calls there are 2<sup>k</sup>, then every one of them reaches call k+1 and creates one child, giving 2·2<sup>k</sup> = 2<sup>k+1</sup>.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>fork, exec, wait, exit — the four calls that make a process</h3>
+              <p class="small" style="margin-bottom:0">These are the system calls the syllabus means by "system calls". Each one changes the state of a process in a way you can name.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>What each call does</h3>
+              <p class="small"><strong>fork().</strong> Creates a copy of the calling process. Returns 0 in the child, the child's pid in the parent, and a negative value on failure. Both copies continue after the call.</p>
+              <p class="small"><strong>exec().</strong> Replaces the calling process's address space and code with a new program. The pid is unchanged and the call does not return on success. This is how a child stops being a copy and becomes a different program.</p>
+              <p class="small"><strong>wait().</strong> Blocks the parent until one of its children terminates, and collects the child's exit status. Without it, a terminated child stays in the process table as a zombie.</p>
+              <p class="small" style="margin-bottom:0"><strong>exit().</strong> Terminates the calling process, releasing its address space and keeping a status for the parent to collect.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Why the return value is the only difference</h3>
+              <p class="small">Both copies leave the call at the same instruction, with the same variables and the same open files. Nothing in their state differs except the value the call produced. So the value is the only way the code can know which copy it is, which is why the convention is a value that cannot be confused: zero for the child, a positive pid for the parent.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The POSIX specification of <code>fork()</code> states that it returns 0 to the child process and the process ID of the child to the parent, and −1 on failure.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Copy on write does not break the rule</h3>
+              <p class="small">A real kernel does not copy the whole address space at the fork. It marks the pages copy-on-write, and copies a page only when one side writes to it. That is an optimisation, and it changes nothing you can observe: after the fork, the two address spaces behave as independent copies.</p>
+              <p class="small" style="margin-bottom:0">The one thing it explains is why a child can print the same address as its parent. The address printed is virtual, and the child's virtual layout is a copy of the parent's. Equal virtual addresses, different physical frames.</p>
+            </div>
+
+            <div class="card">
+              <h3>Threads: the same split, one level down</h3>
+              <p class="small">If a process is an address space plus a context, a thread is a context that borrows the address space. So the shared and private columns are not a list to memorise; they are the definition read off.</p>
+              <p class="small">Private, because it belongs to an execution: program counter, registers, stack, thread id and state.</p>
+              <p class="small" style="margin-bottom:0">Shared, because it belongs to the process: code, global and static data, heap, open files, address space and page table.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A program is a file on disk. A process is that file being executed.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A program is a file, a process is a run</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A program is a file on disk. A process is that file being executed.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2</h3>
+              <p class="small" style="margin-bottom:0">Every figure below is recomputed by this page's own model, and the Animation tab lists the checks. Nothing is copied from a key without being re-derived.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Three sequential forks</h3>
+              <p class="small"><code>fork(); fork(); fork();</code> — how many child processes are created?</p>
+              <p class="small">After the first call: 2 processes. Both reach the second call, so 4. All four reach the third, so 8 processes. Children are processes minus the original: 8 − 1 = <strong>7</strong>.</p>
+              <p class="small" style="margin-bottom:0">This is GATE CSE 2012, and the answer recorded there is 7. The trap is answering 8, which is the number of processes. The question said children.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>The parent's value and the child's value</h3>
+              <p class="small">Take <code>a = 10</code> before the call, and let the child do <code>a = a + 5</code> while the parent does <code>a = a − 5</code>, each printing <code>a</code> and <code>&amp;a</code>. The child prints 15, the parent prints 5, and both print the same address.</p>
+              <p class="small">So if u, v are the parent's two numbers and x, y the child's, then u + 10 = x and v = y. That is the answer to the GATE CSE 2005 question.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The values differ by exactly the 10 that separates the two assignments. The addresses agree because the child's virtual layout is a copy of the parent's, so the same variable has the same virtual address in both.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>A fork inside a loop that waits</h3>
+              <p class="small"><code>int x = 3; while (x &gt; 0) { fork(); printf("hello"); wait(NULL); x--; }</code></p>
+              <p class="small">Iteration 1: one process forks, so two processes print — 2 prints. Iteration 2: both of those fork, so four print — 4. Iteration 3: all four fork, so eight print — 8. Total <strong>14</strong>.</p>
+              <p class="small" style="margin-bottom:0">This is GATE CSE 2024 Set 1, and the recorded answer is 14. Note the two different counts: 14 prints, but only 8 distinct processes. The paper asks for prints.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>What <code>wait</code> does to the count</h3>
+              <p class="small">A common guess is that <code>wait(NULL)</code> halves the count, because the parent pauses. It does not. Waiting changes <em>when</em> things happen and how many processes are alive at a given moment; it does not change how many processes eventually exist, nor how many times each of them executes the printing statement.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The count is a sum over iterations of the number alive in that iteration: 2 + 4 + 8. That sum is 2<sup>x+1</sup> − 2, which for x = 3 is 16 − 2 = 14.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2</h3>
+              <p class="small" style="margin-bottom:0">Three numerical shapes: the switch fraction, the thread switch, and a message channel's capacity.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The switch fraction</h3>
+              <p class="small">A time slice of 10 ms and a context switch of 0.1 ms. What fraction of CPU time goes to switching?</p>
+              <p class="formula">fraction = s / (q + s)</p>
+              <p class="small">With s = 0.1 and q = 10: 0.1 / 10.1 = 0.00990, which is <strong>0.99 per cent</strong>. With q = 1 ms: 0.1 / 1.1 = 0.0909, which is 9.09 per cent.</p>
+              <p class="small" style="margin-bottom:0">The denominator is the whole cycle, slice plus switch. Dividing by the slice alone gives 1 per cent and 10 per cent — close, and wrong in a way a NAT question can mark.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Why a thread switch is cheaper</h3>
+              <p class="small">Suppose saving and restoring the registers costs 0.5 µs, and changing the address space — flushing the cached translations and starting cold — costs 2 µs.</p>
+              <p class="small">A thread switch pays only the first: 0.5 µs. A process switch pays both: 2.5 µs. The ratio is 5.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The two numbers are a plausible model, not a measurement of any particular machine. The ratio is what the argument needs, and the argument holds for any pair where the address-space term dominates.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>A pipe against a message queue</h3>
+              <p class="small">Two bytes are written to a channel, then three more. A reader asks for five bytes.</p>
+              <p class="small">From a <strong>pipe</strong>: the reader receives 5 bytes in one read, spanning two separate writes, because a pipe has no boundaries. From a <strong>message queue</strong>: the reader receives 2 bytes — one whole message — because a queue keeps boundaries, and a second read is needed for the remaining 3.</p>
+              <p class="small" style="margin-bottom:0">Same bytes, different structure. Any question that says "one write, one read" is a message question; any question that says "a stream of bytes" is a pipe question.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The capacity is the parameter</h3>
+              <p class="small">A message channel with capacity 0 is a rendezvous: the sender blocks until the receiver actually receives. Capacity k lets the sender run k messages ahead and then blocks on the next. Capacity "unbounded" never blocks, and is a modelling assumption, never a real buffer.</p>
+              <p class="small" style="margin-bottom:0">So a question that asks whether the sender blocks is answerable only after you name the capacity. Without it, both answers are defensible, and the question is under-specified.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundary cases and counterexamples</h3>
+          <p class="small" style="margin-bottom:0">The rules above are correct; these are the places where a careless reading of them breaks.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Zombie and orphan</h3>
+          <p class="small">A child that has terminated but whose parent has not called <code>wait</code> keeps its entry in the process table: that entry is a <strong>zombie</strong>. It holds no address space and cannot run, but it holds a pid, so a program that forks in a loop without waiting can exhaust the pid table.</p>
+          <p class="small" style="margin-bottom:0">A child whose parent terminated first is an <strong>orphan</strong>. It is re-parented, conventionally to the init process, which will reap it. So neither state breaks the state machine: both are terminated processes, and the difference is who collects the status.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>When fork fails</h3>
+          <p class="small">fork returns a negative value when the process table or the memory is exhausted. So the count 2<sup>n</sup> is the count when every call succeeds — an assumption the papers state, and one a real program must check.</p>
+          <p class="small" style="margin-bottom:0">This is also why a "fork bomb" halts a machine: the tree grows until a call fails, and the failing process has no child to wait for.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>exec does not create a process</h3>
+          <p class="small"><code>exec</code> replaces the calling process's program. The pid is unchanged, the address space is discarded and rebuilt, and the open files survive unless marked close-on-exec. So <code>fork</code> followed by <code>exec</code> in the child is the standard way to start a new program: the fork makes the copy that isolates the new program, and the exec fills it.</p>
+          <p class="small" style="margin-bottom:0">The distinction to keep: <code>fork</code> increases the process count, <code>exec</code> does not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A pipe blocks in both directions</h3>
+          <p class="small">A pipe has a finite kernel buffer. A writer that fills it blocks until a reader drains some; a reader that finds it empty blocks until a writer adds something or closes the writing end. Reading after every writer has closed returns end of file, which is zero bytes — not an error and not a block.</p>
+          <p class="small" style="margin-bottom:0">So "the reader blocks forever" is only true while some writer still holds the pipe open. This is the edge case that decides whether a two-process pipeline terminates.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A signal is not a message</h3>
+          <p class="small">A signal carries a number and nothing else. Several occurrences of the same signal raised while it is pending may be delivered once, because the pending set records the signal, not a count. So signals cannot be used to count events reliably.</p>
+          <p class="small" style="margin-bottom:0">That is a genuine edge: an implementation detail with a visible consequence, and the reason a queue rather than a signal is the tool when every message matters.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two-edge counterexample, stated minimally</h3>
+          <p class="small">One process is running; a second is blocked on a disk read. The read completes. What is the second process's state now?</p>
+          <p class="small">It becomes <strong>ready</strong>, and only then may it be dispatched. The minimal counterexample to "blocked goes to running" is therefore any moment when the CPU is occupied by someone else — which is the normal case, not the exceptional one.</p>
+          <p class="small" style="margin-bottom:0">By contrast, if the CPU is idle and the second process is the only candidate, the scheduler dispatches it immediately. The <em>transitions</em> are still two: blocked to ready, then ready to running. Simultaneous in time, distinct in the model.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Eight beliefs that cost marks, and the sentence that repairs each</h3>
+          <p class="small" style="margin-bottom:0">Each entry gives the wrong belief, the correction, and where the exam has used it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "A blocked process can start running when its I/O completes."</h3>
+          <p class="small"><strong>Correction:</strong> it moves to ready. The scheduler still has to choose it, and the CPU may be busy. <strong>Used in:</strong> GATE CSE 2020 Q12, which marks exactly this statement false.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> on an idle machine the two transitions happen so close together that they look like one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "n forks create n children."</h3>
+          <p class="small"><strong>Correction:</strong> every process alive executes the call, so the population doubles: 2<sup>n</sup> processes and 2<sup>n</sup> − 1 children. <strong>Used in:</strong> GATE CSE 2012.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> the first fork does create exactly one child, so the pattern looks linear for one step.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "The PCB contains the process's data."</h3>
+          <p class="small"><strong>Correction:</strong> it contains the state needed to resume — saved context, state, pid, accounting, resource pointers. The variables live in the address space.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> both are "the process's stuff", and the PCB does hold a <em>pointer</em> to the page table, which sounds like memory.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Each thread has its own heap."</h3>
+          <p class="small"><strong>Correction:</strong> the heap belongs to the process and is shared. A thread has its own stack, not its own heap. <strong>Used in:</strong> GATE CSE 2017 Set 2 Q7, whose only shared item in the list is the address space.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> "thread-local storage" exists, but it is an allocation mechanism, not a per-thread heap.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "User-level threads can run on two cores."</h3>
+          <p class="small"><strong>Correction:</strong> the kernel sees one schedulable entity, so it cannot place two of them on two cores. Only kernel-level threads give true parallelism.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> two user threads do appear to run "at the same time" — but that is interleaving inside one core, not parallelism.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "One write to a pipe is one read."</h3>
+          <p class="small"><strong>Correction:</strong> a pipe is a byte stream with no boundaries. Two writes can be read as one read, and one write can be read in pieces.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> in small tests the timing usually makes it true, so the code appears to work until it is loaded.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. "A context switch is part of the work."</h3>
+          <p class="small"><strong>Correction:</strong> no user instruction retires during a switch. It is overhead, and it is why utilisation is below one hundred per cent.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> a switch is triggered by real work — a timer, a blocking call — so it feels like part of the computation.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>8. "The parent gets 0 from fork."</h3>
+          <p class="small"><strong>Correction:</strong> the child gets 0, the parent gets the child's pid. A negative value means the call failed and there is no child at all. <strong>Used in:</strong> GATE CSE 2005, where reading the branches backwards flips the answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the belief survives:</strong> "0 means success" is a habit from other system calls, and here it means something else.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Two pairs that are easily confused</h3>
+          <p class="small"><strong>Preemption against blocking.</strong> Both take a process off the CPU, and only one of them is the process's own doing. Preemption is running to ready: the timer takes the CPU away and the process remains runnable. Blocking is running to blocked: the process asks for something unavailable and cannot run even if given the CPU. A question that asks which transitions are possible is usually testing this pair.</p>
+          <p class="small" style="margin-bottom:0"><strong>Process against thread.</strong> A process owns an address space; a thread borrows one. Everything else follows: isolation, the cost of a switch, the need for IPC, and the need for synchronisation. If you can say which of the two a sentence is about, the sentence is usually already answered.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four question families, and the procedure for each</h3>
+          <p class="small" style="margin-bottom:0">Every previous-year item I could verify in this topic falls into one of these four. The procedure is the same each time, and it is a page of work rather than a page of memory.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Family 1 — state transitions</h3>
+          <p class="small"><strong>Shape:</strong> a list of transitions, asked to pick the possible or the impossible ones. Sometimes with a diagram to interpret.</p>
+          <p class="small"><strong>Procedure:</strong> write the six legal edges. Test each offered transition against them. Answer the question actually asked — possible or impossible — and check whether it is single or multiple select.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2009 Q32 (read a diagram), 2020 Q12 (which are true), 2024 Set 1 Q15 (which are not possible), 2024 Set 2 Q15 (which events force a switch).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Family 2 — counting processes</h3>
+          <p class="small"><strong>Shape:</strong> a short C program with one or more forks, asking for a count of processes, children or prints.</p>
+          <p class="small"><strong>Procedure:</strong> draw the tree. Each fork doubles the number of nodes below it. Mark the printing statement at each node and count marks separately from nodes. If a branch is guarded by <code>if (fork() == 0)</code>, follow the branch in the copy that takes it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2005 (branch and address), 2012 (child count), 2024 Set 1 Q47 (prints in a loop with wait).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Family 3 — threads and what is shared</h3>
+          <p class="small"><strong>Shape:</strong> a list of resources, asking which are shared by threads or which must be saved on a switch.</p>
+          <p class="small"><strong>Procedure:</strong> sort each item into the execution column or the process column. Then answer. For a switch question, ask whether the address space changes: if not, the page table base register is not saved.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2014 Set 1 Q20 (which statement is false), 2017 Set 2 Q7 (which are shared), 2023 Q12 (what is saved on a thread switch).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Family 4 — switch cost arithmetic</h3>
+          <p class="small"><strong>Shape:</strong> a time slice, a switch cost, and a question about the fraction of time, the number of switches, or utilisation.</p>
+          <p class="small"><strong>Procedure:</strong> the cycle is slice plus switch, so the fraction is s / (q + s). Convert both to the same unit before dividing. If the question asks for a count of switches, count the boundaries in the schedule, not the processes.</p>
+          <p class="small" style="margin-bottom:0">This family borders on the scheduling lesson, which owns the full schedule arithmetic. Here it is only the cost of one switch.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Verified previous-year items used in this lesson</h3>
+          <p class="small">Each is quoted with its year and set, and each answer was recomputed here rather than copied from a key. Where two archives number a question differently, the paper and set are named.</p>
+          <p class="small" style="margin-bottom:0"><strong>2005</strong> (the fork / address question, numbered Q72 by GeeksforGeeks): answer u + 10 = x and v = y · <strong>2009 Q32</strong>: II and III · <strong>2012</strong>: 7 child processes · <strong>2014 Set 1 Q20</strong>: the false statement is that kernel-level threads cannot share the code segment · <strong>2017 Set 2 Q7</strong>: III only (the address space) · <strong>2020 Q12</strong>: I, II and IV · <strong>2023 Q12</strong>: stack pointer, program counter, general purpose registers · <strong>2024 Set 1 Q15</strong>: waiting to running, and ready to waiting · <strong>2024 Set 1 Q47</strong>: 14 · <strong>2024 Set 2 Q15</strong>: the blocking system call and the page fault.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this topic stops and the next one begins</h3>
+          <p class="small" style="margin-bottom:0">Two threads updating shared variables, semaphores, monitors, the producer–consumer problem and deadlock all belong to the concurrency and synchronisation lesson, which is next in Section 8. This lesson deliberately stops at the boundary: it says that sharing creates the need for synchronisation, and does not teach the mechanisms. If a question shows two threads interleaving statements, that is the next lesson, not this one.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 1 of 2 — the previous-year set</h3>
+              <p class="small" style="margin-bottom:0">Learning mode: answers are hidden until you reveal them, one at a time. Every answer below was recomputed, and every wrong option is explained rather than dismissed.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2012</span></div>
+              <div class="q-body">
+                <p>A process executes the code <code>fork(); fork(); fork();</code>. The total number of child processes created is</p>
+                <p class="small">(A) 3 &nbsp;&nbsp; (B) 4 &nbsp;&nbsp; (C) 7 &nbsp;&nbsp; (D) 8</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C) 7</span></p>
+                  <p class="small">Three sequential calls give 2<sup>3</sup> = 8 processes, and the original is not a child, so 8 − 1 = 7.</p>
+                  <p class="small" style="margin-bottom:0">(D) is the count of processes. (A) is one child per call, which ignores that every process executes the next call. (B) is 2<sup>2</sup>, one call short.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2020, Q12</span></div>
+              <div class="q-body">
+                <p>Consider these statements about process state transitions for a system using preemptive scheduling. I. A running process can move to ready state. II. A ready process can move to running state. III. A blocked process can move to running state. IV. A blocked process can move to ready state. Which are TRUE?</p>
+                <p class="small">(A) I, II and III only &nbsp;&nbsp; (B) II and III only &nbsp;&nbsp; (C) I, II and IV only &nbsp;&nbsp; (D) I, II, III and IV</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C) I, II and IV only</span></p>
+                  <p class="small">III is the only false statement. A blocked process must pass through ready before it can run, because the scheduler, not the event, decides who gets the CPU.</p>
+                  <p class="small" style="margin-bottom:0">I is true because of preemption: the timer can take the CPU away. II is the dispatch edge. IV is the wake-up edge.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2024 Set 1, Q15</span></div>
+              <div class="q-body">
+                <p>Which of the following process state transitions is/are NOT possible?</p>
+                <p class="small">(A) Running to Ready &nbsp;&nbsp; (B) Waiting to Running &nbsp;&nbsp; (C) Ready to Waiting &nbsp;&nbsp; (D) Running to Terminated</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) and (C)</span></p>
+                  <p class="small">(B) fails because a woken process joins the ready queue. (C) fails because blocking requires executing a request, and only a running process executes anything.</p>
+                  <p class="small" style="margin-bottom:0">(A) is possible by preemption and (D) is an ordinary exit, so neither can be the answer to a question that asks for the impossible ones.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2017 Set 2, Q7</span></div>
+              <div class="q-body">
+                <p>Which of the following is/are shared by all the threads in a process? I. Program counter &nbsp; II. Stack &nbsp; III. Address space &nbsp; IV. Registers</p>
+                <p class="small">(A) I and II only &nbsp;&nbsp; (B) III only &nbsp;&nbsp; (C) I, II and IV &nbsp;&nbsp; (D) All four</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) III only</span></p>
+                  <p class="small">A thread is an execution context, so it needs its own program counter, registers and stack. Everything that belongs to the process — including the address space — is shared.</p>
+                  <p class="small" style="margin-bottom:0">The trap is reading "stack" as part of the process. The process has a stack <em>area</em>, and each thread gets its own stack inside it.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 2 of 2 — previous-year items and original variations</h3>
+              <p class="small" style="margin-bottom:0">The first four are previous-year questions. The last three are original practice written in the same shapes, and they are labelled as original.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2023, Q12</span></div>
+              <div class="q-body">
+                <p>Which one or more of the following need to be saved on a context switch from one thread T1 of a process to another thread T2 of the same process?</p>
+                <p class="small">(A) Page table base register &nbsp;&nbsp; (B) Stack pointer &nbsp;&nbsp; (C) Program counter &nbsp;&nbsp; (D) General purpose registers</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B), (C) and (D)</span></p>
+                  <p class="small">The page table base register holds the base of the page table for the current address space. Both threads share one page table, so the register already holds the right value and is not saved.</p>
+                  <p class="small" style="margin-bottom:0">The stack pointer, program counter and general registers are per-thread execution state, so all three are saved. This is the same shared/private split, applied to a switch instead of a list.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2024 Set 1, Q47</span></div>
+              <div class="q-body">
+                <p>Consider <code>int x = 3; while (x &gt; 0) { fork(); printf("hello"); wait(NULL); x--; }</code>. The code compiles and runs correctly and no system call fails. The total number of times the printf statement is executed is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 14</span></p>
+                  <p class="small">Iteration 1 has one process, which forks, so two processes print: 2. Iteration 2 has two, which fork, so four print: 4. Iteration 3 has four, which fork, so eight print: 8. Total 2 + 4 + 8 = 14.</p>
+                  <p class="small" style="margin-bottom:0">The closed form is 2<sup>x+1</sup> − 2 = 16 − 2 = 14. Note that the number of distinct processes is 8; the question asks for prints.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2024 Set 2, Q15</span></div>
+              <div class="q-body">
+                <p>Process P is running. Which of these events will <em>always</em> trigger a context switch that moves P to a non-running state? (A) P makes a blocking system call to read a block from disk. (B) P accesses a page in swap, causing a page fault. (C) A disk interrupt is raised to deliver data requested by another process. (D) A timer interrupt is raised.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) and (B)</span></p>
+                  <p class="small">(A) blocks P until the read completes, so it leaves the CPU. (B) blocks P while the page is fetched from swap, which is the same situation with a different cause.</p>
+                  <p class="small" style="margin-bottom:0">(C) does not touch P: the interrupt is served, and P resumes. (D) does not necessarily: a timer interrupt only preempts when the quantum has expired, and a non-preemptive policy ignores it.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2014 Set 1, Q20</span></div>
+              <div class="q-body">
+                <p>Which one of the following is FALSE?</p>
+                <p class="small">(A) User level threads are not scheduled by the kernel. (B) When a user level thread is blocked, all other threads of its process are blocked. (C) Context switching between user level threads is faster than between kernel level threads. (D) Kernel level threads cannot share the code segment.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (D)</span></p>
+                  <p class="small">Threads of one process share its code segment at either implementation level, because the code belongs to the process. So (D) is false.</p>
+                  <p class="small" style="margin-bottom:0">(A) is true by definition, (B) is true because the kernel sees one execution unit, and (C) is true because a library switch needs no kernel entry.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge">Original practice — counterexample</span></div>
+              <div class="q-body">
+                <p>Two processes share a pipe. Process A writes 2 bytes, then 3 bytes. Process B then issues one read of 5 bytes, and the buffer holds all 5 bytes. Which statement is correct?</p>
+                <p class="small">(A) The read returns 2 bytes, because a read returns at most one write.<br>(B) The read returns 5 bytes, spanning two writes.<br>(C) The read blocks until A writes 5 bytes in one call.<br>(D) The read returns 0, because message boundaries were lost.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B)</span></p>
+                  <p class="small">A pipe is a byte stream with no boundaries. A read of 5 with 5 bytes buffered returns all 5, however they were written.</p>
+                  <p class="small" style="margin-bottom:0">(A) is the message-queue behaviour, which is exactly the confusion this question tests. (C) invents a constraint that does not exist. (D) misreads "no boundaries" as "data loss" — nothing is lost, only the grouping.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">Original practice</span></div>
+              <div class="q-body">
+                <p>A round-robin scheduler uses a time slice of 4 ms and a context switch costs 0.2 ms. What percentage of the CPU's time is spent on context switching, to two decimal places?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 4.76</span></p>
+                  <p class="small">The cycle is 4 + 0.2 = 4.2 ms, of which 0.2 ms is switching: 0.2 / 4.2 = 0.047619, which is 4.76 per cent.</p>
+                  <p class="small" style="margin-bottom:0">Dividing by the slice alone gives 5 per cent. The two answers differ, and only the first is licensed by the model, because the cycle includes the switch.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">Original practice — closely confused pair</span></div>
+              <div class="q-body">
+                <p>A message channel between two processes has capacity 0. Process S sends one message; process R has not yet called receive. What happens?</p>
+                <p class="small">(A) S blocks until R receives. &nbsp; (B) The message is buffered and S continues. &nbsp; (C) The send fails and returns an error. &nbsp; (D) S continues, and the message is lost.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A)</span></p>
+                  <p class="small">Capacity 0 means there is no buffer, so the sender and receiver must meet: the send cannot complete until a receive is in progress. That is a rendezvous.</p>
+                  <p class="small" style="margin-bottom:0">(B) describes capacity 1 or more. (C) and (D) confuse "blocks" with "fails" — blocking is not failure, and the message is not lost, it is simply not yet handed over.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the edge list, the formulas and the traps, in the order a question uses them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Program</strong> — a file of instructions on secondary storage.</li>
+            <li><strong>Process</strong> — a program in execution, with an address space and an execution context.</li>
+            <li><strong>Address space</strong> — code, global data, heap and stack, as the process sees them.</li>
+            <li><strong>Execution context</strong> — program counter, stack pointer and general registers.</li>
+            <li><strong>PCB</strong> — the kernel's record of state, saved context, identity and resources.</li>
+            <li><strong>Ready</strong> — runnable, waiting for the CPU. <strong>Blocked</strong> — waiting for an event.</li>
+            <li><strong>Context switch</strong> — save one context, load another; no user work happens.</li>
+            <li><strong>Thread</strong> — an execution context sharing its process's address space.</li>
+            <li><strong>IPC</strong> — a kernel-provided mechanism for processes that share no address space.</li>
+            <li><strong>Rendezvous</strong> — a zero-capacity channel, where sender and receiver must meet.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas, with their licences</h3>
+          <p class="formula">processes = 2<sup>n</sup></p>
+          <p class="small">Licence: n <em>sequential</em> forks, every one of them succeeding.</p>
+          <p class="formula">children = 2<sup>n</sup> − 1</p>
+          <p class="small">Licence: the original process is not a child.</p>
+          <p class="formula">prints = 2<sup>x+1</sup> − 2</p>
+          <p class="small">Licence: the loop <code>fork(); print; wait; x--</code> with every process inheriting x.</p>
+          <p class="formula">switch fraction = s / (q + s)</p>
+          <p class="small">Licence: one switch per cycle, and the cycle is the slice plus the switch.</p>
+          <p class="formula">process switch = registers + address space</p>
+          <p class="small" style="margin-bottom:0">Licence: the two processes have different page tables. A thread switch omits the second term.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Decision procedure for any question</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Name the kind: states, copies, sharing, or switch cost.</li>
+            <li>Draw the matching object: edge list, process tree, column split, or Gantt bar.</li>
+            <li>Read the answer off the object.</li>
+            <li>Check the unit: processes, children, prints, bytes, or a percentage.</li>
+            <li>Check the licence of any formula you used.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Blocked never goes straight to running.</li>
+            <li>Ready never goes straight to blocked.</li>
+            <li>Children are 2<sup>n</sup> − 1, not 2<sup>n</sup>.</li>
+            <li>Prints are not processes.</li>
+            <li>The child's fork return value is 0; the parent's is positive.</li>
+            <li>The heap is shared; the stack is not.</li>
+            <li>A thread switch does not save the page table base register.</li>
+            <li>A pipe keeps bytes, not messages.</li>
+            <li>Capacity 0 blocks the sender.</li>
+            <li>The switch fraction's denominator includes the switch.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one sentence</h3>
+          <p class="small" style="margin-bottom:0">What does this thing own, and what does it share? A process owns an address space and an execution context; a thread owns a context and shares the space; two things that share nothing need the kernel to carry their words. Every state, count, cost and mechanism in this lesson is that sentence read at a different scale.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this research covered, and where it stopped</h3>
+          <p class="small" style="margin-bottom:0">No official marks distribution exists for GATE CSE and none is claimed. Every number in the animation is computed by the page's own model and listed in its check panel, so it can be audited rather than trusted. Where sources disagree about a question's numbering, the disagreement is named in the lesson rather than resolved silently.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official syllabus</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>CS_GATE2027_Syllabus.pdf</code> on gate2027.iitm.ac.in. Section 8 contains "System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems." <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0">The wording was read in the official PDF listing for this repository's coverage tracker, and cross-checked against two independent renderings of the same 2027 document, which agree.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Previous-year papers quoted</h3>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE 2005</strong> (the fork and address question, Q72 in the GeeksforGeeks numbering; answer u + 10 = x, v = y) · <strong>2009 Q32</strong> (state diagram, II and III) · <strong>2012</strong> (child processes, 7) · <strong>2014 Set 1 Q20</strong> (the false statement, D) · <strong>2017 Set 2 Q7</strong> (shared by threads, III only) · <strong>2020 Q12</strong> (transitions, I, II, IV) · <strong>2023 Q12</strong> (saved on a thread switch, B, C, D) · <strong>2024 Set 1 Q15</strong> (impossible transitions, B and C) · <strong>2024 Set 1 Q47</strong> (prints, 14) · <strong>2024 Set 2 Q15</strong> (context-switch triggers, A and B).</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Textbook-level references</h3>
+          <p class="small"><strong>Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em></strong> — the process state diagram, the PCB contents, threads and the two IPC models, as used in scenes 1, 2, 6 and 8. The five-state model drawn in scene 2 follows this text's convention, including the absence of a blocked-to-running edge.</p>
+          <p class="small"><strong>Tanenbaum and Bos, <em>Modern Operating Systems</em></strong> — user-level against kernel-level threads, the blocking argument, and the IPC mechanism catalogue in scene 9.</p>
+          <p class="small" style="margin-bottom:0"><strong>The POSIX specification of <code>fork()</code>, <code>wait()</code>, <code>exec()</code> and <code>pipe()</code></strong> — the return values and the byte-stream semantics, which are quoted rather than remembered.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">GATE Overflow threads for 2005, 2009 Q32, 2017 Set 2 Q7, 2020 Q12, 2023 Q12, 2024 Set 1 Q15 and Q47, and 2024 Set 2 Q15 — the reasoning inside the answers, and the objections raised against some of them.</p>
+          <p class="small" style="margin-bottom:0">The Operating Systems marks figure on the Overview tab (6 to 10 per paper, 2021–2026) is one archive's count of its own tagging, reported as a community observation. It is not a weightage and not a forecast.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">The 2005 question is attributed by year and by the GeeksforGeeks numbering, because archives number that paper differently; the answer was re-derived here rather than taken from any key. The 2023 question is given as "GATE CSE 2023, Q12" without a set, because one source labels that paper "Set 1" and another does not. The 2012 question was confirmed through two independent aggregations rather than the paper PDF itself. The switch-cost numbers in scene 3 (0.5 µs for registers, 2 µs for the address-space change) are a stated model, not a measurement, and are labelled as an educational interpretation in the Examples tab.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>

@@ -46,6 +46,7 @@ lessons are static files and work from a local clone.
 | Memory Hierarchy and Cache | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-hierarchy-and-cache/index.html` |
 | Memory Interfacing and Interleaving | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-interfacing-and-interleaving/index.html` |
 | Pipelining and Hazards | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/pipelining-and-hazards/index.html` |
+| Processes, Threads and IPC | Operating Systems | A — explicitly in the syllabus | `topics/processes-threads-and-ipc/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
