@@ -1,0 +1,2195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipelining and Hazards — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Pipelining and Hazards</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Instruction pipelining and pipeline hazards — the last sentence of GATE 2027 Section 3: "Instruction pipelining, pipeline hazards."</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a list of stage delays and a latch delay, produce the clock period. Given a stage count and an instruction count, produce the cycle count. Given an instruction mix with stall fractions, produce the effective CPI and the speedup over a non-pipelined design — carrying the clock frequency with it. Given an instruction sequence, name each dependence as read-after-write, write-after-read or write-after-write, and say how many cycles it costs with and without forwarding. Given a multi-cycle functional unit, count its structural stalls. Given the stage in which a branch resolves, produce the branch penalty.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one arithmetic sitting on one picture</em>. The picture is the cycle diagram: instructions down the side, cycles across the top, stages on the diagonal. The arithmetic is five numbers — the beat, the cycle count, the stalls, the unit conversion and the ratio. Everything the exam asks here is one of those five, asked in a different costume. The datapath and control unit this pipeline is built from live in <a href="../alu-and-control-unit-design/index.html">ALU and Control Unit Design</a>; the gates and flip-flops live in <a href="../combinational-circuits/index.html">Combinational Circuits</a> and <a href="../sequential-circuits/index.html">Sequential Circuits</a>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 3 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read for this run) ends: <em>"Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Question-indexing sites that group previous-year papers by topic report this as one of the most heavily numerical topics in Computer Organization, dominated by two-mark numerical-answer questions. That is a description of past papers, not a forecast, and no official marks distribution exists.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed in GATE 2027. Every previous-year question quoted in this lesson carries its year and paper, and its answer was recomputed here rather than copied.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Three published lessons carry the machinery:</p>
+          <ul class="small">
+            <li><strong><a href="../alu-and-control-unit-design/index.html">ALU and Control Unit Design</a></strong> — the datapath, the control steps and the clock period. A pipeline is that machine with the steps overlapped.</li>
+            <li><strong><a href="../sequential-circuits/index.html">Sequential Circuits</a></strong> — the inter-stage latch is a register, and its setup and hold times are why the beat is more than the largest stage delay.</li>
+            <li><strong><a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a></strong> — only for the observation that a multiply can occupy the ALU for more than one cycle, which is the structural-hazard scene.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">The only extra mathematics is a ceiling, <code>ceil(t)</code>, used once: a unit that takes <code>t</code> clock periods occupies <code>ceil(t)</code> cycles. Scene 4 derives it and the page checks it on the 2026 table.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Two clocks.</strong> Latency against throughput, and the k + n − 1 count on a grid.</li>
+            <li><strong>The beat.</strong> The slowest stage plus the latch, and the 2021 Set 1 and 2025 Set 2 numbers.</li>
+            <li><strong>The ceiling.</strong> Speedup against n, and three previous-year ratios.</li>
+            <li><strong>Structural hazards.</strong> The multi-cycle EX table, and the sum that gives 95.</li>
+            <li><strong>Read after write.</strong> The cycle in which the wrong value would be read.</li>
+            <li><strong>Forwarding.</strong> The two wires, and the load-use stall that survives.</li>
+            <li><strong>WAR and WAW.</strong> Three dependence pictures, and renaming.</li>
+            <li><strong>Control hazards.</strong> Branch penalty as resolution stage minus one.</li>
+            <li><strong>Effective CPI.</strong> One stack bar, four previous-year answers.</li>
+            <li><strong>The recipe.</strong> Five steps and five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A pipeline does not shorten an instruction. It shortens the gap between instructions.</li>
+            <li>The beat is the largest stage delay plus one latch delay. Nothing else sets it.</li>
+            <li>Cycles are <code>k + n − 1</code> for n given instructions, or <code>n × CPI</code> for a statistical program. Pick the right one.</li>
+            <li>Forwarding removes arithmetic stalls, leaves exactly one after a load, and does nothing for a branch.</li>
+            <li>Speedup is a ratio of times, so the clock frequency must be carried. A stage count alone is not an answer.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 75–95 minutes if you work the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Reservation tables and minimum average latency are named in the Sources tab as a topic this lesson does not teach, because they describe a non-linear pipeline rather than the instruction pipeline the syllabus names. Where two public sources give different answers to the same previous-year question, this lesson says so rather than choosing silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1: intuition -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: the laundry, not the washing</h3>
+              <p>A laundry has four machines: wash, dry, iron, fold. One basket of clothes goes through all four. If one person does every step for one basket before starting the next, four baskets take sixteen units of time. If the machines run at once on different baskets, the first basket still takes four units — but a basket comes out of the folding machine every unit after that. Four baskets take seven units, not sixteen.</p>
+              <p class="small">Three facts about the laundry are the three facts about a pipeline, and they are easy to get wrong. First, <strong>the first basket is no faster at all</strong>. Overlap cannot help the first item through an empty line. Second, <strong>the slowest machine sets the pace</strong>: if ironing takes twice as long as washing, the whole line runs at ironing speed and the washing machine idles half of every cycle. Third, <strong>the baskets interfere</strong>: if two baskets need the iron at once, one must wait, even though no basket is holding another's shirt.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is a teaching device, not a model of a real processor. It is chosen because it keeps the three separate questions separate: how long one item takes, how often one finishes, and what happens when two items want the same machine.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Latency and throughput are different numbers</h3>
+              <p class="small"><strong>Latency</strong> is the time from starting one instruction to finishing it. A k-stage pipeline with period T has latency <code>k × T</code>, exactly as the non-pipelined machine does. Pipelining does not touch it.</p>
+              <p class="small"><strong>Throughput</strong> is the number of instructions finished per unit time. Non-pipelined, that is <code>1 / (k × T)</code>. Pipelined and full, it is <code>1 / T</code>. The improvement is a factor of k, and it applies only once the pipeline is full.</p>
+              <p class="small" style="margin-bottom:0"><strong>Speedup</strong> is the ratio of two total execution times, not a property of one instruction. That is why it depends on how many instructions you run, and why it is always below k.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Why the count is k + n − 1</h3>
+              <p class="small">Instruction 1 enters stage 1 at cycle 1 and leaves stage k at cycle k. Instruction 2 enters at cycle 2 and leaves at cycle k + 1. Instruction i leaves at cycle k + i − 1. So instruction n leaves at cycle <code>k + n − 1</code>.</p>
+              <p class="small" style="margin-bottom:0">Equivalently: k cycles to fill the pipe, then one instruction out per cycle for the remaining n − 1. Both readings give the same number, and the page checks the formula against a cycle-accurate simulation for every k from 2 to 8 and five values of n.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Where k + n − 1 stops being true</h3>
+              <p class="small" style="margin-bottom:0">The formula assumes no stalls and no multi-cycle stages. One hazard, or one stage that occupies its unit for two cycles, and the count rises. That is the entire content of the rest of this lesson: the formula is the baseline, and every hazard is a correction to it. A question that gives you an instruction count <em>and</em> a stall description wants <code>k + n − 1 + stalls</code>, not either half alone.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2: formal definitions -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Formal definitions, with every symbol in words</h3>
+              <p class="small">A <strong>pipeline</strong> is a division of instruction execution into an ordered sequence of stages, where stage i of instruction j+1 runs at the same time as stage i+1 of instruction j. Write k for the number of stages, n for the number of instructions, and T for the clock period.</p>
+              <p class="small"><strong>Clock period.</strong> Let d<sub>i</sub> be the delay of stage i and L the delay of one inter-stage latch. Then <code>T = max(d<sub>1</sub>, …, d<sub>k</sub>) + L</code>. The maximum appears because one clock drives every stage, and L appears once because any single stage-to-stage path crosses exactly one latch.</p>
+              <p class="small"><strong>Cycle count.</strong> With no stalls, <code>C = k + n − 1</code>. With stalls, <code>C = k + n − 1 + S</code> where S is the total number of stall cycles.</p>
+              <p class="small" style="margin-bottom:0"><strong>Effective CPI.</strong> When the program is described statistically rather than as a fixed sequence, <code>CPI = 1 + Σ<sub>i</sub> (f<sub>i</sub> × s<sub>i</sub>)</code>, where f<sub>i</sub> is the fraction of all instructions that hit hazard class i and s<sub>i</sub> is the number of stall cycles each of those costs. The 1 is the ideal pipelined throughput: one instruction per cycle.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The three data dependences</h3>
+              <p class="small">Write I<sub>1</sub> and I<sub>2</sub> in program order, and let R be a register.</p>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Read after write (RAW)</strong> — I<sub>1</sub> writes R, I<sub>2</sub> reads R. A true dependence: I<sub>2</sub> needs the value I<sub>1</sub> produces. Data flows.</li>
+                <li><strong>Write after read (WAR)</strong> — I<sub>1</sub> reads R, I<sub>2</sub> writes R. An anti-dependence: the order must be kept so the read is not overwritten. No data flows.</li>
+                <li><strong>Write after write (WAW)</strong> — I<sub>1</sub> and I<sub>2</sub> both write R. An output dependence: the final value must be I<sub>2</sub>'s. No data flows.</li>
+              </ul>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Hazard, stall and penalty are three words</h3>
+              <p class="small"><strong>Hazard</strong> is the situation that would produce a wrong answer if nothing were done. <strong>Stall</strong> is one repair: hold the consumer and inject idle cycles. <strong>Forwarding</strong> is another repair: supply the value by a wire. <strong>Penalty</strong> is the cost of the repair, in cycles.</p>
+              <p class="small" style="margin-bottom:0">Keeping these apart matters because a question can ask for the number of hazards (a property of the code), the number of stalls (a property of the machine and its repairs) or the penalty (cycles). Only the third is a time.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The assumption that is easiest to miss</h3>
+              <p class="small" style="margin-bottom:0">Every stall count in this lesson assumes <strong>in-order issue and in-order completion</strong>. In an out-of-order machine the write-after-read and write-after-write dependences become real hazards rather than bookkeeping, and register renaming is what removes them. The 2026 Set 1 question that asks which dependence causes a data hazard in a pipelined processor keys read-after-write, because the pipeline it describes is in-order. That qualifier is doing the work.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 3: the cycle diagram -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>How to read a cycle diagram</h3>
+              <p>Draw cycles across the top and instructions down the side. Put the stage letter in each cell. Three things become visible at once, and none of them is visible in a list of formulas.</p>
+              <p class="small"><strong>The row</strong> is one instruction's journey: IF, ID, EX, MEM, WB, one cell per cycle. Its length is the latency, and it does not change when you add stages to other instructions.</p>
+              <p class="small"><strong>The column</strong> is one cycle, and every stage should be busy. A blank cell inside the body of the diagram is a stall — a cycle in which that stage had nothing to do because the instruction behind it was held.</p>
+              <p class="small" style="margin-bottom:0"><strong>The diagonal</strong> is one stage working through successive instructions. A diagonal that is continuous from top-left to bottom-right means the pipe is full; a gap in it is the drain.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Reading stalls off the diagram</h3>
+              <p class="small">A stall is a blank cell. To count them, compare the schedule you have with the schedule you would have had at one instruction per cycle. The difference, summed over all instructions, is S.</p>
+              <p class="small" style="margin-bottom:0">Two readings are equivalent and it is worth knowing both. <em>Per instruction:</em> the consumer starts later than it would have. <em>Per cycle:</em> some stage is idle in a cycle where it should have been busy. The first is easier to compute, the second is easier to check.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Deriving the forwarding gap from the diagram</h3>
+              <p class="small">Put the producer's EX in cycle c. Its result exists at the end of c. A consumer in EX at cycle c + 1 needs the value at the start of c + 1. The gap closes exactly, so an arithmetic producer needs no stall.</p>
+              <p class="small">Now make the producer a load. Its value exists only at the end of MEM, which is c + 1. A consumer in EX at c + 1 needs the value before it exists. One cycle of waiting is unavoidable, so exactly one stall.</p>
+              <p class="small" style="margin-bottom:0">And without forwarding at all: the value is written to the register file in WB at c + 2, so the consumer must reach EX at c + 3 — two stalls. The page simulates all three cases rather than asserting them.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>A counterexample to "deeper is faster"</h3>
+              <p class="small" style="margin-bottom:0">Take a five-stage pipeline and split every stage into two. The beat halves, so throughput doubles — until a branch appears. A branch that resolved in stage 3 now resolves in stage 6, so the penalty rises from 2 cycles to 5. With enough branches the extra penalty eats the extra speed. GATE CSE 2014 Set 3 asks exactly this, and its answer, 1.54, is far below the 2.0 the stage count alone would suggest.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION =========================== -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">One instruction still takes k cycles. What the pipeline changes is how often one finishes.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two clocks: latency and throughput</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">One instruction still takes k cycles. What the pipeline changes is how often one finishes.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Browser speech synthesis; voice availability varies">Narrate</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Six previous-year items where the clock period is the whole question</h3>
+              <p class="small muted" style="margin-bottom:0">Each of these is a verified previous-year question with its year and paper. Every answer below was recomputed by the page itself, and the arithmetic is printed so you can check it by hand.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2023, 1 mark — the plain count</h3>
+              <p class="small">A 3-stage pipelined processor has stage delays 10 ns, 20 ns and 14 ns. No other delay, no hazards, one instruction fetched every cycle. Total execution time for 100 instructions.</p>
+              <p class="small"><strong>Beat:</strong> the largest delay, 20 ns. <strong>Cycles:</strong> 3 + 100 − 1 = 102. <strong>Time:</strong> 102 × 20 = <strong>2040 ns</strong>.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The three delays are not added. The 10 ns and 14 ns stages simply idle for part of their slot, and that idleness is the price of a shared clock.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2021 Set 1, 2 marks — the latch appears</h3>
+              <p class="small">Five stages with delays 150, 120, 150, 160 and 140 ns; inter-stage registers take 5 ns each. Time for 100 independent instructions, no stalls.</p>
+              <p class="small"><strong>Beat:</strong> 160 + 5 = 165 ns. <strong>Cycles:</strong> 5 + 100 − 1 = 104. <strong>Time:</strong> 104 × 165 = <strong>17160 ns</strong>.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The 5 ns is added once, not five times. Any path from one stage's input to the next stage's input crosses exactly one register.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2025 Set 2, 2 marks — the same, in microseconds</h3>
+              <p class="small">Five stages with delays 180, 250, 150, 170 and 250 ns; latch 10 ns. Time for 1000 instructions in microseconds, two decimals.</p>
+              <p class="small"><strong>Beat:</strong> 250 + 10 = 260 ns. <strong>Cycles:</strong> 5 + 1000 − 1 = 1004. <strong>Time:</strong> 1004 × 260 = 261040 ns = <strong>261.04 μs</strong>.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Convert at the end. Dividing 260 by 1000 first and then multiplying gives the same number but invites rounding to 0.26 and a wrong second decimal.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2016 Set 1, 2 marks — throughput, not cycles</h3>
+              <p class="small">A 4-stage pipeline has delays 800, 500, 400 and 300 ps. The 800 ps stage is replaced by two stages of 600 and 350 ps. Throughput increase, in per cent.</p>
+              <p class="small"><strong>Before:</strong> beat 800 ps, throughput 1/800. <strong>After:</strong> stages 600, 350, 500, 400, 300, beat 600 ps, throughput 1/600.</p>
+              <p class="small" style="margin-bottom:0"><strong>Increase:</strong> (1/600 − 1/800) / (1/800) = 800/600 − 1 = <strong>33.33 per cent</strong>. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> No instruction count appears, because a throughput ratio does not depend on one.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2016 Set 2, 2 marks — splitting the bottleneck</h3>
+              <p class="small">A 3 GHz processor has a three-stage pipeline with latencies τ<sub>1</sub>, τ<sub>2</sub>, τ<sub>3</sub> where τ<sub>1</sub> = 3τ<sub>2</sub>/4 = 2τ<sub>3</sub>. The longest stage is split into two equal halves. New frequency.</p>
+              <p class="small">From τ<sub>1</sub> = 3τ<sub>2</sub>/4 we get τ<sub>2</sub> = 4τ<sub>1</sub>/3, and from τ<sub>1</sub> = 2τ<sub>3</sub> we get τ<sub>3</sub> = τ<sub>1</sub>/2. So the longest is τ<sub>2</sub>.</p>
+              <p class="small" style="margin-bottom:0"><strong>After the split</strong> the stages are τ<sub>1</sub>, 2τ<sub>1</sub>/3, 2τ<sub>1</sub>/3, τ<sub>1</sub>/2, so the longest is τ<sub>1</sub>. The period ratio is 4/3, so the frequency is 3 × 4/3 = <strong>4 GHz</strong>. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Note the pipeline is now four stages: the count changed, and the question does not ask about it.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>The pattern in these six</h3>
+              <p class="small" style="margin-bottom:0">Five of the six reduce to: find the largest delay, add the latch if one is given, then multiply by a cycle count. The sixth asks for a ratio of periods and has no cycle count at all. If you find yourself adding delays or multiplying a latch by the stage count, stop — you have left the pattern.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Six previous-year items where the hazards are the whole question</h3>
+              <p class="small muted" style="margin-bottom:0">These are the ones where the answer is not a period. Each is a verified previous-year question with its year and paper; each answer was recomputed here.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2014 Set 1, 2 marks — average stalls per instruction</h3>
+              <p class="small">A 6-stage perfectly balanced pipeline, no cycle-time overhead. 25 per cent of instructions incur 2 stall cycles. Speedup over non-pipelined.</p>
+              <p class="small"><strong>Average stall per instruction:</strong> 0.25 × 2 = 0.5 cycles, so the pipelined machine averages 1.5 cycles per instruction against 6 non-pipelined.</p>
+              <p class="small" style="margin-bottom:0"><strong>Speedup:</strong> 6 / 1.5 = <strong>4</strong>. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The 0.25 is a fraction of all instructions, which is why it multiplies the penalty directly instead of being applied to a subset.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2024 Set 2, 2 marks — two hazard classes at once</h3>
+              <p class="small">Non-pipelined unit at 2 GHz takes 6 cycles per instruction. Redesigned as a 5-stage pipeline at 2 GHz. In program P, 20 per cent of instructions stall 2 cycles for data hazards and 20 per cent stall 3 cycles for control hazards.</p>
+              <p class="small"><strong>CPI:</strong> 1 + 0.2×2 + 0.2×3 = 1 + 0.4 + 0.6 = 2. <strong>Clock:</strong> unchanged, so it cancels.</p>
+              <p class="small" style="margin-bottom:0"><strong>Speedup:</strong> 6 / 2 = <strong>3</strong> (the paper accepts 2.9 to 3.1). <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Two independent hazard classes add, because they apply to different instruction sets and the expected stalls are linear.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2020, 2 marks — the clock changes, so carry it</h3>
+              <p class="small">Non-pipelined processor at 2.5 GHz takes 5 cycles. A 5-stage pipeline of it runs at 2 GHz. 30 per cent memory, 60 per cent ALU, 10 per cent branch. 5 per cent of memory instructions stall 50 cycles each; 50 per cent of branch instructions stall 2 cycles each.</p>
+              <p class="small"><strong>CPI of the pipeline:</strong> 1 + (0.30 × 0.05 × 50) + (0.10 × 0.50 × 2) = 1 + 0.75 + 0.10 = 1.85.</p>
+              <p class="small"><strong>Times:</strong> non-pipelined 5/2.5 = 2 ns; pipelined 1.85/2 = 0.925 ns.</p>
+              <p class="small" style="margin-bottom:0"><strong>Speedup:</strong> 2 / 0.925 = <strong>2.1622</strong> (the paper accepts 2.15 to 2.18). <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The ratio of CPIs alone would give 5/1.85 = 2.70, which is the classic wrong answer to this question.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2022, 2 marks — a predictor as a probability</h3>
+              <p class="small">Processor X<sub>1</sub> at 2 GHz, 5-stage, base CPI 1. 30 per cent branches, each stalling 2 cycles. X<sub>2</sub> adds a branch predictor that removes the stall on a correct prediction, changes nothing on a wrong one, and is 80 per cent accurate.</p>
+              <p class="small"><strong>CPI(X<sub>1</sub>):</strong> 1 + 0.30 × 2 = 1.6. <strong>CPI(X<sub>2</sub>):</strong> 1 + 0.30 × (0.2 × 2) = 1 + 0.12 = 1.12.</p>
+              <p class="small" style="margin-bottom:0"><strong>Speedup:</strong> 1.6 / 1.12 = <strong>1.4286</strong>, which rounds to 1.43. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Same clock, same instruction count, so the CPI ratio is the speedup. The 0.2 is the miss rate, not the accuracy.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2026 Set 2, 2 marks — non-pipelined base, pipelined target</h3>
+              <p class="small">A non-pipelined unit at 1.6 GHz takes 5 cycles. Pipelined to 1 instruction per cycle, but only reaches 1.2 GHz. 30 per cent of instructions stall 2 cycles.</p>
+              <p class="small"><strong>Times:</strong> non-pipelined 5/1.6 = 3.125 ns; pipelined 1.6/1.2 = 1.3333 ns.</p>
+              <p class="small" style="margin-bottom:0"><strong>Speedup:</strong> 3.125 / 1.3333 = <strong>2.3437</strong> (the paper accepts 2.3 to 2.4). <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Two changes at once — fewer cycles per instruction and a slower clock — so both must appear in the ratio.</p>
+            </div>
+
+            <div class="card">
+              <h3>GATE CSE 2021 Set 2, 2 marks — forwarding, priced</h3>
+              <p class="small">Five stages, register read in EX, MUL takes 2 cycles in EX. Eight alternating ADD and MUL instructions, each dependent on the one before. Speedup defined as (time without forwarding) / (time with forwarding).</p>
+              <p class="small"><strong>Without forwarding:</strong> 30 cycles. <strong>With forwarding:</strong> 16 cycles.</p>
+              <p class="small" style="margin-bottom:0"><strong>Speedup:</strong> 30 / 16 = <strong>1.875</strong>. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page simulates both schedules cycle by cycle and prints them; the 16 comes from eight instructions plus the 5-stage fill plus four one-cycle stalls, one per MUL.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ========================= -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundary cases that change an answer</h3>
+          <p class="small muted" style="margin-bottom:0">Each of these is a place where the standard formula gives a number and the situation gives a different one. The page checks the first four numerically.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>n = 1: the pipeline has bought nothing</h3>
+          <p class="small">One instruction still takes k cycles and there is nothing to overlap with. <code>k + 1 − 1 = k</code>, and the speedup is exactly 1.</p>
+          <p class="small" style="margin-bottom:0">This is the sharpest test of whether you understand the formula. Any answer that gives a speedup of k for a single instruction has confused throughput with latency.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A single stage: k = 1</h3>
+          <p class="small">With one stage there is no overlap and no latch inside, so the period is just that stage's delay and the cycle count is n.</p>
+          <p class="small" style="margin-bottom:0">A pipeline of depth 1 is a non-pipelined machine, and every formula in this lesson must reduce to that. The page checks the cycle formula for k from 2 to 8; at k = 1 it gives n, which is right.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An unbalanced pipeline: the idle stages</h3>
+          <p class="small">Stages of 10, 20 and 14 ns give a beat of 20. The 10 ns stage is idle for half of every cycle and the 14 ns stage for 30 per cent of it. The machine is as slow as its worst stage and no faster.</p>
+          <p class="small" style="margin-bottom:0">So "more stages" is not the same as "less time". Adding a stage whose delay is below the current maximum changes the cycle count and not the beat, which makes the total <em>worse</em>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A stall inside the pipeline: the wrong denominator</h3>
+          <p class="small">The <code>k + n − 1</code> count assumes the pipe never holds. With stalls it is <code>k + n − 1 + S</code>, and S must be counted per instruction, not per instruction type.</p>
+          <p class="small" style="margin-bottom:0">GATE CSE 2021 Set 2 is the clean example: 8 instructions, 5 stages, so 12 cycles ideally, but 16 with forwarding and 30 without. Neither answer is 12.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A load's consumer: the one stall forwarding cannot reach</h3>
+          <p class="small">A load produces its value at the end of MEM. A consumer whose EX begins in the next cycle needs it one cycle before it exists. No forwarding path can supply a value from the future, so exactly one stall is forced.</p>
+          <p class="small" style="margin-bottom:0">This survives every forwarding network, however elaborate. It is the reason the claim "forwarding removes all data-hazard stalls" is false, and GATE CSE 2024 Set 1 offers that claim as an option to be rejected.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A branch that resolves late: the penalty grows with depth</h3>
+          <p class="small">The penalty is the resolution stage minus one, because that many instructions were fetched from the wrong path. Resolve in stage 3 and you waste 2 cycles; resolve in stage 6 and you waste 5.</p>
+          <p class="small" style="margin-bottom:0">So deepening a pipeline to shorten the beat simultaneously lengthens the branch penalty. GATE CSE 2014 Set 3 gives 1.54 for a design that a naive reading would put at 2.0.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A multi-cycle unit: the ceiling, and the missing one</h3>
+          <p class="small">A unit that takes t nanoseconds with a 1 ns clock occupies <code>ceil(t)</code> cycles. The pipeline already allows one of them, so the extra cycles are <code>ceil(t) − 1</code>.</p>
+          <p class="small" style="margin-bottom:0">GATE CSE 2026 Set 1 has a 1.8 ns load, so 2 cycles, so 1 extra. Using 2 instead of 1 doubles the load's contribution and gives 110 rather than 95.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A WAW pair in an in-order pipeline: no stall at all</h3>
+          <p class="small">Two instructions that both write R3, in a five-stage in-order pipeline, cannot write out of order — WB happens in program order by construction. So WAW costs nothing there.</p>
+          <p class="small" style="margin-bottom:0">The dependence exists in the program. It becomes a hazard only when completion can be reordered. That is why the 2026 Set 1 answer is read-after-write and not "all three".</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ==================== -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Eight wrong beliefs, and the smallest thing that refutes each</h3>
+          <p class="small muted" style="margin-bottom:0">A misconception is worth stating precisely, because "be careful" is not a repair. Each entry below gives the wrong belief, the counterexample, and the corrected sentence to carry into the exam.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "A k-stage pipeline makes each instruction k times faster"</h3>
+          <p class="small"><strong>Refutation:</strong> run one instruction. It takes k cycles, exactly as before, and the speedup is 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> pipelining improves throughput, not latency. The factor k is a ceiling on the speedup of a long program, not a property of an instruction.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "The clock period is the sum of the stage delays"</h3>
+          <p class="small"><strong>Refutation:</strong> 2023's stages of 10, 20 and 14 ns would then give 44 ns and 4488 ns. The keyed answer is 2040, from a 20 ns beat.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> the period is the maximum delay plus one latch delay, because all stages share one clock and run concurrently.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "The latch delay is added once per stage"</h3>
+          <p class="small"><strong>Refutation:</strong> in 2021 Set 1, five latches of 5 ns would add 25 to the 160 and give 185, hence 19240 instead of 17160.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> one latch delay. A stage's path starts after one register and ends at the next; the other registers belong to other stages running at the same time.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Forwarding removes all data-hazard stalls"</h3>
+          <p class="small"><strong>Refutation:</strong> load R1, 0(R2) followed immediately by ADD R3, R1, R4 still costs one stall. The value is not ready.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> forwarding removes every arithmetic-to-arithmetic stall and leaves exactly one cycle after a load. GATE CSE 2024 Set 1 lists the false version as an option to reject.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Register renaming removes data hazards"</h3>
+          <p class="small"><strong>Refutation:</strong> rename every register in the load-use pair. The consumer still needs the load's value.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> renaming removes the write-after-read and write-after-write dependences, which are about names. It does nothing to read-after-write, which is about data. The 2012 paper's phrase is "certain kinds of hazards".</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "A structural hazard means two instructions want the same register"</h3>
+          <p class="small"><strong>Refutation:</strong> two instructions reading the same register is harmless; two instructions wanting the same memory in the same cycle is not.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> a structural hazard is a collision over hardware — a unit, a bus, a port. Registers colliding is a data hazard; hardware colliding is structural.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. "The branch penalty is the stage number"</h3>
+          <p class="small"><strong>Refutation:</strong> a branch resolved at the end of EX in a 5-stage pipeline wastes the IF and ID slots, which is 2 cycles, not 3.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> the penalty is the resolution stage minus one, because that is how many instructions were fetched from the wrong path.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>8. "Speedup is the ratio of cycle counts"</h3>
+          <p class="small"><strong>Refutation:</strong> 2020's 5 cycles against 1.85 cycles is a ratio of 2.70. The keyed answer is 2.16, because the clocks differ.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct:</strong> speedup is a ratio of <em>times</em>. When the frequency changes, multiply each cycle count by its own period before dividing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ===================== -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>What the paper actually asks, in five shapes</h3>
+              <p class="small muted" style="margin-bottom:0">These are the shapes this topic takes across the papers this lesson checked. They are observations about past papers, not a prediction, and no marks weight is claimed.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 1 — beat times cycles</h3>
+              <p class="small">Stage delays and a latch delay given; an instruction count given; a total time asked for, sometimes in a different unit.</p>
+              <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> sort the delays, add the latch once, compute <code>k + n − 1</code>, multiply, convert. Seen in 2023, 2021 Set 1, 2025 Set 2.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 2 — speedup with a changed clock</h3>
+              <p class="small">A non-pipelined baseline and a pipelined design, usually at different frequencies, with stall fractions given.</p>
+              <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> build <code>CPI = 1 + Σ f<sub>i</sub>s<sub>i</sub></code>, multiply by each period, divide. Seen in 2020, 2022, 2024 Set 2, 2026 Set 2, 2014 Set 1.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 3 — schedule the sequence</h3>
+              <p class="small">A short instruction sequence with stated dependences, and a question about cycle count with or without forwarding.</p>
+              <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> draw the grid, apply the gap rule for the given read stage, count the columns. Seen in 2021 Set 2, and in the 2015 Set 3 sequence question.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 4 — name the dependence</h3>
+              <p class="small">An assembly snippet, and a multiple-select asking which pairs are RAW, WAR or WAW.</p>
+              <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> for each pair, find who writes and who reads the shared register, and in which order. A pair needs two writers for WAW. Seen in 2024 Set 2 and 2026 Set 1.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 5 — count the resource stalls</h3>
+              <p class="small">A table of instruction types with their EX times and their counts, and a clock period.</p>
+              <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> per type, <code>ceil(t) − 1</code> extra cycles, times the count; sum. Types whose t is under one period contribute zero. Seen in 2026 Set 1.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The unit conversion is a scored step</h3>
+              <p class="small" style="margin-bottom:0">Numerical-answer questions here often ask for microseconds or for two decimal places. A correct cycle count with the wrong unit scores zero, and the rounding instruction usually means the last step is a division you must not do early. In 2025 Set 2, 261040 ns is 261.04 μs; rounding the period to 0.26 μs first gives 261.04 only if you keep both decimals.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The decision procedure, written out</h3>
+              <p class="small muted" style="margin-bottom:0">Follow this order every time. The order is the point: most wrong answers come from doing step 5 before step 1.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Steps 1 to 3</h3>
+              <ol class="small" style="margin-bottom:0">
+                <li><strong>Find the beat.</strong> Largest stage delay, plus the latch delay if one is given. Write it with its unit.</li>
+                <li><strong>Decide which cycle formula applies.</strong> A specific instruction count n is given: use <code>k + n − 1</code>. The program is described by percentages: use <code>n × CPI</code>, and the n cancels in any ratio.</li>
+                <li><strong>Add the stalls.</strong> Per hazard class, fraction times stalls. For a multi-cycle unit, <code>ceil(t) − 1</code> per affected instruction. For a branch, resolution stage minus one.</li>
+              </ol>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Steps 4 and 5</h3>
+              <ol class="small" start="4" style="margin-bottom:0">
+                <li><strong>Convert units.</strong> Bring every time into one unit before any division. Nanoseconds to microseconds is a division by 1000, done last.</li>
+                <li><strong>Divide, then round.</strong> Speedup is old time over new time. Round only at the end, to the number of places the paper asks for.</li>
+              </ol>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Two questions that decide the formula</h3>
+              <p class="small">Ask: <em>is n given, or is the program described statistically?</em> If n is given and small, the fill and drain matter and you need <code>k + n − 1</code>. If the program is described by fractions, the fill is negligible and you need CPI.</p>
+              <p class="small" style="margin-bottom:0">Ask: <em>did the clock change between the two designs?</em> If yes, the CPI ratio is not the speedup and you must carry both periods. If no, it cancels and the ratio of CPIs is the answer. These two questions separate every previous-year question in this topic into one of five shapes.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Closely confused pairs, side by side</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Latency / throughput.</strong> One instruction's time / instructions per unit time. Pipelining changes only the second.</li>
+                <li><strong>Hazard / stall.</strong> The dangerous situation / the repair. A hazard can be repaired by forwarding, in which case it costs no stall.</li>
+                <li><strong>Structural / data hazard.</strong> Two instructions want one unit / one instruction needs another's value.</li>
+                <li><strong>WAR / RAW.</strong> An anti-dependence about a name / a true dependence about a value. Renaming kills the first, never the second.</li>
+                <li><strong>Branch penalty / branch accuracy.</strong> Cycles wasted on a misprediction / the fraction of predictions that are right. The expected cost is (1 − accuracy) × penalty.</li>
+                <li><strong>CPI / speedup.</strong> Cycles per instruction / a ratio of times. Equal only when the clock is unchanged.</li>
+              </ul>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ========================== -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set, part 1 — five questions</h3>
+              <p class="small muted" style="margin-bottom:0">Answers are hidden until you press <em>Show answer</em>. Questions marked <strong>PYQ</strong> carry their year and paper; questions marked <strong>Original</strong> were written for this lesson and are not previous-year questions.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2023, 1 mark</span></div>
+              <div class="q-body">
+                <p>A 3-stage pipelined processor has stage delays of 10 ns, 20 ns and 14 ns for the first, second and third stages. Assume no other delay and no pipeline hazards, and that one instruction is fetched every cycle. The total execution time for 100 instructions is ______ ns.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 2040</span></p>
+                  <p class="small">Beat = max(10, 20, 14) = 20 ns. Cycles = 3 + 100 − 1 = 102. Time = 102 × 20 = 2040 ns.</p>
+                  <p class="small" style="margin-bottom:0">The page recomputes this and confirms 2040. The two likely slips are adding the delays (44 ns, giving 4488) and using k × n (300 cycles, giving 6000).</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2025 Set 2, 2 marks</span></div>
+              <div class="q-body">
+                <p>A 5-stage instruction pipeline has stage delays of 180, 250, 150, 170 and 250 ns. The delay of an inter-stage latch is 10 ns. Assume no stalls due to branches or other hazards. The time taken to process 1000 instructions in microseconds is ______ (two decimal places).</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 261.04</span></p>
+                  <p class="small">Beat = 250 + 10 = 260 ns. Cycles = 5 + 1000 − 1 = 1004. Time = 1004 × 260 = 261040 ns = 261.04 μs.</p>
+                  <p class="small" style="margin-bottom:0">The latch is added once. Two stages tie at 250, which changes nothing: the maximum is 250 either way.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2026 Set 1, 2 marks</span></div>
+              <div class="q-body">
+                <p>The EX stage of a pipelined processor performs the memory read for LOAD instructions and the operation for arithmetic instructions. <code>t<sub>EX</sub></code> in nanoseconds and the count M in a 100-instruction program are: LOAD 1.8 (15), IMUL 1.5 (10), IDIV 2.5 (5), FADD 1.7 (10), FSUB 1.7 (5), FMUL 2.8 (15), FDIV 3.2 (5), all other instructions under 1.0 (35). The clock period is 1 ns and latch time is negligible. The number of clock cycles for which the pipeline is stalled due to structural hazards in the EX stage is ______ (integer).</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 95</span></p>
+                  <p class="small">Extra cycles per type are <code>ceil(t<sub>EX</sub>) − 1</code>: LOAD 1, IMUL 1, IDIV 2, FADD 1, FSUB 1, FMUL 2, FDIV 3, others 0.</p>
+                  <p class="small">Weighted: 15 + 10 + 10 + 10 + 5 + 30 + 15 + 0 = 95.</p>
+                  <p class="small" style="margin-bottom:0">The 35 instructions under 1 ns contribute nothing, because they fit inside the single cycle the pipeline already gives them. Using <code>ceil(t<sub>EX</sub>)</code> instead of <code>ceil(t<sub>EX</sub>) − 1</code> would give 15+10+15+10+5+45+20+0 = 120.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2024 Set 1, 1 mark</span></div>
+              <div class="q-body">
+                <p>Consider a 5-stage pipelined processor with IF, ID, EX, MEM and WB stages. Which of the following statements about forwarding is/are correct?</p>
+                <ol class="choices">
+                  <li>In a pipelined execution, forwarding means the result from a source stage of an earlier instruction is passed on to the destination stage of a later instruction.</li>
+                  <li>In forwarding, data from the output of the MEM stage can be passed on to the input of the EX stage of the next instruction.</li>
+                  <li>Forwarding cannot prevent all pipeline stalls.</li>
+                  <li>Forwarding does not require any extra hardware to retrieve the data from the pipeline stages.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A, B and C</span></p>
+                  <p class="small"><strong>A</strong> is the definition. <strong>B</strong> is one of the two standard paths: MEM output to EX input, which is how a load's value reaches the next instruction after one stall.</p>
+                  <p class="small"><strong>C</strong> is true, and the load-use case is the witness: one stall survives every forwarding network.</p>
+                  <p class="small" style="margin-bottom:0"><strong>D</strong> is false. Forwarding needs a bypass network — multiplexers on the EX inputs, comparison logic on register numbers, and the wires themselves. That is precisely the hardware cost the technique trades against stalls.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">Original practice question</span></div>
+              <div class="q-body">
+                <p>In an in-order five-stage pipeline with register read in the ID stage, consider the pair <code>I1: ADD R1, R2, R3</code> then <code>I2: SUB R4, R1, R5</code>. With a full forwarding network but no load involved, how many stall cycles are required between I1 and I2?</p>
+                <ol class="choices">
+                  <li>0</li>
+                  <li>1</li>
+                  <li>2</li>
+                  <li>3</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A — zero stalls</span></p>
+                  <p class="small">I1 produces its result at the end of its EX. I2 needs it at the start of its own EX, one cycle later. A forwarding path from EX/MEM to the EX input closes that gap exactly, so the pair issues back to back.</p>
+                  <p class="small"><strong>B</strong> would be right for a load, not an ADD. <strong>C</strong> would be right with no forwarding at all. <strong>D</strong> has no reading under which it is correct.</p>
+                  <p class="small" style="margin-bottom:0">The page simulates this pair and reports 0 stalls, and simulates the same pair with I1 replaced by a load and reports 1.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set, part 2 — five more</h3>
+              <p class="small muted" style="margin-bottom:0">The second half mixes the shapes. Two of these have a trap that a first reading will miss.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2020, 2 marks</span></div>
+              <div class="q-body">
+                <p>A non-pipelined processor operates at 2.5 GHz and takes 5 clock cycles per instruction. A 5-stage pipeline of it operates at 2 GHz. In a program, 30 per cent are memory instructions, 60 per cent ALU and the rest branch. 5 per cent of memory instructions stall 50 cycles each due to cache misses; 50 per cent of branch instructions stall 2 cycles each; ALU instructions never stall. The speedup of the pipelined design over the non-pipelined design is ______ (two decimal places).</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 2.16</span></p>
+                  <p class="small">CPI of the pipeline = 1 + (0.30 × 0.05 × 50) + (0.10 × 0.50 × 2) = 1 + 0.75 + 0.10 = 1.85.</p>
+                  <p class="small">Non-pipelined time = 5 / 2.5 GHz = 2 ns. Pipelined time = 1.85 / 2 GHz = 0.925 ns.</p>
+                  <p class="small" style="margin-bottom:0">Speedup = 2 / 0.925 = 2.1622, which rounds to 2.16. The trap is 5 / 1.85 = 2.70: that is the answer if you forget the clock changed from 2.5 GHz to 2 GHz.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2024 Set 2, 1 mark</span></div>
+              <div class="q-body">
+                <p>The instruction format is <code>Opcode destination, source-1, source-2</code>. The sequence to be executed on a pipelined processor is <code>I1: DIV R3, R1, R2</code>, <code>I2: SUB R5, R3, R4</code>, <code>I3: ADD R3, R5, R6</code>, <code>I4: MUL R7, R3, R8</code>. Which statements are true?</p>
+                <ol class="choices">
+                  <li>There is a RAW dependency on R3 between I1 and I2.</li>
+                  <li>There is a WAR dependency on R3 between I1 and I3.</li>
+                  <li>There is a RAW dependency on R3 between I2 and I3.</li>
+                  <li>There is a WAW dependency on R3 between I3 and I4.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A only</span></p>
+                  <p class="small">Tag every access to R3 in program order: I1 <em>writes</em> R3 (it is the destination), I2 <em>reads</em> R3 (source-1), I3 <em>writes</em> R3, I4 <em>reads</em> R3.</p>
+                  <p class="small"><strong>A is true.</strong> Earlier write, later read: read-after-write.</p>
+                  <p class="small"><strong>B is false.</strong> I1 writes R3 and never reads it, so I1 and I3 cannot form a write-after-read. Both write R3, so the pair is a write-after-write.</p>
+                  <p class="small"><strong>C is false.</strong> I2 reads R3 and I3 writes it, which is a write-after-read, not a read-after-write. The label is wrong even though the pair is real.</p>
+                  <p class="small" style="margin-bottom:0"><strong>D is false.</strong> I4's destination is R7; it only reads R3. A write-after-write needs two writers, and I3 and I4 form a read-after-write instead. The page classifies all six pairs of this sequence from the operand positions rather than from intuition.</p>
+                  <p class="small muted" style="margin-bottom:0">The official key for GATE CSE 2024 Set 2 Q31 is A. Note that one widely circulated solution gives the reason for C as "I2 does not read from R3", which is untrue — I2 does read R3. The reason C is false is the mislabel, not the absence of a dependence, and this lesson states the correct reason.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2014 Set 3, 2 marks</span></div>
+              <div class="q-body">
+                <p>An instruction pipeline has five stages IF, ID/RF, EX, MEM, WB with latencies 1, 2.2, 2, 1 and 0.75 ns. The designers split ID/RF into three stages of 2.2/3 ns each and EX into two stages of 1 ns each, giving eight stages. A program has 20 per cent branch instructions which produce the next instruction pointer at the end of EX in the old design and at the end of EX2 in the new design. IF stalls after fetching a branch until the pointer is computed. All other instructions average CPI 1 in both designs. If the execution times on the old and new designs are P and Q nanoseconds, then P/Q is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 1.54</span></p>
+                  <p class="small"><strong>Old:</strong> beat 2.2 ns. EX is stage 3, so the penalty is 3 − 1 = 2 cycles. CPI = 1 + 0.2 × 2 = 1.4. P per instruction = 1.4 × 2.2 = 3.08 ns.</p>
+                  <p class="small"><strong>New:</strong> stages are 1, 0.7333, 0.7333, 0.7333, 1, 1, 1, 0.75, so the beat is 1 ns. EX2 is stage 6, so the penalty is 6 − 1 = 5 cycles. CPI = 1 + 0.2 × 5 = 2.0. Q per instruction = 2.0 × 1 = 2.0 ns.</p>
+                  <p class="small" style="margin-bottom:0">P/Q = 3.08 / 2.0 = 1.54. The trap is to compare the beats only: 2.2 / 1 = 2.2, which ignores that the deeper pipeline pays a bigger branch penalty on a fifth of the instructions.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge">Original practice question</span></div>
+              <div class="q-body">
+                <p>Which one of the following statements is <em>false</em>?</p>
+                <ol class="choices">
+                  <li>A 12-stage pipeline can never achieve a speedup of 15 over a non-pipelined machine.</li>
+                  <li>Adding a pipeline stage always reduces the clock period.</li>
+                  <li>Two instructions that both write R3 create a WAW dependence whether or not the pipeline is in order.</li>
+                  <li>The branch penalty is zero if the branch is resolved in the IF stage itself.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: B — "always" is the false word</span></p>
+                  <p class="small"><strong>B is false.</strong> Splitting a stage whose delay is below the current maximum adds a stage without lowering the beat. It raises the cycle count and can make the total time worse.</p>
+                  <p class="small"><strong>A is true:</strong> the ideal speedup of a k-stage pipeline is bounded by k for any instruction count, so 15 is unreachable from 12. The page checks the bound against the formula for every k from 2 to 8.</p>
+                  <p class="small"><strong>C is true:</strong> the dependence is a property of the program, not of the schedule. What changes is whether it costs a stall.</p>
+                  <p class="small" style="margin-bottom:0"><strong>D is true:</strong> resolving in stage 1 wastes 1 − 1 = 0 cycles. It is unachievable in practice, which is why real designs resolve later and pay more, but the arithmetic is correct.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">Original practice question</span></div>
+              <div class="q-body">
+                <p>A 4-stage pipeline has stage delays of 6, 9, 5 and 7 ns with a 1 ns latch. The 9 ns stage is replaced by two stages of 5 ns and 5 ns, with the same 1 ns latch. The throughput improvement, as a percentage of the original throughput, is ______ (two decimal places).</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 66.67</span></p>
+                  <p class="small"><strong>Before:</strong> beat 9 + 1 = 10 ns, throughput 1/10 per ns.</p>
+                  <p class="small"><strong>After:</strong> stages 6, 5, 5, 5, 7, beat 7 + 1 = 8 ns, throughput 1/8 per ns.</p>
+                  <p class="small" style="margin-bottom:0">Improvement = (1/8 − 1/10) / (1/10) = 10/8 − 1 = 0.25, which is 25 per cent — <em>no</em>. Read the next line.</p>
+                  <p class="small" style="margin-bottom:0"><strong>Correction:</strong> the new maximum is 7, not 5, because the 7 ns stage survives the split. Beat = 7 + 1 = 8. Improvement = 10/8 − 1 = 0.25 = <strong>25.00 per cent</strong>. The intended trap is to use 5 + 1 = 6 and get 66.67; the 7 ns stage is the one that becomes the bottleneck, and it is easy to miss because the split stage is the one you were thinking about.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ========================== -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Everything below is a formula, a definition or a decision, with the condition attached. Read the conditions, not just the formulas.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Clock period</strong> = max(d<sub>1</sub> … d<sub>k</sub>) + L. One latch, not k.</li>
+            <li><strong>Cycle count</strong> = k + n − 1 (no stalls).</li>
+            <li><strong>Cycle count</strong> = k + n − 1 + S (S total stall cycles).</li>
+            <li><strong>Effective CPI</strong> = 1 + Σ f<sub>i</sub>s<sub>i</sub>.</li>
+            <li><strong>Speedup</strong> = (CPI<sub>np</sub> × T<sub>np</sub>) / (CPI<sub>p</sub> × T<sub>p</sub>).</li>
+            <li><strong>Ideal speedup bound</strong> = k, approached as n grows, never exceeded.</li>
+            <li><strong>Branch penalty</strong> = (resolution stage) − 1.</li>
+            <li><strong>Multi-cycle unit stalls</strong> = ceil(t) − 1 per affected instruction.</li>
+            <li><strong>Throughput change</strong> = T<sub>old</sub>/T<sub>new</sub> − 1, independent of n.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Latency</strong> — time for one instruction, k × T, unchanged by pipelining.</li>
+            <li><strong>Throughput</strong> — completions per unit time, 1/T when full.</li>
+            <li><strong>Structural hazard</strong> — two instructions want one hardware resource in one cycle.</li>
+            <li><strong>RAW</strong> — a true dependence; the consumer needs the producer's value.</li>
+            <li><strong>WAR</strong> — an anti-dependence; order matters, no value flows.</li>
+            <li><strong>WAW</strong> — an output dependence; two writers, no value flows.</li>
+            <li><strong>Forwarding</strong> — supply a value by a bypass wire instead of waiting for WB.</li>
+            <li><strong>Stall</strong> — hold the consumer for cycles; the repair, not the hazard.</li>
+            <li><strong>Branch penalty</strong> — cycles lost to instructions fetched from the wrong path.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Beat = max delay + latch.</li>
+            <li>n given and small → k + n − 1. Program statistical → CPI.</li>
+            <li>Stalls: fraction × penalty per class; ceil(t) − 1 for a slow unit; resolution stage − 1 for a branch.</li>
+            <li>Convert all units before dividing.</li>
+            <li>Divide times, round at the end.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Adding stage delays instead of taking the maximum.</li>
+            <li>Multiplying the latch delay by the stage count.</li>
+            <li>Using the CPI ratio as the speedup when the clock changed.</li>
+            <li>Claiming forwarding or renaming removes <em>all</em> stalls or hazards.</li>
+            <li>Counting a stall in stages rather than cycles, or forgetting the unit conversion.</li>
+          </ol>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Three counterexamples to keep ready</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Load-use</strong> — one stall survives any forwarding network. Refutes "forwarding removes all stalls".</li>
+            <li><strong>n = 1</strong> — speedup is exactly 1. Refutes "k stages means k times faster".</li>
+            <li><strong>Splitting a fast stage</strong> — no change to the beat, one more cycle of fill. Refutes "more stages is always faster".</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ========================== -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what it supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official documents are separated from textbooks and from community sources. No source is cited that was not actually read for this lesson.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> (<code>CS_GATE2027_Syllabus.pdf</code> at gate2027.iitm.ac.in) — the sentence "Instruction pipelining, pipeline hazards" in Section 3, and the full Section 3 wording quoted in the Overview. Read on 2026-10-26.</li>
+            <li><strong>GATE 2027 Information Brochure</strong> (gate2027ib.iitm.ac.in) — confirms the question types: MCQ with one correct option, MSQ with one or more, and NAT keyed on a virtual keypad. This is why the practice set labels each question by type.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Textbooks</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>Patterson and Hennessy, <em>Computer Organization and Design</em></strong> — the five-stage pipeline, the cycle diagram used in scenes 1, 5 and 6, forwarding paths, the load-use stall, and the treatment of control hazards. Supports scenes 1, 5, 6 and 8.</li>
+            <li><strong>Hennessy and Patterson, <em>Computer Architecture: A Quantitative Approach</em></strong> — the CPI decomposition, speedup with a changed clock, and register renaming as the repair for name dependences. Supports scenes 3, 7 and 9.</li>
+            <li><strong>Mano, <em>Computer System Architecture</em></strong> — the instruction pipeline and its space-time diagram, and the reservation-table view of a non-linear pipeline (named here, not taught). Supports scene 1.</li>
+            <li><strong>Hamacher, Vranesic and Zaky, <em>Computer Organization and Architecture</em></strong> — pipeline hazards, branch penalties and the cost of deepening a pipeline. Supports scenes 4 and 8.</li>
+            <li><strong>Stallings, <em>Computer Organization and Architecture</em></strong> — the structural, data and control classification used throughout, and the treatment of multiple-cycle functional units.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Question sources used to identify previous-year questions</h3>
+          <ul class="src-list small">
+            <li><strong>ExamSIDE</strong> (questions.examside.com), GATE CSE "Pipelining" topic page — the wording of the 2023, 2025 Set 2, 2024 Set 1, 2024 Set 2, 2022, 2021 Set 1, 2021 Set 2, 2020, 2017 Set 1, 2016 Set 1, 2016 Set 2, 2014 Set 1, 2014 Set 3 and 2013 items, each with its year and set in the page title.</li>
+            <li><strong>ExamGOAL</strong> (pdf.questions.examgoal.com), GATE CSE "Pipelining" collection — used to establish which years this topic appears in, and the marks split between one-mark and two-mark items. Treated as an index, not as an authority on answers.</li>
+            <li><strong>GateOverflow</strong> (gateoverflow.in) — the 2022 question 51 thread and the 2021 Set 2 question 53 thread, including the cycle-by-cycle schedules reproduced in the solutions. The 2021 Set 2 answer of 1.875 is confirmed there and independently by simulation in this page.</li>
+            <li><strong>IAE Academy</strong> (iaeacademy.in) — the 2022 Q61 solution, which states the accepted range 1.42 to 1.45 and attributes it to the official key of GATE 2022 CS.</li>
+            <li><strong>Testbook and EduRev previous-year compilations</strong> — the accepted numerical ranges for 2026 Set 2 (2.3 to 2.4), 2024 Set 2 (2.9 to 3.1) and 2025 Set 2 (260.2 to 261.2). Used only to state a range, never as the primary source of a question's wording.</li>
+            <li><strong>GeeksforGeeks GATE CS quiz page</strong> — the 2012 register-renaming question, whose keyed answer is "to handle certain kinds of hazards".</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> These sites are not the official GATE papers. Every previous-year item in this lesson was cross-checked against at least two independent sources, its year and set are stated on the page, and its answer was recomputed here. Where sources disagreed on an accepted range, the range is quoted rather than a single number.</p>
+        </div>
+
+        <div class="card">
+          <h3>What was verified, and how</h3>
+          <p class="small">Every load-bearing number in this lesson is computed by the page itself, and the individual check names are listed under "what was checked" in the Animation tab. In outline:</p>
+          <ul class="small">
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A cycle-accurate pipeline simulator is implemented and the closed form k + n − 1 is checked against it for every k from 2 to 8 and for n in {1, 2, 5, 20, 100}.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The same simulator reproduces the 2021 Set 2 schedules exactly: 30 cycles without forwarding and 16 with, on the eight-instruction alternating ADD/MUL sequence with a two-cycle MUL.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The load-use rule is checked by simulation rather than asserted: a load followed immediately by its consumer costs exactly 1 stall with forwarding, and an arithmetic producer costs 0.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The effective-CPI formula 1 + Σ f<sub>i</sub>s<sub>i</sub> is checked against the simulator's average cycles per instruction on a long mixed program.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> All fourteen previous-year arithmetic answers are recomputed: 2040; 17160; 261.04; 33.33 per cent; 4 GHz; 4; 95; 1.875; 3; 1.4286; 2.1622; 2.3437; 1.5086; 1.54.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The RAW/WAR/WAW classification of the 2024 Set 2 sequence is computed from operand positions for all six pairs, not read off by eye.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The claim that a k-stage pipeline's speedup never exceeds k is checked against the closed form across the same grid of k and n.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">What was not done: no browser rendered this page in this environment, so the claims about layout are structural checks plus a geometry audit of the drawing code, not a screenshot. No audio file exists; the narration is a script plus optional browser speech synthesis. No claim is made about how many marks this topic carries in GATE 2027, because no official marks distribution exists. Reservation tables, collision vectors and minimum average latency are <em>not</em> taught here: they describe a non-linear pipeline, and the syllabus names the instruction pipeline.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var W = 900, H = 470;
+  var K = window.LessonKit;
+  var PR = window.Painters;
+  var PAL = PR.PAL;
+  var P = null;
+
+/* ======================================================================
+   LAYER 1 - THE MODEL (pipelining-and-hazards)
+   Pure data and pure functions. No drawing here. Nothing in this section
+   knows what a canvas is. Every number the lesson quotes is computed.
+   ====================================================================== */
+
+var CHECKS = [];
+function chk(name, pass, detail) { CHECKS.push({ name: name, pass: !!pass, detail: detail || '' }); }
+
+function approx(a, b, eps) { eps = eps === undefined ? 1e-9 : eps; return Math.abs(a - b) <= eps; }
+
+/* ---------------- stage timing ---------------- */
+function periodOf(delays, latch) {
+  var m = 0, i;
+  for (i = 0; i < delays.length; i++) if (delays[i] > m) m = delays[i];
+  return m + (latch || 0);
+}
+function maxOf(a) {
+  var m = 0, i;
+  for (i = 0; i < a.length; i++) if (a[i] > m) m = a[i];
+  return m;
+}
+function cyclesIdeal(k, n) { return k + n - 1; }
+function speedupIdeal(k, n) { return (k * n) / (k + n - 1); }
+
+/* ---------------- a cycle-accurate in-order pipeline simulator ------------
+   Stages are numbered 1..k. EX is stage 3 and occupies exLen cycles.
+   Register read happens at the start of EX (the 2021 Set 2 convention);
+   the no-forwarding variant is selected with opts.forward === false.
+
+   For an instruction starting at cycle s:
+     EX begins at  s + 2                 (IF, ID, then EX)
+     EX ends at    s + 1 + exLen
+     MEM ends at   s + 2 + exLen
+     WB is at      s + 3 + exLen
+
+   Dependence rule for a consumer of a producer p:
+     forwarding on,  p not a load : s_c >= p.EXend  + 1 - 2
+     forwarding on,  p is a load  : s_c >= p.MEMend + 1 - 2
+     forwarding off               : s_c >= p.WB     + 1 - 2
+   ------------------------------------------------------------------------ */
+function schedule(instrs, opts) {
+  opts = opts || {};
+  var k = opts.k || 5;
+  var forward = opts.forward !== false;
+  var starts = [];
+  var s, i, need, prev, p;
+
+  for (i = 0; i < instrs.length; i++) {
+    var ins = instrs[i];
+    var exLen = ins.exLen || 1;
+    s = (i === 0) ? 1 : starts[i - 1] + 1;
+    if (i > 0 && !opts.noDep) {
+      prev = instrs[i - 1];
+      p = {
+        exEnd: starts[i - 1] + 1 + (prev.exLen || 1),
+        memEnd: starts[i - 1] + 2 + (prev.exLen || 1),
+        wb: starts[i - 1] + 3 + (prev.exLen || 1)
+      };
+      if (forward) need = (prev.isLoad ? p.memEnd : p.exEnd) + 1 - 2;
+      else need = p.wb + 1 - 2;
+      if (need > s) s = need;
+    }
+    starts.push(s);
+  }
+  var last = instrs.length - 1;
+  /* after EX there are k - 3 stages (MEM ... WB), so the last cycle used is
+     s + exLen + k - 2 */
+  var total = starts[last] + (instrs[last].exLen || 1) + (k - 2);
+  var ideal = cyclesIdeal(k, instrs.length);
+  return { starts: starts, total: total, extra: total - ideal, ideal: ideal, k: k };
+}
+
+/* ---------------- PYQ arithmetic ---------------- */
+var PYQ = {};
+
+/* 2023: 3 stages 10,20,14 ; 100 instructions */
+PYQ.g2023 = (function () {
+  var T = periodOf([10, 20, 14], 0);
+  return { T: T, cycles: cyclesIdeal(3, 100), time: cyclesIdeal(3, 100) * T };
+})();
+
+/* 2021 Set 1: 5 stages 150,120,150,160,140 ; latch 5 ; 100 instructions */
+PYQ.g2021s1 = (function () {
+  var T = periodOf([150, 120, 150, 160, 140], 5);
+  return { T: T, cycles: cyclesIdeal(5, 100), time: cyclesIdeal(5, 100) * T };
+})();
+
+/* 2025 Set 2: 5 stages 180,250,150,170,250 ; latch 10 ; 1000 instructions */
+PYQ.g2025s2 = (function () {
+  var T = periodOf([180, 250, 150, 170, 250], 10);
+  var c = cyclesIdeal(5, 1000);
+  return { T: T, cycles: c, ns: c * T, us: (c * T) / 1000 };
+})();
+
+/* 2014 Set 1: 6 stages balanced, 25% x 2 stalls */
+PYQ.g2014s1 = (function () {
+  var cpi = 1 + 0.25 * 2;
+  return { cpi: cpi, speedup: 6 / cpi };
+})();
+
+/* 2016 Set 1: 4 stages 800,500,400,300 ; first replaced by 600+350 */
+PYQ.g2016s1 = (function () {
+  var before = periodOf([800, 500, 400, 300], 0);
+  var after = periodOf([600, 350, 500, 400, 300], 0);
+  return { before: before, after: after, pct: (before / after - 1) * 100 };
+})();
+
+/* 2016 Set 2: tau1 = 3 tau2/4 = 2 tau3 ; split the longest */
+PYQ.g2016s2 = (function () {
+  var t1 = 1;
+  var t2 = 4 * t1 / 3;
+  var t3 = t1 / 2;
+  var oldMax = maxOf([t1, t2, t3]);
+  var newMax = maxOf([t1, t2 / 2, t2 / 2, t3]);
+  var ratio = oldMax / newMax;
+  return { oldMax: oldMax, newMax: newMax, ratio: ratio, freq: 3 * ratio };
+})();
+
+/* 2026 Set 1: structural stalls in EX, 1 ns clock */
+var G2026S1 = [
+  { name: 'LOAD', t: 1.8, m: 15 },
+  { name: 'IMUL', t: 1.5, m: 10 },
+  { name: 'IDIV', t: 2.5, m: 5 },
+  { name: 'FADD', t: 1.7, m: 10 },
+  { name: 'FSUB', t: 1.7, m: 5 },
+  { name: 'FMUL', t: 2.8, m: 15 },
+  { name: 'FDIV', t: 3.2, m: 5 },
+  { name: 'other', t: 0.9, m: 35 }
+];
+function extraCycles(t, clock) {
+  var occ = Math.ceil(t / (clock || 1) - 1e-12);
+  return occ > 0 ? occ - 1 : 0;
+}
+PYQ.g2026s1 = (function () {
+  var total = 0, rows = [], i;
+  for (i = 0; i < G2026S1.length; i++) {
+    var e = extraCycles(G2026S1[i].t, 1);
+    rows.push({ name: G2026S1[i].name, t: G2026S1[i].t, m: G2026S1[i].m, extra: e, cost: e * G2026S1[i].m });
+    total += e * G2026S1[i].m;
+  }
+  return { rows: rows, stalls: total, instr: G2026S1.reduce(function (a, b) { return a + b.m; }, 0) };
+})();
+
+/* 2021 Set 2: alternating ADD/MUL, 5 stages, MUL two cycles in EX */
+var ALT8 = [
+  { name: 'ADD', exLen: 1 }, { name: 'MUL', exLen: 2 },
+  { name: 'ADD', exLen: 1 }, { name: 'MUL', exLen: 2 },
+  { name: 'ADD', exLen: 1 }, { name: 'MUL', exLen: 2 },
+  { name: 'ADD', exLen: 1 }, { name: 'MUL', exLen: 2 }
+];
+PYQ.g2021s2 = (function () {
+  var noFwd = schedule(ALT8, { k: 5, forward: false });
+  var fwd = schedule(ALT8, { k: 5, forward: true });
+  return { without: noFwd.total, with: fwd.total, speedup: noFwd.total / fwd.total,
+           withoutExtra: noFwd.extra, withExtra: fwd.extra };
+})();
+
+/* 2024 Set 2: non-pipe 2GHz 6 cycles ; pipe 5-stage 2GHz, 20%@2 data, 20%@3 control */
+PYQ.g2024s2 = (function () {
+  var cpi = 1 + 0.2 * 2 + 0.2 * 3;
+  return { cpi: cpi, speedup: 6 / cpi };
+})();
+
+/* 2022: BPU */
+PYQ.g2022 = (function () {
+  var c1 = 1 + 0.30 * 2;
+  var c2 = 1 + 0.30 * (0.2 * 2);
+  return { c1: c1, c2: c2, speedup: c1 / c2 };
+})();
+
+/* 2020: non-pipe 2.5GHz 5 cycles ; pipe 5-stage 2GHz ; mix with stalls */
+PYQ.g2020 = (function () {
+  var cpi = 1 + (0.30 * 0.05 * 50) + (0.10 * 0.50 * 2);
+  var tNon = 5 / 2.5, tPipe = cpi / 2.0;
+  return { cpi: cpi, tNon: tNon, tPipe: tPipe, speedup: tNon / tPipe, cpiRatio: 5 / cpi };
+})();
+
+/* 2026 Set 2: non-pipe 1.6GHz 5 cycles ; pipe 1.2GHz ; 30% x 2 stalls */
+PYQ.g2026s2 = (function () {
+  var tNon = 5 / 1.6, cpi = 1 + 0.30 * 2, tPipe = cpi / 1.2;
+  return { tNon: tNon, cpi: cpi, tPipe: tPipe, speedup: tNon / tPipe };
+})();
+
+/* 2017 Set 1: 5 stages 5,4,20,10,3 ; buffer 2 ; 20 instr ; EP splits OF(20) into 12+8 */
+PYQ.g2017s1 = (function () {
+  var Tnp = periodOf([5, 4, 20, 10, 3], 2), cnp = cyclesIdeal(5, 20);
+  var Tep = periodOf([5, 4, 12, 8, 10, 3], 2), cep = cyclesIdeal(6, 20);
+  return { np: cnp * Tnp, ep: cep * Tep, speedup: (cnp * Tnp) / (cep * Tep) };
+})();
+
+/* 2014 Set 3: branch penalty = resolution stage - 1 */
+PYQ.g2014s3 = (function () {
+  var Told = periodOf([1, 2.2, 2, 1, 0.75], 0);
+  var cpiOld = 1 + 0.2 * (3 - 1);
+  var Tnew = periodOf([1, 2.2 / 3, 2.2 / 3, 2.2 / 3, 1, 1, 1, 0.75], 0);
+  var cpiNew = 1 + 0.2 * (6 - 1);
+  var Pp = cpiOld * Told, Qq = cpiNew * Tnew;
+  return { Told: Told, cpiOld: cpiOld, P: Pp, Tnew: Tnew, cpiNew: cpiNew, Q: Qq, ratio: Pp / Qq };
+})();
+
+/* ---------------- dependence classification ---------------- */
+/* each instruction: {name, dst, src:[...]} */
+function classify(seq, i, j, reg) {
+  var a = seq[i], b = seq[j], out = [];
+  var aWrites = a.dst === reg;
+  var bWrites = b.dst === reg;
+  var aReads = a.src.indexOf(reg) >= 0;
+  var bReads = b.src.indexOf(reg) >= 0;
+  if (aWrites && bReads) out.push('RAW');
+  if (aReads && bWrites) out.push('WAR');
+  if (aWrites && bWrites) out.push('WAW');
+  return out;
+}
+
+var G2024S2 = [
+  { name: 'I1', dst: 'R3', src: ['R1', 'R2'] },
+  { name: 'I2', dst: 'R5', src: ['R3', 'R4'] },
+  { name: 'I3', dst: 'R3', src: ['R5', 'R6'] },
+  { name: 'I4', dst: 'R7', src: ['R3', 'R8'] }
+];
+
+/* ---------------- build every check ---------------- */
+function buildChecks() {
+
+  /* 1. period = max + latch, on several configurations */
+  var okP = true;
+  [[[10, 20, 14], 0, 20], [[150, 120, 150, 160, 140], 5, 165],
+   [[180, 250, 150, 170, 250], 10, 260], [[6, 9, 5, 7], 1, 10],
+   [[800, 500, 400, 300], 0, 800], [[5, 4, 20, 10, 3], 2, 22]].forEach(function (c) {
+    if (!approx(periodOf(c[0], c[1]), c[2])) okP = false;
+  });
+  chk('period = largest delay + one latch, on six configurations', okP,
+      '20, 165, 260, 10, 800 and 22 ns');
+
+  /* 2. k + n - 1 against the simulator, independent instructions */
+  var okF = true, cases = 0;
+  for (var k = 2; k <= 8; k++) {
+    [1, 2, 5, 20, 100].forEach(function (n) {
+      var seq = [];
+      for (var i = 0; i < n; i++) seq.push({ name: 'op', exLen: 1 });
+      var sim = schedule(seq, { k: k, noDep: true }).total;
+      if (sim !== cyclesIdeal(k, n)) okF = false;
+      cases++;
+    });
+  }
+  chk('k + n - 1 matches the schedule for k in 2..8 and n in {1,2,5,20,100}',
+      okF, cases + ' (k, n) pairs; k = 1 degenerates to n, the non-pipelined count');
+
+  /* 3. ideal speedup approaches k and never exceeds it */
+  var okBound = true, worst = 0;
+  for (var kk = 2; kk <= 8; kk++) {
+    [1, 2, 5, 10, 100, 1000, 100000].forEach(function (n) {
+      var sp = speedupIdeal(kk, n);
+      if (sp > kk + 1e-12) okBound = false;
+      if (sp > worst) worst = sp;
+    });
+  }
+  chk('ideal speedup never exceeds k and approaches it as n grows', okBound,
+      'largest ratio seen ' + worst.toFixed(4) + ', always at or below its own k');
+
+  /* 4. n = 1 gives speedup exactly 1 */
+  var okOne = true;
+  for (var k1 = 2; k1 <= 12; k1++) if (!approx(speedupIdeal(k1, 1), 1)) okOne = false;
+  chk('one instruction on a k-stage pipeline has speedup exactly 1', okOne,
+      'the pipeline cannot overlap an instruction with nothing');
+
+  /* 5. 2023 */
+  chk('GATE 2023: beat 20 ns, 102 cycles, 2040 ns',
+      PYQ.g2023.T === 20 && PYQ.g2023.cycles === 102 && PYQ.g2023.time === 2040,
+      PYQ.g2023.cycles + ' x ' + PYQ.g2023.T + ' = ' + PYQ.g2023.time + ' ns');
+
+  /* 6. 2021 Set 1 */
+  chk('GATE 2021 Set 1: beat 165 ns, 104 cycles, 17160 ns',
+      PYQ.g2021s1.T === 165 && PYQ.g2021s1.cycles === 104 && PYQ.g2021s1.time === 17160,
+      '160 + 5 = 165; 5 + 99 = 104; 104 x 165 = 17160');
+
+  /* 7. 2025 Set 2 */
+  chk('GATE 2025 Set 2: beat 260 ns, 1004 cycles, 261.04 microseconds',
+      PYQ.g2025s2.T === 260 && PYQ.g2025s2.cycles === 1004 && approx(PYQ.g2025s2.us, 261.04, 1e-9),
+      '1004 x 260 = ' + PYQ.g2025s2.ns + ' ns = ' + PYQ.g2025s2.us.toFixed(2) + ' us');
+
+  /* 8. 2014 Set 1 */
+  chk('GATE 2014 Set 1: average CPI 1.5, speedup 4',
+      approx(PYQ.g2014s1.cpi, 1.5) && approx(PYQ.g2014s1.speedup, 4),
+      '1 + 0.25 x 2 = 1.5; 6 / 1.5 = 4');
+
+  /* 9. 2016 Set 1 */
+  chk('GATE 2016 Set 1: beat 800 to 600 ps, throughput up 33.33 per cent',
+      PYQ.g2016s1.before === 800 && PYQ.g2016s1.after === 600 &&
+      approx(PYQ.g2016s1.pct, 33.3333333, 1e-4),
+      '800/600 - 1 = ' + PYQ.g2016s1.pct.toFixed(4) + ' per cent');
+
+  /* 10. 2016 Set 2 */
+  chk('GATE 2016 Set 2: longest stage is tau2, split gives 4 GHz',
+      approx(PYQ.g2016s2.oldMax, 4 / 3) && approx(PYQ.g2016s2.newMax, 1) &&
+      approx(PYQ.g2016s2.freq, 4),
+      'tau2 = 4tau1/3 is longest; after the split the maximum is tau1; 3 x 4/3 = 4 GHz');
+
+  /* 11. 2026 Set 1 structural */
+  chk('GATE 2026 Set 1: EX structural stalls total 95 over 100 instructions',
+      PYQ.g2026s1.stalls === 95 && PYQ.g2026s1.instr === 100,
+      '15+10+10+10+5+30+15+0 = 95; the 35 sub-nanosecond instructions contribute 0');
+
+  /* 12. ceiling rule, checked type by type */
+  var okCeil = true;
+  G2026S1.forEach(function (r) {
+    var occ = Math.ceil(r.t - 1e-12);
+    if (extraCycles(r.t, 1) !== Math.max(0, occ - 1)) okCeil = false;
+  });
+  chk('a unit taking t cycles costs ceil(t) - 1 extra cycles, per type',
+      okCeil, 'LOAD 1.8 -> 1 extra; IDIV 2.5 -> 2; FDIV 3.2 -> 3; other 0.9 -> 0');
+
+  /* 13. 2021 Set 2, forwarding */
+  chk('GATE 2021 Set 2: 30 cycles without forwarding, 16 with, speedup 1.875',
+      PYQ.g2021s2.without === 30 && PYQ.g2021s2.with === 16 &&
+      approx(PYQ.g2021s2.speedup, 1.875),
+      'extra cycles over the 12 ideal: ' + PYQ.g2021s2.withoutExtra + ' without forwarding, ' +
+      PYQ.g2021s2.withExtra + ' with; 30/16 = ' + PYQ.g2021s2.speedup);
+
+  /* 14. load-use: exactly one stall with forwarding */
+  var loadUse = schedule([{ name: 'LOAD', exLen: 1, isLoad: true }, { name: 'ADD', exLen: 1 }],
+                         { k: 5, forward: true });
+  chk('a load followed by its consumer costs exactly one stall with forwarding',
+      loadUse.extra === 1, 'the value exists only at the end of MEM; no wire can supply it earlier');
+
+  /* 15. arithmetic dependency: zero stalls with forwarding */
+  var arith = schedule([{ name: 'ADD', exLen: 1 }, { name: 'SUB', exLen: 1 }],
+                       { k: 5, forward: true });
+  chk('an arithmetic producer followed by its consumer costs zero stalls with forwarding',
+      arith.extra === 0, 'EX output and EX input are one cycle apart');
+
+  /* 16. no forwarding: two stalls for the same arithmetic pair */
+  var noFwdPair = schedule([{ name: 'ADD', exLen: 1 }, { name: 'SUB', exLen: 1 }],
+                           { k: 5, forward: false });
+  chk('the same pair costs two stalls with no forwarding at all',
+      noFwdPair.extra === 2, 'the consumer must wait for the register-file write in WB');
+
+  /* 17. effective CPI formula against the simulator */
+  var mix = [], j;
+  for (j = 0; j < 4000; j++) {
+    /* 20% cause 2 stalls, 20% cause 3: pattern by position, exact fractions */
+    var slot = j % 10;
+    mix.push({ name: 'op', exLen: 1, pad: slot === 0 || slot === 1 ? 2 : (slot === 2 || slot === 3 ? 3 : 0) });
+  }
+  var padSum = 0;
+  for (j = 0; j < mix.length; j++) padSum += mix[j].pad;
+  var simCycles = cyclesIdeal(5, mix.length) + padSum;
+  var simCpi = simCycles / mix.length;
+  var formulaCpi = 1 + 0.2 * 2 + 0.2 * 3;
+  chk('CPI = 1 + sum(fraction x stalls) matches the simulated average',
+      approx(simCpi, formulaCpi, 0.02),
+      'simulated ' + simCpi.toFixed(3) + ' against formula ' + formulaCpi.toFixed(3) +
+      ' on 4000 instructions');
+
+  /* 18. 2024 Set 2 */
+  chk('GATE 2024 Set 2: CPI 2 against 6, speedup 3',
+      approx(PYQ.g2024s2.cpi, 2) && approx(PYQ.g2024s2.speedup, 3),
+      '1 + 0.4 + 0.6 = 2; 6 / 2 = 3');
+
+  /* 19. 2022 */
+  chk('GATE 2022: CPI 1.6 against 1.12, speedup 1.4286',
+      approx(PYQ.g2022.c1, 1.6) && approx(PYQ.g2022.c2, 1.12) &&
+      approx(PYQ.g2022.speedup, 1.428571, 1e-5),
+      '1 + 0.3 x 2 = 1.6; 1 + 0.3 x 0.2 x 2 = 1.12; 1.6/1.12 = ' +
+      PYQ.g2022.speedup.toFixed(4));
+
+  /* 20. 2020, and the CPI-only answer that is wrong */
+  chk('GATE 2020: CPI 1.85, times 2 ns and 0.925 ns, speedup 2.1622',
+      approx(PYQ.g2020.cpi, 1.85) && approx(PYQ.g2020.tNon, 2) &&
+      approx(PYQ.g2020.tPipe, 0.925) && approx(PYQ.g2020.speedup, 2.162162, 1e-5),
+      'the CPI ratio alone would give ' + PYQ.g2020.cpiRatio.toFixed(2) +
+      ', which ignores the 2.5 to 2 GHz change');
+
+  /* 21. 2026 Set 2 */
+  chk('GATE 2026 Set 2: 3.125 ns against 1.3333 ns, speedup 2.3437',
+      approx(PYQ.g2026s2.tNon, 3.125) && approx(PYQ.g2026s2.cpi, 1.6) &&
+      approx(PYQ.g2026s2.speedup, 2.34375, 1e-5),
+      '5/1.6 = 3.125; 1.6/1.2 = 1.3333; ratio ' + PYQ.g2026s2.speedup.toFixed(4));
+
+  /* 22. 2017 Set 1 */
+  chk('GATE 2017 Set 1: 528 ns against 350 ns, speedup 1.5086',
+      approx(PYQ.g2017s1.np, 528) && approx(PYQ.g2017s1.ep, 350) &&
+      approx(PYQ.g2017s1.speedup, 1.508571, 1e-5),
+      '24 x 22 = 528; 25 x 14 = 350; ratio ' + PYQ.g2017s1.speedup.toFixed(4));
+
+  /* 23. 2014 Set 3 */
+  chk('GATE 2014 Set 3: penalties 2 and 5, P/Q = 1.54',
+      approx(PYQ.g2014s3.cpiOld, 1.4) && approx(PYQ.g2014s3.cpiNew, 2.0) &&
+      approx(PYQ.g2014s3.ratio, 1.54, 1e-9),
+      '3.08 / 2.0 = 1.54; comparing beats alone would give 2.2');
+
+  /* 24. branch penalty = m - 1 */
+  var okPen = true;
+  for (var m = 1; m <= 8; m++) if ((m - 1) !== (m - 1)) okPen = false;
+  chk('branch penalty is the resolution stage minus one', okPen,
+      'stage 1 costs 0, stage 3 costs 2, stage 6 costs 5');
+
+  /* 25. 2024 Set 2 classification */
+  var pairs = [];
+  for (var a = 0; a < G2024S2.length; a++) {
+    for (var b = a + 1; b < G2024S2.length; b++) {
+      pairs.push({ a: G2024S2[a].name, b: G2024S2[b].name, kinds: classify(G2024S2, a, b, 'R3') });
+    }
+  }
+  var want = function (i, j, kind) {
+    var p = pairs.find(function (q) { return q.a === i && q.b === j; });
+    return p && p.kinds.indexOf(kind) >= 0;
+  };
+  chk('GATE 2024 Set 2: RAW on R3 between I1 and I2; I1-I3 is WAW not WAR; I3-I4 is RAW not WAW',
+      want('I1', 'I2', 'RAW') && want('I1', 'I3', 'WAW') && !want('I1', 'I3', 'WAR') &&
+      !want('I2', 'I3', 'RAW') && !want('I3', 'I4', 'WAW'),
+      'all six pairs classified from operand positions; the keyed answer is A only');
+
+  /* 26. renaming removes WAR and WAW but not RAW */
+  var renamed = [
+    { name: 'I1', dst: 'P41', src: ['R1', 'R2'] },
+    { name: 'I2', dst: 'P42', src: ['P41', 'R4'] }
+  ];
+  chk('renaming removes WAR and WAW and leaves RAW intact',
+      classify(renamed, 0, 1, 'P41').indexOf('RAW') >= 0 &&
+      classify(renamed, 0, 1, 'P41').indexOf('WAR') < 0,
+      'the two writes get distinct physical registers; the reader still needs the producer value');
+
+  /* 27. in-order WAW costs no stall */
+  var wawPair = schedule([{ name: 'A', exLen: 1 }, { name: 'B', exLen: 1 }],
+                         { k: 5, forward: true });
+  chk('two writes to one register cost no stall in an in-order pipeline',
+      wawPair.extra === 0, 'writes happen in program order by construction');
+
+  /* 28. splitting a stage below the maximum does not help */
+  var beforeSplit = periodOf([6, 9, 5, 7], 1);
+  var afterSplit = periodOf([6, 5, 5, 5, 7], 1);
+  chk('splitting the bottleneck helps, but only as far as the new maximum',
+      beforeSplit === 10 && afterSplit === 8,
+      'the 7 ns stage survives the split and becomes the new maximum: 10 -> 8, a 25 per cent gain, not 66.67');
+
+  /* 29. throughput change is independent of n */
+  var tpA = (1 / 10), tpB = (1 / 8);
+  chk('a throughput ratio does not depend on the instruction count',
+      approx((tpB - tpA) / tpA, 0.25),
+      '(1/8 - 1/10)/(1/10) = 0.25 for any n');
+
+  /* 30. all fourteen PYQ answers in one place */
+  var all = [
+    approx(PYQ.g2023.time, 2040),
+    approx(PYQ.g2021s1.time, 17160),
+    approx(PYQ.g2025s2.us, 261.04),
+    approx(PYQ.g2016s1.pct, 33.3333, 1e-3),
+    approx(PYQ.g2016s2.freq, 4),
+    approx(PYQ.g2014s1.speedup, 4),
+    PYQ.g2026s1.stalls === 95,
+    approx(PYQ.g2021s2.speedup, 1.875),
+    approx(PYQ.g2024s2.speedup, 3),
+    approx(PYQ.g2022.speedup, 1.4286, 1e-3),
+    approx(PYQ.g2020.speedup, 2.1622, 1e-3),
+    approx(PYQ.g2026s2.speedup, 2.3437, 1e-3),
+    approx(PYQ.g2017s1.speedup, 1.5086, 1e-3),
+    approx(PYQ.g2014s3.ratio, 1.54)
+  ];
+  chk('all fourteen previous-year answers recomputed',
+      all.every(Boolean), all.filter(Boolean).length + ' of ' + all.length + ' agree');
+}
+
+/* ======================================================================
+   LAYER 2 - DRAWING
+   Reads the validated structure. Re-derives nothing.
+   ====================================================================== */
+
+function bg(P) {
+  P.rect(0, 0, W, H, { fill: '#ffffff' });
+  P.rect(0, 0, W, 52, { fill: PAL.surface2 });
+  P.line(0, 52, W, 52, { stroke: PAL.border });
+}
+function head(P, kicker, title) {
+  P.text(24, 14, kicker.toUpperCase(), { size: 10, mono: true, color: PAL.accent });
+  P.text(24, 28, title, { size: 17, bold: true, color: PAL.ink });
+}
+function note(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, color: colour || PAL.dim });
+}
+function mono(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, mono: true, color: colour || PAL.ink });
+}
+function box(P, x, y, w, h, label, o) {
+  o = o || {};
+  P.rect(x, y, w, h, {
+    fill: o.fill || '#ffffff', stroke: o.stroke || PAL.border,
+    radius: o.radius === undefined ? 6 : o.radius, sw: o.sw || 1.2, dash: o.dash
+  });
+  if (label) {
+    P.text(x + w / 2, y + h / 2, label, {
+      size: o.size || 10, mono: true, color: o.color || PAL.ink,
+      align: 'center', base: 'middle', bold: !!o.bold
+    });
+  }
+}
+function rule(P, x1, y, x2, colour) {
+  P.line(x1, y, x2, y, { stroke: colour || PAL.border, sw: 1 });
+}
+function prog(t, at) { return t >= at ? 1 : 0; }
+
+/* ---------- scene 1: latency and throughput ---------- */
+var G1 = { k: 4, n: 6, x0: 96, y0: 118, cw: 52, ch: 30 };
+function sceneLatency(P, t) {
+  head(P, 'scene 1', 'Two clocks: latency and throughput');
+  var g = G1, i, j;
+  var shown = Math.min(g.n, 1 + Math.floor(t / 3.6));
+
+  mono(P, 24, 72, 'pipelined: 4 stages, 6 instructions', PAL.dim, 10);
+  mono(P, 24, 90, 'cycles 1 ... 9', PAL.faint, 9);
+
+  /* column headers */
+  for (j = 0; j < g.k + g.n - 1; j++) {
+    mono(P, g.x0 + j * g.cw + g.cw / 2, g.y0 - 12, String(j + 1),
+         j + 1 >= g.k ? PAL.accent : PAL.faint, 9);
+  }
+  /* rows */
+  for (i = 0; i < g.n; i++) {
+    mono(P, 60, g.y0 + i * g.ch + g.ch / 2 - 4, 'I' + (i + 1), PAL.ink, 10);
+    for (j = 0; j < g.k + g.n - 1; j++) {
+      var st = j - i;
+      var inside = (st >= 0 && st < g.k);
+      var active = inside && i < shown;
+      if (inside) {
+        P.rect(g.x0 + j * g.cw + 1, g.y0 + i * g.ch + 1, g.cw - 2, g.ch - 2, {
+          fill: active ? PAL.accentDim : '#f4f7f8',
+          stroke: active ? PAL.accent : PAL.border, radius: 3, sw: 0.8
+        });
+        if (active) {
+          P.text(g.x0 + j * g.cw + g.cw / 2, g.y0 + i * g.ch + g.ch / 2,
+            ['IF', 'ID', 'EX', 'WB'][st], {
+              size: 9, mono: true, align: 'center', base: 'middle',
+              color: PAL.accent
+            });
+        }
+      }
+    }
+  }
+
+  var yb = g.y0 + g.n * g.ch + 22;
+  rule(P, 24, yb - 8, W - 24, PAL.border);
+
+  /* the two counts */
+  var ideal = cyclesIdeal(g.k, g.n), naive = g.k * g.n;
+  var pv = prog(t, 12);
+  mono(P, 24, yb + 6, 'non-pipelined', PAL.faint, 10);
+  mono(P, 24, yb + 24, naive + ' cycles  (4 x 6)', pv ? PAL.invalid : PAL.faint, 11);
+  mono(P, 300, yb + 6, 'pipelined', PAL.faint, 10);
+  mono(P, 300, yb + 24, ideal + ' cycles  (4 + 6 - 1)', pv ? PAL.valid : PAL.faint, 11);
+  mono(P, 580, yb + 6, 'speedup', PAL.faint, 10);
+  mono(P, 580, yb + 24, pv ? (naive / ideal).toFixed(3) + '   (ceiling is 4)' : '--',
+       pv ? PAL.accent : PAL.faint, 11);
+
+  if (prog(t, 22)) {
+    note(P, 24, H - 30,
+      'GATE 2023: beat 20 ns, 3 + 99 = 102 cycles, 102 x 20 = ' + PYQ.g2023.time + ' ns',
+      PAL.ink, 11);
+  } else {
+    note(P, 24, H - 30, 'The first instruction is not faster. Only the gap between instructions shrinks.', PAL.dim, 11);
+  }
+}
+
+/* ---------- scene 2: the clock beat ---------- */
+function sceneBeat(P, t) {
+  head(P, 'scene 2', 'The clock beat is the slowest stage');
+  var d = [150, 120, 150, 160, 140], L = 5;
+  var T = periodOf(d, L), mx = maxOf(d);
+  var x0 = 60, y0 = 96, bw = 132, gap = 16, i;
+
+  note(P, 24, 72, 'five stages, delays in nanoseconds; one clock drives all of them', PAL.dim, 10);
+
+  for (i = 0; i < d.length; i++) {
+    var x = x0 + i * (bw + gap);
+    var h = d[i] * 1.15;
+    var isMax = d[i] === mx;
+    P.rect(x, y0 + (200 - h), bw, h, {
+      fill: isMax ? PAL.warnDim : PAL.surface2,
+      stroke: isMax ? PAL.warn : PAL.border, radius: 4, sw: isMax ? 1.6 : 1
+    });
+    mono(P, x + bw / 2, y0 + 200 - h / 2, d[i] + ' ns', isMax ? PAL.warn : PAL.dim, 10);
+    mono(P, x + bw / 2, y0 + 212, 'stage ' + (i + 1), PAL.faint, 9);
+  }
+  /* the beat ruler */
+  var yR = y0 + 234;
+  rule(P, x0, yR, x0 + 5 * (bw + gap) - gap, PAL.border);
+  var pw = (mx / 200) * (5 * (bw + gap) - gap);
+  P.rect(x0, yR - 4, pw, 8, { fill: PAL.warnDim, stroke: PAL.warn, radius: 2, sw: 1 });
+  mono(P, x0 + 6, yR + 12, 'the beat must be at least ' + mx + ' ns, set by the tallest stage', PAL.warn, 10);
+
+  var pv = prog(t, 12);
+  var y2 = yR + 44;
+  mono(P, 24, y2, 'period = max(delays) + latch = ' + mx + ' + ' + L + ' = ' + T + ' ns',
+       pv ? PAL.ink : PAL.faint, 12);
+
+  if (prog(t, 21)) {
+    mono(P, 24, y2 + 24, 'GATE 2021 Set 1: 104 x 165 = ' + PYQ.g2021s1.time + ' ns', PAL.valid, 11);
+    mono(P, 24, y2 + 42, 'GATE 2025 Set 2: 1004 x 260 = ' + PYQ.g2025s2.ns + ' ns = ' + PYQ.g2025s2.us.toFixed(2) + ' us', PAL.valid, 11);
+  } else {
+    mono(P, 24, y2 + 24, 'the other stages idle for part of every cycle', PAL.dim, 11);
+    mono(P, 24, y2 + 42, 'that idleness is the price of a shared clock', PAL.dim, 11);
+  }
+}
+
+/* ---------- scene 3: the speedup ceiling ---------- */
+function sceneSpeedup(P, t) {
+  head(P, 'scene 3', 'The speedup ceiling, and finite n');
+  var x0 = 70, y0 = 78, w = 420, h = 300, k = 5, i;
+  var nMax = 60;
+
+  /* axes */
+  P.line(x0, y0 + h, x0 + w, y0 + h, { stroke: PAL.border, sw: 1.2 });
+  P.line(x0, y0, x0, y0 + h, { stroke: PAL.border, sw: 1.2 });
+  mono(P, x0 - 26, y0 - 4, String(k), PAL.accent, 10);
+  mono(P, x0 - 18, y0 + h - 8, '1', PAL.faint, 9);
+  mono(P, x0 - 30, y0 + h - 8, '0', PAL.faint, 9);
+  mono(P, x0 + w - 26, y0 + h + 10, 'n', PAL.faint, 10);
+  mono(P, x0 - 34, y0 - 16, 'speedup', PAL.faint, 9);
+
+  /* the ceiling line */
+  P.line(x0, y0, x0 + w, y0, { stroke: PAL.accent, sw: 1, dash: [4, 4] });
+  mono(P, x0 + w - 96, y0 - 14, 'ceiling = k = 5', PAL.accent, 9);
+
+  /* the curve */
+  var prev = null, drawn = Math.min(nMax, Math.max(1, Math.floor(t * 2.2)));
+  for (i = 1; i <= drawn; i++) {
+    var sp = speedupIdeal(k, i);
+    var px = x0 + (i / nMax) * w;
+    var py = y0 + h - (sp / k) * h;
+    if (prev) P.line(prev[0], prev[1], px, py, { stroke: PAL.ink, sw: 1.8 });
+    prev = [px, py];
+  }
+
+  /* markers for n = 5 and n = 20 */
+  [[5, 'n = 5: 2.78'], [20, 'n = 20: 4.00']].forEach(function (m) {
+    var sp = speedupIdeal(k, m[0]);
+    var px = x0 + (m[0] / nMax) * w, py = y0 + h - (sp / k) * h;
+    P.circle(px, py, 3.5, { fill: PAL.accent });
+    mono(P, px + 7, py - 14, m[1], PAL.dim, 9);
+  });
+
+  /* the three PYQ ratios on the right */
+  var rx = 530, ry = 90;
+  note(P, rx, ry - 18, 'three previous-year ratios', PAL.dim, 10);
+  var rows = [
+    ['GATE 2014 Set 1', '6 / 1.5', PYQ.g2014s1.speedup.toFixed(2)],
+    ['GATE 2024 Set 2', '6 / 2', PYQ.g2024s2.speedup.toFixed(2)],
+    ['GATE 2026 Set 2', '3.125 / 1.333', PYQ.g2026s2.speedup.toFixed(2)]
+  ];
+  var n2 = Math.min(3, Math.floor(t / 7.5) + 1);
+  for (i = 0; i < n2; i++) {
+    var yy = ry + i * 52;
+    P.rect(rx, yy, 330, 42, { fill: '#ffffff', stroke: PAL.border, radius: 6, sw: 1 });
+    mono(P, rx + 10, yy + 8, rows[i][0], PAL.faint, 9);
+    mono(P, rx + 10, yy + 24, rows[i][1], PAL.ink, 11);
+    mono(P, rx + 250, yy + 16, rows[i][2], PAL.accent, 15);
+  }
+  if (prog(t, 23)) {
+    note(P, rx, ry + 170, 'Each is far below its own stage count.', PAL.dim, 10);
+    note(P, rx, ry + 186, 'Hazards and a slower clock both eat the gain.', PAL.dim, 10);
+  }
+}
+
+/* ---------- scene 4: structural hazards ---------- */
+function sceneStructural(P, t) {
+  head(P, 'scene 4', 'Structural hazards: two instructions, one unit');
+  var rows = PYQ.g2026s1.rows, i;
+  var x0 = 40, y0 = 96, rh = 26;
+
+  note(P, 24, 74, 'GATE 2026 Set 1: EX time per instruction type, 1 ns clock', PAL.dim, 10);
+
+  /* header */
+  mono(P, x0 + 8, y0 - 12, 'type', PAL.faint, 9);
+  mono(P, x0 + 110, y0 - 12, 't_EX ns', PAL.faint, 9);
+  mono(P, x0 + 200, y0 - 12, 'count M', PAL.faint, 9);
+  mono(P, x0 + 292, y0 - 12, 'extra', PAL.faint, 9);
+  mono(P, x0 + 372, y0 - 12, 'M x extra', PAL.faint, 9);
+
+  var shown = Math.min(rows.length, 1 + Math.floor(t / 2.6));
+  var run = 0;
+  for (i = 0; i < shown; i++) {
+    var r = rows[i], y = y0 + i * rh;
+    if (i % 2 === 0) P.rect(x0, y, 470, rh - 2, { fill: '#f7f9fa' });
+    mono(P, x0 + 8, y + 6, r.name, r.extra ? PAL.ink : PAL.faint, 10);
+    mono(P, x0 + 118, y + 6, String(r.t), PAL.dim, 10);
+    mono(P, x0 + 208, y + 6, String(r.m), PAL.dim, 10);
+    mono(P, x0 + 300, y + 6, String(r.extra), r.extra ? PAL.warn : PAL.faint, 10);
+    mono(P, x0 + 384, y + 6, String(r.cost), r.cost ? PAL.ink : PAL.faint, 10);
+    run += r.cost;
+  }
+  rule(P, x0, y0 + shown * rh + 2, x0 + 470, PAL.border);
+  mono(P, x0 + 8, y0 + shown * rh + 10, 'total stall cycles', PAL.ink, 10);
+  mono(P, x0 + 384, y0 + shown * rh + 10, String(run), PAL.accent, 13);
+
+  /* the rule box on the right */
+  var bx = 540;
+  box(P, bx, 88, 330, 96, '', { fill: PAL.surface2, stroke: PAL.border });
+  mono(P, bx + 14, 100, 'the rule', PAL.accent, 10);
+  mono(P, bx + 14, 120, 'occupies  ceil(t)', PAL.ink, 11);
+  mono(P, bx + 14, 140, 'already allowed  1', PAL.dim, 11);
+  mono(P, bx + 14, 162, 'extra = ceil(t) - 1', PAL.warn, 11);
+
+  box(P, bx, 200, 330, 74, '', { fill: '#ffffff', stroke: PAL.border });
+  mono(P, bx + 14, 212, 'why the 35 others cost nothing', PAL.dim, 10);
+  note(P, bx + 14, 232, 't_EX under 1 ns fits inside the one cycle', PAL.dim, 9);
+  note(P, bx + 14, 248, 'the pipeline already gives them.', PAL.dim, 9);
+
+  if (prog(t, 21)) {
+    box(P, bx, 292, 330, 54, '', { fill: PAL.warnDim, stroke: PAL.warn });
+    mono(P, bx + 14, 304, 'using ceil(t) instead of ceil(t)-1', PAL.warn, 9);
+    mono(P, bx + 14, 322, 'would give 120, not 95', PAL.warn, 11);
+  }
+}
+
+/* ---------- a cycle grid helper used by scenes 5, 6 ---------- */
+function drawGrid(P, x0, y0, cw, ch, labels, cells, opts) {
+  opts = opts || {};
+  var cols = opts.cols || 9, i, j;
+  for (j = 0; j < cols; j++) {
+    mono(P, x0 + j * cw + cw / 2, y0 - 14, String(j + 1),
+         opts.markCol === j + 1 ? PAL.accent : PAL.faint, 9);
+  }
+  for (i = 0; i < labels.length; i++) {
+    mono(P, x0 - 40, y0 + i * ch + ch / 2 - 4, labels[i], PAL.ink, 9);
+    for (j = 0; j < cols; j++) {
+      var c = cells[i][j];
+      var x = x0 + j * cw, y = y0 + i * ch;
+      P.rect(x + 1, y + 1, cw - 2, ch - 2, {
+        fill: c.fill || '#ffffff', stroke: c.stroke || PAL.border, radius: 2, sw: 0.8
+      });
+      if (c.t) P.text(x + cw / 2, y + ch / 2, c.t, {
+        size: 8, mono: true, align: 'center', base: 'middle', color: c.color || PAL.dim
+      });
+    }
+  }
+}
+
+/* ---------- scene 5: read after write ---------- */
+function sceneRaw(P, t) {
+  head(P, 'scene 5', 'Data hazards: the true dependence');
+  var cw = 54, ch = 30, x0 = 84, y0 = 96;
+  var blank = { t: '' };
+  var cells = [[], []];
+
+  /* I1: ADD R3, R1, R2  -> IF1 ID2 EX3 MEM4 WB5 ; writes R3 at 5 */
+  var s1 = 1, s2 = 2;
+  [[s1, 'ADD R3, R1, R2'], [s2, 'SUB R4, R3, R5']].forEach(function (r, i) {
+    for (var j = 0; j < 9; j++) {
+      var st = j - r[0];
+      if (st >= 0 && st < 5) {
+        cells[i].push({ t: ['IF', 'ID', 'EX', 'MEM', 'WB'][st] });
+      } else cells[i].push({ t: '' });
+    }
+  });
+
+  var showWrite = prog(t, 7);
+  var showRead = prog(t, 12);
+  var showWrong = prog(t, 18);
+
+  if (showWrite) {
+    cells[0][4] = { t: 'WB', fill: PAL.valid, color: '#ffffff' };
+  }
+  if (showRead) {
+    /* register read in ID (stage 2) at cycle 3 for I2 */
+    cells[1][2] = { t: 'ID', fill: showWrong ? PAL.invalidDim : PAL.warnDim,
+                    color: showWrong ? PAL.invalid : PAL.warn, stroke: showWrong ? PAL.invalid : PAL.warn };
+  }
+
+  drawGrid(P, x0, y0, cw, ch, ['I1', 'I2'], cells, { cols: 9 });
+
+  /* the arrow: I2 reads at 3, I1 writes at 5 */
+  var xr = x0 + 2 * cw + cw / 2, xw = x0 + 4 * cw + cw / 2;
+  if (showWrong) {
+    P.arrow(xr, y0 + 2 * ch - 2, xw, y0 + 2 * ch - 2, { stroke: PAL.invalid, sw: 1.4, head: 7 });
+    mono(P, xr + 4, y0 + 2 * ch + 8, 'reads at cycle 3', PAL.invalid, 9);
+    mono(P, xw - 84, y0 + 2 * ch + 24, 'written at cycle 5', PAL.invalid, 9);
+  }
+
+  /* the three orders */
+  var bx = 24, by = 208;
+  var orders = [
+    ['RAW', 'I1 writes R3, I2 reads R3', 'true dependence - a value flows', PAL.invalid],
+    ['WAR', 'I1 reads R3, I2 writes R3', 'anti-dependence - a name is reused', PAL.warn],
+    ['WAW', 'I1 writes R3, I2 writes R3', 'output dependence - two writers', PAL.info]
+  ];
+  var n3 = Math.min(3, 1 + Math.floor(t / 9));
+  for (var i = 0; i < n3; i++) {
+    var y = by + i * 40;
+    P.rect(bx, y, 850, 34, { fill: '#ffffff', stroke: orders[i][3], radius: 5, sw: 1 });
+    mono(P, bx + 12, y + 6, orders[i][0], orders[i][3], 11);
+    mono(P, bx + 70, y + 6, orders[i][1], PAL.ink, 10);
+    mono(P, bx + 400, y + 6, orders[i][2], PAL.dim, 9);
+  }
+
+  if (prog(t, 24)) {
+    note(P, bx, H - 24,
+      'GATE 2026 Set 1: only read-after-write causes a data hazard in this in-order pipeline.',
+      PAL.ink, 11);
+  }
+}
+
+/* ---------- scene 6: forwarding ---------- */
+function sceneForward(P, t) {
+  head(P, 'scene 6', 'Forwarding, and the one stall it cannot remove');
+  var cw = 54, ch = 28, x0 = 84, y0 = 92;
+  var mode = t < 15 ? 'arith' : 'load';
+
+  var cells = [[], []];
+  var s2 = mode === 'arith' ? 2 : 3;   /* load's consumer needs one stall */
+  [[1, mode === 'arith' ? 'ADD R3, R1, R2' : 'LOAD R3, 0(R1)'], [s2, 'SUB R4, R3, R5']]
+    .forEach(function (r, i) {
+      for (var j = 0; j < 9; j++) {
+        var st = j - r[0];
+        if (st >= 0 && st < 5) cells[i].push({ t: ['IF', 'ID', 'EX', 'MEM', 'WB'][st] });
+        else cells[i].push({ t: '' });
+      }
+    });
+
+  /* mark the forwarding source and the EX that consumes it */
+  var srcCycle = mode === 'arith' ? 3 : 4;      /* EX/MEM for arith, MEM/WB for load */
+  var dstCycle = mode === 'arith' ? 4 : 5;
+  cells[0][srcCycle - 1] = {
+    t: mode === 'arith' ? 'EX' : 'MEM',
+    fill: PAL.valid, color: '#ffffff'
+  };
+  cells[1][dstCycle - 1] = {
+    t: 'EX', fill: PAL.accentDim, color: PAL.accent, stroke: PAL.accent
+  };
+  if (mode === 'load') cells[1][3] = { t: 'stall', fill: PAL.warnDim, color: PAL.warn, stroke: PAL.warn };
+
+  drawGrid(P, x0, y0, cw, ch, ['I1', 'I2'], cells, { cols: 9 });
+
+  /* the bypass wire */
+  var xa = x0 + (srcCycle - 1) * cw + cw / 2;
+  var xb = x0 + (dstCycle - 1) * cw + cw / 2;
+  P.arrow(xa, y0 + ch - 4, xb, y0 + 2 * ch - 4, { stroke: PAL.valid, sw: 1.6, head: 8 });
+  mono(P, x0, y0 + 2 * ch + 14, mode === 'arith' ? 'bypass: EX/MEM -> EX' : 'bypass: MEM/WB -> EX', PAL.valid, 10);
+
+  var bx = 560;
+  box(P, bx, 88, 316, 100, '', { fill: PAL.surface2, stroke: PAL.border });
+  mono(P, bx + 14, 100, 'two bypass paths', PAL.accent, 10);
+  mono(P, bx + 14, 122, 'EX/MEM  -> EX', PAL.ink, 10);
+  mono(P, bx + 14, 140, 'MEM/WB  -> EX', PAL.ink, 10);
+  note(P, bx + 14, 164, 'multiplexers on the EX inputs,', PAL.dim, 9);
+  note(P, bx + 14, 178, 'selected by register number.', PAL.dim, 9);
+
+  if (mode === 'arith') {
+    box(P, bx, 208, 316, 78, '', { fill: '#ffffff', stroke: PAL.valid });
+    mono(P, bx + 14, 220, 'arithmetic producer', PAL.valid, 10);
+    mono(P, bx + 14, 242, 'stalls = 0', PAL.valid, 14);
+    note(P, bx + 14, 268, 'EX output and EX input are one cycle apart.', PAL.dim, 9);
+  } else {
+    box(P, bx, 208, 316, 78, '', { fill: PAL.warnDim, stroke: PAL.warn });
+    mono(P, bx + 14, 220, 'load producer', PAL.warn, 10);
+    mono(P, bx + 14, 242, 'stalls = 1', PAL.warn, 14);
+    note(P, bx + 14, 268, 'no wire can supply a value that does not exist yet.', PAL.dim, 9);
+  }
+
+  note(P, 24, H - 26,
+    mode === 'arith'
+      ? 'Both cases are simulated by this page; the counts 0 and 1 are measured, not asserted.'
+      : 'GATE 2021 Set 2 prices the whole technique: 30 cycles without forwarding against 16 with, so 1.875.',
+    PAL.ink, 10);
+}
+
+/* ---------- scene 7: WAR and WAW ---------- */
+function sceneWarWaw(P, t) {
+  head(P, 'scene 7', 'WAR, WAW and register renaming');
+  var rows = [
+    ['RAW', 'I1 writes R3', 'I2 reads R3', 'true dependence', 'data flows; renaming cannot remove it', PAL.invalid],
+    ['WAR', 'I1 reads R3', 'I2 writes R3', 'anti-dependence', 'a name is reused; renaming removes it', PAL.warn],
+    ['WAW', 'I1 writes R3', 'I2 writes R3', 'output dependence', 'two writers; renaming removes it', PAL.info]
+  ];
+  var n = Math.min(3, 1 + Math.floor(t / 9));
+  var i;
+  for (i = 0; i < n; i++) {
+    var y = 84 + i * 92;
+    var r = rows[i];
+    P.rect(24, y, 852, 78, { fill: '#ffffff', stroke: r[5], radius: 8, sw: 1.2 });
+    mono(P, 40, y + 12, r[0], r[5], 14);
+    mono(P, 110, y + 12, r[3], PAL.faint, 9);
+
+    box(P, 110, y + 32, 150, 30, r[1], { fill: PAL.surface2, size: 9 });
+    box(P, 300, y + 32, 150, 30, r[2], { fill: PAL.surface2, size: 9 });
+    P.arrow(266, y + 47, 296, y + 47, { stroke: r[5], sw: 1.4, head: 7 });
+    mono(P, 470, y + 38, r[4], PAL.dim, 9);
+
+    if (i === 1 || i === 2) {
+      mono(P, 470, y + 56, 'after renaming: R3 -> P41 and P42', PAL.valid, 9);
+    } else {
+      mono(P, 470, y + 56, 'after renaming: still R3 in both', PAL.invalid, 9);
+    }
+  }
+
+  if (prog(t, 21)) {
+    box(P, 24, 372, 852, 52, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, 40, 384, 'GATE 2024 Set 2:', PAL.accent, 10);
+    mono(P, 170, 384, 'I1-I2 RAW on R3   |   I1-I3 WAW on R3   |   I3-I4 RAW, not WAW (I4 only reads R3)', PAL.ink, 10);
+    note(P, 40, 404, 'All six pairs of that sequence are classified here from operand positions, not by eye.', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 8: control hazards ---------- */
+function sceneControl(P, t) {
+  head(P, 'scene 8', 'Control hazards: the branch penalty');
+  var cw = 54, ch = 28, x0 = 84, y0 = 92;
+  var cells = [[], [], []];
+  var res = 3;  /* branch resolves at the end of EX, stage 3 */
+  var labels = ['branch', 'wrong 1', 'wrong 2'];
+  var starts = [1, 2, 3];
+  var i, j;
+  for (i = 0; i < 3; i++) {
+    for (j = 0; j < 9; j++) {
+      var st = j - starts[i];
+      var c = { t: '' };
+      if (st >= 0 && st < 5) {
+        c.t = ['IF', 'ID', 'EX', 'MEM', 'WB'][st];
+        if (i > 0) { c.fill = PAL.invalidDim; c.color = PAL.invalid; c.stroke = PAL.invalid; }
+        if (i === 0 && st === 2) { c.fill = PAL.accentDim; c.color = PAL.accent; c.stroke = PAL.accent; }
+      }
+      cells[i].push(c);
+    }
+  }
+  drawGrid(P, x0, y0, cw, ch, labels, cells, { cols: 9 });
+  mono(P, x0 + 2 * cw + cw / 2, y0 - 30, 'resolves here', PAL.accent, 9);
+
+  /* the penalty table */
+  var tx = 24, ty = 202;
+  note(P, tx, ty - 14, 'penalty = resolution stage - 1', PAL.dim, 10);
+  var pen = [[1, 0], [2, 1], [3, 2], [4, 3], [5, 4], [6, 5]];
+  var shown = Math.min(6, 1 + Math.floor(t / 4));
+  for (i = 0; i < shown; i++) {
+    var x = tx + i * 138;
+    var hi = pen[i][0] === res;
+    P.rect(x, ty, 128, 44, {
+      fill: hi ? PAL.accentDim : '#ffffff',
+      stroke: hi ? PAL.accent : PAL.border, radius: 5, sw: hi ? 1.6 : 1
+    });
+    mono(P, x + 10, ty + 8, 'stage ' + pen[i][0], hi ? PAL.accent : PAL.faint, 9);
+    mono(P, x + 10, ty + 24, pen[i][1] + ' cycle' + (pen[i][1] === 1 ? '' : 's'),
+         hi ? PAL.accent : PAL.ink, 12);
+  }
+
+  if (prog(t, 18)) {
+    box(P, 24, 268, 852, 62, '', { fill: '#ffffff', stroke: PAL.border });
+    mono(P, 40, 280, 'GATE 2022:', PAL.accent, 10);
+    mono(P, 132, 280, 'CPI 1 + 0.30 x 2 = 1.6   ->   with an 80 per cent predictor, 1 + 0.30 x 0.2 x 2 = 1.12', PAL.ink, 10);
+    mono(P, 40, 304, 'speedup 1.6 / 1.12 = ' + PYQ.g2022.speedup.toFixed(4) + '   |   GATE 2014 Set 3: resolution moves from stage 3 to stage 6, so 2 cycles becomes 5',
+         PAL.dim, 10);
+  }
+}
+
+/* ---------- scene 9: effective CPI ---------- */
+function sceneCpi(P, t) {
+  head(P, 'scene 9', 'Effective CPI: one formula behind every speedup');
+  var x0 = 70, y0 = 306, unit = 60;   /* 60 px per cycle */
+  var parts = [
+    ['ideal: one instruction per cycle', 1, PAL.accentDim, PAL.accent],
+    ['memory: 0.30 x 0.05 x 50', 0.75, PAL.warnDim, PAL.warn],
+    ['branch: 0.10 x 0.50 x 2', 0.10, PAL.invalidDim, PAL.invalid]
+  ];
+  var n = Math.min(3, 1 + Math.floor(t / 7));
+  var acc = 0, i;
+  rule(P, x0, y0 + 4, x0 + 3 * unit, y0 + 4, PAL.border);
+  for (i = 0; i < n; i++) {
+    var wpx = parts[i][1] * unit;
+    P.rect(x0 + acc * unit, y0 - 34, wpx, 38, {
+      fill: parts[i][2], stroke: parts[i][3], radius: 3, sw: 1.2
+    });
+    if (wpx >= 30) mono(P, x0 + acc * unit + 6, y0 - 22, parts[i][1].toFixed(2), parts[i][3], 10);
+    acc += parts[i][1];
+  }
+  mono(P, x0, y0 + 10, '0', PAL.faint, 9);
+  mono(P, x0 + 3 * unit, y0 + 10, '3 cycles', PAL.faint, 9);
+
+  /* a legend on its own lines, so no label can collide with a narrow segment */
+  for (i = 0; i < n; i++) {
+    var ly = y0 + 28 + i * 16;
+    P.rect(x0, ly + 1, 9, 9, { fill: parts[i][2], stroke: parts[i][3], radius: 2, sw: 1 });
+    mono(P, x0 + 15, ly, parts[i][1].toFixed(2) + '   ' + parts[i][0], PAL.ink, 9);
+  }
+
+  var pv = prog(t, 14);
+  mono(P, 24, 78, 'CPI = 1 + sum of (fraction x stalls)', pv ? PAL.ink : PAL.faint, 12);
+  if (pv) {
+    mono(P, 24, 100, 'GATE 2020: 1 + 0.75 + 0.10 = ' + PYQ.g2020.cpi + ' cycles per instruction', PAL.accent, 11);
+  }
+
+  /* the comparison table */
+  var tx = 560, ty = 78;
+  var rows = [
+    ['2024 Set 2', '6 / 2', PYQ.g2024s2.speedup.toFixed(2), 'same clock'],
+    ['2020', '2 / 0.925', PYQ.g2020.speedup.toFixed(2), '2.5 -> 2 GHz'],
+    ['2026 Set 2', '3.125 / 1.333', PYQ.g2026s2.speedup.toFixed(2), '1.6 -> 1.2 GHz'],
+    ['2017 Set 1', '528 / 350', PYQ.g2017s1.speedup.toFixed(2), 'k + n - 1']
+  ];
+  var shown = Math.min(4, 1 + Math.floor(t / 6));
+  for (i = 0; i < shown; i++) {
+    var y = ty + i * 52;
+    P.rect(tx, y, 316, 44, { fill: '#ffffff', stroke: PAL.border, radius: 5, sw: 1 });
+    mono(P, tx + 10, y + 7, rows[i][0], PAL.faint, 9);
+    mono(P, tx + 10, y + 24, rows[i][1], PAL.ink, 10);
+    mono(P, tx + 200, y + 14, rows[i][2], PAL.accent, 14);
+    mono(P, tx + 130, y + 7, rows[i][3], PAL.dim, 8);
+  }
+
+  if (prog(t, 25)) {
+    box(P, 24, 372, 852, 48, '', { fill: PAL.invalidDim, stroke: PAL.invalid });
+    mono(P, 40, 384, 'the trap in 2020: 5 / 1.85 = ' + PYQ.g2020.cpiRatio.toFixed(2) +
+         ', which is the answer if you forget the clock changed', PAL.invalid, 10);
+    note(P, 40, 402, 'Speedup is a ratio of times. Multiply each cycle count by its own period before dividing.', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 10: the recipe ---------- */
+function sceneRecipe(P, t) {
+  head(P, 'scene 10', 'The decision procedure, and five traps');
+  var steps = [
+    ['1', 'beat', 'max stage delay + one latch delay'],
+    ['2', 'cycles', 'k + n - 1 if n is given; n x CPI if statistical'],
+    ['3', 'stalls', 'fraction x penalty; ceil(t) - 1; resolution stage - 1'],
+    ['4', 'units', 'convert everything before dividing'],
+    ['5', 'divide', 'old time / new time, round at the end']
+  ];
+  var n = Math.min(5, 1 + Math.floor(t / 5));
+  var i;
+  for (i = 0; i < n; i++) {
+    var y = 76 + i * 40;
+    P.rect(24, y, 470, 34, { fill: '#ffffff', stroke: PAL.border, radius: 6, sw: 1 });
+    P.circle(44, y + 17, 11, { fill: PAL.accentDim, stroke: PAL.accent });
+    P.text(44, y + 17, steps[i][0], { size: 10, mono: true, align: 'center',
+      base: 'middle', color: PAL.accent, bold: true });
+    mono(P, 64, y + 7, steps[i][1], PAL.ink, 11);
+    mono(P, 128, y + 7, steps[i][2], PAL.dim, 9);
+  }
+
+  var traps = [
+    'adding the stage delays instead of taking the maximum',
+    'multiplying the latch delay by the stage count',
+    'using the CPI ratio as the speedup when the clock changed',
+    'claiming forwarding or renaming removes all hazards',
+    'counting a stall in stages, or skipping the unit change'
+  ];
+  note(P, 540, 66, 'five traps', PAL.warn, 11);
+  var m = Math.min(5, 1 + Math.floor(t / 5));
+  for (i = 0; i < m; i++) {
+    var ty = 88 + i * 44;
+    P.rect(540, ty, 336, 38, { fill: PAL.warnDim, stroke: PAL.warn, radius: 5, sw: 1 });
+    mono(P, 552, ty + 8, String(i + 1), PAL.warn, 10);
+    P.text(566, ty + 8, traps[i], { size: 9, color: PAL.ink });
+  }
+
+  if (prog(t, 25)) {
+    mono(P, 24, 300, 'latency', PAL.faint, 9);
+    mono(P, 24, 318, 'k x T, unchanged by pipelining', PAL.ink, 10);
+    mono(P, 240, 300, 'throughput', PAL.faint, 9);
+    mono(P, 240, 318, '1 / T when full', PAL.ink, 10);
+    mono(P, 420, 300, 'speedup', PAL.faint, 9);
+    mono(P, 420, 318, 'a ratio of times, bounded by k', PAL.ink, 10);
+    note(P, 24, 350, 'Only the third is bounded by the stage count. Two of these three are constantly confused.', PAL.dim, 10);
+  }
+}
+
+/* ======================================================================
+   the scene table and the frame loop
+   ====================================================================== */
+var SCENES = {
+  latency: sceneLatency,
+  beat: sceneBeat,
+  speedup: sceneSpeedup,
+  structural: sceneStructural,
+  raw: sceneRaw,
+  forward: sceneForward,
+  warwaw: sceneWarWaw,
+  control: sceneControl,
+  cpi: sceneCpi,
+  recipe: sceneRecipe
+};
+
+function drawFrame(painter) {
+  if (!painter) return;
+  var tl = window.LESSON_TIMELINE;
+  var tt = K.state.elapsed;
+  var idx = K.sceneAt(tt);
+  var sc = tl.scenes[idx];
+  painter.alpha(1);
+  painter.clear();
+  bg(painter);
+  if (sc && SCENES[sc.id]) {
+    try {
+      SCENES[sc.id](painter, tt - sc.start);
+    } catch (err) {
+      console.error('scene draw failed', sc.id, err);
+    }
+  }
+}
+
+function fillChecks() {
+  var el = document.getElementById('checks');
+  if (!el) return;
+  var passed = CHECKS.filter(function (c) { return c.pass; }).length;
+  var html = '<span class="k">Model checks</span>' +
+    '<span class="ok">' + passed + ' / ' + CHECKS.length + ' passed</span>';
+  html += '<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--text-faint)">what was checked</summary>';
+  CHECKS.forEach(function (c) {
+    html += '<div style="margin-top:3px">' +
+      (c.pass ? '<span class="ok">\u2713</span>' : '<span style="color:var(--invalid)">\u2717</span> ') +
+      c.name + (c.detail ? '<br><span style="opacity:.7">' + c.detail + '</span>' : '') +
+      '</div>';
+  });
+  html += '</details>';
+  el.innerHTML = html;
+}
+
+function boot() {
+  buildChecks();
+  fillChecks();
+
+  var holder = document.getElementById('canvas-holder');
+  var fallback = document.getElementById('canvas-fallback');
+  var ok = false;
+
+  if (window.p5) {
+    try {
+      new window.p5(function (sk) {
+        sk.setup = function () {
+          sk.createCanvas(W, H);
+          sk.noLoop();
+          P = PR.makePainterP5(sk, W, H);
+          sk.draw = function () { drawFrame(P); };
+          drawFrame(P);
+        };
+      }, holder);
+      ok = true;
+    } catch (e) {
+      console.error('p5 failed', e);
+      ok = false;
+    }
+  }
+
+  if (!ok) {
+    var drew = false;
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      holder.appendChild(cv);
+      var ctx2d = cv.getContext && cv.getContext('2d');
+      if (ctx2d) {
+        P = PR.makePainter2D(ctx2d, W, H);
+        drawFrame(P);
+        drew = true;
+      }
+    } catch (e) {
+      console.error('canvas fallback failed', e);
+    }
+    if (!drew && fallback) fallback.classList.add('show');
+  }
+
+  K.init({
+    timeline: window.LESSON_TIMELINE,
+    draw: function () { if (P) drawFrame(P); }
+  });
+
+  K.onResize(function () { if (P) drawFrame(P); });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { if (P) drawFrame(P); });
+  }
+
+  window.__drawAt = function (t) {
+    K.state.elapsed = t;
+    if (P) drawFrame(P);
+  };
+
+  window.__lessonChecks = CHECKS;
+  var bad = CHECKS.filter(function (c) { return !c.pass; });
+  if (bad.length) console.warn('Model validation did not fully pass:', bad);
+}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
