@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synchronisation and Deadlock — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Synchronisation and Deadlock</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Concurrency — the critical-section problem, the three requirements a solution must meet, semaphores and monitors, the classical coordination problems, and deadlock: its four conditions, the resource allocation graph, avoidance by Banker's algorithm, and detection. This is the clause <em>"concurrency and synchronization. Deadlock"</em> of Section 8 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a concurrent program, decide what the shared state is and whether the statements are atomic; enumerate the possible outcomes; say which of mutual exclusion, progress and bounded waiting a proposed solution breaks, and produce the state that breaks it; trace a counting semaphore; decide whether a resource graph is deadlocked, and run the safety check on an allocation table.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>two questions, one model</em>. Synchronisation asks "can this interleaving happen, and what does it break"; deadlock asks "does a completion order exist". Both are answered by enumerating states, not by reciting algorithms — so the animation enumerates states and shows you the enumeration.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 8 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, lists Operating Systems as: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A question-indexed archive tags at least one question to synchronisation and concurrency in 2012, 2013, 2014, 2015, 2016, 2020, 2021, 2022, 2023, 2024 and 2026, and at least one to deadlock in 2018, 2022 and 2026. Another archive's subject page lists Operating Systems at 6 to 10 marks per paper across the 2021–2026 sets. Those are two archives' tagging of their own indexes, not official counts and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted carries its year and set, and every answer in this lesson was recomputed by the model on this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Processes, threads and the PCB.</strong> What a process owns, what a thread shares, and why two threads can touch one variable. Built in <a href="../processes-threads-and-ipc/index.html">Processes, Threads and IPC</a>.</li>
+            <li><strong>The context switch.</strong> A switch can happen between any two instructions unless the question says otherwise. Same lesson.</li>
+            <li><strong>Reading a small program.</strong> Assignment, while, and the idea that a variable read into a register is a copy.</li>
+            <li><strong>Counting.</strong> Enumerating interleavings is a counting exercise; the product and sum rules are in <a href="../counting-and-combinatorics/index.html">Counting and Combinatorics</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing from Computer Organization is assumed beyond "a store is not instantaneous with respect to another processor". Where a claim depends on the memory model — Peterson's algorithm, for instance — the assumption is stated in the scene.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>The race.</strong> One counter, two read-modify-writes, and the lost update.</li>
+            <li><strong>The three requirements.</strong> Strict alternation keeps the first and breaks the second.</li>
+            <li><strong>Peterson.</strong> Two flags and a turn, verified by 34 enumerated states.</li>
+            <li><strong>Semaphores.</strong> The permit counter, the queue behind a negative value, and the invariant.</li>
+            <li><strong>Producer and consumer.</strong> The two wait orders, one of which deadlocks.</li>
+            <li><strong>Monitors.</strong> The implicit lock, and what a condition variable does.</li>
+            <li><strong>Deadlock.</strong> Four conditions and a single-instance cycle.</li>
+            <li><strong>Cycle without deadlock.</strong> The multi-instance counterexample, and the completion-order test.</li>
+            <li><strong>Banker.</strong> The safety check on a printed GATE table, and the single-resource bound.</li>
+            <li><strong>The procedure.</strong> Four steps and five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A race condition is an interleaving problem. A statement that reads and writes is not atomic unless the question says it is, and that one sentence changes the whole answer set.</li>
+            <li>Mutual exclusion, progress and bounded waiting are three different promises. Strict alternation proves safety is easy and liveness is not.</li>
+            <li>A semaphore's value is permits left when non-negative, and minus the queue length when negative. Completed waits never exceed the initial value plus the signals issued.</li>
+            <li>Never sleep while holding a lock the waker needs. The bounded buffer deadlocks exactly when the mutex is taken before the item or slot count.</li>
+            <li>A cycle in a resource graph is a deadlock only when every resource type has one instance. With several instances, the test is whether a completion order exists — which is also the safety test.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 80–100 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis, and the caption timings are estimated from a speaking rate, not measured from audio. The state enumerations on this page are exhaustive for the stated models — statements atomic, spin loops as self-loops, sequential consistency — and a different model gives different numbers. The 2026 items are reported by archives and were not checked against the paper, so no numerical answer is quoted for them. Multi-processor memory reordering, priority inversion and reader–writer fairness are named but not developed, because the syllabus clause does not reach them.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: two clerks and one ledger</h3>
+              <p>Two clerks share one ledger. Each has to record a payment: read the balance, add the amount, write the new balance. If clerk A reads 100, and before she writes, clerk B reads the same 100 and writes 120, then A writes 110 — and B's 20 rupees have vanished from the book. Nobody made an arithmetic mistake. The two readings simply overlapped.</p>
+              <p class="small">The obvious fix is a rule: only one clerk may hold the ledger at a time. That is mutual exclusion. But now suppose the rule is "the ledger belongs to A on even minutes and to B on odd minutes" — if B has gone to lunch on an odd minute, A holds nothing and still cannot write. That is the progress failure: a rule that protects the data by giving a non-participant a veto.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy fixes two things: a critical section is a stretch of work on shared state, and a synchronisation rule is judged on both safety and liveness. It says nothing about how a machine implements the lock, which is the semaphore and monitor material below.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definitions</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Race condition</strong> — a situation where the result depends on the order in which concurrent accesses happen.</li>
+                <li><strong>Critical section</strong> — a segment of a process that reads or writes state shared with another process.</li>
+                <li><strong>Mutual exclusion</strong> — at most one process is inside its critical section at any time.</li>
+                <li><strong>Progress</strong> — if no process is inside and some want in, the choice of who enters cannot be postponed indefinitely, and only the processes that want in take part in the choice.</li>
+                <li><strong>Bounded waiting</strong> — after a process asks to enter, there is a bound on how many times others may enter before it does.</li>
+                <li><strong>Semaphore</strong> — an integer with a queue, changed only by two atomic operations: wait (P, down) and signal (V, up).</li>
+                <li><strong>Monitor</strong> — shared data plus procedures, with the language guaranteeing one process inside at a time; condition variables provide waiting.</li>
+                <li><strong>Deadlock</strong> — a set of processes each waiting for an event only another member of the set can cause.</li>
+                <li><strong>Safe state</strong> — a state from which some order of completion exists for every process.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>The semaphore, symbol by symbol</h3>
+              <p class="formula">wait(S):  S = S − 1;  if S &lt; 0 then block
+                <span class="gloss">"Decrease the count. If it has gone below zero, there was no permit, so sleep."</span></p>
+              <p class="formula">signal(S):  S = S + 1;  if S ≤ 0 then wake one
+                <span class="gloss">"Increase the count. If it is still at or below zero, somebody was sleeping, so wake one of them."</span></p>
+              <p class="small" style="margin-bottom:0">So the value is the number of permits still available while it is non-negative, and minus the number of sleeping processes once it is negative. A <em>binary</em> semaphore, or mutex, is the case whose value is only ever 0 or 1.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>What every answer depends on</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Atomicity.</strong> If the question says each statement is atomic, a switch happens only between statements. If it does not, a switch inside a read-modify-write is legal.</li>
+                <li><strong>Instances per resource type.</strong> One instance licenses the cycle test; several instances do not.</li>
+                <li><strong>Memory model.</strong> Peterson's algorithm is correct under sequential consistency. Real hardware may reorder the two writes, which is why fences exist.</li>
+                <li><strong>Who may wake whom.</strong> A blocked process can only be woken by a signal from a process that is running, so a lock held across a sleep can remove the only waker.</li>
+              </ul>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>From one counter to a resource graph</h3>
+              <p>The build-up so far is about <em>time</em>: which interleavings exist and what they break. Deadlock is the same question asked about <em>resources</em>. A process holds some resources and waits for others; if the waits form a cycle in which nobody can move, no interleaving exists that finishes everybody. The model is a directed graph, and the test is whether a completion order exists.</p>
+              <p class="small" style="margin-bottom:0">That is why the topic is one lesson rather than two: the semaphore material produces the deadlock (a consumer sleeping while holding a mutex), and the deadlock material is a state-enumeration question of exactly the kind the race material introduced.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The four Coffman conditions</h3>
+              <p class="small">Deadlock requires all four. They are necessary, not sufficient.</p>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Mutual exclusion</strong> — at least one resource is held non-sharably.</li>
+                <li><strong>Hold and wait</strong> — a process holds one resource while requesting another.</li>
+                <li><strong>No preemption</strong> — a resource is released only voluntarily.</li>
+                <li><strong>Circular wait</strong> — a closed chain of processes, each waiting for a resource the next one holds.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Three ways to handle deadlock</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Prevention</strong> — make a condition impossible. Order the resource types to kill circular wait; request everything at once to kill hold and wait; allow preemption to kill the third. Cost: utilisation.</li>
+                <li><strong>Avoidance</strong> — let the conditions hold, and refuse any request that would leave an unsafe state. Banker's algorithm is the standard instance, and it needs declared maximum needs.</li>
+                <li><strong>Detection and recovery</strong> — let deadlock happen, find it by a cycle or a completion-order test, then kill or roll back a victim.</li>
+              </ul>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The words that decide the question</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><em>"In some order"</em> — the answer must hold for every order, including the worst one.</li>
+                <li><em>"Always avoids"</em> — a worst-case guarantee, which is what the bound n(K−1)+1 ≤ m encodes.</li>
+                <li><em>"Safe"</em> — a completion order exists. It is not the same as "deadlock has occurred".</li>
+                <li><em>"One instance at a time"</em> — requests are single, so the worst case is everyone holding one short of their maximum.</li>
+              </ul>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">One counter, two threads, and each thread adds one. The answer should be two.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The race condition: one counter, two threads</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">One counter, two threads, and each thread adds one. The answer should be two.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Read the narration aloud with the browser voice">Voice</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2 — the synchronisation half</h3>
+              <p class="small" style="margin-bottom:0">Every number below is produced by the model in this lesson and re-checked on load. Where a step is a definition rather than a calculation, the step says so.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 — two increments, no protection</h3>
+              <p class="small">Counter starts at 0. Threads T1 and T2 each execute <code>counter = counter + 1</code>, which is read, add, write. Each statement is atomic.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> The interleaving T1.read, T2.read, T1.write, T2.write gives: both registers hold 0, T1 writes 1, T2 writes 1. Final value 1. <em>Justification: the second write overwrites the first.</em></p>
+                <p><strong>2.</strong> The interleaving T1.read, T1.write, T2.read, T2.write gives 1 then 2. Final value 2.</p>
+                <p><strong>3.</strong> Enumerating all six interleavings gives exactly the set {1, 2}. No other value is reachable.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Six schedules, two outcomes. A question asking "the number of distinct values" wants 2; one asking "the minimum" wants 1.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — strict alternation, property by property</h3>
+              <p class="small">One shared variable <code>turn</code>, initially 0. Process i spins while <code>turn != i</code>, and sets <code>turn = 1−i</code> on exit.</p>
+              <div class="step-list small">
+                <p><strong>1. Mutual exclusion.</strong> Entry requires turn to equal your own index, and the two indices differ, so both cannot be inside. Enumerating the reachable states finds no state with both in the critical section.</p>
+                <p><strong>2. Progress fails.</strong> Take turn = 1, P1 in its remainder wanting nothing, P0 at its entry. The critical section is empty and P0 cannot enter.</p>
+                <p><strong>3. Bounded waiting also fails.</strong> P0 may wait until P1 chooses to take a turn, and P1 may never do so.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The failure is a <em>state</em>, not a timing accident: no scheduling of P1 helps, because P1 is not requesting anything.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 — Peterson, counted rather than argued</h3>
+              <p class="small">Entry for process i: <code>flag[i] = 1; turn = j; while (flag[j] &amp;&amp; turn == j);</code> and <code>flag[i] = 0</code> on exit.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Treat every statement as atomic and a spin as a self-loop, and enumerate every reachable state from the initial state.</p>
+                <p><strong>2.</strong> The enumeration reaches 34 distinct states, counting the all-finished one.</p>
+                <p><strong>3.</strong> In none of them are both processes in the critical section, and in none of them is every process unable to move.</p>
+                <p><strong>4.</strong> Bounded waiting holds because the loser of the tie waits only while the winner is inside.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> An exhaustive enumeration is a proof for this model. It is not a proof for a machine that reorders writes.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — a counting semaphore, traced</h3>
+              <p class="small">S starts at 5. Apply wait, wait, wait, signal, wait in that order.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> After three waits: 5 → 4 → 3 → 2. Nobody blocked, because the value never went below zero.</p>
+                <p><strong>2.</strong> One signal: 2 → 3.</p>
+                <p><strong>3.</strong> One more wait: 3 → 2. Four waits completed, one signal issued, value 2.</p>
+                <p><strong>4.</strong> Check the invariant: completed waits 4 ≤ 5 + 1 = 6. Consistent.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The value alone never tells you how many processes are inside; that is initial minus current, here 5 − 2 = 3.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2 — the deadlock half</h3>
+              <p class="small" style="margin-bottom:0">These four are the shapes the paper actually uses: a permit count, a lock order, a safety table, and a resource bound.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 5 — the bounded buffer, both orders</h3>
+              <p class="small">Two slots. <code>empty = 2</code>, <code>full = 0</code>, <code>mutex = 1</code>.</p>
+              <div class="step-list small">
+                <p><strong>Correct order.</strong> Producer: wait(empty) → 1, wait(mutex) → 0, insert, signal(full) → 1, signal(mutex) → 1. Consumer: wait(full) → 0, wait(mutex) → 0, remove, signal(empty), signal(mutex). No sleep holds a lock.</p>
+                <p><strong>Swapped order.</strong> Consumer: wait(mutex) → 0, then wait(full) with full = 0 → −1, so it blocks <em>holding the mutex</em>.</p>
+                <p><strong>Consequence.</strong> The producer reaches wait(mutex), finds 0, and blocks. The item the consumer waits for can never be produced.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This is the code shape of GATE 2014 Set 2 Q31, where the consumer does <code>semWait(s)</code> then <code>semWait(n)</code>; the paper's correct option is that deadlock occurs if the consumer acquires the mutex when the buffer is empty.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — Banker's on a printed table</h3>
+              <p class="small">GATE 2018 Q39: resources E, F, G; available (3, 3, 0). Need is maximum minus allocation.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Need: P0 (3,3,0), P1 (1,0,2), P2 (0,3,0), P3 (3,4,1).</p>
+                <p><strong>2.</strong> Work (3,3,0): P0 fits → work (4,3,1).</p>
+                <p><strong>3.</strong> P2 fits → work (5,3,4). Then P1 fits → work (6,4,6). Then P3 fits.</p>
+                <p><strong>4.</strong> Every process completes, so the state is safe. Sequence P0, P2, P1, P3.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The matrices are as printed in the paper; the verdict here is recomputed, and the paper's option is that the system is in a safe state.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 — the resource bound</h3>
+              <p class="small">n processes, m identical instances, each process needing at most K. Deadlock is impossible when n(K−1) + 1 ≤ m.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Worst case: every process holds K−1 and wants one more. Total held n(K−1).</p>
+                <p><strong>2.</strong> If one instance is left over, some process gets its last instance, finishes, and returns everything.</p>
+                <p><strong>3.</strong> GATE 2018 Q24: n = 3, m = 4 → 3(K−1) ≤ 3 → K ≤ 2.</p>
+                <p><strong>4.</strong> Check K = 3: the split 2, 1, 1 uses all four instances and each process still wants one. Deadlock. So 2 is the largest safe K.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE 2018 Q24, answer 2. The formula gives the same answer, and the counterexample at K = 3 is why the bound is tight rather than merely sufficient.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 8 — a cycle that is not a deadlock</h3>
+              <p class="small">R1 has two instances, R2 has one. P1 holds one instance of R1 and wants R2; P2 holds R2 and wants R1.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> The graph has the cycle P1 → R2 → P2 → R1 → P1.</p>
+                <p><strong>2.</strong> Work = (R1 1, R2 0). P2 needs R1 and it is available, so P2 runs to completion.</p>
+                <p><strong>3.</strong> P2 returns R2: work = (R1 1, R2 1). P1 needs R2 and gets it.</p>
+                <p><strong>4.</strong> Every process completes, so the state is not deadlocked although it has a cycle.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A cycle is necessary for deadlock and sufficient only when every resource type has one instance.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries, counterexamples and the condition each one violates</h3>
+          <p class="small" style="margin-bottom:0">Each card names the smallest example that breaks a tempting rule, and the exact assumption the rule needed.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a cycle with no deadlock</h3>
+          <p class="small">R1 (two instances), R2 (one). P1 holds an R1 and wants R2; P2 holds R2 and wants R1. The cycle exists and nothing is stuck, because the free R1 instance lets P2 finish.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition violated by the tempting rule:</strong> "a cycle means deadlock" needs one instance per resource type. Drop that and the rule is false.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: safe does not mean deadlock has happened</h3>
+          <p class="small">An unsafe state is one where no completion order is guaranteed. It may still complete, because processes may release resources earlier than their declared maximum. Safety is a worst-case guarantee, not a prediction.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> the safety test assumes every process eventually requests its declared maximum. Without that assumption the test has no meaning.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: two flags and no turn</h3>
+          <p class="small">With only <code>flag[0]</code> and <code>flag[1]</code>, both processes can raise their flags, then both spin. Each waits for the other to lower a flag that will not be lowered until it enters. Deadlock.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> Peterson needs the turn variable to break exactly this tie. Removing one variable removes liveness, not safety.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a signal with nobody waiting</h3>
+          <p class="small">A condition variable has no value. If <code>signal</code> is called when the queue is empty, it does nothing at all — the fact is not remembered. A later <code>wait</code> still blocks.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> semaphores remember a signal (the value increments); condition variables do not. That is the difference between the two primitives.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: the negative semaphore value</h3>
+          <p class="small">From S = 0, two waits leave S = −2 with two processes blocked. That is not an error and not a contradiction: the magnitude is the queue length. A question that says "the semaphore is non-negative" is restricting the initial value, not the running value.</p>
+          <p class="small" style="margin-bottom:0">The one place the sign matters is the wake condition: <code>signal</code> wakes a sleeper exactly when the post-increment value is still ≤ 0.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: buffer of size one</h3>
+          <p class="small">With one slot, <code>empty</code> starts at 1 and <code>full</code> at 0. The correct order still works: the producer waits for the slot, then the mutex. The swapped order still deadlocks, and now on the very first item — a size-one buffer is the smallest demonstration.</p>
+          <p class="small" style="margin-bottom:0">With an unbounded buffer the producer never waits, so the swapped order happens not to deadlock — which is exactly why "it worked in my program" is not an argument.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Trap: the wait-for graph on several instances</h3>
+          <p class="small">Collapsing a resource type to "the process holding it" is only meaningful when there is one instance. With two instances a process may be waiting for the type, not for a particular holder, and the collapse can invent a cycle or hide one.</p>
+          <p class="small" style="margin-bottom:0">Use the allocation graph and the completion-order test instead, and reserve the wait-for graph for single-instance questions.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Trap: "it is a deadlock" when the property is progress</h3>
+          <p class="small">Strict alternation with turn pointing at an idle process is not a deadlock: no process holds the critical section, and no process holds a resource another needs. It is a progress violation, and the option distinguishing the two is usually present.</p>
+          <p class="small" style="margin-bottom:0">The diagnostic question: is anyone <em>holding</em> something? If nobody is, it is not a resource deadlock.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that cost marks</h3>
+          <p class="small" style="margin-bottom:0">Each one names the belief, why it is tempting, the smallest counterexample, and the rule that replaces it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "An assignment happens all at once"</h3>
+          <p class="small"><strong>Why it tempts:</strong> in a single-threaded program it is indistinguishable.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> two threads, one counter, one increment each: final value 1 is reachable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> read, modify and write are separate steps unless the question declares the statement atomic. Look for that sentence before anything else.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Mutual exclusion is the whole job"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is the property the data needs.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> strict alternation — safe, and P0 can be blocked forever by an idle P1.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> check three properties. Safety is necessary; progress and bounded waiting are what most exam solutions fail.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "A semaphore can never be negative"</h3>
+          <p class="small"><strong>Why it tempts:</strong> "counting" sounds like a count of things that exist.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> S = 0, two waits → S = −2, two blocked.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> non-negative means permits left; negative means minus the queue length. The magnitude is information, not an error.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "The buffer code is symmetric, so order does not matter"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both orders contain the same four calls.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> mutex first, empty buffer: the consumer sleeps holding the mutex and the producer cannot enter.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> never block while holding a lock the waker needs. Wait on the counting semaphore first.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "A cycle in the graph proves deadlock"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is true in every textbook picture of two processes and two files.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> R1 with two instances, R2 with one: a cycle, a free instance, and a completion order.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> cycle ⇒ deadlock only with one instance per type. With several, run the completion-order test.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Safe means no deadlock, unsafe means deadlock"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both words sound like verdicts.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> an unsafe state can still complete if processes finish below their declared maximum.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> safe ⇒ no deadlock. Unsafe ⇒ the guarantee is gone, which is not the same as a deadlock.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>One sentence that replaces all six</h3>
+          <p class="small" style="margin-bottom:0">Every question here is "which states are reachable, and does a completion order exist" — asked about statements (synchronisation) or about resources (deadlock). Enumerate the states, then read the property off the enumeration.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The six question families, and the reasoning each demands</h3>
+          <p class="small" style="margin-bottom:0">Families are ordered from the most frequent to the least. Frequency here is a reading of indexed archives, not an official count.</p>
+        </div>
+
+        <div class="card">
+          <h3>1. Possible values under interleaving</h3>
+          <p class="small"><strong>Shape:</strong> several threads run given code with a stated atomicity, and the question asks for the possible final values, the number of distinct values, or the maximum and minimum.</p>
+          <p class="small"><strong>Reasoning:</strong> build the schedule that maximises and the one that minimises, then check each intermediate value is reachable. With a semaphore of value 2 or more, a thread can read a stale value and overwrite everything committed in between, which is what produces the extreme.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> simulating one interleaving and reporting it. The sequential answer is the best case and almost never the question.</p>
+        </div>
+
+        <div class="card">
+          <h3>2. Semaphore counting and blocking bounds</h3>
+          <p class="small"><strong>Shape:</strong> N waits and M signals in some order; find the largest initial value that still blocks, or how many processes can be inside at once.</p>
+          <p class="small"><strong>Reasoning:</strong> completed waits ≤ initial + signals. Set that inequality to the blocking boundary and solve. Never trace orders.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> reading the final value only. The final value being zero is what makes an initial value safe, which is the complement of what "still blocks" asks.</p>
+        </div>
+
+        <div class="card">
+          <h3>3. Property verification on a proposed solution</h3>
+          <p class="small"><strong>Shape:</strong> given two flags, a turn, or a ticket, decide which of mutual exclusion, progress and bounded waiting hold.</p>
+          <p class="small"><strong>Reasoning:</strong> for safety, argue about the entry condition; for progress, construct the state with an idle outsider; for bounded waiting, count how many times another process can enter first.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> judging by whether the code "looks like" Peterson. Many distractors are Peterson with one line changed, and the property that fails is precisely the line.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. Deadlock in a lock or semaphore order</h3>
+          <p class="small"><strong>Shape:</strong> several processes acquire several locks in stated orders; does a deadlock-free order exist, or does this program deadlock?</p>
+          <p class="small"><strong>Reasoning:</strong> draw the waits-for edges and look for a cycle, or apply a numbering: if every process requests in increasing order of a global numbering, no cycle can form.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> checking each process separately. Deadlock is a property of the set, and every process can be individually correct.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Single resource type, minimum instances</h3>
+          <p class="small"><strong>Shape:</strong> n processes, maximum K each, one instance requested at a time; find the smallest m that guarantees no deadlock, or the largest K.</p>
+          <p class="small"><strong>Reasoning:</strong> n(K−1)+1 ≤ m. The worst case is everyone one short. Solve for the unknown.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> n·K ≤ m, which requires everyone to finish simultaneously and is far too strong.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. Banker's safety check</h3>
+          <p class="small"><strong>Shape:</strong> an allocation table, a maximum table and an available vector; is the state safe, and what is the sequence?</p>
+          <p class="small"><strong>Reasoning:</strong> need = max − alloc; scan for any process whose need fits work; add its allocation back; repeat. Any valid sequence is an answer unless the options differ.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> forgetting to add the allocation back, which stalls the scan early and turns a safe state into a reported deadlock.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The two sentences to carry into the exam</h3>
+          <p class="small" style="margin-bottom:0">For synchronisation: <em>enumerate the extreme interleavings and name the property that breaks.</em> For deadlock: <em>ask how many instances each type has, then either look for a cycle or look for a completion order.</em></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="row" style="margin-bottom:10px">
+        <label class="row small" style="gap:6px;cursor:pointer">
+          <input type="checkbox" id="mock-toggle">
+          <span>Mock-test mode (answers stay hidden until you reveal them all)</span>
+        </label>
+        <button class="btn" id="mock-submit" hidden>Reveal all answers</button>
+        <span class="small muted">Learning mode reveals each answer after your attempt.</span>
+      </div>
+
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 1 of 2 — previous-year items</h3>
+              <p class="small" style="margin-bottom:0">Answers are hidden until you reveal them. Every numerical answer here was recomputed by the model on this page. Where an archive numbers a question differently from the paper, the disagreement is stated instead of resolved silently.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2016 Set 2, Q49</span></div>
+              <div class="q-body">
+                <p>Consider a non-negative counting semaphore S. P(S) decrements S, V(S) increments S. During an execution, 20 P(S) operations and 12 V(S) operations are issued in some order. The largest initial value of S for which at least one P(S) operation will remain blocked is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 7</span></p>
+                  <p class="small">Every V creates one permit and every completed P consumes one, so at most S₀ + 12 waits can ever complete. For all 20 to complete you need S₀ + 12 ≥ 20, that is S₀ ≥ 8. From S₀ = 7, at most 19 complete, so the 20th blocks whatever the order.</p>
+                  <p class="small" style="margin-bottom:0">Check S₀ = 8: eight waits, twelve signals, twelve waits ends at value 0 with nothing blocked. So 7 is the largest value that still blocks, and 8 is the smallest that does not.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2018, Q24</span></div>
+              <div class="q-body">
+                <p>Consider a system with 3 processes that share 4 instances of the same resource type. Each process can request a maximum of K instances. Resource instances can be requested and released only one at a time. The largest value of K that will always avoid deadlock is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 2</span></p>
+                  <p class="small">Worst case: each process holds K−1 and wants one more, so 3(K−1) are held. If one instance remains free, somebody finishes and the rest follow: 3(K−1)+1 ≤ 4 gives K ≤ 2.</p>
+                  <p class="small" style="margin-bottom:0">K = 3 fails by the split 2, 1, 1: all four instances held, each process one short, nobody can proceed. So 2 is the largest safe K.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2014 Set 2, Q31</span></div>
+              <div class="q-body">
+                <p>The producer does <code>semWait(s); addToBuffer(); semSignal(s); semSignal(n);</code> and the consumer does <code>semWait(s); semWait(n); removeFromBuffer(); semSignal(s); consume();</code>, with <code>n = 0</code> and <code>s = 1</code>. Which one is TRUE?</p>
+                <p class="small">(A) The producer will be able to add an item, but the consumer can never consume it.<br>
+                (B) The consumer will remove no more than one item from the buffer.<br>
+                (C) Deadlock occurs if the consumer succeeds in acquiring semaphore s when the buffer is empty.<br>
+                (D) The starting value for n must be 1, not 0, for deadlock-free operation.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C)</span></p>
+                  <p class="small">The consumer takes the mutex, then blocks on the item count while still holding the mutex. The producer cannot enter to add the item the consumer is waiting for, so nothing can move.</p>
+                  <p class="small" style="margin-bottom:0">(A) and (B) describe a progress failure rather than this deadlock. (D) is the tempting repair: starting n at 1 admits one item that does not exist, so the consumer reads garbage. The real fix is the order of the two waits.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2015 Set 1</span></div>
+              <div class="q-body">
+                <p>P1 and P2 share a variable B, initially 2, and execute concurrently. P1 does <code>C = B − 1; B = 2*C;</code> and P2 does <code>D = 2*B; B = D − 1;</code>. Each statement is atomic. The number of distinct values B can take after execution is ______.</p>
+                <p class="small muted">Numbered Q9 in one index and Q20 in the paper's own listing; the year and set are the same item.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 3</span></p>
+                  <p class="small">P1 then P2 gives 3; P2 then P1 gives 4; P1 reading before P2 runs and writing after gives 2. Enumerating all interleavings of the four statements yields exactly {2, 3, 4}.</p>
+                  <p class="small" style="margin-bottom:0">The trap is answering 2 (the two sequential runs) or 4 (counting schedules instead of values). The question asks for distinct values, and three schedules collapse onto 3.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 2 of 2 — original questions and one paper table</h3>
+              <p class="small" style="margin-bottom:0">These are written in the GATE style, not taken from a paper, except Q8, whose matrices are the printed GATE 2018 Q39 table. They are labelled original so you can tell them apart when revising.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge badge--orig">Original GATE-style</span></div>
+              <div class="q-body">
+                <p>Two threads T1 and T2 each execute <code>x = x + 1</code> once on a shared integer x that starts at 0. Each statement is atomic and a context switch may happen at any point. Which of the following are TRUE?</p>
+                <p class="small">(A) The final value of x can be 1. &nbsp; (B) The final value of x can be 2. &nbsp; (C) The final value of x can be 0. &nbsp; (D) The final value of x is always 2.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) and (B)</span></p>
+                  <p class="small">Both reads can precede both writes, giving 1; any other interleaving gives 2. There are six interleavings and exactly two outcomes.</p>
+                  <p class="small" style="margin-bottom:0">(C) is impossible: no operation decrements x, so the value can never fall below 0. (D) is the belief that the statement is atomic at a coarser grain than it is.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge badge--orig">Original GATE-style</span></div>
+              <div class="q-body">
+                <p>Two processes use one shared variable <code>turn</code>, initially 0. Process i spins while <code>turn != i</code> before its critical section, and sets <code>turn = 1 − i</code> after it. Which one of the following is TRUE?</p>
+                <p class="small">(A) Mutual exclusion and progress hold; bounded waiting fails.<br>
+                (B) Mutual exclusion holds; progress fails.<br>
+                (C) Mutual exclusion fails.<br>
+                (D) All three hold.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B)</span></p>
+                  <p class="small">Entry needs turn to equal your own index, so both cannot be inside. With turn = 1, P1 in its remainder and P0 waiting, the critical section is empty and P0 still cannot enter: progress fails.</p>
+                  <p class="small" style="margin-bottom:0">(A) misreads the failure: bounded waiting is also unbounded here, but the property that the standard counterexample is built for is progress. (C) is refuted by the one-line argument on turn. This is the GATE 2016 Set 2 Q48 construct with original options.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge badge--orig">Original GATE-style</span></div>
+              <div class="q-body">
+                <p>A resource allocation graph has two processes P1, P2 and two resource types R1, R2. R1 has two instances, R2 has one. P1 holds one instance of R1 and requests R2; P2 holds R2 and requests R1. Which one of the following is TRUE?</p>
+                <p class="small">(A) The graph has no cycle and the system is deadlocked.<br>
+                (B) The graph has a cycle and the system is deadlocked.<br>
+                (C) The graph has a cycle and the system is not deadlocked.<br>
+                (D) The graph has no cycle and the system is not deadlocked.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C)</span></p>
+                  <p class="small">P1 → R2 → P2 → R1 → P1 is a cycle. But a second instance of R1 is free, so P2 gets it, completes, releases R2, and P1 then proceeds. A completion order exists.</p>
+                  <p class="small" style="margin-bottom:0">(B) is the standard wrong answer: it applies the single-instance cycle test to a multi-instance graph. (A) and (D) misread the graph itself.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge">PYQ table — GATE CSE 2018, Q39</span></div>
+              <div class="q-body">
+                <p>Four processes over resources E, F, G. Allocation: P0 (1,0,1), P1 (1,1,2), P2 (1,0,3), P3 (2,0,0). Maximum: P0 (4,3,1), P1 (2,1,4), P2 (1,3,3), P3 (5,4,1). Available: (3,3,0). From the perspective of deadlock avoidance, which one is true?</p>
+                <p class="small">(A) The system is in a safe state.<br>
+                (B) Not safe, but safe if one more instance of E were available.<br>
+                (C) Not safe, but safe if one more instance of F were available.<br>
+                (D) Not safe, but safe if one more instance of G were available.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A)</span></p>
+                  <p class="small">Need: P0 (3,3,0), P1 (1,0,2), P2 (0,3,0), P3 (3,4,1). Work (3,3,0) → P0 fits → (4,3,1) → P2 fits → (5,3,4) → P1 fits → (6,4,6) → P3 fits. Sequence P0, P2, P1, P3.</p>
+                  <p class="small" style="margin-bottom:0">Every process completes, so the state is safe and the extra-instance options are all irrelevant. The matrices are as printed in the paper; the verdict is recomputed here.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the three requirements, the primitives, the deadlock tests and the traps, in the order a question uses them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Race condition</strong> — the result depends on the order of concurrent accesses.</li>
+            <li><strong>Critical section</strong> — the part that touches shared state.</li>
+            <li><strong>Mutual exclusion</strong> — at most one inside.</li>
+            <li><strong>Progress</strong> — an idle outsider cannot block entry.</li>
+            <li><strong>Bounded waiting</strong> — a bound on how many others enter first.</li>
+            <li><strong>Semaphore</strong> — integer plus queue; wait decrements, signal increments.</li>
+            <li><strong>Mutex</strong> — binary semaphore, value 0 or 1.</li>
+            <li><strong>Monitor</strong> — data plus procedures, lock held by the language.</li>
+            <li><strong>Condition variable</strong> — a queue with no value; signal with no waiter is lost.</li>
+            <li><strong>Deadlock</strong> — a set of processes each waiting on another member.</li>
+            <li><strong>Safe state</strong> — a completion order exists for every process.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas and their licences</h3>
+          <p class="formula">S = permits left (S ≥ 0);  S = −(blocked) (S &lt; 0)
+            <span class="gloss">The magnitude is the queue length once the value is negative.</span></p>
+          <p class="formula">completed waits ≤ S₀ + signals
+            <span class="gloss">Every signal creates one permit; nothing else does.</span></p>
+          <p class="formula">n(K − 1) + 1 ≤ m  ⇒  no deadlock
+            <span class="gloss">n processes, m identical instances, maximum K each, one at a time. Worst case: everyone one short.</span></p>
+          <p class="formula">need = max − allocation
+            <span class="gloss">Banker's: then scan for any process whose need fits the work vector, and add its allocation back.</span></p>
+          <p class="small" style="margin-bottom:0">None of these four is universal. The first two assume the counting definition of a semaphore, the third assumes identical single-type resources and one-at-a-time requests, and the fourth assumes declared maximum needs.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>What is shared, and are statements atomic?</li>
+            <li>Value question → enumerate the extreme interleavings.</li>
+            <li>Semaphore question → use the permit inequality, never trace.</li>
+            <li>Liveness question → name the property, then build the state that breaks it.</li>
+            <li>Deadlock question → how many instances per type? One: look for a cycle. Several: look for a completion order.</li>
+            <li>Table question → need = max − alloc, then scan and add back.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Assuming atomicity the question did not grant.</li>
+            <li>Reading a negative semaphore value as an error.</li>
+            <li>Sleeping while holding the waker's lock.</li>
+            <li>Using a cycle as a deadlock test with several instances.</li>
+            <li>Reading safe as deadlock-free and unsafe as deadlocked.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Two sentences</h3>
+          <p class="small" style="margin-bottom:0">Synchronisation: <em>enumerate the extreme interleavings and name the property that breaks.</em> Deadlock: <em>count the instances per type, then either look for a cycle or look for a completion order.</em></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind. Official material is separated from textbook material, and community material is labelled as observation rather than proof.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> — the clause "concurrency and synchronization. Deadlock" in Section 8 (Operating Systems). This is the source for the Class A classification and for the scope boundary that leaves reader–writer fairness and priority inversion out.</p>
+          <p class="small" style="margin-bottom:0"><strong>Previous-year papers</strong> — the question wording for GATE 2016 Set 2 Q49, GATE 2018 Q24 and Q39, GATE 2014 Set 2 Q31, and the GATE 2015 Set 1 two-function item. The 2018 paper text was read from a public copy of the paper; the others were read from indexed reproductions that agree with each other on wording. Every numerical answer in this lesson was recomputed by the model here.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Textbook-level references</h3>
+          <p class="small"><strong>Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em></strong> — the critical-section requirements, Peterson's solution, semaphores and monitors, the classical problems, the four Coffman conditions, the resource allocation graph, Banker's algorithm and the safety algorithm.</p>
+          <p class="small" style="margin-bottom:0"><strong>Tanenbaum and Bos, <em>Modern Operating Systems</em></strong> — the treatment of busy waiting against blocking, condition variables and the Mesa/Hoare distinction, and deadlock detection by graph reduction.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">Two question-indexed archives and a subject page, which agree on the year and question number for the items quoted and are the source of the "at least one question in these years" observation on the Overview tab. That observation is one archive's tagging of its own index.</p>
+          <p class="small" style="margin-bottom:0">Discussion threads for the 2016 semaphore item and the 2018 Banker's item, used to check the reasoning — not as proof. Where an index disagreed with the paper's own numbering (the 2015 item), both numbers are given.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">The 2026 items — a deadlock MSQ in Set 1, a resource-count question in Set 1, and a three-process print-sequence MSQ in Set 2 — are reported by archives only. None was checked against the paper, so they are named here without numerical answers and are not used as practice. The 2016 Set 2 Q48 strict-alternation construct is quoted for its code, and the practice question built on it is labelled original because its option wording was not confirmed. The state counts (6 race interleavings, 34 Peterson states) are exhaustive for the models stated in the lesson and would change under a different atomicity or memory model. The audio narration is a script only; no audio file exists, and caption timings are estimated.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>

@@ -1525,15 +1525,49 @@ topics.append(topic(
         "which events always force a context switch (GATE 2024 Set 2)"
     ]))
 
+# NOTE for a future run: the committed syllabus-coverage.json splits the
+# "CPU and I/O scheduling" clause into two entries (CPU scheduling, PUBLISHED, and
+# I/O scheduling (disk scheduling), NOT_STARTED). This script still encodes that
+# clause as one topic, so regenerating it silently collapses the split and drops
+# the disk-scheduling entry. Re-apply the split after any regeneration, or teach
+# the split here first. Never regenerate blindly over the committed tracker.
 topics.append(topic(
     "Operating Systems", "Concurrency", "Synchronisation and deadlock",
     ["critical sections", "semaphores and monitors", "classical problems",
      "deadlock conditions and avoidance", "banker's algorithm", "detection"],
-    prereq=["processes and threads"],
-    related=["CPU scheduling"],
+    prereq=["processes and threads", "cpu scheduling"],
+    related=["processes, threads and IPC", "CPU scheduling", "counting and combinatorics"],
     importance="high",
     evidence="GATE 2027 Section 8 names 'concurrency and synchronization. Deadlock'.",
-    difficulty="medium-hard"))
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="synchronisation-and-deadlock",
+    path="topics/synchronisation-and-deadlock/index.html",
+    execution="published 2026-10-27",
+    microtopics=[
+        "race condition: read, modify, write as three steps; the lost update",
+        "two increments give exactly the values 1 and 2; six interleavings",
+        "critical section, mutual exclusion, progress, bounded waiting as three separate promises",
+        "strict alternation: safety holds, progress fails (GATE 2016 Set 2 Q48 construct)",
+        "peterson's algorithm: flag plus turn; 34 enumerated states, no state with both inside",
+        "the turn variable as the tie-breaker; two flags alone deadlock",
+        "counting semaphore: value is permits left, or minus the queue length",
+        "the permit invariant: completed waits <= S0 + signals (GATE 2016 Set 2 Q49 -> 7)",
+        "binary semaphore against counting semaphore; mutex as the binary case",
+        "bounded buffer: empty-first order works, mutex-first order deadlocks (GATE 2014 Set 2 Q31)",
+        "never sleep while holding a lock the waker needs",
+        "monitors: the implicit lock; condition variables have no value and lose a signal",
+        "Mesa against Hoare semantics and the while-loop re-check",
+        "the four Coffman conditions are necessary, not sufficient",
+        "resource allocation graph; single-instance cycle means deadlock",
+        "multi-instance cycle without deadlock; the completion-order test",
+        "wait-for graph is valid only for single-instance resource types",
+        "banker's algorithm: need = max - alloc, scan, add back (GATE 2018 Q39, safe)",
+        "single resource type bound n(K-1)+1 <= m (GATE 2018 Q24 -> K = 2)",
+        "safe against deadlock-free; unsafe against deadlocked",
+        "two-function interleaving with distinct values 2, 3, 4 (GATE 2015 Set 1)",
+        "prevention against avoidance against detection, and the cost of each"
+    ]))
 
 topics.append(topic(
     "Operating Systems", "Scheduling", "CPU and I/O scheduling",
