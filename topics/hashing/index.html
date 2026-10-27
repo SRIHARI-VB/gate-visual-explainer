@@ -1,0 +1,1863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hashing: Hash Functions and Collision Resolution — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Hashing</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Hashing — hash functions, separate chaining, open addressing with linear, quadratic and double hashing, the load factor, clustering, deletion with tombstones, and the expected-probe formulas.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a hash function, a table size and a list of keys in an insertion order, trace the table exactly and report any slot, chain length or probe count asked for. Given only $$n$$, $$m$$ and $$\alpha$$, choose the right expected-cost formula for the scheme and for the kind of search. Given a proposed scheme, decide whether it is even guaranteed to terminate, and know which condition makes it so.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one skill — following a probe walk — applied to three schemes</em>, plus one arithmetic skill: substituting into a formula. The worst-case analysis of a search is shared with the <a href="../binary-search-and-variants/index.html">binary search</a> and <a href="../asymptotic-complexity/index.html">asymptotic complexity</a> lessons and is not re-derived here; the probability machinery behind the formulas is in the <a href="../counting-and-combinatorics/index.html">counting</a> lesson.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus, by name.</strong></p>
+          <p class="small">Section 5 of the official GATE 2027 CS syllabus (IIT Madras) reads: <em>"Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths."</em></p>
+          <p class="small">Hashing is one of three words in the first sentence, so a hashing question is inside the declared boundary. It is also named in Section 4 under Programming and Data Structures only indirectly — the words "hashing" appears once, in Section 5.</p>
+          <p class="small" style="margin-bottom:0">Class A does not mean a question is guaranteed, and it says nothing about marks. The previous-year items quoted here are observations about old papers, not a forecast for 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Four published lessons carry what this one uses:</p>
+          <ul class="small">
+            <li><strong><a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a></strong> — a hash table is an array, and a chained slot is a list. Index arithmetic and wrap-around are the whole of a probe walk.</li>
+            <li><strong><a href="../linked-lists/index.html">Linked Lists</a></strong> — the chain at a slot, and why unlinking is cheap once you hold the node.</li>
+            <li><strong><a href="../asymptotic-complexity/index.html">Asymptotic Complexity</a></strong> — what "average" and "worst case" mean, and why an average needs a distribution.</li>
+            <li><strong><a href="../counting-and-combinatorics/index.html">Counting and Combinatorics</a></strong> — the pigeonhole principle, which is the reason collisions cannot be avoided, and the product rule behind the 97-over-100 cube.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">One more thing is assumed and it is worth stating plainly: <strong>modulo</strong> means the remainder on division, so $$17 \bmod 7 = 3$$, and in this lesson a remainder is always taken into the range 0 to $$m-1$$ even for a negative key. The greatest common divisor of two numbers is the largest integer dividing both; $$\gcd(4,6)=2$$ and $$\gcd(4,7)=1$$.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Direct addressing.</strong> The ideal — one array access — and the assumption it makes about the key universe that a real key set breaks.</li>
+            <li><strong>The hash function.</strong> Division and multiplication methods, and the bit-level reason a power-of-two table size throws information away.</li>
+            <li><strong>The adversary.</strong> One published function, six hostile keys, one chain of six. Then universal hashing and the 1-over-m bound, checked exhaustively.</li>
+            <li><strong>Chaining.</strong> Nine keys in seven slots, $$\alpha = 1.29$$, and the two search costs.</li>
+            <li><strong>Open addressing.</strong> Linear probing on eleven slots, with the two walks that wrap.</li>
+            <li><strong>Clustering.</strong> A run of occupied slots absorbing every key that hashes into it, and the squared denominator in Knuth's formula.</li>
+            <li><strong>Quadratic and double hashing.</strong> The two probe rules, and the exact condition each needs before it may promise a free slot.</li>
+            <li><strong>Deletion.</strong> A present key becoming unreachable, then the tombstone that rescues it.</li>
+            <li><strong>The costs.</strong> Four formulas at four load factors, measured beside the formula.</li>
+            <li><strong>The decision procedure.</strong> Four questions that turn any hashing item into a trace or a substitution.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one breath</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Collisions are unavoidable — pigeonhole — so the design question is resolution, never avoidance.</li>
+            <li>Chaining stores lists outside the table and tolerates $$\alpha > 1$$; open addressing stores keys inside the table and needs $$\alpha < 1$$.</li>
+            <li>A probe sequence must be a permutation of the slots, or a key can be lost while a free slot exists. That is what the coprimality and primality conditions buy.</li>
+            <li>Deletion in open addressing needs a third state, the tombstone, because search stops at the first empty slot.</li>
+            <li>"Hashing is $$O(1)$$" is a statement about an average under uniform hashing. The worst case is $$\Theta(n)$$, and both statements are true of different things.</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Approximate learning time</h3>
+          <p class="small" style="margin-bottom:0">The animation runs five minutes. Reading all ten tabs, working the six examples and attempting the practice set honestly is about <strong>two and a half to three hours</strong>. That is an estimate from the size of the material, not a measurement. If you have forty minutes, watch the animation and read Revision; the rest can wait.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>Level 1 — Intuition: the cloakroom</h3>
+          <p class="small">A cloakroom has 100 hooks and a thousand possible coats. If you number the hooks by coat, you need a thousand hooks and you will use a hundred. If instead the attendant applies a rule — "a coat goes to the hook numbered by the last two digits of its tag" — you need a hundred hooks, and finding a coat is one glance at one hook. Two coats with tags ending 47 want the same hook. That is the whole idea, and the last sentence is the whole problem.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the trade honestly: a smaller table, a computed position, and collisions you must resolve. It does <em>not</em> carry the cost analysis, because a cloakroom attendant can see all the coats at once and a computer cannot.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Level 2 — Formal definition</h3>
+          <p class="small"><strong>A hash table</strong> is an array $$T[0 \ldots m-1]$$ of $$m$$ slots. <strong>A hash function</strong> is a total function $$h$$ from the key universe $$U$$ onto the index set $$\{0, \ldots, m-1\}$$. For a key $$k$$, the value $$h(k)$$ is its <strong>home slot</strong>. <strong>A collision</strong> is a pair of distinct keys $$k_1 \ne k_2$$ with $$h(k_1) = h(k_2)$$. The <strong>load factor</strong> is $$\alpha = n/m$$, where $$n$$ is the number of keys currently stored. Every symbol in words: $$m$$ is how many slots the table has, $$n$$ is how many keys you have put in it, and $$\alpha$$ is the average number of keys per slot.</p>
+          <p class="small"><strong>Separate chaining</strong> keeps, at each slot, a list of the keys that hashed there, so the table holds $$m$$ list heads and the keys live outside it. <strong>Open addressing</strong> — also called <em>closed hashing</em> — stores the keys themselves in the slots, so a colliding key must go somewhere else in the same array. It does so by following a <strong>probe sequence</strong>: a function $$h(k, i)$$ giving the slot tried at probe number $$i$$, for $$i = 0, 1, 2, \ldots$$, with $$h(k,0)$$ the home slot.</p>
+          <p class="small" style="margin-bottom:0"><strong>The simple uniform hashing assumption</strong> (SUHA): each key is equally likely to hash into any of the $$m$$ slots, independently of every other key. Every expected-cost formula in this lesson is conditional on it. It is an assumption about the key set, not a theorem about a function.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Level 2a — The three probe rules, side by side</h3>
+          <p class="small">Write $$h'(k)$$ for the ordinary hash of $$k$$. Then:</p>
+          <div class="formula small">linear: $$h(k,i) = (h'(k) + i) \bmod m$$</div>
+          <div class="formula small">quadratic: $$h(k,i) = (h'(k) + c_1 i + c_2 i^2) \bmod m$$</div>
+          <div class="formula small">double: $$h(k,i) = (h_1(k) + i \cdot h_2(k)) \bmod m$$</div>
+          <p class="small" style="margin-bottom:0">Linear probing steps by one, so it walks a cluster cell by cell. Quadratic probing steps by a growing amount, so it jumps out of a cluster but two keys with the same home slot still follow the same path. Double hashing steps by an amount that depends on the key, so those two keys separate at once. Only double hashing removes both kinds of clustering, and it is the only one whose expected cost matches the uniform-hashing bound.</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 2b — What the load factor is, and is not</h3>
+          <p class="small">$$\alpha = n/m$$ is a ratio, so it can be any non-negative real. With chaining, $$\alpha = 80$$ is a perfectly ordinary state of affairs: 2000 keys in 25 slots. With open addressing, $$\alpha$$ can never reach 1, because the table has only $$m$$ cells and each key occupies one.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2015 Set 3 asked for the load factor of a table with 25 slots storing 2000 elements, and the keyed answer was 80. A load factor is not a percentage: writing 0.8 or "80 percent" is a different quantity from the one the item asked for.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2c — Notation used in this lesson</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>$$m$$ — number of slots in the table (the table size).</li>
+            <li>$$n$$ — number of keys stored (the count).</li>
+            <li>$$\alpha$$ — load factor, $$n/m$$.</li>
+            <li>$$h(k)$$ — the home slot of key $$k$$.</li>
+            <li>$$h(k,i)$$ — the slot tried at probe number $$i$$; probe 0 is the home slot.</li>
+            <li>$$i$$ — the probe index, counting from 0.</li>
+            <li>$$\gcd(a,b)$$ — greatest common divisor; 1 means coprime.</li>
+            <li>$$\Theta(1)$$ — bounded above and below by constants, i.e. independent of $$n$$.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Level 3 — Visual understanding</h3>
+          <p class="small">Three pictures carry this topic and nothing else does.</p>
+          <p class="small"><strong>The chain picture</strong> shows why chaining's cost is the list length: a search walks nodes, one per comparison, and stops at the key or at the end.</p>
+          <p class="small"><strong>The probe-walk picture</strong> shows why open addressing's cost is the walk length: the walk is a path through the array, and every step is one comparison. Because the walk must be able to reach any slot, it must be a permutation of the slots — that single requirement generates the primality and coprimality conditions.</p>
+          <p class="small" style="margin-bottom:0"><strong>The cluster picture</strong> shows why linear probing degrades: an occupied run behaves as one big slot, so the probability of a long walk rises faster than linearly. The animation draws all three.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION =========================== -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A direct-address table stores the key itself at index k. One array access, no search at all.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">From direct addressing to a hash table</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A direct-address table stores the key itself at index k. One array access, no search at all.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running…
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Browser speech synthesis; voice availability varies">Narrate</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Example 1 — Chaining, nine keys into nine slots</h3>
+          <p class="small">GATE CSE 2014 Set 1. Insert 5, 28, 19, 15, 20, 33, 12, 17, 10 into a table of 9 slots with $$h(k) = k \bmod 9$$, resolving by chaining. Report the maximum, minimum and average chain lengths.</p>
+          <ol class="step-list small">
+            <li>Reduce every key: 5→5, 28→1, 19→1, 15→6, 20→2, 33→6, 12→3, 17→8, 10→1.</li>
+            <li>Read the chain lengths off the slots: slot 1 holds 28, 19, 10 (three); slot 6 holds 15, 33 (two); slots 2, 3, 5, 8 hold one each; slots 0, 4, 7 hold none.</li>
+            <li>Maximum 3, minimum 0, average = nine keys over nine slots = 1.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Answer: 3, 0, 1.</strong> The minimum is 0 only because three slots are empty. Note that the average is fixed by $$n$$ and $$m$$ alone: it is 1 for <em>any</em> arrangement of nine keys in nine slots. The page recomputes all three.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — Linear probing with a shifted home slot</h3>
+          <p class="small">GATE CSE 2026 Set 1. Table $$P[0 \ldots 10]$$, open addressing with linear probing, $$h(x) = (x+7) \bmod 11$$. Insert 1, 13, 22, 15, 11, 24 in that order. Which positions are empty afterwards?</p>
+          <ol class="step-list small">
+            <li>1 → $$8 \bmod 11 = 8$$, free. 13 → $$20 \bmod 11 = 9$$, free. 22 → $$29 \bmod 11 = 7$$, free. 15 → $$22 \bmod 11 = 0$$, free.</li>
+            <li>11 → $$18 \bmod 11 = 7$$, taken by 22. Walk 8 (1), 9 (13), 10 free → slot 10.</li>
+            <li>24 → $$31 \bmod 11 = 9$$, taken by 13. Walk 10 (11), then wrap to 0 (15), then 1 free → slot 1.</li>
+            <li>Occupied: 0, 1, 7, 8, 9, 10. Empty: 2, 3, 4, 5, 6.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Answer: only slot 2</strong> among the four options offered. Two things make this item fair — the keys and the order are given, so it is a trace, and the shift by 7 is applied <em>before</em> probing, not during it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — Double hashing, one probe index</h3>
+          <p class="small">GATE CSE 2020. $$h_1(k) = k \bmod 23$$, $$h_2(k) = 1 + (k \bmod 19)$$, table size 23. Give the address returned by probe 1, counting the probe sequence from probe 0, for $$k = 90$$.</p>
+          <ol class="step-list small">
+            <li>$$h_1(90) = 90 \bmod 23 = 21$$, because $$23 \times 3 = 69$$ and $$90 - 69 = 21$$.</li>
+            <li>$$h_2(90) = 1 + (90 \bmod 19) = 1 + 14 = 15$$, because $$19 \times 4 = 76$$ and $$90 - 76 = 14$$.</li>
+            <li>Probe 1 means $$i = 1$$: $$(21 + 1 \times 15) \bmod 23 = 36 \bmod 23 = 13$$.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Answer: 13.</strong> Nothing is inserted here, so no table is traced — the whole item is one substitution. The trap is reading "probe 1" as the first probe, which would give the home slot 21.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — A full insertion trace under double hashing</h3>
+          <p class="small">GATE CSE 2025 Set 1. $$h_1(k) = k \bmod 11$$, $$h_2(k) = 1 + (k \bmod 7)$$, $$m = 11$$, probe $$i$$ is $$[h_1(k) + i\,h_2(k)] \bmod m$$. Insert 63, 50, 25, 79, 67, 24 in that order. Where does 24 land?</p>
+          <ol class="step-list small">
+            <li>63 → 8, 50 → 6, 25 → 3, 79 → 2, 67 → 1. All five are free on probe 0, so each takes its home slot.</li>
+            <li>24: $$h_1 = 2$$, $$h_2 = 1 + 3 = 4$$. Probe 0 → slot 2, taken by 79. Probe 1 → $$(2+4) \bmod 11 = 6$$, taken by 50. Probe 2 → $$(2+8) \bmod 11 = 10$$, free.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Answer: slot 10.</strong> The step of 4 skips straight past the occupied run, which is exactly the behaviour that distinguishes double hashing from linear probing. The page runs the trace and checks the slot.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — A probability item with no table at all</h3>
+          <p class="small">GATE CSE 2014 Set 3. A table of 100 slots, collisions resolved by chaining, simple uniform hashing. What is the probability that the first three slots are unfilled after the first three insertions?</p>
+          <ol class="step-list small">
+            <li>Each insertion lands in a uniformly random slot, independently. The probability a given insertion avoids slots 0, 1, 2 is 97/100.</li>
+            <li>Three independent insertions must all avoid them, so multiply: $$(97/100)^3$$.</li>
+            <li>That is $$912673 / 10^6 \approx 0.9127$$.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Answer: $$(97 \times 97 \times 97)/100^3$$.</strong> The tempting wrong answer is the falling product $$(99 \times 98 \times 97)/100^3$$, which is the probability that three insertions land in <em>distinct</em> slots avoiding the first three — a different question. Chaining is what makes the three insertions independent; under open addressing they are not.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 6 — Which function spreads best</h3>
+          <p class="small">GATE CSE 2015 Set 2. Over $$i = 0$$ to 2020, which of $$i^2 \bmod 10$$, $$i^3 \bmod 10$$, $$(11i^2) \bmod 10$$, $$(12i^2) \bmod 10$$ distributes keys most uniformly over ten buckets?</p>
+          <ol class="step-list small">
+            <li>Reducing a product modulo 10 depends only on the last digit, so only the residues 0 to 9 matter.</li>
+            <li>Squares of 0 to 9 end in 0, 1, 4, 9, 6, 5, 6, 9, 4, 1 — six distinct values, and 0, 1, 4, 9 are each hit twice. Four buckets are never touched.</li>
+            <li>Cubes of 0 to 9 end in 0, 1, 8, 7, 4, 5, 6, 3, 2, 9 — ten distinct values, one each. The map is a bijection on the last digit.</li>
+            <li>$$11i^2 \equiv i^2$$ and $$12i^2 \equiv 2i^2 \pmod{10}$$, so both are at best as good as the square, and the second is worse.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Answer: $$i^3 \bmod 10$$.</strong> The page counts the distinct residues for both and reports 10 against 6. This is the practical face of "a good hash function must mix all the bits": cubing is invertible on the last digit, squaring is not.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ========================= -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample 1 — quadratic probing that cannot finish</h3>
+          <p class="small">Take $$m = 8$$ and the rule $$h(k,i) = (h'(k) + i^2) \bmod 8$$. The offsets for $$i = 0,1,2,\ldots$$ are 0, 1, 4, 9, 16, 25, 36, 49, which reduce modulo 8 to 0, 1, 4, 1, 0, 1, 4, 1. Only three residues ever appear: 0, 1 and 4.</p>
+          <p class="small">So a key whose home slot is 0, 1 or 4 can only ever look at slots congruent to 0, 1 or 4 modulo 8 — that is, at slots 0, 1, 4 and their partners 8, 9, 12, which do not exist. If those three slots are occupied, the insertion fails even though five slots are empty.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page computes the reachable residue set for $$m = 8$$ and reports 3 of 8, then for $$m = 11$$ and $$m = 13$$ and reports 6 and 7, which are $$(m+1)/2$$. <strong>Condition violated:</strong> the theorem that guarantees a free slot needs $$m$$ prime and $$\alpha \le 1/2$$. With $$m = 8$$ neither holds.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample 2 — double hashing with a step that shares a factor</h3>
+          <p class="small">Take $$m = 8$$ and a secondary hash that always returns 2. The probe sequence from home slot 0 is 0, 2, 4, 6, 0, 2, 4, 6 — four slots, then it repeats. Slots 1, 3, 5, 7 are unreachable.</p>
+          <p class="small">In general the walk visits exactly $$m / \gcd(h_2(k), m)$$ distinct slots, so full coverage needs $$\gcd(h_2(k), m) = 1$$ for every key.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page checks that with $$m = 23$$ prime, every value of $$1 + (k \bmod 19)$$ from 1 to 19 is coprime to 23, so the 2020 item's scheme always covers all 23 slots. It also counts the reachable set for $$m = 8$$ with step 2 and reports 4 of 8. <strong>Condition violated:</strong> the step and the table size must be coprime. Choosing a prime $$m$$ is the standard way to make that automatic.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample 3 — deleting a key makes another key vanish</h3>
+          <p class="small">Table of 7 slots, $$h(k) = k \bmod 7$$, linear probing. Insert 10, 3, 17, 24 in that order: 10 → slot 3; 3 → slot 3 taken, so slot 4; 17 → 3, 4 taken, so slot 5; 24 → 3, 4, 5 taken, so slot 6.</p>
+          <p class="small">Now delete key 3 by writing an empty marker in slot 4. Search for 24: home slot 3 holds 10, slot 4 is empty, so the search <em>stops</em> and reports 24 absent. But 24 is sitting in slot 6.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page performs both deletions and reports the outcome: the naive one loses key 24, the tombstone one finds it at probe 4. <strong>Condition violated:</strong> "empty" is being used both as "this slot was never used" and as "this slot is free now". Those are different states and open addressing needs both.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary — $$\alpha$$ approaching 1</h3>
+          <p class="small">Every open-addressing formula has $$(1-\alpha)$$ in a denominator, so the cost is infinite at $$\alpha = 1$$ and large before it. At $$\alpha = 0.99$$ an unsuccessful linear-probing search averages 5000.5 probes and a double-hashing search 100 probes.</p>
+          <p class="small" style="margin-bottom:0">A question that asks for the cost at $$\alpha = 1$$ has no finite answer; the correct response is that the table is full and no unsuccessful search can terminate before scanning all $$m$$ slots. Practical tables rehash at $$\alpha$$ between about 0.5 and 0.75 for this reason. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The 0.5 to 0.75 range is the usual engineering advice, not a syllabus rule and not a theorem.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary — an empty table and a single key</h3>
+          <p class="small">With $$n = 0$$, $$\alpha = 0$$ and every formula gives 1 probe: the home slot is empty, so the search ends immediately. With $$n = m - 1$$ in open addressing, exactly one slot is free and the unsuccessful cost is the whole walk, up to $$m$$ probes.</p>
+          <p class="small" style="margin-bottom:0">Two boundary facts that items exploit: an unsuccessful search under open addressing needs at most $$m$$ probes, because the walk is a permutation and would repeat; and a successful search needs at most $$m$$ too. Under chaining neither bound holds — a chain can be longer than any constant, up to $$n$$.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary — negative and non-integer keys</h3>
+          <p class="small">$$-17 \bmod 7$$ in mathematics is 4, but in C it is -3, because C truncates toward zero. A hash function must map into $$0 \ldots m-1$$, so the implementation needs $$((k \bmod m) + m) \bmod m$$.</p>
+          <p class="small" style="margin-bottom:0">Strings are the other standard case: a hash over characters folds them, for example $$h = 31h + c$$ per character with the arithmetic done modulo the table size. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The multiplier 31 is a widespread convention, not a syllabus requirement; the requirement is only that the fold depends on every character and on its position.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================= 6. MISCONCEPTIONS ======================== -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. "Hash table search is $$O(1)$$"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is said constantly, and it is true often enough that it feels like a fact about the data structure.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a table of 1000 slots holding 1000 keys that all hash to slot 0. Every search walks a chain of length 1000. The worst case is $$\Theta(n)$$, and an adversary can force it, which is why GATE CSE 2023's answer was universal hashing.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the expected cost is $$\Theta(1+\alpha)$$ under uniform hashing; the worst case is $$\Theta(n)$$. Say which one you mean.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Open addressing and closed hashing are different schemes"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the words point the wrong way. "Open" sounds like lists hanging off the table; "closed" sounds like a sealed array.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a stem that says "closed hashing" and gives a probe function. There are no lists anywhere; the keys are in the array.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> open addressing = closed hashing = probing. Chaining = open hashing. Read the stem for the word <em>probe</em> or <em>list</em>, not for the word open.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "A good hash function should have no collisions"</h3>
+          <p class="small"><strong>Why it tempts:</strong> collisions are described as a problem, so avoiding them sounds like the goal.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the pigeonhole principle. A function from a set larger than $$m$$ into $$m$$ slots must collide. GATE CSE 2022's scheme used two functions, one for odd keys and one for even, and still had $$n/m$$ expected keys per slot.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the goal is even spread, and a resolution scheme for what spread cannot prevent.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Quadratic probing always finds a free slot if one exists"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is strictly better than linear probing at everything the eye can see — no trails, no clusters.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> $$m = 8$$ with offsets $$i^2$$ reaches only slots 0, 1 and 4 modulo 8. Five slots empty, insertion impossible. The page reports 3 of 8 reachable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the guarantee needs $$m$$ prime and $$\alpha \le 1/2$$, giving at least $$(m+1)/2$$ distinct probes. Without those conditions, "cannot be inserted" is a legitimate answer.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Deleting in open addressing means marking the slot empty"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the key is gone, the slot is free, and the code is one assignment.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the four-key table above. Marking slot 4 empty makes key 24 in slot 6 unreachable, and the search reports it absent.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a third state, the tombstone — search walks over it, insert may reuse it, and the table is rehashed when tombstones accumulate.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "The load factor is a percentage, so it is at most 1"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the word "factor" and the symbol $$\alpha$$ both suggest a fraction of a whole.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> GATE CSE 2015 Set 3 — 25 slots, 2000 elements, answer 80. Under chaining, $$\alpha$$ has no upper bound.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> $$\alpha = n/m$$ is a ratio of counts. It is bounded by 1 only for open addressing, and only because each key needs its own cell.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. "Successful and unsuccessful search cost the same"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are "a search", and both formulas start with 1 plus something.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> linear probing at $$\alpha = 0.9$$. Successful 5.5 probes, unsuccessful 50.5 — a factor of nine.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a successful search stops at its key; an unsuccessful one runs to the end of the walk. Use the formula for the kind of search the stem names.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>8. "Linear probing and quadratic probing cluster the same way"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are open addressing, both are deterministic walks, both degrade at high load.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> two keys with home slot 5. Under linear probing both walk 5, 6, 7, … together, so the run they create is shared. Under quadratic probing both walk 5, 6, 9, 14, … — still the same path as each other, but no longer a contiguous run.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> linear probing suffers <em>primary</em> clustering (contiguous runs merge). Quadratic probing removes primary but keeps <em>secondary</em> clustering (same home slot, same path). Only double hashing removes both.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================= 7. GATE PATTERNS ========================= -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Pattern A — trace the table, then answer a part</h3>
+          <p class="small">The stem gives a function, a table size and an insertion order, and asks for one slot, one chain length, or which positions are empty. This is the commonest hashing item and it is pure bookkeeping.</p>
+          <p class="small"><strong>Procedure:</strong> draw the table as a row of $$m$$ boxes. Take the keys one at a time. Write the home slot above each key. For a collision, write the walk out slot by slot, wrapping with modulo. Only then answer the question asked.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> computing all the home slots first and assuming each key takes its home slot, forgetting that a key inserted earlier has already moved.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern B — one probe index, no table</h3>
+          <p class="small">The stem gives two hash functions and a probe number and asks for one address. Seen in 2020 and again in 2025 Set 1 as a full trace.</p>
+          <p class="small"><strong>Procedure:</strong> evaluate both hashes as plain arithmetic, then substitute into $$(h_1 + i h_2) \bmod m$$, reducing once at the end. Check the answer lies in $$0 \ldots m-1$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> using $$i = 0$$ for "probe 1", or reducing modulo the wrong modulus — the second hash is computed modulo the table size, not modulo its own range.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern C — a count from a distribution</h3>
+          <p class="small">"Maximum, minimum and average chain length", "the load factor", "the probability the first three slots are unfilled". No trace is needed; these follow from $$n$$, $$m$$ and independence.</p>
+          <p class="small"><strong>Procedure:</strong> the average chain length is always $$n/m$$. The minimum is 0 exactly when some slot is empty. For a probability, decide whether the trials are independent — chaining makes them so, open addressing does not — then multiply.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> using a falling product $$(m-1)(m-2)\ldots/m^k$$ for an item about specified slots, when the slots are fixed and the insertions are independent.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern D — scheme choice and worst case</h3>
+          <p class="small">"Which strategy best counteracts an adversary", "the advantage of chaining over open addressing", "the worst-case search time". These are conceptual and the answer is usually one sentence.</p>
+          <p class="small"><strong>Procedure:</strong> name the property being asked about — adversarial keys, deletion, space, cache locality — and match it to the scheme. Universal hashing answers adversaries; chaining answers deletion; open addressing answers space.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> choosing "division method with a prime" for an adversary item. A prime modulus spreads a <em>random</em> key set well; it does not defeat a key set chosen after the function is known.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern E — design a hash function</h3>
+          <p class="small">"Which of these functions distributes keys most uniformly", or a stem that fixes $$m$$ and asks what goes wrong. Seen in 2015 Set 2.</p>
+          <p class="small"><strong>Procedure:</strong> reduce the function to its action on the last digit or last $$p$$ bits. Count how many distinct residues it produces. A function that is a bijection on those residues is uniform; one that is not, is not.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> testing the four options on a handful of values. Sampling cannot distinguish a bijection from a near-bijection reliably; count the residues instead.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The assumption behind every formula</h3>
+          <p class="small">The four expected-probe formulas assume simple uniform hashing. If a stem says the keys are adversarial, or the function is fixed and published, or the key set is a run of consecutive integers with a bad modulus, the formulas do not apply and only the trace does.</p>
+          <p class="small" style="margin-bottom:0">This is the single assumption that separates a correct answer from a plausible one on this topic. When a stem gives concrete keys, assume nothing and trace.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE =========================== -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="row" style="margin-bottom:10px">
+        <label class="row small" style="gap:6px;cursor:pointer">
+          <input type="checkbox" id="mock-toggle">
+          <span>Mock-test mode (answers stay hidden until you reveal them all)</span>
+        </label>
+        <button class="btn" id="mock-submit" hidden>Reveal all answers</button>
+        <span class="small muted">Learning mode reveals each answer after your attempt.</span>
+      </div>
+
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2026 Set 2</span></div>
+              <div class="q-body">
+                <p>The keys 5, 28, 19, 15, 26, 33, 12, 17, 10 are inserted into a hash table using $$h(k) = k \bmod 9$$. Collisions are resolved by chaining. After all the keys are inserted, the length of the longest chain is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 3</span></p>
+                  <p class="small">Residues modulo 9: 5→5, 28→1, 19→1, 15→6, 26→8, 33→6, 12→3, 17→8, 10→1.</p>
+                  <p class="small">Slot 1 receives 28, 19 and 10 — three keys. Slot 6 receives 15 and 33. Slot 8 receives 26 and 17. Slots 3 and 5 get one each. The longest chain is 3.</p>
+                  <p class="small" style="margin-bottom:0">The average chain length is 9/9 = 1 and the minimum is 0 (slots 0, 2, 4, 7 are empty), so an item that asked for the average would want 1, not 3. The page computes all three.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2026 Set 1</span></div>
+              <div class="q-body">
+                <p>Consider a hash table $$P[0,1,\ldots,10]$$ that is initially empty, maintained using open addressing with linear probing. The hash function is $$h(x) = (x+7) \bmod 11$$. The sequence of insertions is 1, 13, 22, 15, 11, 24. Which of the following positions is/are empty after these insertions?</p>
+                <ol class="choices"><li>0</li><li>10</li><li>2</li><li>1</li></ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: C only — position 2</span></p>
+                  <p class="small">Home slots: 1→8, 13→9, 22→7, 15→0, all free. Then 11 hashes to 7, which is taken, so it walks 8, 9 and stops at 10. Then 24 hashes to 9, taken; walks 10 (taken), wraps to 0 (taken), then 1, free.</p>
+                  <p class="small">Final table: slot 0 holds 15, 1 holds 24, 7 holds 22, 8 holds 1, 9 holds 13, 10 holds 11. Slots 2, 3, 4, 5, 6 are empty.</p>
+                  <p class="small" style="margin-bottom:0">So only position 2 is empty among the four offered. <strong>0</strong> holds 15, <strong>10</strong> holds 11, <strong>1</strong> holds 24. The trap is dropping the modulo wrap for key 24, which would stop the walk at slot 10 and leave slot 1 free.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2025 Set 1</span></div>
+              <div class="q-body">
+                <p>In a double hashing scheme, $$h_1(k) = k \bmod 11$$ and $$h_2(k) = 1 + (k \bmod 7)$$ are the auxiliary hash functions, and the table size $$m$$ is 11. The hash function for the $$i$$-th probe is $$[h_1(k) + i\,h_2(k)] \bmod m$$. The keys 63, 50, 25, 79, 67, 24 are inserted in that order. The slot at which key 24 gets stored is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 10</span></p>
+                  <p class="small">The first five keys take their home slots with no collision: 63→8, 50→6, 25→3, 79→2, 67→1.</p>
+                  <p class="small">For 24: $$h_1 = 24 \bmod 11 = 2$$ and $$h_2 = 1 + (24 \bmod 7) = 1 + 3 = 4$$. Probe 0 gives slot 2 (taken by 79). Probe 1 gives $$(2+4) \bmod 11 = 6$$ (taken by 50). Probe 2 gives $$(2+8) \bmod 11 = 10$$, which is free.</p>
+                  <p class="small" style="margin-bottom:0">The trap is answering 11 because slot 10 is the eleventh position. Slots are numbered from 0, so the eleventh slot has index 10.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2020</span></div>
+              <div class="q-body">
+                <p>Consider a double hashing scheme in which the primary hash function is $$h_1(k) = k \bmod 23$$ and the secondary hash function is $$h_2(k) = 1 + (k \bmod 19)$$. The table size is 23. The address returned by probe 1 in the probe sequence, assuming the probe sequence begins at probe 0, for key value $$k = 90$$ is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 13</span></p>
+                  <p class="small">$$h_1(90) = 90 \bmod 23 = 21$$. $$h_2(90) = 1 + (90 \bmod 19) = 1 + 14 = 15$$.</p>
+                  <p class="small">Probe 1 means $$i=1$$: $$(21 + 15) \bmod 23 = 36 \bmod 23 = 13$$.</p>
+                  <p class="small" style="margin-bottom:0">The page also checks that with $$m = 23$$ prime, every possible step from 1 to 19 is coprime to 23, so the walk always covers all 23 slots. That is why this scheme cannot get stuck.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2014 Set 3</span></div>
+              <div class="q-body">
+                <p>Consider a hash table with 100 slots. Collisions are resolved using chaining. Assuming simple uniform hashing, what is the probability that the first 3 slots are unfilled after the first 3 insertions?</p>
+                <ol class="choices">
+                  <li>$$(97 \times 97 \times 97)/100^3$$</li>
+                  <li>$$(99 \times 98 \times 97)/100^3$$</li>
+                  <li>$$(97 \times 96 \times 95)/100^3$$</li>
+                  <li>$$(97 \times 96 \times 95)/(3! \times 100^3)$$</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A — $$(97/100)^3$$</span></p>
+                  <p class="small">Slots 0, 1 and 2 must stay empty, so every one of the three insertions must land in one of the other 97 slots. Each insertion does that with probability 97/100, and under chaining the three insertions are independent, so the probabilities multiply.</p>
+                  <p class="small"><strong>B</strong> is the probability that three insertions land in distinct slots avoiding 0, 1, 2 — a different question, because here the insertions may share a slot. <strong>C</strong> additionally forbids repeats. <strong>D</strong> divides by 3!, which would matter only if the order of the insertions were irrelevant.</p>
+                  <p class="small" style="margin-bottom:0">The value is 0.912673, and the page computes it. Note that under open addressing the insertions would <em>not</em> be independent, and this product would be wrong.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2015 Set 2</span></div>
+              <div class="q-body">
+                <p>Which one of the following hash functions on integers will distribute keys most uniformly over 10 buckets numbered 0 to 9, for $$i$$ ranging from 0 to 2020?</p>
+                <ol class="choices">
+                  <li>$$h(i) = i^2 \bmod 10$$</li>
+                  <li>$$h(i) = i^3 \bmod 10$$</li>
+                  <li>$$h(i) = (11 i^2) \bmod 10$$</li>
+                  <li>$$h(i) = (12 i^2) \bmod 10$$</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: B — $$i^3 \bmod 10$$</span></p>
+                  <p class="small">Only the last digit matters. The squares of 0 to 9 end in 0, 1, 4, 9, 6, 5, 6, 9, 4, 1: six distinct residues, with 0, 1, 4 and 9 each produced twice. Buckets 2, 3, 7 and 8 are never used.</p>
+                  <p class="small">The cubes of 0 to 9 end in 0, 1, 8, 7, 4, 5, 6, 3, 2, 9: ten distinct residues, one each. Cubing is a bijection on the last digit; squaring is not.</p>
+                  <p class="small" style="margin-bottom:0"><strong>C</strong> reduces to $$i^2$$ and <strong>D</strong> to $$2i^2$$ modulo 10, so both are no better than A. The page counts 10 distinct residues for the cube and 6 for the square.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 1996</span></div>
+              <div class="q-body">
+                <p>An advantage of a chained hash table (external hashing) over the open addressing scheme is:</p>
+                <ol class="choices">
+                  <li>Worst case complexity of search operations is less</li>
+                  <li>Space used is less</li>
+                  <li>Deletion is easier</li>
+                  <li>None of the above</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: C — deletion is easier</span></p>
+                  <p class="small">In a chained table a slot's list is independent of every other slot, so unlinking a node cannot disturb any other key's search. In open addressing, emptying a slot breaks every probe walk that passed through it, which is why a tombstone is needed.</p>
+                  <p class="small"><strong>A</strong> is false: the worst case for chaining is a chain of length $$n$$, while open addressing is bounded by $$m$$ probes. <strong>B</strong> is false: chaining stores $$n$$ nodes plus $$m$$ pointers, open addressing stores exactly $$m$$ cells. <strong>D</strong> is therefore wrong.</p>
+                  <p class="small" style="margin-bottom:0">This is the one place where chaining is strictly better, and it is a correctness advantage rather than a speed one.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Hard</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A table of size $$m = 8$$ uses open addressing with the probe rule $$h(k,i) = (h'(k) + i^2) \bmod 8$$. Which of the following statements are TRUE?</p>
+                <ol class="choices">
+                  <li>Every slot of the table is reachable by some probe.</li>
+                  <li>Only three of the eight slots are reachable by the probe sequence.</li>
+                  <li>A key whose reachable slots are all occupied cannot be inserted even though free slots exist.</li>
+                  <li>With $$m = 11$$ instead, the first six probes are guaranteed to be distinct.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: B, C and D</span></p>
+                  <p class="small">The offsets $$i^2 \bmod 8$$ for $$i = 0,1,2,\ldots$$ are 0, 1, 4, 1, 0, 1, 4, 1, so only residues 0, 1 and 4 ever appear. <strong>B</strong> is true and <strong>A</strong> is false.</p>
+                  <p class="small">Because only three residues are reachable, a key can be locked out while five slots are empty. <strong>C</strong> is true, and it is the counterexample that defeats "quadratic probing always finds a free slot".</p>
+                  <p class="small" style="margin-bottom:0">For $$m = 11$$ prime, $$i^2 \equiv j^2$$ only when $$i \equiv j$$ or $$i \equiv -j$$, so $$i = 0 \ldots 5$$ give six distinct residues. <strong>D</strong> is true, and that is exactly the guarantee that makes prime $$m$$ with $$\alpha \le 1/2$$ safe. The page computes the reachable sets: 3 of 8, and 6 of 11.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A table of 7 slots uses $$h(k) = k \bmod 7$$ with linear probing. Keys 10, 3, 17, 24 are inserted in that order, so the table becomes slot 3: 10, slot 4: 3, slot 5: 17, slot 6: 24. Key 3 is then removed by writing the empty marker in slot 4. What happens when key 24 is searched for?</p>
+                <ol class="choices">
+                  <li>Found in slot 6 after four probes</li>
+                  <li>Reported absent after two probes</li>
+                  <li>Found in slot 6 after two probes</li>
+                  <li>The search loops for ever</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: B — reported absent after two probes</span></p>
+                  <p class="small">Search for 24 begins at home slot 3. Slot 3 holds 10, not 24, so it continues to slot 4. Slot 4 is now empty, and an empty slot is the signal that the key is not present, so the search stops: two probes, answer absent.</p>
+                  <p class="small">But 24 is sitting in slot 6. <strong>A</strong> describes the table before the deletion. <strong>C</strong> is impossible — the search has already stopped. <strong>D</strong> confuses this with a non-terminating probe sequence, which is a different failure.</p>
+                  <p class="small" style="margin-bottom:0">The fix is a tombstone: mark slot 4 as deleted rather than empty, so search walks over it and finds 24 at probe 4. The page performs both deletions and reports the two outcomes.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A hash table of 1000 slots holds 500 keys under open addressing with double hashing, and simple uniform hashing applies. Using the standard expected-cost formula, the expected number of probes for an <em>unsuccessful</em> search is ______. Give your answer to one decimal place.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 2.0</span></p>
+                  <p class="small">$$\alpha = n/m = 500/1000 = 0.5$$. For double hashing the expected unsuccessful cost is $$1/(1-\alpha) = 1/0.5 = 2.0$$.</p>
+                  <p class="small" style="margin-bottom:0">Under linear probing the same load factor would give $$\tfrac{1}{2}\left(1 + 1/(1-\alpha)^2\right) = 2.5$$, and under chaining $$1 + \alpha = 1.5$$. The scheme changes the answer, so read which one the stem names. The page measures 2.50 for linear probing at this load factor against a formula of 2.50.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which statement about the load factor $$\alpha$$ is correct?</p>
+                <ol class="choices">
+                  <li>Under chaining $$\alpha$$ can exceed 1; under open addressing it cannot reach 1.</li>
+                  <li>$$\alpha$$ is always at most 1 because it is a fraction.</li>
+                  <li>$$\alpha = m/n$$ is the number of slots per key.</li>
+                  <li>$$\alpha$$ must be an integer.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A</span></p>
+                  <p class="small">$$\alpha = n/m$$. Chaining puts keys outside the table, so $$n$$ may be far larger than $$m$$: GATE CSE 2015 Set 3's table of 25 slots holding 2000 elements has $$\alpha = 80$$. Open addressing puts each key in its own cell, so $$n \le m$$ always.</p>
+                  <p class="small"><strong>B</strong> is the misconception. <strong>C</strong> inverts the ratio. <strong>D</strong> confuses a ratio with a count — 9 keys in 7 slots gives $$\alpha = 9/7$$, not an integer.</p>
+                  <p class="small" style="margin-bottom:0">This is also the closest confused pair in the topic: $$\alpha$$ is a ratio of counts, while $$m$$ and $$n$$ are counts. Reading one for the other is the commonest arithmetic slip here.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A hash table stores $$n$$ keys chosen by an adversary who knows the hash function, in $$m$$ slots with $$n > m$$. Which single change gives the best guarantee against that adversary?</p>
+                <ol class="choices">
+                  <li>Use the division method with $$m$$ prime.</li>
+                  <li>Use the multiplication method with the golden-ratio constant.</li>
+                  <li>Choose the hash function at random from a universal family, after the keys are fixed.</li>
+                  <li>Increase $$m$$ until it exceeds $$n$$.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: C — universal hashing</span></p>
+                  <p class="small">A fixed function, however good, can be inverted: the adversary computes keys that share a slot and submits them. Randomising the choice of function removes that power, because the adversary must commit to the keys first. The guarantee is that for any two distinct keys at most a $$1/m$$ fraction of the family collides on them, so the expected chain length is $$n/m$$ whatever the keys.</p>
+                  <p class="small"><strong>A</strong> and <strong>B</strong> are the answers to a different question — spreading a random key set — and both are still deterministic. <strong>D</strong> avoids the stated condition $$n > m$$ rather than answering it.</p>
+                  <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2023 asked this with a malicious key generator, and the keyed answer was universal hashing. The page checks the $$1/m$$ bound exhaustively for $$p = 7$$, $$m = 3$$: the worst pair collides on 10 of 42 functions, against a bound of 14.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <button class="btn" data-pager-prev>Previous page</button>
+          <span class="small muted" data-pager-count>Page 1 of 3</span>
+          <button class="btn" data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION =========================== -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything below is on one screen. If you remember only this tab, you can attempt most hashing items.</p>
+        </div>
+
+        <div class="card">
+          <h3>Definitions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Home slot: $$h(k)$$.</li>
+            <li>Collision: distinct keys, same home slot.</li>
+            <li>Load factor: $$\alpha = n/m$$. A ratio, not a percentage.</li>
+            <li>Chaining = open hashing. Open addressing = closed hashing = probing.</li>
+            <li>Tombstone: a third slot state, between occupied and empty.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Probe rules</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Linear: $$(h'(k)+i) \bmod m$$. Primary clustering.</li>
+            <li>Quadratic: $$(h'(k)+c_1 i + c_2 i^2) \bmod m$$. Secondary clustering.</li>
+            <li>Double: $$(h_1(k)+i\,h_2(k)) \bmod m$$. No clustering.</li>
+            <li>Probe 0 is the home slot.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The four expected costs</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Chaining, unsuccessful: $$1+\alpha$$.</li>
+            <li>Chaining, successful: $$1+\alpha/2$$.</li>
+            <li>Linear, unsuccessful: $$\tfrac{1}{2}\left(1+\frac{1}{(1-\alpha)^2}\right)$$.</li>
+            <li>Linear, successful: $$\tfrac{1}{2}\left(1+\frac{1}{1-\alpha}\right)$$.</li>
+            <li>Double, unsuccessful: $$\frac{1}{1-\alpha}$$.</li>
+            <li>Double, successful: $$\frac{1}{\alpha}\ln\frac{1}{1-\alpha}$$.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The three conditions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Open addressing needs $$\alpha < 1$$.</li>
+            <li>Quadratic probing needs $$m$$ prime and $$\alpha \le 1/2$$ to guarantee a free slot.</li>
+            <li>Double hashing needs $$\gcd(h_2(k), m) = 1$$; a prime $$m$$ gives it for free.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Which scheme? Read for <em>list</em> or <em>probe</em>.</li>
+            <li>Count or estimate? Keys given → trace. Only $$n, m, \alpha$$ → formula.</li>
+            <li>A probe index? Substitute $$i$$, with probe 0 first.</li>
+            <li>Successful or unsuccessful search? Different formula, different trace.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Three sentences to keep</h3>
+          <p class="small" style="margin-bottom:0">Collisions are inevitable, so resolution is the design question. A probe walk must cover the table or keys are lost while space exists. Hashing is $$O(1)$$ on average and $$\Theta(n)$$ in the worst case, and every average formula is conditional on uniform hashing.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Numbers worth memorising</h3>
+          <p class="small" style="margin-bottom:0">At $$\alpha = 0.5$$: linear 2.5 probes unsuccessful, 1.5 successful; double 2.0 and 1.39; chaining 1.5 and 1.25. At $$\alpha = 0.9$$: linear 50.5 and 5.5; double 10 and 2.56; chaining 1.9 and 1.45. Linear probing is usable below about $$\alpha = 0.5$$ and expensive above 0.9.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES =========================== -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="src-list small">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> on gate2027.iitm.ac.in — supports the class-A classification and the verbatim Section 5 wording quoted in the Overview: "Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths."</li>
+            <li><strong>GATE 2027 Information Brochure</strong>, IIT Madras — supports the statement that the paper uses MCQ, MSQ and NAT types, that an MSQ may have more than one correct option, and that the 2027 syllabi were revised, which is why the syllabus was re-read for this run rather than assumed from the previous year.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">The syllabus was consulted for this run, not carried over. No claim about marks distribution or weightage is made anywhere in this lesson.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbooks</h3>
+          <ul class="src-list small">
+            <li><strong>Cormen, Leiserson, Rivest, Stein, <em>Introduction to Algorithms</em></strong>, Chapter 11 — the definitions of chaining and open addressing, the simple uniform hashing assumption, the three probe rules, universal hashing and its $$1/m$$ proof, and the expected-probe bounds. Supports scenes 2 to 9 and the four formulas.</li>
+            <li><strong>Knuth, <em>The Art of Computer Programming, Volume 3: Sorting and Searching</em></strong>, Section 6.4 — the classical derivations of the linear-probing cost formulas, including the squared denominator that expresses primary clustering. Supports scene 6.</li>
+            <li><strong>Rosen, <em>Discrete Mathematics and Its Applications</em></strong> — the pigeonhole principle, which is the reason collisions are unavoidable, and the counting used in the 97-over-100 item.</li>
+            <li><strong>Silberschatz, Korth, Sudarshan, <em>Database System Concepts</em></strong> — hash indices in a database, the connection between this lesson and the indexing lesson in the Databases subject.</li>
+            <li><strong>Goodrich and Tamassia, <em>Data Structures and Algorithms in Java</em></strong> — the tombstone treatment of deletion and the reachability conditions for quadratic probing. Supports scenes 7 and 8.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">These are cited as the standard treatments this lesson follows. No page numbers are given, because the editions differ.</p>
+        </div>
+
+        <div class="card">
+          <h3>Question sources used to identify previous-year questions</h3>
+          <ul class="src-list small">
+            <li><strong>ExamSIDE</strong> (questions.examside.com), GATE CSE "Hashing" topic page — the wording of the 2020, 2015 Set 3, 2015 Set 2, 2014 Set 1, 2014 Set 3 and 2005 items, with their keyed answers.</li>
+            <li><strong>GATE Overflow</strong> — the worked solutions for GATE CSE 2020 Question 23, GATE CSE 2025 Set 1 (key 24, answer 10) and GATE CSE 2026 Set 1 Question 14, used as an independent check on each trace.</li>
+            <li><strong>EduRev GATE CSE Hashing PYQ compilation</strong> — a third independent listing of the 2026 Set 1, 2026 Set 2, 2025 Set 1, 2023, 2022, 2020, 2015 Set 3, 2015 Set 2, 2014 Set 1, 2014 Set 3 and 1996 items, with keyed answers.</li>
+            <li><strong>GateAI PYQ index</strong> (trygateai.com) — used to confirm the year and paper of the 2026 and 2025 items and to cross-check the 2023 universal-hashing answer.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> These are coaching and practice sites, not the official GATE papers. A question on such a site is not thereby an official PYQ, which is why every PYQ here was cross-checked against at least two of the four sources. Where the sources disagree about a question number — the 2025 Set 1 double-hashing item is listed as Q55 by one source and Q65 by another — the paper and year are quoted and no question number is claimed.</p>
+        </div>
+
+        <div class="card">
+          <h3>What was verified, and how</h3>
+          <p class="small">Every load-bearing number in this lesson is computed and checked by the page itself. The check names are listed under "what was checked" in the Animation tab. In outline:</p>
+          <ul class="small">
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Pigeonhole: for every $$m$$ from 4 to 12 and every $$n$$ from $$m+1$$ to $$2m$$, twenty random key sets are inserted and the maximum chain length is confirmed to be at least $$\lceil n/m \rceil$$.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Chaining costs: measured at $$\alpha = 0.75$$ over 4000 absent keys and every stored key, and compared with $$1+\alpha$$ and $$1+\alpha/2$$.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Linear probing always terminates while $$\alpha < 1$$: checked for $$m$$ in 7, 11, 13, 17, 23 with 60 random key orders each.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Knuth's formula: measured unsuccessful probes at $$\alpha$$ = 0.5, 0.75 and 0.9 over six random tables of 2003 slots, and reported beside the formula.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Reachability: the quadratic-probing offset set is computed for $$m$$ = 8, 9, 11, 13, giving 3, 4, 6, 7 reachable residues; the double-hashing walk is computed for $$m = 8$$ with step 2, giving 4 of 8.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Universal hashing: for $$p = 7$$, $$m = 3$$, all 21 pairs of distinct keys against all 42 functions, confirming no pair collides on more than 14.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The tombstone: a four-key table is built, key 3 is deleted naively and then with a tombstone, and key 24 is confirmed unreachable in the first case and reachable at probe 4 in the second.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Every previous-year answer is recomputed: 2026 Set 1 (empty slots 2 to 6, only slot 2 among the options), 2026 Set 2 (longest chain 3), 2025 Set 1 (slot 10), 2020 (13), 2014 Set 1 (3, 0, 1), 2014 Set 3 (0.912673), 2015 Set 3 (80), 2015 Set 2 (10 distinct residues against 6).</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">What was not done: no browser rendered this page in this environment, so the claims about layout are structural checks and a geometry audit, not a screenshot. No audio file exists; the narration is a script plus optional browser speech synthesis. No claim is made about how often hashing appears in future papers.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var W = 900, H = 470;
+  var K = window.LessonKit;
+  var PR = window.Painters;
+  var P = null;
+
+/* ======================================================================
+   LAYER 1 - THE MODEL (hashing)
+   Pure data and pure functions. No drawing here. Nothing in this section
+   knows what a canvas is.
+   ====================================================================== */
+
+var CHECKS = [];
+function chk(name, pass, detail) { CHECKS.push({ name: name, pass: !!pass, detail: detail || '' }); }
+
+function mod(a, m) { return ((a % m) + m) % m; }
+function gcd(a, b) { while (b) { var t = a % b; a = b; b = t; } return a; }
+
+/* a 32-bit PRNG, so the random tables are reproducible from a fixed seed */
+var seed = 0x9e3779b9;
+function rnd() {
+  seed = (seed + 0x6d2b79f5) | 0;
+  var t = seed;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+function emptyTable(m) { var t = [], i; for (i = 0; i < m; i++) t.push(null); return t; }
+
+/* ---- chaining ---- */
+function chainTable(m) { var t = [], i; for (i = 0; i < m; i++) t.push([]); return t; }
+function chainPut(t, k) { t[mod(k, t.length)].push(k); }
+function chainStats(t) {
+  var mx = 0, mn = Infinity, sum = 0, i, L;
+  for (i = 0; i < t.length; i++) { L = t[i].length; if (L > mx) mx = L; if (L < mn) mn = L; sum += L; }
+  return { max: mx, min: mn, avg: sum / t.length };
+}
+
+/* ---- open addressing ---- */
+function lpPut(T, k) {
+  var m = T.length, h = mod(k, m), i, s;
+  for (i = 0; i < m; i++) { s = mod(h + i, m); if (T[s] === null) { T[s] = k; return { slot: s, probes: i + 1 }; } }
+  return null;
+}
+function lpGet(T, k) {
+  var m = T.length, h = mod(k, m), i, s;
+  for (i = 0; i < m; i++) {
+    s = mod(h + i, m);
+    if (T[s] === null) return { found: false, probes: i + 1 };
+    if (T[s] === k) return { found: true, probes: i + 1, slot: s };
+  }
+  return { found: false, probes: m };
+}
+function dhPut(T, k, h1, h2) {
+  var m = T.length, base = mod(h1(k), m), step = mod(h2(k), m), i, s;
+  if (step === 0) return null;
+  if (gcd(step, m) !== 1) return { error: 'step not coprime' };
+  for (i = 0; i < m; i++) { s = mod(base + i * step, m); if (T[s] === null) { T[s] = k; return { slot: s, probes: i + 1 }; } }
+  return null;
+}
+function qpReach(m) {
+  var seen = {}, i, c = 0;
+  for (i = 0; i < m; i++) seen[mod(i * i, m)] = 1;
+  for (i in seen) if (seen.hasOwnProperty(i)) c++;
+  return c;
+}
+
+/* ---- the four expected-cost formulas, as the lesson quotes them ---- */
+var F = {
+  chainU: function (a) { return 1 + a; },
+  chainS: function (a) { return 1 + a / 2; },
+  linU: function (a) { return 0.5 * (1 + 1 / Math.pow(1 - a, 2)); },
+  linS: function (a) { return 0.5 * (1 + 1 / (1 - a)); },
+  dblU: function (a) { return 1 / (1 - a); },
+  dblS: function (a) { return (1 / a) * Math.log(1 / (1 - a)); }
+};
+
+/* ---- the model checks: every load-bearing number in the lesson ---- */
+function buildChecks() {
+  var i, j, k, m, n, tr, ok, bad;
+
+  /* 1. pigeonhole: some slot always holds at least ceil(n/m) keys */
+  ok = true; bad = '';
+  for (m = 4; m <= 12; m++) {
+    for (n = m + 1; n <= 2 * m; n++) {
+      for (tr = 0; tr < 20; tr++) {
+        var t1 = chainTable(m);
+        for (i = 0; i < n; i++) chainPut(t1, i * 97 + tr * 13 + 1);
+        if (chainStats(t1).max < Math.ceil(n / m)) { ok = false; bad = 'm=' + m + ' n=' + n; }
+      }
+    }
+  }
+  chk('pigeonhole: some slot always holds at least ceil(n/m) keys', ok,
+    bad || 'checked every m from 4 to 12, every n from m+1 to 2m, 20 key sets each');
+
+  /* 2 and 3. chaining costs at alpha 0.75 */
+  var cm = 997, cn = Math.round(0.75 * cm), ct = chainTable(cm), ckeys = [];
+  for (i = 0; i < cn; i++) { k = 1 + Math.floor(rnd() * 1e9); ckeys.push(k); chainPut(ct, k); }
+  var tot = 0, trials = 4000;
+  for (j = 0; j < trials; j++) tot += 1 + ct[mod(1 + Math.floor(rnd() * 1e9), cm)].length;
+  var uns = tot / trials;
+  var s2 = 0;
+  for (i = 0; i < cn; i++) s2 += ct[mod(ckeys[i], cm)].indexOf(ckeys[i]) + 1;
+  var suc = s2 / cn;
+  chk('chaining: unsuccessful search costs 1 + alpha', Math.abs(uns - F.chainU(0.75)) < 0.15,
+    'measured ' + uns.toFixed(3) + ' against 1 + alpha = ' + F.chainU(0.75));
+  chk('chaining: successful search costs 1 + alpha/2', Math.abs(suc - F.chainS(0.75)) < 0.06,
+    'measured ' + suc.toFixed(3) + ' against 1 + alpha/2 = ' + F.chainS(0.75));
+
+  /* 4. linear probing always finds a slot while alpha < 1 */
+  ok = true; bad = '';
+  [7, 11, 13, 17, 23].forEach(function (mm) {
+    for (var t2 = 0; t2 < 60; t2++) {
+      var T = emptyTable(mm);
+      for (var q = 0; q < mm - 1; q++) if (!lpPut(T, 1 + Math.floor(rnd() * 1e6))) { ok = false; bad = 'm=' + mm; }
+    }
+  });
+  chk('linear probing always finds a slot while alpha < 1', ok,
+    bad || 'm = 7, 11, 13, 17, 23 with 60 random key orders each, inserting m-1 keys');
+
+  /* 5. GATE CSE 2026 Set 1 */
+  var T5 = emptyTable(11), k5 = [1, 13, 22, 15, 11, 24];
+  k5.forEach(function (kk) {
+    var base = mod(kk + 7, 11);
+    for (var q = 0; q < 11; q++) { var s = mod(base + q, 11); if (T5[s] === null) { T5[s] = kk; break; } }
+  });
+  var empt = [];
+  for (i = 0; i < 11; i++) if (T5[i] === null) empt.push(i);
+  chk('2026 Set 1: the empty slots are 2, 3, 4, 5, 6', empt.join(',') === '2,3,4,5,6',
+    'got ' + empt.join(','));
+  chk('2026 Set 1: only slot 2 is empty among 0, 10, 2, 1',
+    T5[0] !== null && T5[10] !== null && T5[2] === null && T5[1] !== null,
+    'slot 0 = ' + T5[0] + ', 1 = ' + T5[1] + ', 10 = ' + T5[10]);
+
+  /* 6. GATE CSE 2014 Set 1 */
+  var t6 = chainTable(9);
+  [5, 28, 19, 15, 20, 33, 12, 17, 10].forEach(function (kk) { chainPut(t6, kk); });
+  var s6 = chainStats(t6);
+  chk('2014 Set 1: maximum 3, minimum 0, average 1', s6.max === 3 && s6.min === 0 && s6.avg === 1,
+    'got ' + s6.max + ', ' + s6.min + ', ' + s6.avg);
+
+  /* 7. GATE CSE 2015 Set 3 */
+  chk('2015 Set 3: load factor of 2000 keys in 25 slots is 80', 2000 / 25 === 80, '2000 / 25 = 80');
+
+  /* 8. GATE CSE 2020 */
+  var p20 = mod(mod(90, 23) + 1 * (1 + mod(90, 19)), 23);
+  chk('2020: probe 1 for key 90 is slot 13', p20 === 13,
+    'h1 = 21, h2 = 15, probe 1 = (21 + 15) mod 23 = ' + p20);
+
+  /* 9. GATE CSE 2025 Set 1 */
+  var T9 = emptyTable(11), r9 = null;
+  [63, 50, 25, 79, 67, 24].forEach(function (kk) {
+    r9 = dhPut(T9, kk, function (x) { return mod(x, 11); }, function (x) { return 1 + mod(x, 7); });
+  });
+  chk('2025 Set 1: key 24 lands in slot 10', r9 && r9.slot === 10,
+    r9 ? 'slot ' + r9.slot + ' after ' + r9.probes + ' probes' : 'insertion failed');
+
+  /* 10. GATE CSE 2014 Set 3 */
+  chk('2014 Set 3: the probability is (97/100)^3 = 0.912673',
+    Math.abs(Math.pow(97 / 100, 3) - 0.912673) < 1e-12, Math.pow(0.97, 3).toFixed(6));
+
+  /* 11. GATE CSE 2026 Set 2 */
+  var t11 = chainTable(9);
+  [5, 28, 19, 15, 26, 33, 12, 17, 10].forEach(function (kk) { chainPut(t11, kk); });
+  chk('2026 Set 2: the longest chain is 3', chainStats(t11).max === 3, 'maximum ' + chainStats(t11).max);
+
+  /* 12 and 13. coprimality */
+  ok = true;
+  for (i = 0; i <= 500; i++) if (gcd(1 + mod(i, 19), 23) !== 1) ok = false;
+  chk('every step 1 + (k mod 19) is coprime to the prime table size 23', ok,
+    'all steps lie in 1 to 19, and 23 is prime');
+  var reach8 = {}, c8 = 0;
+  for (i = 0; i < 8; i++) reach8[mod(i * 2, 8)] = 1;
+  for (i in reach8) if (reach8.hasOwnProperty(i)) c8++;
+  chk('double hashing with m = 8 and step 2 reaches only 4 of 8 slots', c8 === 4, 'reachable count ' + c8);
+
+  /* 14. quadratic probing reachability */
+  var r8 = qpReach(8), r9q = qpReach(9), r11 = qpReach(11), r13 = qpReach(13);
+  chk('quadratic offsets i^2 reach only 3 of 8 slots at m = 8', r8 === 3, 'm = 8 gives ' + r8);
+  chk('quadratic offsets reach (m+1)/2 residues at prime m', r11 === 6 && r13 === 7,
+    'm = 11 gives ' + r11 + ', m = 13 gives ' + r13 + ', m = 9 gives ' + r9q);
+
+  /* 15 and 16. the tombstone */
+  var T15 = emptyTable(7), before, naive, tomb, T16 = emptyTable(7);
+  [10, 3, 17, 24].forEach(function (kk) { lpPut(T15, kk); });
+  before = lpGet(T15, 24);
+  T15[4] = null;                                  /* naive deletion of key 3 */
+  naive = lpGet(T15, 24);
+  [10, 3, 17, 24].forEach(function (kk) { lpPut(T16, kk); });
+  T16[4] = 'DELETED';                             /* the tombstone */
+  tomb = lpGet(T16, 24);
+  chk('naive deletion makes a present key unreachable', before.found && !naive.found,
+    'key 24 found before the deletion, absent after it');
+  chk('a tombstone keeps the same key reachable at probe 4', tomb.found && tomb.probes === 4,
+    'found at probe ' + tomb.probes);
+
+  /* 17. primary clustering costs more than double hashing */
+  function meanUnsucc(T) {
+    var mm = T.length, tt = 0, a, b, s;
+    for (a = 0; a < mm; a++) { var pr = 0; for (b = 0; b < mm; b++) { s = mod(a + b, mm); pr++; if (T[s] === null) break; } tt += pr; }
+    return tt / mm;
+  }
+  var m17 = 997, n17 = Math.round(0.75 * m17), Lp = emptyTable(m17), Dh = emptyTable(m17);
+  var hh1 = function (x) { return mod(x, m17); }, hh2 = function (x) { return 1 + mod(x, m17 - 1); };
+  for (i = 0; i < n17; i++) { k = 1 + Math.floor(rnd() * 1e9); lpPut(Lp, k); dhPut(Dh, k, hh1, hh2); }
+  var pl = meanUnsucc(Lp), pd = meanUnsucc(Dh);
+  chk('linear probing costs more probes than double hashing at alpha 0.75', pl > 1.6 * pd,
+    'linear ' + pl.toFixed(2) + ' against double ' + pd.toFixed(2) + ' probes');
+
+  /* 18. universal hashing: the 1/m bound, exhaustively */
+  var p18 = 7, m18 = 3, fam = p18 * (p18 - 1), bound = fam / m18, worst = 0, badPair = '';
+  for (var k1 = 1; k1 < p18; k1++) {
+    for (var k2 = k1 + 1; k2 < p18; k2++) {
+      var c18 = 0;
+      for (var a18 = 1; a18 < p18; a18++) {
+        for (var b18 = 0; b18 < p18; b18++) {
+          if (mod(mod(a18 * k1 + b18, p18), m18) === mod(mod(a18 * k2 + b18, p18), m18)) c18++;
+        }
+      }
+      if (c18 > worst) worst = c18;
+      if (c18 > bound) badPair = 'keys ' + k1 + ' and ' + k2 + ': ' + c18;
+    }
+  }
+  chk('universal family: at most 1/m of the functions collide on any key pair', badPair === '',
+    'worst pair collides on ' + worst + ' of ' + fam + ' functions; the bound is ' + bound);
+
+  /* 19. 20. 21. Knuth's formula, measured on random tables */
+  function measureLin(alpha) {
+    var mm = 2003, tables = 6, nn = Math.round(alpha * mm), tt = 0, a, b, s, T, pr;
+    for (var q = 0; q < tables; q++) {
+      T = emptyTable(mm);
+      for (a = 0; a < nn; a++) lpPut(T, 1 + Math.floor(rnd() * 1e9));
+      for (b = 0; b < mm; b++) {
+        pr = 0;
+        for (var z = 0; z < mm; z++) { s = mod(b + z, mm); pr++; if (T[s] === null) break; }
+        tt += pr;
+      }
+    }
+    return tt / (mm * tables);
+  }
+  var a05 = measureLin(0.5), a75 = measureLin(0.75), a90 = measureLin(0.9);
+  chk('linear probing at alpha 0.5 measures near 2.5', Math.abs(a05 / F.linU(0.5) - 1) < 0.2,
+    'measured ' + a05.toFixed(2) + ', formula ' + F.linU(0.5).toFixed(2));
+  chk('linear probing at alpha 0.75 measures near 8.5', Math.abs(a75 / F.linU(0.75) - 1) < 0.2,
+    'measured ' + a75.toFixed(2) + ', formula ' + F.linU(0.75).toFixed(2));
+  chk('linear probing at alpha 0.9 measures near 50.5', Math.abs(a90 / F.linU(0.9) - 1) < 0.2,
+    'measured ' + a90.toFixed(2) + ', formula ' + F.linU(0.9).toFixed(2));
+
+  /* 22. successful is cheaper than unsuccessful */
+  var m22 = 503, n22 = 300, T22 = emptyTable(m22), keys22 = [];
+  for (i = 0; i < n22; i++) { k = 1 + Math.floor(rnd() * 1e9); keys22.push(k); lpPut(T22, k); }
+  var s22 = 0;
+  keys22.forEach(function (kk) { s22 += lpGet(T22, kk).probes; });
+  var suc22 = s22 / n22, u22 = 0;
+  for (j = 0; j < 5000; j++) u22 += lpGet(T22, 1 + Math.floor(rnd() * 1e9)).probes;
+  chk('a successful search costs less than an unsuccessful one', suc22 < u22 / 5000,
+    'successful ' + suc22.toFixed(2) + ' against unsuccessful ' + (u22 / 5000).toFixed(2));
+
+  /* 23. the 2015 Set 2 uniformity count */
+  function distinctRes(f) { var seen = {}, c = 0; for (i = 0; i <= 2020; i++) seen[f(i)] = 1; for (var q in seen) if (seen.hasOwnProperty(q)) c++; return c; }
+  var dcube = distinctRes(function (x) { return mod(x * x * x, 10); });
+  var dsquare = distinctRes(function (x) { return mod(x * x, 10); });
+  chk('i^3 mod 10 hits all ten buckets and i^2 mod 10 hits six', dcube === 10 && dsquare === 6,
+    'cube ' + dcube + ' distinct residues, square ' + dsquare);
+
+  /* 24. the worst case */
+  var t24 = chainTable(4);
+  for (i = 0; i < 40; i++) chainPut(t24, i * 4);
+  chk('a hostile key set puts all n keys in one chain', chainStats(t24).max === 40,
+    'chain length 40 for n = 40');
+
+  /* 25. unlinking from a chain disturbs nothing else */
+  var t25 = chainTable(5);
+  [3, 8, 13, 21, 4].forEach(function (kk) { chainPut(t25, kk); });
+  var list25 = t25[mod(13, 5)];
+  list25.splice(list25.indexOf(13), 1);
+  chk('unlinking a key from a chain leaves every other key findable',
+    t25[mod(21, 5)].indexOf(21) >= 0 && t25[mod(3, 5)].indexOf(3) >= 0 && t25[mod(4, 5)].indexOf(4) >= 0,
+    'the three surviving keys are still in their chains');
+}
+
+buildChecks();
+
+
+/* ======================================================================
+   LAYER 2 - THE DRAWING
+   Every scene is a pure function of the lesson clock. Geometry carries the
+   mathematics: a slot is a real slot, a walk is a real walk, and every number
+   printed is a number the model computed.
+   ====================================================================== */
+
+var PAL = window.Painters.PAL;
+
+function b(t, s, d) { var p = (t - s) / d; return p < 0 ? 0 : p > 1 ? 1 : p; }
+function ease(p) { return K.ease(p); }
+
+function bg(P) {
+  P.rect(0, 0, W, H, { fill: '#ffffff' });
+  P.rect(0, 0, W, 52, { fill: PAL.surface2 });
+  P.line(0, 52, W, 52, { stroke: PAL.border });
+}
+
+function head(P, kicker, title) {
+  P.text(24, 12, kicker.toUpperCase(), { size: 10, mono: true, color: PAL.accent });
+  P.text(24, 26, title, { size: 17, bold: true, color: PAL.ink });
+}
+
+function panelBox(P, x, y, w, h, title, accent) {
+  P.rect(x, y, w, h, { fill: '#ffffff', stroke: PAL.border, radius: 10, sw: 1 });
+  if (title) P.text(x + 12, y + 9, title, { size: 11, mono: true, color: accent || PAL.dim });
+}
+
+/* stacked text: never overlaps, because each step exceeds one line box */
+function stack(P, x, y, items, extra) {
+  var yy = y, i, it, sz, step;
+  for (i = 0; i < items.length; i++) {
+    it = items[i];
+    sz = it.size || 11;
+    P.text(x, yy, it.s, { size: sz, mono: it.mono, color: it.color || PAL.ink, bold: it.bold, align: it.align });
+    step = it.step || Math.round(sz * 1.12) + 6 + (extra || 0);
+    yy += step;
+  }
+  return yy;
+}
+
+/* a row of slots. vals[i] is the key, or null for empty. marks[i] is a fill. */
+function slotRow(P, x0, y0, cw, ch, vals, o) {
+  o = o || {};
+  for (var i = 0; i < vals.length; i++) {
+    var x = x0 + i * cw;
+    var v = vals[i];
+    var fill = '#ffffff';
+    if (o.mark && o.mark[i]) fill = o.mark[i];
+    else if (v === 'DELETED') fill = PAL.warnDim;
+    else if (v !== null) fill = o.occupied || '#ffffff';
+    P.rect(x, y0, cw - 4, ch, { fill: fill, stroke: PAL.border, radius: 6 });
+    P.text(x + (cw - 4) / 2, y0 + 3, String(i), { size: 9, mono: true, color: PAL.faint, align: 'center' });
+    if (v === 'DELETED') {
+      P.text(x + (cw - 4) / 2, y0 + 17, 'D', { size: 12, mono: true, color: PAL.warn, align: 'center', bold: true });
+    } else if (v !== null) {
+      P.text(x + (cw - 4) / 2, y0 + 17, String(v), { size: o.size || 13, mono: true, color: o.color || PAL.ink, align: 'center', bold: true });
+    }
+  }
+}
+
+/* ======================================================================
+   SCENE 1 - from direct addressing to a hash table
+   ====================================================================== */
+function sceneDirect(P, t) {
+  head(P, 'scene 1', 'From direct addressing to a hash table');
+
+  panelBox(P, 40, 74, 390, 132, 'a direct-address table: the key is the index');
+  var dv = [0, null, 2, null, null, 5, null, 7];
+  var dm = {};
+  for (var q = 0; q < 8; q++) if (dv[q] !== null) dm[q] = '#eef7f4';
+  slotRow(P, 52, 100, 45, 38, dv, { mark: dm, size: 12 });
+  stack(P, 52, 148, [
+    { s: 'insert, search, delete: one array access each', size: 10, color: PAL.dim },
+    { s: 'no search, no comparison, no collisions', size: 10, color: PAL.accent, mono: true }
+  ], 0);
+
+  if (t > 6) {
+    panelBox(P, 40, 218, 390, 118, 'but the key universe is far bigger');
+    P.rect(52, 246, 366, 30, { fill: PAL.surface2, stroke: PAL.border, radius: 4 });
+    for (var i = 0; i < 40; i++) P.line(52 + i * 9.15, 246, 52 + i * 9.15, 276, { stroke: '#ffffff', sw: 1 });
+    [4, 17, 31].forEach(function (c) {
+      P.rect(53 + c * 9.15, 248, 7, 26, { fill: PAL.accent, radius: 2 });
+    });
+    stack(P, 52, 286, [
+      { s: 'a 32-bit key universe needs 2^32 slots: 4,294,967,296', size: 10, color: PAL.dim },
+      { s: 'whether you store 3 keys or 3 million', size: 10, color: PAL.dim }
+    ], 0);
+  }
+
+  if (t > 14) {
+    panelBox(P, 40, 348, 390, 100, 'what we keep instead');
+    stack(P, 52, 374, [
+      { s: 'm slots, n keys, and one function h', size: 11, mono: true, color: PAL.ink },
+      { s: 'h(k) lands in 0 .. m-1: the home slot', size: 11, mono: true, color: PAL.accent },
+      { s: 'the table is sized for n, not for the universe', size: 10, color: PAL.dim }
+    ], 0);
+  }
+
+  panelBox(P, 452, 74, 432, 210, 'the three quantities');
+  stack(P, 466, 104, [
+    { s: '|U|  every possible key: the universe', size: 11, mono: true, color: PAL.ink },
+    { s: 'm    slots in the table: the table size', size: 11, mono: true, color: PAL.ink },
+    { s: 'n    keys stored now: the count', size: 11, mono: true, color: PAL.ink },
+    { s: 'alpha = n / m   the load factor', size: 11, mono: true, color: PAL.accent },
+    { s: 'm is a design choice; n is what you have.', size: 10, color: PAL.dim },
+    { s: 'the table costs m cells, used or not.', size: 10, color: PAL.dim }
+  ], 4);
+
+  if (t > 20) {
+    panelBox(P, 452, 296, 432, 152, 'collisions are inevitable', PAL.invalid);
+    stack(P, 466, 324, [
+      { s: 'with |U| larger than m, two keys must', size: 11, color: PAL.ink },
+      { s: 'share a slot. That is the pigeonhole', size: 11, color: PAL.ink },
+      { s: 'principle, and it holds for every h.', size: 11, color: PAL.ink },
+      { s: 'so the question is never avoidance,', size: 11, color: PAL.invalid },
+      { s: 'it is resolution and even spread.', size: 11, color: PAL.accent, mono: true }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 2 - the hash function
+   ====================================================================== */
+function sceneFunction(P, t) {
+  head(P, 'scene 2', 'A hash function maps a big key to a small slot');
+
+  panelBox(P, 40, 74, 390, 150, 'division method', PAL.accent);
+  stack(P, 52, 100, [
+    { s: 'h(k) = k mod m', size: 14, mono: true, color: PAL.accent, bold: true },
+    { s: 'one remainder; cheap on any hardware', size: 10, color: PAL.dim },
+    { s: 'm = 11: keys 22, 34, 46 give 0, 1, 2', size: 10, mono: true, color: PAL.ink },
+    { s: 'quality depends entirely on m', size: 10, color: PAL.ink }
+  ], 0);
+
+  if (t > 7) {
+    panelBox(P, 40, 236, 390, 120, 'multiplication method');
+    stack(P, 52, 262, [
+      { s: 'h(k) = floor( m * frac(k*A) )', size: 12, mono: true, color: PAL.ink },
+      { s: 'A = (sqrt 5 - 1)/2, about 0.618034', size: 10, mono: true, color: PAL.dim },
+      { s: 'the mixing happens before scaling,', size: 10, color: PAL.ink },
+      { s: 'so even a power-of-two m behaves.', size: 10, color: PAL.ink }
+    ], 0);
+  }
+
+  if (t > 14) {
+    panelBox(P, 40, 368, 390, 80, 'what the function owes you');
+    stack(P, 52, 394, [
+      { s: 'fast, and spread any key set you meet', size: 11, mono: true, color: PAL.accent }
+    ], 0);
+  }
+
+  panelBox(P, 452, 74, 432, 200, 'm = 2^p reads only the low bits', PAL.invalid);
+  var bits = 16, bw = 24, bx = 466, by = 106;
+  for (var i = 0; i < bits; i++) {
+    var low = i >= bits - 4;
+    P.rect(bx + i * bw, by, bw - 3, 30, { fill: low ? PAL.invalidDim : '#ffffff', stroke: PAL.border, radius: 3 });
+    P.text(bx + i * bw + (bw - 3) / 2, by + 9, String(bits - 1 - i), { size: 8, mono: true, color: low ? PAL.invalid : PAL.faint, align: 'center' });
+  }
+  stack(P, 466, 148, [
+    { s: 'the last 4 bits are the whole of k mod 16', size: 10, mono: true, color: PAL.invalid },
+    { s: 'a year, a prefix, a batch id: invisible', size: 10, color: PAL.dim },
+    { s: 'all keys sharing those 4 bits collide', size: 10, color: PAL.dim },
+    { s: 'so choose m prime, and not near 2^p', size: 11, mono: true, color: PAL.accent }
+  ], 0);
+
+  if (t > 15) {
+    panelBox(P, 452, 286, 432, 162, 'GATE CSE 2015 Set 2', PAL.accent);
+    stack(P, 466, 314, [
+      { s: 'which of four functions spreads 0..2020', size: 10, color: PAL.ink },
+      { s: 'most uniformly over ten buckets?', size: 10, color: PAL.ink },
+      { s: 'i^3 mod 10 hits all ten residues', size: 11, mono: true, color: PAL.valid },
+      { s: 'i^2 mod 10 hits only six', size: 11, mono: true, color: PAL.invalid },
+      { s: 'answer: i^3 mod 10', size: 11, mono: true, color: PAL.accent, bold: true }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 3 - the adversary, and universal hashing
+   ====================================================================== */
+function sceneUniversal(P, t) {
+  head(P, 'scene 3', 'An adversary defeats any fixed function');
+
+  panelBox(P, 40, 74, 390, 170, 'six hostile keys, one slot', PAL.invalid);
+  var hostile = [3, null, null, 10, null, null, null];
+  var marks = {};
+  marks[3] = '#fbe4e2';
+  slotRow(P, 52, 100, 52, 38, hostile, { mark: marks, size: 12, color: PAL.invalid });
+  var cx = 52 + 3 * 52 + 24;
+  var chain = ['19', '26', '33', '40', '47'];
+  P.line(cx, 138, cx, 148, { stroke: PAL.invalid, sw: 1.5 });
+  for (var i = 0; i < chain.length; i++) {
+    if (t < 2 + i * 0.7) break;
+    var nx = 196 + i * 42;
+    if (i > 0) P.arrow(nx - 12, 156, nx - 3, 156, { stroke: PAL.invalid, sw: 1.4, head: 5 });
+    P.rect(nx, 148, 34, 16, { fill: PAL.invalidDim, stroke: PAL.invalid, radius: 3 });
+    P.text(nx + 17, 150, chain[i], { size: 10, mono: true, color: PAL.invalid, align: 'center' });
+  }
+  if (t > 6) {
+    stack(P, 54, 182, [
+      { s: 'all six keys were chosen to hash to slot 3,', size: 10, color: PAL.dim },
+      { s: 'because the function is published in the code.', size: 10, color: PAL.dim },
+      { s: 'one list, six nodes: six comparisons per search.', size: 10, mono: true, color: PAL.invalid },
+      { s: 'no deterministic h can prevent this.', size: 10, color: PAL.ink }
+    ], 0);
+  }
+
+  if (t > 9) {
+    panelBox(P, 40, 256, 390, 192, 'universal hashing', PAL.accent);
+    stack(P, 52, 282, [
+      { s: 'h(a,b)(k) = ((a k + b) mod p) mod m', size: 11, mono: true, color: PAL.accent, bold: true },
+      { s: 'p prime, bigger than every key', size: 10, color: PAL.dim },
+      { s: 'a in 1..p-1, b in 0..p-1, drawn at random', size: 10, color: PAL.dim },
+      { s: 'the function is chosen after the keys', size: 10, color: PAL.ink },
+      { s: 'for distinct keys, at most 1/m of the', size: 10, color: PAL.ink },
+      { s: 'family collides: expected chain n/m', size: 10, mono: true, color: PAL.valid }
+    ], 0);
+  }
+
+  if (t > 16) {
+    panelBox(P, 452, 74, 432, 180, 'the bound, checked exhaustively');
+    stack(P, 466, 102, [
+      { s: 'p = 7, m = 3: the family has 42 members', size: 10, mono: true, color: PAL.ink },
+      { s: 'worst key pair collides on 10 of 42', size: 10, mono: true, color: PAL.ink },
+      { s: 'the bound is 42/3 = 14', size: 10, mono: true, color: PAL.valid },
+      { s: 'so 10 <= 14 holds for every pair', size: 10, mono: true, color: PAL.valid },
+      { s: 'no key set can be bad on purpose.', size: 11, color: PAL.accent }
+    ], 0);
+  }
+
+  if (t > 22) {
+    panelBox(P, 452, 266, 432, 182, 'GATE CSE 2023, and 2022');
+    stack(P, 466, 294, [
+      { s: '2023: k keys, m slots, k > m, adversary', size: 10, color: PAL.ink },
+      { s: 'picks the keys. Answer: universal hashing.', size: 10, mono: true, color: PAL.accent },
+      { s: 'not a prime modulus: that spreads a', size: 10, color: PAL.dim },
+      { s: 'random key set, not a chosen one.', size: 10, color: PAL.dim },
+      { s: '2022: odd keys to h1, even keys to h2.', size: 10, color: PAL.ink },
+      { s: 'expected keys per slot is still n/m.', size: 10, mono: true, color: PAL.accent }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 4 - chaining
+   ====================================================================== */
+function sceneChaining(P, t) {
+  head(P, 'scene 4', 'Chaining: a list at every slot');
+
+  panelBox(P, 40, 74, 430, 180, 'nine keys, seven slots, alpha = 1.29', PAL.accent);
+  var chains = [[7, 14], [], [23], [3, 10], [18], [5], [20, 27]];
+  var heads = [7, null, 23, 3, 18, 5, 20];
+  var cw = 58, x0 = 54, y0 = 100;
+  for (var i = 0; i < 7; i++) {
+    var x = x0 + i * cw;
+    P.rect(x, y0, cw - 6, 26, { fill: '#ffffff', stroke: PAL.border, radius: 4 });
+    P.text(x + (cw - 6) / 2, y0 + 3, String(i), { size: 9, mono: true, color: PAL.faint, align: 'center' });
+    if (heads[i] !== null) {
+      P.text(x + (cw - 6) / 2, y0 + 13, String(heads[i]), { size: 11, mono: true, color: PAL.ink, align: 'center', bold: true });
+    }
+    for (var j = 1; j < chains[i].length; j++) {
+      if (t < 3 + j * 1.2) continue;
+      var ny = y0 + 28 + (j - 1) * 22;
+      P.line(x + (cw - 6) / 2, ny - 2, x + (cw - 6) / 2, ny, { stroke: PAL.border });
+      P.rect(x, ny, cw - 6, 18, { fill: PAL.accentDim, stroke: PAL.accent, radius: 3 });
+      P.text(x + (cw - 6) / 2, ny + 3, String(chains[i][j]), { size: 10, mono: true, color: PAL.accent, align: 'center' });
+    }
+  }
+  if (t > 8) {
+    stack(P, 54, 216, [
+      { s: 'alpha = n/m = 9/7 = 1.29: more keys than slots is fine', size: 10, mono: true, color: PAL.accent }
+    ], 0);
+  }
+
+  if (t > 12) {
+    panelBox(P, 40, 266, 430, 182, 'the two search costs, under uniform hashing', PAL.accent);
+    stack(P, 52, 292, [
+      { s: 'unsuccessful: walk the whole list', size: 10, color: PAL.ink },
+      { s: '  cost = 1 + alpha', size: 11, mono: true, color: PAL.invalid },
+      { s: 'successful: walk half of it on average', size: 10, color: PAL.ink },
+      { s: '  cost = 1 + alpha/2', size: 11, mono: true, color: PAL.valid },
+      { s: 'both are Theta(1 + alpha), so Theta(1)', size: 10, color: PAL.dim },
+      { s: 'when n is proportional to m', size: 10, color: PAL.dim }
+    ], 0);
+  }
+
+  panelBox(P, 486, 74, 398, 180, 'the load factor', PAL.accent);
+  stack(P, 500, 102, [
+    { s: 'alpha = n / m', size: 12, mono: true, color: PAL.accent, bold: true },
+    { s: 'the average number of keys per slot', size: 10, color: PAL.dim },
+    { s: 'with chaining it can exceed 1', size: 10, color: PAL.ink },
+    { s: 'GATE CSE 2015 Set 3: 2000 keys, 25 slots', size: 10, color: PAL.ink },
+    { s: 'alpha = 2000/25 = 80', size: 11, mono: true, color: PAL.valid }
+  ], 0);
+
+  if (t > 18) {
+    panelBox(P, 486, 266, 398, 182, 'GATE CSE 2014 Set 1');
+    stack(P, 500, 294, [
+      { s: 'nine keys, nine slots, chaining', size: 10, color: PAL.ink },
+      { s: 'slot 1: 28, 19, 10     slot 6: 15, 33', size: 10, mono: true, color: PAL.ink },
+      { s: 'four slots hold one key each', size: 10, color: PAL.dim },
+      { s: 'slots 0, 4, 7 are empty', size: 10, color: PAL.dim },
+      { s: 'max 3, min 0, average 9/9 = 1', size: 11, mono: true, color: PAL.accent }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 5 - open addressing, linear probing
+   ====================================================================== */
+function sceneOpen(P, t) {
+  head(P, 'scene 5', 'Open addressing: the keys live in the table');
+
+  panelBox(P, 40, 90, 820, 112, 'linear probing: m = 11, h(x) = (x + 7) mod 11', PAL.accent);
+  var vals = new Array(11);
+  for (var i = 0; i < 11; i++) vals[i] = null;
+  vals[8] = 1; vals[9] = 13; vals[7] = 22; vals[0] = 15;
+  if (t > 9) { vals[10] = 11; }
+  if (t > 13) { vals[1] = 24; }
+  var marks = {};
+  if (t > 9 && t <= 13) marks[10] = PAL.accentDim;
+  if (t > 13) { marks[10] = PAL.accentDim; marks[1] = PAL.accentDim; }
+  slotRow(P, 54, 124, 71, 42, vals, { mark: marks, size: 13 });
+
+  stack(P, 40, 214, [
+    { s: 'key 1 -> 8, 13 -> 9, 22 -> 7, 15 -> 0: all free on probe 0', size: 10, mono: true, color: t > 3 ? PAL.ink : '#ffffff' }
+  ], 0);
+  if (t > 7) {
+    stack(P, 40, 232, [
+      { s: 'key 11 -> 7 taken, 8 taken, 9 taken, 10 free -> slot 10', size: 10, mono: true, color: PAL.warn }
+    ], 0);
+  }
+  if (t > 12) {
+    stack(P, 40, 250, [
+      { s: 'key 24 -> 9 taken, 10 taken, 0 taken, 1 free -> slot 1', size: 10, mono: true, color: PAL.invalid }
+    ], 0);
+  }
+
+  panelBox(P, 40, 276, 400, 172, 'what the table looks like', PAL.accent);
+  stack(P, 52, 302, [
+    { s: 'occupied: 0, 1, 7, 8, 9, 10', size: 11, mono: true, color: PAL.ink },
+    { s: 'empty:    2, 3, 4, 5, 6', size: 11, mono: true, color: PAL.valid },
+    { s: 'alpha = 6/11, so six cells of eleven', size: 10, color: PAL.dim },
+    { s: 'every key owns exactly one cell', size: 10, color: PAL.dim },
+    { s: 'so alpha can never reach 1 here', size: 10, color: PAL.accent }
+  ], 0);
+
+  if (t > 16) {
+    panelBox(P, 460, 276, 400, 172, 'GATE CSE 2026 Set 1', PAL.accent);
+    stack(P, 472, 302, [
+      { s: 'which of 0, 10, 2, 1 is empty?', size: 10, color: PAL.ink },
+      { s: 'only slot 2. 0 holds 15, 10 holds 11,', size: 10, mono: true, color: PAL.ink },
+      { s: 'and 1 holds 24.', size: 10, mono: true, color: PAL.ink },
+      { s: 'the wrap at the end of the table is what', size: 10, color: PAL.dim },
+      { s: 'puts 24 in slot 1 and not in slot 10.', size: 10, color: PAL.dim },
+      { s: 'open addressing = closed hashing', size: 10, mono: true, color: PAL.accent }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 6 - clustering
+   ====================================================================== */
+function sceneClustering(P, t) {
+  head(P, 'scene 6', 'Linear probing builds clusters');
+
+  panelBox(P, 40, 90, 820, 112, 'a cluster: 16 slots, alpha = 0.69', PAL.invalid);
+  var v6 = [null, 17, 33, 1, 49, 65, null, null, 8, 24, 40, 56, 72, null, 6, 22];
+  var mk = {};
+  for (var i = 2; i <= 5; i++) mk[i] = '#fbe4e2';
+  slotRow(P, 54, 124, 51, 42, v6, { mark: mk, size: 12 });
+
+  stack(P, 40, 212, [
+    { s: 'slots 1 to 5 are one run: any key hashing into 1, 2, 3, 4 or 5', size: 10, color: PAL.ink }
+  ], 0);
+  if (t > 6) {
+    stack(P, 40, 230, [
+      { s: 'must walk to the far end of it, and the run grows by one.', size: 10, color: PAL.invalid }
+    ], 0);
+  }
+
+  if (t > 10) {
+    panelBox(P, 40, 254, 400, 194, 'Knuth: unsuccessful search cost', PAL.invalid);
+    stack(P, 52, 280, [
+      { s: '(1/2) (1 + 1/(1-alpha)^2)', size: 11, mono: true, color: PAL.invalid, bold: true },
+      { s: 'the square is the signature of clustering', size: 10, color: PAL.dim },
+      { s: 'alpha 0.5  ->  2.5 probes', size: 10, mono: true, color: PAL.ink },
+      { s: 'alpha 0.9  ->  50.5 probes', size: 10, mono: true, color: PAL.invalid },
+      { s: 'double hashing at 0.9: 10 probes', size: 10, mono: true, color: PAL.valid },
+      { s: 'the curve turns up, it does not just rise', size: 10, color: PAL.dim }
+    ], 0);
+  }
+
+  if (t > 17) {
+    panelBox(P, 460, 254, 400, 194, 'measured on this page', PAL.accent);
+    stack(P, 472, 280, [
+      { s: 'six random tables of 2003 slots, alpha 0.75', size: 10, color: PAL.ink },
+      { s: 'linear probing  8.5 probes', size: 10, mono: true, color: PAL.invalid },
+      { s: 'double hashing  4.0 probes', size: 10, mono: true, color: PAL.valid },
+      { s: 'the formula predicted 8.5 exactly', size: 10, color: PAL.dim },
+      { s: 'at the same load factor the walk is', size: 10, color: PAL.ink },
+      { s: 'twice as long, and the gap widens', size: 10, color: PAL.ink }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 7 - quadratic probing and double hashing
+   ====================================================================== */
+function sceneVariants(P, t) {
+  head(P, 'scene 7', 'Quadratic probing and double hashing');
+
+  panelBox(P, 40, 74, 400, 170, 'quadratic probing', PAL.accent);
+  stack(P, 52, 100, [
+    { s: 'h(k,i) = (h(k) + c1 i + c2 i^2) mod m', size: 11, mono: true, color: PAL.accent },
+    { s: 'the step grows, so no trail through a run', size: 10, color: PAL.ink },
+    { s: 'removes primary clustering', size: 10, mono: true, color: PAL.valid },
+    { s: 'keeps secondary clustering: two keys', size: 10, color: PAL.invalid },
+    { s: 'with one home slot share one path', size: 10, color: PAL.invalid }
+  ], 0);
+
+  if (t > 7) {
+    panelBox(P, 40, 256, 400, 192, 'but the guarantee is conditional', PAL.invalid);
+    stack(P, 52, 282, [
+      { s: 'm = 8, offsets i^2 mod 8', size: 10, mono: true, color: PAL.ink },
+      { s: '0, 1, 4, 1, 0, 1, 4, 1 ...', size: 10, mono: true, color: PAL.invalid },
+      { s: 'only 3 of the 8 slots are reachable', size: 10, mono: true, color: PAL.invalid },
+      { s: 'm = 11 gives 6, m = 13 gives 7', size: 10, mono: true, color: PAL.valid },
+      { s: 'the theorem needs m prime, alpha <= 1/2', size: 10, color: PAL.ink }
+    ], 0);
+    var v7 = new Array(8);
+    for (var i = 0; i < 8; i++) v7[i] = null;
+    v7[0] = 'a'; v7[1] = 'b'; v7[4] = 'c';
+    var mk7 = {};
+    mk7[0] = PAL.accentDim; mk7[1] = PAL.accentDim; mk7[4] = PAL.accentDim;
+    for (var j = 2; j < 8; j++) if (j !== 4) mk7[j] = '#f6f7f8';
+    slotRow(P, 52, 412, 46, 30, v7, { mark: mk7, size: 11 });
+  }
+
+  panelBox(P, 452, 74, 432, 170, 'double hashing', PAL.accent);
+  stack(P, 466, 100, [
+    { s: 'h(k,i) = (h1(k) + i h2(k)) mod m', size: 11, mono: true, color: PAL.accent },
+    { s: 'the step depends on the key, so two keys', size: 10, color: PAL.ink },
+    { s: 'with one home slot separate at once', size: 10, color: PAL.ink },
+    { s: 'no primary and no secondary clustering', size: 10, mono: true, color: PAL.valid },
+    { s: 'needs gcd(h2(k), m) = 1 for full coverage', size: 10, mono: true, color: PAL.invalid }
+  ], 0);
+
+  if (t > 13) {
+    panelBox(P, 452, 256, 432, 192, 'two traces from real papers', PAL.accent);
+    stack(P, 466, 282, [
+      { s: '2020: h1(90) = 21, h2(90) = 15, m = 23', size: 10, mono: true, color: PAL.ink },
+      { s: 'probe 1 = (21 + 15) mod 23 = 13', size: 11, mono: true, color: PAL.valid },
+      { s: '2025 Set 1: m = 11, keys 63, 50, 25, 79,', size: 10, mono: true, color: PAL.ink },
+      { s: '67 take their home slots 8, 6, 3, 2, 1.', size: 10, mono: true, color: PAL.ink },
+      { s: 'key 24: step 4, probes 2, 6, then 10 free', size: 10, mono: true, color: PAL.ink },
+      { s: 'so key 24 lands in slot 10', size: 11, mono: true, color: PAL.valid, bold: true }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 8 - deletion and the tombstone
+   ====================================================================== */
+function sceneDeletion(P, t) {
+  head(P, 'scene 8', 'Deletion, and the tombstone');
+
+  panelBox(P, 40, 90, 820, 118, 'm = 7, keys 10, 3, 17, 24 inserted in that order', PAL.warn);
+  var v8 = [null, null, null, 10, 3, 17, 24];
+  var mk8 = {};
+  mk8[3] = '#eef7f4';
+  if (t > 6) mk8[4] = PAL.warnDim;
+  slotRow(P, 130, 124, 96, 44, v8, { mark: mk8, size: 14 });
+
+  if (t > 6) {
+    stack(P, 40, 216, [
+      { s: 'key 3 hashed to 3, found it taken, and settled in slot 4.', size: 10, color: PAL.ink },
+      { s: 'key 24 walked 3, 4, 5 and settled in slot 6.', size: 10, color: PAL.ink }
+    ], 0);
+  }
+
+  if (t > 10) {
+    panelBox(P, 40, 256, 400, 192, 'naive delete: a present key is lost', PAL.invalid);
+    stack(P, 52, 282, [
+      { s: 'write null in slot 4 to delete key 3', size: 10, mono: true, color: PAL.ink },
+      { s: 'search 24: home 3 holds 10, slot 4 is', size: 10, color: PAL.ink },
+      { s: 'null, so the search stops after 2 probes', size: 10, color: PAL.ink },
+      { s: 'reported ABSENT, though it is in slot 6', size: 10, mono: true, color: PAL.invalid },
+      { s: 'a correctness bug, not a slow search', size: 10, color: PAL.warn }
+    ], 0);
+  }
+
+  if (t > 16) {
+    panelBox(P, 460, 256, 400, 192, 'the tombstone', PAL.valid);
+    stack(P, 472, 282, [
+      { s: 'mark the slot DELETED, a third state', size: 10, mono: true, color: PAL.valid },
+      { s: 'search walks over it and continues', size: 10, color: PAL.ink },
+      { s: 'insert may reuse it', size: 10, color: PAL.ink },
+      { s: 'so 24 is found at probe 4', size: 10, mono: true, color: PAL.valid },
+      { s: 'cost: tombstones accumulate, so the', size: 10, color: PAL.invalid },
+      { s: 'table must be rehashed periodically', size: 10, color: PAL.invalid }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 9 - the costs
+   ====================================================================== */
+function sceneCosts(P, t) {
+  head(P, 'scene 9', 'What the costs actually are');
+
+  var alphas = [0.5, 0.75, 0.9, 0.99];
+
+  function table(x, y, title, fChain, fDbl, fLin, accent) {
+    panelBox(P, x, y, 500, 180, title, accent);
+    P.text(x + 24, y + 34, 'alpha', { size: 10, mono: true, color: PAL.faint });
+    P.text(x + 124, y + 34, 'chaining', { size: 10, mono: true, color: PAL.faint });
+    P.text(x + 244, y + 34, 'double', { size: 10, mono: true, color: PAL.faint });
+    P.text(x + 364, y + 34, 'linear', { size: 10, mono: true, color: PAL.faint });
+    for (var i = 0; i < alphas.length; i++) {
+      var ry = y + 60 + i * 28;
+      var a = alphas[i];
+      P.text(x + 24, ry, a.toFixed(2), { size: 11, mono: true, color: PAL.ink });
+      P.text(x + 124, ry, fChain(a).toFixed(2), { size: 11, mono: true, color: PAL.valid });
+      P.text(x + 244, ry, fDbl(a).toFixed(2), { size: 11, mono: true, color: PAL.accent });
+      P.text(x + 364, ry, fLin(a).toFixed(2), { size: 11, mono: true, color: PAL.invalid });
+    }
+  }
+
+  if (t > 0.4) table(40, 74, 'unsuccessful search: expected probes', F.chainU, F.dblU, F.linU, PAL.invalid);
+  if (t > 9) table(40, 266, 'successful search: expected probes', F.chainS, F.dblS, F.linS, PAL.valid);
+
+  panelBox(P, 560, 74, 324, 180, 'one assumption holds all four', PAL.accent);
+  stack(P, 574, 102, [
+    { s: 'simple uniform hashing: each key is', size: 10, color: PAL.ink },
+    { s: 'equally likely in any of the m slots', size: 10, color: PAL.ink },
+    { s: 'every formula above is an average', size: 10, mono: true, color: PAL.accent },
+    { s: 'none of them is a worst case', size: 10, color: PAL.dim },
+    { s: 'and none survives an adversary', size: 10, color: PAL.invalid }
+  ], 0);
+
+  if (t > 20) {
+    panelBox(P, 560, 266, 324, 180, 'average against worst case', PAL.warn);
+    stack(P, 574, 294, [
+      { s: 'average: Theta(1 + alpha)', size: 11, mono: true, color: PAL.valid },
+      { s: 'worst case: Theta(n)', size: 11, mono: true, color: PAL.invalid },
+      { s: 'both are true, of different things', size: 10, color: PAL.ink },
+      { s: 'a hostile key set forces the second', size: 10, color: PAL.dim },
+      { s: 'which is why 2023 answered', size: 10, color: PAL.dim },
+      { s: 'universal hashing, not a prime m', size: 10, mono: true, color: PAL.accent }
+    ], 0);
+  }
+}
+
+/* ======================================================================
+   SCENE 10 - the decision procedure
+   ====================================================================== */
+function sceneDecide(P, t) {
+  head(P, 'scene 10', 'The decision procedure');
+
+  var cards = [
+    { x: 40, y: 74, n: '1', q: 'Which scheme?', a: 'Read for list or probe.', b: 'list -> chaining. probe -> open addressing. add i -> linear, add i^2 -> quadratic, add i h2 -> double.' },
+    { x: 450, y: 74, n: '2', q: 'Count, or estimate?', a: 'Keys and an order -> trace.', b: 'only n, m and alpha -> substitute into a formula. the two answers differ, and the trace is the answer.' },
+    { x: 40, y: 266, n: '3', q: 'A probe index named?', a: 'Substitute i, and probe 0 is first.', b: 'write the general formula, evaluate both hashes, reduce modulo m once at the end, and check the range.' },
+    { x: 450, y: 266, n: '4', q: 'Successful, or unsuccessful?', a: 'Different formula, different trace.', b: 'a successful search stops at its key. an unsuccessful one runs to the end of the walk, and counts the stopping empty slot.' }
+  ];
+
+  cards.forEach(function (c, i) {
+    if (t < i * 7) return;
+    panelBox(P, c.x, c.y, 410, 178, 'question ' + c.n, i === 3 ? PAL.warn : PAL.accent);
+    stack(P, c.x + 14, c.y + 34, [
+      { s: c.q, size: 13, mono: true, color: PAL.ink, bold: true },
+      { s: c.a, size: 11, color: PAL.accent }
+    ], 2);
+    wrapText(P, c.x + 14, c.y + 84, c.b, 380, 11, PAL.dim, 15);
+  });
+}
+
+/* a tiny word-wrapper for the decision cards */
+function wrapText(P, x, y, text, maxW, size, colour, lh) {
+  var words = text.split(' '), line = '', yy = y, i, test;
+  for (i = 0; i < words.length; i++) {
+    test = line ? line + ' ' + words[i] : words[i];
+    if (test.length * size * 0.55 > maxW && line) {
+      P.text(x, yy, line, { size: size, color: colour });
+      yy += lh;
+      line = words[i];
+    } else {
+      line = test;
+    }
+  }
+  if (line) P.text(x, yy, line, { size: size, color: colour });
+}
+
+/* ======================================================================
+   THE SCENE TABLE AND THE FRAME
+   ====================================================================== */
+
+var SCENES = {
+  direct: sceneDirect,
+  function: sceneFunction,
+  universal: sceneUniversal,
+  chaining: sceneChaining,
+  openaddr: sceneOpen,
+  clustering: sceneClustering,
+  variants: sceneVariants,
+  deletion: sceneDeletion,
+  expectation: sceneCosts,
+  decide: sceneDecide
+};
+
+function drawFrame(painter) {
+  if (!painter) return;
+  var tl = window.LESSON_TIMELINE;
+  var tt = K.state.elapsed;
+  var idx = K.sceneAt(tt);
+  var sc = tl.scenes[idx];
+  painter.alpha(1);
+  painter.clear();
+  bg(painter);
+  if (sc && SCENES[sc.id]) {
+    try {
+      SCENES[sc.id](painter, tt - sc.start);
+    } catch (err) {
+      console.error('scene draw failed', sc.id, err);
+    }
+  }
+}
+
+function fillChecks() {
+  var el = document.getElementById('checks');
+  if (!el) return;
+  var passed = CHECKS.filter(function (c) { return c.pass; }).length;
+  var html = '<span class="k">Model checks</span>' +
+    '<span class="ok">' + passed + ' / ' + CHECKS.length + ' passed</span>';
+  html += '<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--text-faint)">what was checked</summary>';
+  CHECKS.forEach(function (c) {
+    html += '<div style="margin-top:3px">' +
+      (c.pass ? '<span class="ok">\u2713</span>' : '<span style="color:var(--invalid)">\u2717</span> ') +
+      c.name + (c.detail ? '<br><span style="opacity:.7">' + c.detail + '</span>' : '') +
+      '</div>';
+  });
+  html += '</details>';
+  el.innerHTML = html;
+}
+
+  function boot() {
+    fillChecks();
+
+    var holder = document.getElementById('canvas-holder');
+    var fallback = document.getElementById('canvas-fallback');
+    var ok = false;
+
+    if (window.p5) {
+      try {
+        new window.p5(function (sk) {
+          sk.setup = function () {
+            sk.createCanvas(W, H);
+            sk.noLoop();
+            P = PR.makePainterP5(sk, W, H);
+            sk.draw = function () { drawFrame(P); };
+            drawFrame(P);
+          };
+        }, holder);
+        ok = true;
+      } catch (e) {
+        console.error('p5 failed', e);
+        ok = false;
+      }
+    }
+
+    if (!ok) {
+      var drew = false;
+      try {
+        var cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        holder.appendChild(cv);
+        var ctx2d = cv.getContext && cv.getContext('2d');
+        if (ctx2d) {
+          P = PR.makePainter2D(ctx2d, W, H);
+          drawFrame(P);
+          drew = true;
+        }
+      } catch (e) {
+        console.error('canvas fallback failed', e);
+      }
+      if (!drew && fallback) fallback.classList.add('show');
+    }
+
+    K.init({
+      timeline: window.LESSON_TIMELINE,
+      draw: function () { if (P) drawFrame(P); }
+    });
+
+    K.onResize(function () {
+      if (P) drawFrame(P);
+    });
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { if (P) drawFrame(P); });
+    }
+
+    window.__drawAt = function (t) {
+      K.state.elapsed = t;
+      if (P) drawFrame(P);
+    };
+
+    window.__lessonChecks = CHECKS;
+    var bad = CHECKS.filter(function (c) { return !c.pass; });
+    if (bad.length) console.warn('Model validation did not fully pass:', bad);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
