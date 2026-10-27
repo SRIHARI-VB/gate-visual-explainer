@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Hierarchy and Cache — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Memory Hierarchy and Cache</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Memory hierarchy and cache — the middle clause of GATE 2027 Section 3: "Memory interfacing and hierarchy: performance, cache memory mapping."</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a cache capacity, a block size, an associativity and an address width, split the address into offset, index and tag and check the bits add up. Given a trace of block numbers, simulate the cache under least-recently-used replacement and count misses. Given a hit rate and a miss penalty, produce the average access time — and say which of the three conventions the question is using. Given a miss rate, an accesses-per-instruction figure and a base CPI, produce the stall cycles and the speedup.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one address, one table, one average</em>. The address is the three-field split. The table is the cache, one row per set, filled and evicted access by access. The average is the hit time plus the miss rate times the penalty. Every question in the GATE archive on this topic is one of those three, asked in a different costume. The cycles-per-instruction machinery used in the last scenes comes from <a href="../pipelining-and-hazards/index.html">Pipelining and Hazards</a>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 3 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read for this run) reads: <em>"Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Topic-indexed archives of past papers list between forty and seventy cache and memory-hierarchy items across the last three decades, with several in every recent paper. That is a count of what has been asked, not a forecast for 2027, and no official marks distribution exists.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted in this lesson carries its year and paper, and its answer was recomputed here rather than copied.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">This lesson needs less machinery than most in Computer Organization:</p>
+          <ul class="small">
+            <li><strong>Powers of two and logarithms.</strong> Every bit count here is a log base 2, and every capacity is a power of two. Nothing else is used.</li>
+            <li><strong>The idea of a clock cycle.</strong> Hit times and penalties are quoted in nanoseconds and converted to cycles; the cycle is introduced in <a href="../sequential-circuits/index.html">Sequential Circuits</a>.</li>
+            <li><strong>Execution time = instruction count × CPI × clock period</strong>, from <a href="../pipelining-and-hazards/index.html">Pipelining and Hazards</a>, for scene 9 only.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">There is no published lesson on main-memory devices in this library yet, so nothing is assumed about DRAM. Where a question needs a memory access time, the paper gives it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Why it works.</strong> The ladder, and one trace showing both kinds of locality.</li>
+            <li><strong>One average.</strong> The weighted bar, the 2015 numbers, and the two access conventions.</li>
+            <li><strong>The split.</strong> Two real addresses cut into offset, index and tag, with the bits checked.</li>
+            <li><strong>Three mappings.</strong> Block 6 finding its home in each of the three caches.</li>
+            <li><strong>The exchange rate.</strong> Four bits moving from index to tag, and the 2021 Set 2 reversal.</li>
+            <li><strong>A real walk.</strong> The 2004 trace, simulated, row by row, with the victim named.</li>
+            <li><strong>The three Cs.</strong> The same trace in three caches, and which misses vanish.</li>
+            <li><strong>Writes.</strong> Two policies side by side, and the 2022 verdict.</li>
+            <li><strong>Two levels.</strong> Three exclusive outcomes weighted into 11.85 ns, then into CPI.</li>
+            <li><strong>The recipe.</strong> Five steps and five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A cache does not make memory faster. It makes the <em>average</em> access faster, by betting on locality.</li>
+            <li>The address split is forced, not chosen: offset is log of the block size, index is log of the number of sets, and the tag is the remainder.</li>
+            <li>Associativity is an exchange of index bits for tag bits at a fixed rate of log base 2 of the associativity.</li>
+            <li>On a trace, count misses and name victims. Never count addresses.</li>
+            <li>Average access time and speedup are two different questions; the miss rate enters a speedup only through the stall cycles.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 75–95 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. The numbers on the ladder in scene 1 are orders of magnitude offered as a picture of the hierarchy's shape; they are not a specification and no question quotes them. Three neighbouring topics are deliberately not taught here and are recorded as uncovered in the coverage tracker: <strong>chip-level memory interfacing and interleaving</strong> (the first half of the syllabus clause), <strong>virtual memory and the TLB</strong> (Operating Systems, Section 8), and <strong>main-memory device organisation and refresh</strong>. Where two public sources give different answers to the same previous-year question, this lesson says so rather than choosing silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1: intuition + the vocabulary -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: the desk, the shelf and the storeroom</h3>
+              <p>You are writing an essay. The books you are using right now sit on the desk. The rest of the library is on shelves behind you. Everything else is in the storeroom downstairs. Fetching from the storeroom takes an hour; taking a book from the shelf takes a minute; the book on the desk is already open.</p>
+              <p class="small">Three facts about this arrangement are the three facts about a cache, and each is easy to get wrong. First, <strong>the desk is small and that is the point</strong> — you cannot fit the library on it, so you must choose what stays. Second, <strong>the average visit is what matters</strong>: nine quick reaches and one hour downstairs average out to six minutes, which is far better than an hour every time, and far worse than you might guess from "mostly hits". Third, <strong>you carry a whole armful, not one page</strong>: when you go to the shelf you bring the neighbouring chapters too, because you usually need them next. That armful is a block.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is a teaching device, not a model of a memory system. It is chosen because it keeps three separate questions separate: what is close, what does a miss cost, and what travels together.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definitions, every symbol in words</h3>
+              <p class="small"><strong>Block</strong> (also called a line when it is in the cache): a fixed run of consecutive bytes, the unit of transfer. A cache copies whole blocks.</p>
+              <p class="small"><strong>Line</strong>: one slot in the cache, holding one block plus its tag and status bits.</p>
+              <p class="small"><strong>Set</strong>: a group of lines that a given block is allowed to occupy. Number of sets times lines per set equals the number of lines.</p>
+              <p class="small"><strong>Hit</strong>: the block you asked for is in the cache. <strong>Miss</strong>: it is not.</p>
+              <p class="small"><strong>Hit time</strong>: the time to read the cache when the block is there. <strong>Miss penalty</strong>: the <em>extra</em> time to bring the block from below.</p>
+              <p class="small" style="margin-bottom:0"><strong>Hit rate</strong> h and <strong>miss rate</strong> m: m = 1 − h. They always sum to one; that is a check, not a formula to memorise.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Locality, stated formally</h3>
+              <p class="small"><strong>Temporal locality</strong>: if an address is referenced at time t, it is likely to be referenced again soon. This is what justifies keeping a block after using it.</p>
+              <p class="small"><strong>Spatial locality</strong>: if an address is referenced, nearby addresses are likely to be referenced soon. This is what justifies transferring a block rather than a byte.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both are statements about a probability distribution over addresses, not about any particular program. That is why a cache can be a good bet in general and a bad bet for one specific loop, and why the same cache can help one access pattern and hurt another.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The one formula everything rests on</h3>
+              <p class="formula">T<sub>avg</sub> = T<sub>hit</sub> + m × P</p>
+              <p class="small">In words: the average time per access is the time you pay when the block is there, plus the fraction of accesses where it is not, times the extra time those cost.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Weight the two outcomes: h·T<sub>hit</sub> + (1 − h)(T<sub>hit</sub> + P). Expanding gives h·T<sub>hit</sub> + T<sub>hit</sub> + P − h·T<sub>hit</sub> − h·P, which is T<sub>hit</sub> + (1 − h)P. The hit time appears once, not twice.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2: the address and the three mappings -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The address is cut into three fields, and the cut is forced</h3>
+              <p class="small">Take a byte address of w bits. A cache of C bytes with blocks of B bytes has C/B lines. Divide those lines into sets of k lines each, so there are (C/B)/k sets. Then:</p>
+              <p class="formula">offset = log<sub>2</sub> B &nbsp;&nbsp;·&nbsp;&nbsp; index = log<sub>2</sub>(C / (B·k)) &nbsp;&nbsp;·&nbsp;&nbsp; tag = w − offset − index</p>
+              <p class="small"><strong>Offset</strong> counts position inside the block, because a block is a contiguous run and the low bits of an address are the position within a run. <strong>Index</strong> chooses the set. <strong>Tag</strong> is the rest, and it is what the cache compares: two blocks that share a set differ exactly in their tags.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The three fields are disjoint and together cover the address, so they must sum to w. Any question that hands you a tag width and a cache geometry is handing you an equation with one unknown.</p>
+            </div>
+
+            <div class="card">
+              <h3>Direct mapped (k = 1)</h3>
+              <p class="small">One line per set, so the number of sets equals the number of lines. Block b can live only in line b mod (C/B). One tag comparison; no replacement policy; no choice.</p>
+              <p class="small" style="margin-bottom:0">Index width is log<sub>2</sub>(C/B). Two blocks whose numbers differ by a multiple of the line count fight for one line for ever — that is the conflict miss.</p>
+            </div>
+
+            <div class="card">
+              <h3>Fully associative (k = lines)</h3>
+              <p class="small">One set containing every line. Block b may live anywhere, so there is no index field at all and the tag is w − log<sub>2</sub> B. Every line's tag is compared, usually in parallel.</p>
+              <p class="small" style="margin-bottom:0">Index width is 0. A replacement policy is needed on every miss.</p>
+            </div>
+
+            <div class="card">
+              <h3>Set associative (1 &lt; k &lt; lines)</h3>
+              <p class="small">Block b goes to set b mod v where v = (C/B)/k, and may sit in any of that set's k lines. Index width is log<sub>2</sub> v, and k tags are compared.</p>
+              <p class="small" style="margin-bottom:0">If the lines are laid out set by set, block j occupies a line in the range (j mod v)·k to (j mod v)·k + k − 1, which is the answer GATE 2013 wanted.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>One sentence that separates the three</h3>
+              <p class="small" style="margin-bottom:0">Only the <em>set</em> is forced. Direct mapping forces the line as well; full associativity forces nothing. Everything else — tag width, comparators, need for a replacement policy — follows from that one difference.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 3: replacement, writes, the three Cs -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Replacement policies</h3>
+              <p class="small"><strong>LRU</strong> — evict the line whose last use is furthest in the past. A stack algorithm: more lines can never mean more misses.</p>
+              <p class="small"><strong>FIFO</strong> — evict the line that arrived earliest, ignoring use. Not a stack algorithm, and it can suffer Belady's anomaly: more lines, more misses.</p>
+              <p class="small"><strong>Random</strong> — cheap, no state, no guarantee.</p>
+              <p class="small" style="margin-bottom:0"><strong>Optimal / Belady / MIN</strong> — evict the line whose next use is furthest in the future. Needs the future, so it is used only as a lower bound on misses.</p>
+            </div>
+
+            <div class="card">
+              <h3>Write policies</h3>
+              <p class="small"><strong>Write-through</strong>: every store updates the cache and memory. Memory is never stale, so no dirty bit and nothing to write back on eviction. Costs a memory write per store.</p>
+              <p class="small"><strong>Write-back</strong>: a store updates only the cache and sets the dirty bit. The line goes to memory when evicted, so one memory write can cover many stores.</p>
+              <p class="small" style="margin-bottom:0">Separately, on a write <em>miss</em>: <strong>write-allocate</strong> fetches the block into the cache first, <strong>no-write-allocate</strong> writes around it to memory. The two choices are independent.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The three Cs, defined by a counterfactual</h3>
+              <p class="small"><strong>Compulsory</strong>: the first reference to that block in the trace. Survives every cache change.</p>
+              <p class="small"><strong>Capacity</strong>: a miss that would still happen in a fully associative cache of the same size — the working set does not fit.</p>
+              <p class="small" style="margin-bottom:0"><strong>Conflict</strong>: a miss that would <em>not</em> happen in a fully associative cache of the same size — the mapping forced two live blocks into one set.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Two levels, and the convention that decides the answer</h3>
+              <p class="formula">T = h<sub>1</sub>t<sub>1</sub> + m<sub>1</sub>h<sub>2</sub>t<sub>2</sub> + m<sub>1</sub>m<sub>2</sub>t<sub>m</sub></p>
+              <p class="small">This form applies when each quoted time is the <em>total</em> time incurred once that level is reached. The three probabilities must sum to one: h<sub>1</sub> + m<sub>1</sub>h<sub>2</sub> + m<sub>1</sub>m<sub>2</sub> = 1.</p>
+              <p class="small" style="margin-bottom:0">If instead each time is the level's own access time under a serial convention, add the levels: a miss costs t<sub>1</sub> + t<sub>2</sub>, and so on. The paper's wording decides; scene 9 shows both answers to the same numbers.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A memory hierarchy works because programs repeat themselves: the same address is used again soon, and its neighbours are used soon after.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why a small fast memory helps at all</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A memory hierarchy works because programs repeat themselves: the same address is used again soon, and its neighbours are used soon after.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Browser speech synthesis; voice availability varies">Narrate</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Four previous-year items where the address split is the whole question</h3>
+              <p class="small muted" style="margin-bottom:0">Each is recomputed step by step here. The page recomputes every one of them again in its model and reports the result in the Model checks panel of the Animation tab.</p>
+            </div>
+
+            <div class="card">
+              <h3>1. GATE 2021 Set 1 — a tag width</h3>
+              <p class="small"><em>"A byte-addressable primary memory of size 2<sup>32</sup> bytes, a direct-mapped cache of 32 KB, each block 64 bytes. The size of the tag field is ___ bits."</em></p>
+              <ol class="step-list small">
+                <li>Lines = 32768 ÷ 64 = 512, so index = log<sub>2</sub> 512 = <strong>9</strong>.</li>
+                <li>Offset = log<sub>2</sub> 64 = <strong>6</strong>.</li>
+                <li>Tag = 32 − 9 − 6 = <strong>17</strong>.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 17 bits</span> Check: 17 + 9 + 6 = 32.</p>
+            </div>
+
+            <div class="card">
+              <h3>2. GATE 2025 Set 1 — tag <em>storage</em>, not tag width</h3>
+              <p class="small"><em>"1 M bytes of main memory, a 20-bit address, 16 K bytes of cache, block size 16 bytes, direct mapping. How many bits are required to store all the tag values?"</em></p>
+              <ol class="step-list small">
+                <li>Lines = 16384 ÷ 16 = 1024, so index = <strong>10</strong>.</li>
+                <li>Offset = log<sub>2</sub> 16 = <strong>4</strong>, so tag = 20 − 10 − 4 = <strong>6</strong>.</li>
+                <li>Every line stores its own tag: 1024 × 6 = <strong>6144</strong> bits.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 6144 bits (2<sup>10</sup> × 6)</span> The published key for this paper is option A, which is exactly this.</p>
+            </div>
+
+            <div class="card">
+              <h3>3. GATE 2017 Set 1 — associativity, no capacities given</h3>
+              <p class="small"><em>"A cache of N words with block size B words. Direct mapped, the TAG field is 10 bits. As a 16-way set-associative cache, the TAG field is ___ bits."</em></p>
+              <ol class="step-list small">
+                <li>Capacity and block size are unchanged, so the number of lines is unchanged.</li>
+                <li>16-way means 16 lines per set, so the number of sets falls by 16, and the index falls by log<sub>2</sub> 16 = 4 bits.</li>
+                <li>The address width is fixed, so the tag rises by the same 4: 10 + 4 = <strong>14</strong>.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 14 bits</span> The page instantiates a concrete cache consistent with a 10-bit tag and confirms 14.</p>
+            </div>
+
+            <div class="card">
+              <h3>4. GATE 2021 Set 2 — solving for associativity</h3>
+              <p class="small"><em>"A set-associative cache of 2 KB, block size 64 bytes, byte-addressable, 32-bit address, tag field 22 bits. The associativity is ___."</em></p>
+              <ol class="step-list small">
+                <li>Offset = 6, tag = 22, so index = 32 − 22 − 6 = <strong>4</strong>.</li>
+                <li>4 index bits means 16 sets.</li>
+                <li>Lines = 2048 ÷ 64 = 32, so associativity = 32 ÷ 16 = <strong>2</strong>.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 2</span> The page solves for the associativity from the tag width and gets 2.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Three previous-year items where the average or the trace is the whole question</h3>
+              <p class="small muted" style="margin-bottom:0">These three are the ones the animation walks through, because their reasoning is a table or a weighted sum rather than a subtraction.</p>
+            </div>
+
+            <div class="card">
+              <h3>5. GATE 2015 Set 2 — the weighted average</h3>
+              <p class="small"><em>"A read request takes 5 ns on a cache hit and 50 ns on a cache miss. 80 per cent of read requests result in a hit. The average access time is ___ ns."</em></p>
+              <ol class="step-list small">
+                <li>The paper gives the <em>whole</em> miss time, not the penalty, so weight the two outcomes.</li>
+                <li>0.8 × 5 = 4 ns from hits.</li>
+                <li>0.2 × 50 = 10 ns from misses.</li>
+                <li>4 + 10 = <strong>14</strong> ns.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 14 ns</span> Using T<sub>hit</sub> + m × P with P = 50 would give 15, double counting the hit time.</p>
+            </div>
+
+            <div class="card">
+              <h3>6. GATE 2004 — the LRU walk</h3>
+              <p class="small"><em>"A small two-way set-associative cache of four blocks, LRU replacement. The number of cache misses for the block addresses 8, 12, 0, 12, 8 is ___."</em></p>
+              <ol class="step-list small">
+                <li>Four blocks, two-way, so two sets. Set = block mod 2, so every even block lands in set 0.</li>
+                <li>8 misses and fills; 12 misses and fills; 0 misses and evicts 8 (least recently used).</li>
+                <li>12 hits, which refreshes its recency.</li>
+                <li>8 misses again and evicts 0.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 4 misses</span> The page simulates this and reports 4 misses, of which 1 is a conflict miss.</p>
+            </div>
+
+            <div class="card">
+              <h3>7. GATE 2025 Set 1 — two levels</h3>
+              <p class="small"><em>"L1: hit rate 95 per cent, access time 10 ns. L2: hit rate 85 per cent, access time 20 ns including the L1 miss penalty. Main memory: 200 ns including both miss penalties. The average access time is ___ ns (two decimals)."</em></p>
+              <ol class="step-list small">
+                <li>Three exclusive outcomes: 0.95, then 0.05 × 0.85 = 0.0425, then 0.05 × 0.15 = 0.0075. They sum to 1.</li>
+                <li>0.95 × 10 = 9.5; 0.0425 × 20 = 0.85; 0.0075 × 200 = 1.5.</li>
+                <li>Total = <strong>11.85</strong> ns.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 11.85 ns</span> The published key allows 11.83 to 11.87. Adding the L1 time again inside the lower terms gives 12.5, which is outside it.</p>
+            </div>
+
+            <div class="card">
+              <h3>8. GATE 2024 Set 1 — the miss rate becomes a CPI</h3>
+              <p class="small"><em>"25 per cent of instructions are loads or stores. Ideal CPI without memory stalls is 2. Miss rate 2 per cent on the instruction cache and 8 per cent on the data cache. Miss penalty 100 cycles. The speedup with a perfect cache is ___ (two decimals)."</em></p>
+              <ol class="step-list small">
+                <li>Instruction stalls per instruction: 0.02 × 100 = 2.</li>
+                <li>Data stalls per instruction: 0.25 × 0.08 × 100 = 2.</li>
+                <li>CPI with stalls = 2 + 2 + 2 = 6; CPI with a perfect cache = 2.</li>
+                <li>Speedup = 6 ÷ 2 = <strong>3.00</strong>.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="verdict">Answer: 3.00</span> The 0.25 belongs on the data term only. Charging data misses to every instruction gives 0.08 × 100 = 8 stalls, CPI 12 and a wrong speedup of 6.00.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES =========================== -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Boundaries where the standard recipe changes shape</h3>
+              <p class="small muted" style="margin-bottom:0">Each of these is a case a previous-year question has actually reached, or a case where a formula silently stops applying. The condition each one violates is named.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>When the index field is zero</h3>
+              <p class="small">Fully associative means one set, so log<sub>2</sub> 1 = 0 index bits, and the tag is the whole address above the offset. <strong>Condition violated:</strong> none — this is the definition working correctly. What breaks is the habit of writing "index = log<sub>2</sub>(lines)".</p>
+              <p class="small" style="margin-bottom:0">GATE 2019 asked for the fields of a 16 KB fully associative cache with 16-byte blocks in a 32-bit address. Offset 4, index 0, tag 28. Public sources disagree on this question's key, which is why it is not used as a practice item here.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>When the tag is the whole block number</h3>
+              <p class="small">A fully associative cache of 1 MB with 1-byte blocks in a 20-bit address has offset 0 and index 0, so the tag is all 20 bits: the block number itself, with nothing stripped off.</p>
+              <p class="small" style="margin-bottom:0"><strong>Condition violated:</strong> the habit of thinking of the tag as "the high bits left over". It is, and here nothing else was taken away. A tag field reaches zero width only when offset plus index already covers the whole address, which means the cache holds the entire address space at one block per line.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>When the block size is given in words</h3>
+              <p class="small">GATE 2014 Set 2: a 4-way set-associative cache of 16 KB, block size 8 words, word length 32 bits, physical address space 4 GB. The block is 8 × 4 = 32 bytes, not 8.</p>
+              <p class="small">Lines = 16384 ÷ 32 = 512; sets = 128 so index = 7; offset = 5; tag = 32 − 7 − 5 = <strong>20</strong>.</p>
+              <p class="small" style="margin-bottom:0"><strong>Condition violated:</strong> the assumption that every length is already in bytes. Notice what the conversion does and does not change: the offset and index both move, and the tag stays at 20, because tag = width − log<sub>2</sub> capacity + log<sub>2</sub> associativity has no block size in it. The mistake that actually costs a mark here is dropping the associativity, which gives index 9 and tag 18.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>When a "hit rate" belongs to a different denominator</h3>
+              <p class="small">An L2 hit rate of 85 per cent almost always means 85 per cent <em>of the accesses that reached L2</em>, not of all accesses. In the 2025 question the global L2 hit rate is 0.0425.</p>
+              <p class="small" style="margin-bottom:0"><strong>Condition violated:</strong> the assumption that a rate is taken over the same population as the others. Multiplying the two hit rates, 0.95 × 0.85, is the error this creates.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>When a lower miss rate makes the average worse</h3>
+              <p class="small">A cache with a hit rate of 0.8, access time 10 ns and penalty 100 ns averages 10 + 0.2 × 100 = 30 ns. An optimisation cuts the miss rate to 0.1 but raises the access time to 25 ns: 25 + 0.1 × 100 = 35 ns. Worse.</p>
+              <p class="small" style="margin-bottom:0"><strong>Condition violated:</strong> the assumption that hit time is constant while miss rate falls. Both terms move, and the average is what is asked for. (This is an original illustration, not a previous-year item.)</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>When FIFO gets worse with more memory</h3>
+              <p class="small">On the block sequence 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5, FIFO with three lines misses 9 times and with four lines misses 10 times. LRU with the same trace misses 10 and 8.</p>
+              <p class="small" style="margin-bottom:0"><strong>Condition violated:</strong> FIFO is not a stack algorithm, so the monotonicity that LRU enjoys does not hold. The page computes all four counts and checks them.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Two pairs that are constantly confused</h3>
+              <p class="small muted" style="margin-bottom:0">Both pairs look like synonyms in ordinary English and are not synonyms in this subject. Getting either wrong costs marks on questions that are otherwise trivial.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Miss time against miss penalty</h3>
+              <p class="small"><strong>Miss time</strong> is everything you pay when the block is absent: the lookup plus the fetch.</p>
+              <p class="small"><strong>Miss penalty</strong> is only the extra part, the fetch, excluding the lookup you would have paid anyway.</p>
+              <p class="small" style="margin-bottom:0">So miss time = hit time + penalty. A question that quotes 50 ns on a miss and 5 ns on a hit has given you miss time, and the average is 0.8 × 5 + 0.2 × 50 = 14, not 5 + 0.2 × 50 = 15.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Associativity against number of sets</h3>
+              <p class="small"><strong>Associativity</strong> k is the number of lines per set. <strong>Number of sets</strong> v is what the index field counts.</p>
+              <p class="small" style="margin-bottom:0">Lines = v × k. "An 8-way cache with 64 KB and 32-byte blocks" has 2048 lines and therefore 256 sets, so 8 index bits — not 3. GATE 2023 asks exactly this shape of question, and the answer needs the line count first.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Write policy against write-miss policy</h3>
+              <p class="small">Write-through or write-back answers "when does memory learn about this store".</p>
+              <p class="small" style="margin-bottom:0">Write-allocate or no-write-allocate answers "does a store to a missing block fetch that block first". Four combinations, all of which have existed in real machines. A statement about one does not imply anything about the other.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The one boundary that decides many questions</h3>
+              <p class="small" style="margin-bottom:0">Is the quoted time per <em>level</em> or per <em>path</em>? If per level, add the levels along a miss path. If per path, weight the exclusive outcomes. GATE states it in words — "including the miss penalty of the previous level" means per path. When a question does not say, the safe move is to write both answers, then choose the one that is among the options.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS =========================== -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Six beliefs that cost marks here</h3>
+              <p class="small muted" style="margin-bottom:0">Each is stated the way a learner states it, followed by the smallest structure that kills it and the rule that replaces it. All six were checked against the textbook treatment and against the previous-year items this lesson quotes.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>1. "A bigger cache is always faster."</h3>
+              <p class="small"><em>Why it tempts:</em> a bigger cache misses less, and fewer misses sounds strictly better.</p>
+              <p class="small"><em>Why it is wrong:</em> a bigger cache is slower to search, so the hit time rises while the miss rate falls, and the average is the sum of both terms.</p>
+              <p class="small"><em>Minimal counterexample:</em> hit 0.8 at 10 ns with a 100 ns penalty averages 30 ns; hit 0.9 at 25 ns averages 35 ns.</p>
+              <p class="small" style="margin-bottom:0"><em>Correct rule:</em> compare average access times, never miss rates. The page's model computes both figures.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>2. "You can choose the tag width."</h3>
+              <p class="small"><em>Why it tempts:</em> the tag is the field nobody derives first, so it looks like a design choice.</p>
+              <p class="small"><em>Why it is wrong:</em> tag = address width − index − offset. Given the other three, it is determined.</p>
+              <p class="small"><em>Minimal counterexample:</em> a 32-bit address with a 64-byte block and 512 lines forces 6 offset bits and 9 index bits, leaving exactly 17.</p>
+              <p class="small" style="margin-bottom:0"><em>Correct rule:</em> treat a quoted tag width as an equation, and solve for whichever of the four quantities is missing — that is exactly what GATE 2021 Set 2 does.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>3. "More associativity is strictly better."</h3>
+              <p class="small"><em>Why it tempts:</em> associativity removes conflict misses, and conflict misses are the ones that feel wasteful.</p>
+              <p class="small"><em>Why it is wrong:</em> it widens every tag, adds comparators and usually lengthens the hit time; and it does nothing at all for capacity or compulsory misses.</p>
+              <p class="small"><em>Minimal counterexample:</em> the 2004 trace gains exactly one miss from associativity — 4 down to 3 — while the tag grows by a bit and the comparison widens from 1 to 2.</p>
+              <p class="small" style="margin-bottom:0"><em>Correct rule:</em> associativity trades hit time for conflict misses. State both sides.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>4. "Write-back means memory is never written, and both caches need a dirty bit."</h3>
+              <p class="small"><em>Why it tempts:</em> "back" sounds like the cache is the only copy, and "dirty bit" sounds like part of any cache line.</p>
+              <p class="small"><em>Why it is wrong:</em> write-back defers the write to eviction, so memory is written less often, not never. And write-through never needs a dirty bit because memory is never stale.</p>
+              <p class="small"><em>Minimal counterexample:</em> GATE 2022, where statements A, B and D are false for exactly these reasons and only C is true.</p>
+              <p class="small" style="margin-bottom:0"><em>Correct rule:</em> the dirty bit exists to answer "is the cached copy newer than memory", and under write-through the answer is always no.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--trap">
+              <h3>5. "LRU is the optimal replacement policy."</h3>
+              <p class="small"><em>Why it tempts:</em> LRU is the policy the syllabus names, it is provably good, and it is a stack algorithm.</p>
+              <p class="small"><em>Why it is wrong:</em> optimal means evicting the block used furthest in the future, which needs the future. LRU only approximates it, and on a cyclic scan it is the worst possible choice.</p>
+              <p class="small"><em>Minimal counterexample:</em> on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 with four lines, LRU misses 8 and optimal misses 6. The page computes both.</p>
+              <p class="small" style="margin-bottom:0"><em>Correct rule:</em> LRU is never worse than FIFO on these traces, and never better than optimal. Its guarantee is monotonicity in cache size, not optimality.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>6. "Halving the miss rate doubles the speed."</h3>
+              <p class="small"><em>Why it tempts:</em> a miss rate is the number the question emphasises, so it feels like the performance measure.</p>
+              <p class="small"><em>Why it is wrong:</em> the miss rate enters a time only through stall cycles, and the base CPI is still there.</p>
+              <p class="small"><em>Minimal counterexample:</em> base CPI 2 with 4 stall cycles gives CPI 6; halving the stalls gives 4, which is a speedup of 1.5, not 2.</p>
+              <p class="small" style="margin-bottom:0"><em>Correct rule:</em> speedup = new CPI ÷ old CPI. Halving the miss rate halves the stall <em>cycles</em>, and the speedup depends on how large they were.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>What the six have in common</h3>
+              <p class="small" style="margin-bottom:0">Every one is a claim about <em>one</em> term of an average or a ratio, presented as a claim about the whole. The antidote is mechanical: write the formula, mark which term the claim changes, and ask whether any other term moves. That single habit resolves all six.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>A reported difficulty, not a measured one</h3>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Discussions of this topic repeatedly report two specific sticking points: deciding whether a quoted miss time includes the hit time, and remembering that a hit updates recency. Both are addressed in scenes 2 and 6. This is what learners report, not a measurement of error rates, and no source was found that quantifies it.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS =========================== -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The seven question shapes this topic actually uses</h3>
+          <p class="small muted" style="margin-bottom:0">Categories follow the standard eight. Category D, construction of a structure, does not appear in this topic's archive and is not covered. Everything else does.</p>
+        </div>
+
+        <div class="card">
+          <h3>A — Direct definition <span class="small muted">(rare, 1 mark)</span></h3>
+          <p class="small"><em>Reasoning path:</em> recall a definition precisely — which policy needs a dirty bit, what a set is, what associativity counts.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> answering from the sound of the word. "Write-back" does not mean memory is never written.</p>
+        </div>
+
+        <div class="card">
+          <h3>B — Property verification</h3>
+          <p class="small"><em>Reasoning path:</em> take the given structure and test a property: is this trace's fourth access a hit, does this mapping range hold k lines, is this statement about eviction true.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> testing the property on one example and generalising. The 2013 distractor set is built for exactly that.</p>
+        </div>
+
+        <div class="card">
+          <h3>C — Calculation <span class="small muted">(the majority)</span></h3>
+          <p class="small"><em>Reasoning path:</em> split the address, or weight the outcomes, or count the misses. Three procedures, all mechanical.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> doing the arithmetic in the wrong order — converting units before finishing, or rounding a period before multiplying by a large count.</p>
+        </div>
+
+        <div class="card">
+          <h3>E — Counterexample reasoning</h3>
+          <p class="small"><em>Reasoning path:</em> to disprove a universal claim about caches, build one trace. "Associativity always helps" dies on a trace with no conflict misses.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> trying to argue from the definition alone. One valid trace is enough, and it is faster.</p>
+        </div>
+
+        <div class="card">
+          <h3>F — Multiple conditions (MSQ)</h3>
+          <p class="small"><em>Reasoning path:</em> evaluate each statement independently and note that partial credit exists in the real exam, so a statement you cannot decide is a real loss.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> treating an MSQ as an MCQ and stopping at the first true statement. GATE 2022's answer is three of four.</p>
+        </div>
+
+        <div class="card">
+          <h3>G — Misconception trap</h3>
+          <p class="small"><em>Reasoning path:</em> notice that the options are built from the six beliefs in the previous tab, and check which term of the formula each distractor changes.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> picking the option that matches the intuition rather than the arithmetic. 15 ns instead of 14 ns is this trap exactly.</p>
+        </div>
+
+        <div class="card">
+          <h3>H — Multi-step reasoning</h3>
+          <p class="small"><em>Reasoning path:</em> an address width becomes a bit split, the split becomes an associativity, the associativity becomes a miss count, and the miss count becomes a CPI. Four steps, each mechanical.</p>
+          <p class="small" style="margin-bottom:0"><em>Common wrong approach:</em> jumping to the last step and guessing. Write the intermediate quantities down; each one is checkable.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>How to spend two minutes on any of them</h3>
+          <p class="small" style="margin-bottom:0">Write the three field widths first, even if the question does not ask for them. They cost ten seconds and they convert almost every variant of this topic into arithmetic on numbers you already have.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE =========================== -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set, part 1 — five questions on the address split</h3>
+              <p class="small muted" style="margin-bottom:0">Answers are hidden until you press <em>Show answer</em>. Items marked <strong>PYQ</strong> carry their year and paper; items marked <strong>Original</strong> were written for this lesson and are not previous-year questions. <label class="small" style="display:inline-flex;gap:6px;align-items:center;margin-left:10px"><input type="checkbox" id="mock-toggle"> mock-test mode (hide every answer until you submit)</label> <button class="btn" id="mock-submit" hidden>Submit all</button></p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2021 Set 1, 1 mark</span></div>
+              <div class="q-body">
+                <p>A computer system has a byte-addressable primary memory of size 2<sup>32</sup> bytes, a direct-mapped cache of size 32 KB (1 KB = 2<sup>10</sup> bytes), and each cache block is 64 bytes. The size of the tag field is ______ bits.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 17</span></p>
+                  <p class="small">Lines = 32768 ÷ 64 = 512 → index 9. Offset = log<sub>2</sub> 64 = 6. Tag = 32 − 9 − 6 = 17.</p>
+                  <p class="small" style="margin-bottom:0">The page recomputes this and checks that 17 + 9 + 6 = 32. The usual slip is using 32 KB as the address space, which would give a different tag entirely.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2025 Set 1, 2 marks</span></div>
+              <div class="q-body">
+                <p>A memory system has 1 M bytes of main memory and 16 K bytes of cache memory. The processor generates a 20-bit memory address and the cache block size is 16 bytes. The cache uses direct mapping. How many bits are required to store <em>all</em> the tag values? (Assume the memory is byte addressable.)</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 6144</span></p>
+                  <p class="small">Lines = 16384 ÷ 16 = 1024 → index 10. Offset = 4. Tag = 20 − 10 − 4 = 6 bits per line.</p>
+                  <p class="small" style="margin-bottom:0">Storage = 1024 × 6 = 6144 bits. The published key is option A, 2<sup>10</sup> × 6. Answering 6 answers a different question.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2017 Set 1, 2 marks</span></div>
+              <div class="q-body">
+                <p>A cache memory unit with capacity of N words and block size of B words is to be designed. Designed as a direct-mapped cache, the length of the TAG field is 10 bits. If the cache unit is now designed as a 16-way set-associative cache, the length of the TAG field is ______ bits.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 14</span></p>
+                  <p class="small">Capacity and block size are unchanged, so the line count is unchanged. Sixteen lines per set divides the set count by 16, so the index loses log<sub>2</sub> 16 = 4 bits.</p>
+                  <p class="small" style="margin-bottom:0">The address width is fixed, so the tag gains those 4 bits: 10 + 4 = 14. The page instantiates a concrete cache with a 10-bit tag and confirms the 16-way version needs 14.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2014 Set 2, 2 marks</span></div>
+              <div class="q-body">
+                <p>A 4-way set-associative cache memory unit with a capacity of 16 KB is built using a block size of 8 words. The word length is 32 bits. The size of the physical address space is 4 GB. The number of bits for the TAG field is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 20</span></p>
+                  <p class="small">Block = 8 words × 4 bytes = 32 bytes, so offset = 5. Lines = 16384 ÷ 32 = 512; sets = 512 ÷ 4 = 128, so index = 7.</p>
+                  <p class="small" style="margin-bottom:0">4 GB = 2<sup>32</sup> bytes, so tag = 32 − 7 − 5 = 20. Forgetting to divide by the associativity gives 512 sets, index 9 and the wrong tag 18.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2021 Set 2, 2 marks</span></div>
+              <div class="q-body">
+                <p>A set-associative cache of size 2 KB (1 KB = 2<sup>10</sup> bytes) has a cache block size of 64 bytes. The cache is byte-addressable and a 32-bit address is used. The width of the tag field is 22 bits. The associativity of the cache is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 2</span></p>
+                  <p class="small">Offset = 6 and tag = 22, so index = 32 − 28 = 4, which is 16 sets. Lines = 2048 ÷ 64 = 32.</p>
+                  <p class="small" style="margin-bottom:0">Associativity = lines ÷ sets = 32 ÷ 16 = 2. The page solves for the associativity from the tag width and gets 2.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set, part 2 — five questions on traces, averages and policies</h3>
+              <p class="small muted" style="margin-bottom:0">These are the ones where the arithmetic is easy and the modelling is not. Read each question's convention before computing.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2015 Set 2, 1 mark</span></div>
+              <div class="q-body">
+                <p>For a certain processor, a read request takes 50 nanoseconds on a cache miss and 5 nanoseconds on a cache hit. While running a program, 80 per cent of the processor's read requests result in a cache hit. The average access time in nanoseconds is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 14</span></p>
+                  <p class="small">The 50 ns is the whole miss time, so weight the two outcomes: 0.8 × 5 + 0.2 × 50 = 4 + 10 = 14 ns.</p>
+                  <p class="small" style="margin-bottom:0">The trap is T<sub>hit</sub> + m × P with P = 50, which gives 15 because it counts the hit time inside the penalty as well as outside it.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2004, 2 marks</span></div>
+              <div class="q-body">
+                <p>Consider a small two-way set-associative cache memory consisting of four blocks. For choosing the block to be replaced, the least-recently-used (LRU) scheme is used. The number of cache misses for the following sequence of block addresses — 8, 12, 0, 12, 8 — is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 4</span></p>
+                  <p class="small">Four blocks at two-way means two sets. Set = block mod 2, and every block here is even, so all five accesses land in set 0 and set 1 stays empty.</p>
+                  <p class="small">8 misses, 12 misses, 0 misses and evicts 8, 12 hits, 8 misses and evicts 0. Four misses.</p>
+                  <p class="small" style="margin-bottom:0">The page simulates this under LRU and reports 4 misses, of which exactly 1 is a conflict miss.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2020, 2 marks</span></div>
+              <div class="q-body">
+                <p>A direct-mapped cache memory of 1 MB has a block size of 256 bytes. The cache has an access time of 3 ns and a hit rate of 94 per cent. During a cache miss, it takes 20 ns to bring the first word of a block from main memory, while each subsequent word takes 5 ns. The word size is 64 bits. The average memory access time in ns (rounded to one decimal place) is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 13.5</span></p>
+                  <p class="small">Words per block = 256 bytes ÷ 8 bytes = 32, so 31 subsequent words. Penalty = 20 + 31 × 5 = 175 ns.</p>
+                  <p class="small" style="margin-bottom:0">Average = 3 + 0.06 × 175 = 3 + 10.5 = 13.5 ns. Using 32 subsequent words instead of 31 gives 13.8, which is the intended slip.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2025 Set 1, 2 marks</span></div>
+              <div class="q-body">
+                <p>A computer has a memory hierarchy of a two-level cache (L1 and L2) and a main memory. L1 has hit rate 95 per cent and access time 10 ns. L2 has hit rate 85 per cent and access time 20 ns, <em>including the L1 cache miss penalty</em>. Main memory has access time 200 ns, <em>including the L1 and L2 cache miss penalties</em>. The average memory access time in ns (rounded to two decimal places) is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 11.85</span></p>
+                  <p class="small">Outcome probabilities: 0.95, 0.05 × 0.85 = 0.0425, and 0.05 × 0.15 = 0.0075. They sum to 1, which is the check.</p>
+                  <p class="small">0.95 × 10 + 0.0425 × 20 + 0.0075 × 200 = 9.5 + 0.85 + 1.5 = 11.85 ns.</p>
+                  <p class="small" style="margin-bottom:0">The published key allows 11.83 to 11.87. Adding the 10 ns L1 time again inside the lower terms gives 12.5, outside the range.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2022, 1 mark</span></div>
+              <div class="q-body">
+                <p>Let WB and WT be two set-associative cache organisations that use the LRU algorithm for block replacement. WB is a write-back cache and WT is a write-through cache. Which of the following statements is/are FALSE?</p>
+                <ol class="choices">
+                  <li>Each cache block in WB and WT has a dirty bit.</li>
+                  <li>Every write hit in WB leads to a data transfer from cache to main memory.</li>
+                  <li>Eviction of a block from WT will not lead to data transfer from cache to main memory.</li>
+                  <li>A read miss in WB will never lead to eviction of a dirty block from WB.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A, B and D</span></p>
+                  <p class="small"><strong>A is false</strong>: write-through never needs a dirty bit, because memory is never stale.</p>
+                  <p class="small"><strong>B is false</strong>: a write hit in write-back updates only the cache and sets the dirty bit; the transfer waits for eviction.</p>
+                  <p class="small"><strong>C is true</strong>: a write-through block is never newer than memory, so eviction moves nothing.</p>
+                  <p class="small" style="margin-bottom:0"><strong>D is false</strong>: LRU may select a dirty victim on a read miss, and it must then be written back. The page records the answer as A, B and D.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set, part 3 — two more previous-year items and three originals</h3>
+              <p class="small muted" style="margin-bottom:0">The originals are written in GATE format and are labelled as originals. They carry no official marks.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2024 Set 1, 2 marks</span></div>
+              <div class="q-body">
+                <p>A program has 25 per cent load/store instructions. The ideal CPI without any memory stalls is 2. The program exhibits a 2 per cent miss rate on the instruction cache and an 8 per cent miss rate on the data cache. The miss penalty is 100 cycles. The speedup (rounded to two decimal places) achieved with a perfect cache, that is with no data or instruction cache misses, is ______.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 3.00</span></p>
+                  <p class="small">Instruction stalls per instruction = 0.02 × 100 = 2. Data stalls per instruction = 0.25 × 0.08 × 100 = 2.</p>
+                  <p class="small" style="margin-bottom:0">CPI = 2 + 2 + 2 = 6; perfect-cache CPI = 2; speedup = 3.00. The 0.25 belongs on the data term only — charging data misses to every instruction gives CPI 12 and a speedup of 6.00.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2013, 2 marks</span></div>
+              <div class="q-body">
+                <p>In a k-way set-associative cache, the cache is divided into v sets, each consisting of k lines. The lines of a set are placed in sequence one after another, and the lines in set s are sequenced before the lines in set s+1. Main memory blocks are numbered from 0 onwards. Main memory block number j must be mapped to any one of the cache lines from:</p>
+                <ol class="choices">
+                  <li>(j mod v) × k to (j mod v) × k + (k − 1)</li>
+                  <li>(j mod v) to (j mod v) + (k − 1)</li>
+                  <li>(j mod k) to (j mod k) + (v − 1)</li>
+                  <li>(j mod k) × v to (j mod k) × v + (v − 1)</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A</span></p>
+                  <p class="small">The set is j mod v, because the index counts sets. Set s occupies the k consecutive lines starting at s × k.</p>
+                  <p class="small" style="margin-bottom:0">So the range is (j mod v) × k through that plus k − 1. The page checks, for every block in a small example, that the range holds exactly k lines and that all of them lie in set j mod v. Options B, C and D all use the right modulus with the wrong multiplier, or the wrong modulus.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge badge--orig">Original</span></div>
+              <div class="q-body">
+                <p>Blocks are accessed in the order 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5. Count the misses under FIFO replacement with 3 lines, then with 4 lines, and then under LRU with 4 lines. Enter the three counts in the order asked, separated by commas.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 9, 10, 8</span></p>
+                  <p class="small">FIFO with 3 lines misses 9 times. FIFO with 4 lines misses 10 times — more memory, more misses, which is Belady's anomaly and is only possible because FIFO is not a stack algorithm.</p>
+                  <p class="small" style="margin-bottom:0">LRU with 4 lines misses 8 times. The page runs all three and checks these exact counts. This is the smallest standard demonstration of the anomaly, and the reason LRU is preferred despite needing per-line recency state.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge badge--orig">Original</span></div>
+              <div class="q-body">
+                <p>A 2-way set-associative cache has 4 blocks and 16-byte blocks. The block sequence is 8, 12, 0, 12, 8, as in the 2004 question. Which of the following statements are TRUE?</p>
+                <ol class="choices">
+                  <li>The trace produces exactly one conflict miss and no capacity miss.</li>
+                  <li>Making the cache fully associative with the same four blocks would reduce the miss count to 3.</li>
+                  <li>Making the cache 4-way with the same four blocks would reduce the miss count to 3.</li>
+                  <li>FIFO replacement produces a different miss count from LRU on this trace.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A, B and C</span></p>
+                  <p class="small"><strong>A is true</strong>: the page classifies the four misses as 3 compulsory, 0 capacity and 1 conflict.</p>
+                  <p class="small"><strong>B is true</strong>: four lines in one set gives 3 misses, since 8, 12 and 0 all fit.</p>
+                  <p class="small"><strong>C is true</strong> and is the same cache as B — four blocks at 4-way means one set, which is full associativity. This is the distinction worth noticing.</p>
+                  <p class="small" style="margin-bottom:0"><strong>D is false</strong>: the page runs both policies and gets 4 misses either way. The policies agree here, and that is not a coincidence you should generalise.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge badge--orig">Original</span></div>
+              <div class="q-body">
+                <p>A cache has a hit time of 4 cycles and a miss penalty of 60 cycles. An optimisation raises the hit time to 6 cycles and lowers the miss rate from 10 per cent to 5 per cent. Which statement is correct?</p>
+                <ol class="choices">
+                  <li>The average access time falls by 10 per cent.</li>
+                  <li>The average access time rises, even though the miss rate halved.</li>
+                  <li>The average access time is unchanged, because the two effects cancel exactly.</li>
+                  <li>Average access time cannot be computed without knowing the block size.</li>
+                </ol>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: A</span></p>
+                  <p class="small">Before: 4 + 0.10 × 60 = 10 cycles. After: 6 + 0.05 × 60 = 9 cycles.</p>
+                  <p class="small" style="margin-bottom:0">A fall of 1 cycle out of 10 is a 10 per cent improvement, so the optimisation does pay — but far less than the halved miss rate suggests. <strong>B</strong> is the answer only if the hit time rises faster than the misses save, which is the mistake to check for; <strong>C</strong> would need the two effects to be exactly equal, and 2 cycles is not 3; <strong>D</strong> is false because the block size never enters an average access time.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION =========================== -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The one-screen revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Definitions, formulas with their conditions, the decision procedure, and the traps with the counterexample that defuses each. Everything here was derived or computed in this lesson.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <p class="small"><strong>Block</strong> — the unit of transfer, B bytes. <strong>Line</strong> — one cache slot holding one block plus tag and status.</p>
+          <p class="small"><strong>Set</strong> — the lines a block may occupy; index counts sets.</p>
+          <p class="small"><strong>Associativity</strong> k — lines per set; lines = sets × k.</p>
+          <p class="small"><strong>Hit time</strong> — time to read the cache. <strong>Miss penalty</strong> — extra time to fetch. Miss time = hit time + penalty.</p>
+          <p class="small" style="margin-bottom:0"><strong>Dirty bit</strong> — set only by write-back, meaning the cached copy is newer than memory.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Formulas, and when each holds</h3>
+          <p class="formula">offset = log<sub>2</sub> B · index = log<sub>2</sub>(C/(Bk)) · tag = w − index − offset</p>
+          <p class="small">Holds for any power-of-two geometry. Check the three sum to w.</p>
+          <p class="formula">T = T<sub>hit</sub> + m·P</p>
+          <p class="small">Holds when P is the penalty alone. If the paper gives the whole miss time, weight the outcomes instead.</p>
+          <p class="formula">T = h<sub>1</sub>t<sub>1</sub> + m<sub>1</sub>h<sub>2</sub>t<sub>2</sub> + m<sub>1</sub>m<sub>2</sub>t<sub>m</sub></p>
+          <p class="small" style="margin-bottom:0">Holds when each t is the total time once that level is reached. The three probabilities must sum to 1.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small">
+            <li>Convert every length to bytes, including word-based block sizes.</li>
+            <li>Lines = capacity ÷ block size. Sets = lines ÷ associativity.</li>
+            <li>Offset = log<sub>2</sub> block size; index = log<sub>2</sub> sets; tag = width − both. Check the sum.</li>
+            <li>If a trace is given: set = block mod sets, then compare tags in that set; update recency on a hit.</li>
+            <li>Choose the average convention the paper's words imply, compute in one unit, convert once at the end.</li>
+            <li>For a speedup, convert misses into stall cycles and divide CPIs or times.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Each step is separately checkable, which is why the order matters more than the arithmetic.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps, each with its counterexample</h3>
+          <p class="small"><strong>Miss time used as penalty</strong> — 2015 Set 2 gives 15 instead of 14.</p>
+          <p class="small"><strong>Tag width answered for total tag storage</strong> — 2025 Set 1 gives 6 instead of 6144.</p>
+          <p class="small"><strong>Block size left in words</strong> — 2014 Set 2 gives 17 instead of 20.</p>
+          <p class="small"><strong>Lower level time added to itself</strong> — 2025 Set 1 gives 12.5 instead of 11.85.</p>
+          <p class="small" style="margin-bottom:0"><strong>Data miss charged to every instruction</strong> — 2024 Set 1 gives 5 instead of 3.00.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Six quick revision questions, answers inverted</h3>
+          <p class="small">1. A 32 KB 4-way cache with 32-byte blocks, 32-bit address: tag width? <em>— 17 − 3 = 14? Work it: lines 1024, sets 256, index 8, offset 5, tag 19.</em></p>
+          <p class="small">2. Fully associative: how many index bits? <em>— zero.</em></p>
+          <p class="small">3. Which policy can miss more with a bigger cache? <em>— FIFO, Belady's anomaly.</em></p>
+          <p class="small">4. Which write policy needs a dirty bit? <em>— write-back only.</em></p>
+          <p class="small">5. A miss that survives full associativity is called? <em>— capacity, unless it is the first touch, which is compulsory.</em></p>
+          <p class="small" style="margin-bottom:0">6. Halving the miss rate halves the speedup? <em>— no: it halves the stall cycles, and the base CPI remains.</em></p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Where this goes next</h3>
+          <p class="small" style="margin-bottom:0">Virtual memory is the same machinery with a page table as the mapping function and a TLB as a small fully associative cache of translations; it is taught in the Operating Systems unit on memory management. Memory interleaving and chip-level interfacing, the first half of the syllabus clause, are recorded as not yet covered in the coverage tracker.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES =========================== -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was actually read for this lesson</h3>
+          <p class="small muted" style="margin-bottom:0">Grouped by kind, each entry saying what it supports. Nothing here is cited as an authority for anything it does not contain. Answers to previous-year items were recomputed in this page's model rather than copied from any of these.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <ul class="src-list small">
+            <li>GATE 2027 CS syllabus, IIT Madras — <code>CS_GATE2027_Syllabus.pdf</code> on gate2027.iitm.ac.in. Supports the Class A classification and the exact wording of Section 3, including "Memory interfacing and hierarchy: performance, cache memory mapping".</li>
+            <li>GATE 2022 CS question paper (IIT Kharagpur), as republished at gate2026.iitg.ac.in. Source of the Q.24 wording on write-back against write-through.</li>
+            <li>GATE 2025 CS Set 1 question paper, same host. Source of the Q.36 tag-storage and Q.53 two-level wording.</li>
+            <li>GATE 2025 Set 1 paper with answer key (gateforumonline mirror). Supports option A, 2<sup>10</sup> × 6, for Q.36.</li>
+            <li>GATE 2022 paper with key (gateforumonline mirror). Supports the key A, B, D for Q.24.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Textbook treatment</h3>
+          <ul class="src-list small">
+            <li>Hennessy and Patterson, <em>Computer Architecture: A Quantitative Approach</em> — the three Cs, the AMAT decomposition, and the locality argument used in scene 1.</li>
+            <li>Patterson and Hennessy, <em>Computer Organization and Design</em> — the direct / set-associative / fully associative mapping figures and the write-policy terminology used throughout.</li>
+            <li>Standard operating-systems treatment of replacement (Belady's anomaly, stack algorithms), used for the FIFO counterexample in scene 7's practice set.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Question archives and worked solutions</h3>
+          <ul class="src-list small">
+            <li>Topic-indexed previous-year listings (ExamSIDE, FreeAtZeal, PYQ archives) — used to obtain the <em>wording</em> of the 2013, 2014 Set 2, 2015 Set 2, 2017 Set 1, 2020, 2021 Set 1, 2021 Set 2 and 2004 items, and the paper attribution of each.</li>
+            <li>GateOverflow discussion of GATE 2017 Set 1 Q54 — the associativity-for-tag-bits exchange, which the lesson derives independently and then checks numerically.</li>
+            <li>Published worked solutions for GATE 2025 Set 1 Q53 and GATE 2022 Q24 — used to cross-check the answers this page computes, not as their source.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Where an archive and this page's computation disagreed, the computation is reported and the disagreement is noted in the lesson text. No question is labelled a previous-year item unless its year and paper were both identified.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the research did not settle</h3>
+          <p class="small">The GATE 2019 fully associative question (16 KB, 16-byte blocks, 32-bit address) has a widely circulated answer that does not match the bit arithmetic this lesson uses, which gives 28 tag bits and 0 index bits. Because the sources conflict, the item is mentioned once as an edge case and is not used as a practice question.</p>
+          <p class="small" style="margin-bottom:0">No source was found that quantifies how often any of these misconceptions actually costs marks. The claims about difficulty in this lesson are labelled as community observations for that reason.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How the numbers in this lesson were checked</h3>
+          <p class="small" style="margin-bottom:0">Every figure quoted in a caption or a card is produced by a function in the page's model, and the model runs 38 checks on load: each previous-year answer is recomputed from its stated inputs, the address fields are checked to sum to the address width, the trace is simulated and its misses classified against two counterfactual caches, FIFO and LRU are compared on the same trace, and the LRU monotonicity property is tested over 200 seeded random traces. The Model checks panel in the Animation tab lists each one with its result.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var W = 900, H = 470;
+  var K = window.LessonKit;
+  var PR = window.Painters;
+  var PAL = PR.PAL;
+  var P = null;
+
+/* ======================================================================
+   LAYER 1 - THE MODEL (memory-hierarchy-and-cache)
+   Pure data and pure functions. No drawing here. Nothing in this section
+   knows what a canvas is. Every number the lesson quotes is computed.
+   ====================================================================== */
+
+var CHECKS = [];
+function chk(name, pass, detail) { CHECKS.push({ name: name, pass: !!pass, detail: detail || '' }); }
+
+function approx(a, b, eps) { eps = eps === undefined ? 1e-9 : eps; return Math.abs(a - b) <= eps; }
+
+/* exact log base 2 for powers of two; NaN otherwise, which is itself a check */
+function lg2(x) {
+  if (!(x >= 1)) return NaN;
+  var n = 0, v = 1;
+  while (v < x) { v *= 2; n++; }
+  return v === x ? n : NaN;
+}
+
+/* ---------------- the address split ---------------- */
+function split(addrBits, cacheBytes, blockBytes, ways) {
+  var lines = cacheBytes / blockBytes;
+  var sets = lines / ways;
+  return {
+    lines: lines, sets: sets, ways: ways,
+    off: lg2(blockBytes), idx: lg2(sets), tag: addrBits - lg2(blockBytes) - lg2(sets)
+  };
+}
+
+/* ---------------- a cache, simulated ---------------- */
+function runTrace(trace, lines, ways, policy) {
+  var sets = Math.max(1, Math.round(lines / ways));
+  var slots = [], stamp = [], born = [], i, j;
+  for (i = 0; i < sets; i++) {
+    slots.push([]); stamp.push([]); born.push([]);
+    for (j = 0; j < ways; j++) { slots[i].push(null); stamp[i].push(0); born[i].push(0); }
+  }
+  var clock = 0, birth = 0, misses = 0, steps = [];
+
+  for (i = 0; i < trace.length; i++) {
+    var b = trace[i];
+    var s = b % sets;
+    var tg = Math.floor(b / sets);
+    var hitAt = -1;
+    for (j = 0; j < ways; j++) if (slots[s][j] === tg) hitAt = j;
+
+    var step = { block: b, set: s, tag: tg, hit: hitAt >= 0, victim: null, mru: 0 };
+
+    if (hitAt >= 0) {
+      stamp[s][hitAt] = ++clock;
+      step.mru = hitAt;
+    } else {
+      misses++;
+      var pick = -1;
+      for (j = 0; j < ways; j++) if (slots[s][j] === null) { pick = j; break; }
+      if (pick < 0) {
+        pick = 0;
+        for (j = 1; j < ways; j++) {
+          if (policy === 'fifo') { if (born[s][j] < born[s][pick]) pick = j; }
+          else if (stamp[s][j] < stamp[s][pick]) pick = j;
+        }
+        step.victim = slots[s][pick];
+      }
+      slots[s][pick] = tg;
+      stamp[s][pick] = ++clock;
+      born[s][pick] = ++birth;
+      step.mru = pick;
+    }
+    step.ways = slots[s].slice();
+    steps.push(step);
+  }
+  return { misses: misses, hits: trace.length - misses, steps: steps, sets: sets };
+}
+
+/* optimal replacement, one set, used only as a lower bound on misses */
+function runOpt(trace, lines) {
+  var slots = [], i, j;
+  for (i = 0; i < lines; i++) slots.push(null);
+  var misses = 0;
+  for (i = 0; i < trace.length; i++) {
+    var b = trace[i], at = slots.indexOf(b);
+    if (at >= 0) continue;
+    misses++;
+    var pick = -1;
+    for (j = 0; j < lines; j++) if (slots[j] === null) { pick = j; break; }
+    if (pick < 0) {
+      var furthest = -1;
+      for (j = 0; j < lines; j++) {
+        var next = trace.indexOf(slots[j], i + 1);
+        if (next < 0) next = Infinity;
+        if (next > furthest) { furthest = next; pick = j; }
+      }
+    }
+    slots[pick] = b;
+  }
+  return misses;
+}
+
+/* the three Cs, by counterfactual */
+function classify(trace, lines, ways) {
+  var real = runTrace(trace, lines, ways, 'lru').misses;
+  var fa = runTrace(trace, lines, lines, 'lru').misses;
+  var inf = runTrace(trace, lines, Math.max(lines, trace.length), 'lru').misses;
+  return { real: real, fa: fa, unbounded: inf, compulsory: inf, capacity: fa - inf, conflict: real - fa };
+}
+
+/* ---------------- averages ---------------- */
+function amat(Th, missRate, P) { return Th + missRate * P; }
+function amatOutcomes(o) {
+  var s = 0, i;
+  for (i = 0; i < o.length; i++) s += o[i].p * o[i].t;
+  return s;
+}
+function twoLevel(h1, t1, h2, t2, tm) {
+  var m1 = 1 - h1, m2 = 1 - h2;
+  return [
+    { p: h1, t: t1, label: 'L1 hit' },
+    { p: m1 * h2, t: t2, label: 'L1 miss, L2 hit' },
+    { p: m1 * m2, t: tm, label: 'both miss' }
+  ];
+}
+function cpiStalls(base, iMiss, dFrac, dMiss, penalty) {
+  return base + iMiss * penalty + dFrac * dMiss * penalty;
+}
+
+/* seeded PRNG so the monotonicity test is reproducible */
+function rng(seed) {
+  var s = seed >>> 0;
+  return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+/* ---------------- the questions this lesson quotes ---------------- */
+var PYQ = {
+  g2004: { trace: [8, 12, 0, 12, 8], lines: 4, ways: 2 },
+  g2013: { v: 3, k: 2 },
+  g2014s2: { cache: 16384, blockBytes: 8 * 4, ways: 4, addr: 32 },
+  g2015s2: { Th: 5, missTime: 50, hitRate: 0.8 },
+  g2017s1: { tagDirect: 10, ways: 16 },
+  g2020: { blockBytes: 256, wordBytes: 8, Th: 3, hitRate: 0.94, first: 20, rest: 5 },
+  g2021s1: { addr: 32, cache: 32768, blockBytes: 64, ways: 1 },
+  g2021s2: { cache: 2048, blockBytes: 64, addr: 32, tag: 22 },
+  g2022: { answer: 'A, B, D' },
+  g2024s1: { base: 2, iMiss: 0.02, dFrac: 0.25, dMiss: 0.08, penalty: 100 },
+  g2025s1q36: { addr: 20, cache: 16384, blockBytes: 16, ways: 1 },
+  g2025s1q53: { h1: 0.95, t1: 10, h2: 0.85, t2: 20, tm: 200 }
+};
+
+/* values filled by buildChecks, read by the drawing layer */
+var MODEL = {};
+
+function buildChecks() {
+  var i, j, r;
+
+  /* ---- 1. GATE 2021 Set 1: the three fields ---- */
+  r = split(PYQ.g2021s1.addr, PYQ.g2021s1.cache, PYQ.g2021s1.blockBytes, PYQ.g2021s1.ways);
+  MODEL.g2021s1 = r;
+  chk('2021 Set 1: offset 6, index 9, tag 17',
+    r.off === 6 && r.idx === 9 && r.tag === 17,
+    'got offset ' + r.off + ', index ' + r.idx + ', tag ' + r.tag);
+  chk('2021 Set 1: the three fields sum to the 32-bit width',
+    r.off + r.idx + r.tag === 32, 'sum = ' + (r.off + r.idx + r.tag));
+
+  /* ---- 2. GATE 2025 Set 1 Q36: total tag storage ---- */
+  r = split(PYQ.g2025s1q36.addr, PYQ.g2025s1q36.cache, PYQ.g2025s1q36.blockBytes, PYQ.g2025s1q36.ways);
+  MODEL.g2025q36 = r;
+  MODEL.tagStorage = r.lines * r.tag;
+  chk('2025 Set 1 Q36: 1024 lines of 6 tag bits give 6144 bits of storage',
+    r.lines === 1024 && r.tag === 6 && MODEL.tagStorage === 6144,
+    'lines ' + r.lines + ', tag ' + r.tag + ', storage ' + MODEL.tagStorage);
+
+  /* ---- 3. GATE 2014 Set 2: block size given in words ---- */
+  r = split(PYQ.g2014s2.addr, PYQ.g2014s2.cache, PYQ.g2014s2.blockBytes, PYQ.g2014s2.ways);
+  MODEL.g2014s2 = r;
+  chk('2014 Set 2: a 32-byte block in a 4-way 16 KB cache leaves a 20-bit tag',
+    r.tag === 20 && r.off === 5 && r.idx === 7, 'tag ' + r.tag);
+  chk('2014 Set 2: forgetting the associativity gives index 9 and the trap tag 18',
+    split(PYQ.g2014s2.addr, PYQ.g2014s2.cache, PYQ.g2014s2.blockBytes, 1).tag === 18,
+    'trap tag ' + split(PYQ.g2014s2.addr, PYQ.g2014s2.cache, PYQ.g2014s2.blockBytes, 1).tag);
+  chk('the tag width is independent of the block size: w - log2(C) + log2(k)',
+    split(32, 16384, 32, 4).tag === 32 - 14 + 2 && split(32, 16384, 8, 4).tag === 32 - 14 + 2,
+    'block 32 gives ' + split(32, 16384, 32, 4).tag + ', block 8 gives ' + split(32, 16384, 8, 4).tag);
+
+  /* ---- 4. GATE 2017 Set 1: associativity exchange rate ---- */
+  /* instantiate a concrete cache whose direct-mapped tag is exactly 10 bits */
+  var words = 1024, blockWords = 4, addrBits = 22;
+  var direct = split(addrBits, words * 4, blockWords * 4, 1);
+  var sixteen = split(addrBits, words * 4, blockWords * 4, 16);
+  MODEL.g2017 = { direct: direct, sixteen: sixteen };
+  chk('2017 Set 1: a concrete instance reproduces the stated 10-bit direct tag',
+    direct.tag === 10, 'tag ' + direct.tag);
+  chk('2017 Set 1: at 16-way the tag is 14 and the index fell by 4',
+    sixteen.tag === 14 && direct.idx - sixteen.idx === 4,
+    'tag ' + sixteen.tag + ', index ' + direct.idx + ' -> ' + sixteen.idx);
+  chk('2017 Set 1: associativity never changes the number of lines',
+    direct.lines === sixteen.lines, 'lines ' + direct.lines + ' vs ' + sixteen.lines);
+
+  /* ---- 5. GATE 2021 Set 2: solve for the associativity ---- */
+  var found = null;
+  for (i = 1; i <= 64; i *= 2) {
+    var t = split(PYQ.g2021s2.addr, PYQ.g2021s2.cache, PYQ.g2021s2.blockBytes, i);
+    if (t.tag === PYQ.g2021s2.tag) { found = { ways: i, split: t }; break; }
+  }
+  MODEL.g2021s2 = found;
+  chk('2021 Set 2: a 22-bit tag in that geometry forces 2-way associativity',
+    !!found && found.ways === 2,
+    found ? 'ways ' + found.ways : 'no power-of-two associativity fits');
+
+  /* ---- 6. GATE 2015 Set 2: the weighted average ---- */
+  var w = 0.8 * PYQ.g2015s2.Th + 0.2 * PYQ.g2015s2.missTime;
+  MODEL.g2015 = { weighted: w, usingPenalty: PYQ.g2015s2.Th + 0.2 * PYQ.g2015s2.missTime };
+  chk('2015 Set 2: weighting the outcomes gives 14 ns',
+    approx(w, 14), 'got ' + w);
+  chk('2015 Set 2: using 50 as a penalty gives the trap answer 15',
+    approx(MODEL.g2015.usingPenalty, 15), 'got ' + MODEL.g2015.usingPenalty);
+
+  /* ---- 7. GATE 2020: a miss penalty built from words ---- */
+  var wordsPerBlock = PYQ.g2020.blockBytes / PYQ.g2020.wordBytes;
+  var penalty = PYQ.g2020.first + (wordsPerBlock - 1) * PYQ.g2020.rest;
+  MODEL.g2020 = { words: wordsPerBlock, penalty: penalty, amat: amat(PYQ.g2020.Th, 1 - PYQ.g2020.hitRate, penalty) };
+  chk('2020: 32 words per block give a 175 ns penalty',
+    wordsPerBlock === 32 && penalty === 175, 'words ' + wordsPerBlock + ', penalty ' + penalty);
+  chk('2020: the average is 13.5 ns', approx(MODEL.g2020.amat, 13.5), 'got ' + MODEL.g2020.amat);
+
+  /* ---- 8. GATE 2025 Set 1 Q53: two levels ---- */
+  var outs = twoLevel(PYQ.g2025s1q53.h1, PYQ.g2025s1q53.t1, PYQ.g2025s1q53.h2,
+                      PYQ.g2025s1q53.t2, PYQ.g2025s1q53.tm);
+  MODEL.outcomes = outs;
+  MODEL.amat2 = amatOutcomes(outs);
+  chk('2025 Set 1 Q53: the three outcome probabilities sum to 1',
+    approx(outs[0].p + outs[1].p + outs[2].p, 1), 'sum ' + (outs[0].p + outs[1].p + outs[2].p));
+  chk('2025 Set 1 Q53: the average is 11.85 ns', approx(MODEL.amat2, 11.85), 'got ' + MODEL.amat2);
+  var dbl = outs[0].p * outs[0].t + outs[1].p * (outs[0].t + outs[1].t) + outs[2].p * (outs[0].t + outs[1].t + outs[2].t);
+  MODEL.doubleCount = dbl;
+  chk('2025 Set 1 Q53: adding the L1 time again gives 12.5, outside the key',
+    approx(dbl, 12.5), 'got ' + dbl);
+
+  /* ---- 9. GATE 2024 Set 1: miss rate into CPI ---- */
+  var cpiStall = cpiStalls(PYQ.g2024s1.base, PYQ.g2024s1.iMiss, PYQ.g2024s1.dFrac, PYQ.g2024s1.dMiss, PYQ.g2024s1.penalty);
+  MODEL.g2024 = { cpi: cpiStall, speedup: cpiStall / PYQ.g2024s1.base };
+  chk('2024 Set 1: CPI 6 with stalls and a speedup of 3.00',
+    approx(cpiStall, 6) && approx(MODEL.g2024.speedup, 3), 'cpi ' + cpiStall + ', speedup ' + MODEL.g2024.speedup);
+  chk('2024 Set 1: charging data misses to every instruction gives CPI 12 and speedup 6.00',
+    approx(cpiStalls(PYQ.g2024s1.base, PYQ.g2024s1.iMiss, 1, PYQ.g2024s1.dMiss, PYQ.g2024s1.penalty), 12),
+    'got ' + cpiStalls(PYQ.g2024s1.base, PYQ.g2024s1.iMiss, 1, PYQ.g2024s1.dMiss, PYQ.g2024s1.penalty));
+
+  /* ---- 10. GATE 2004: the trace, simulated ---- */
+  var sim = runTrace(PYQ.g2004.trace, PYQ.g2004.lines, PYQ.g2004.ways, 'lru');
+  MODEL.sim = sim;
+  MODEL.cls = classify(PYQ.g2004.trace, PYQ.g2004.lines, PYQ.g2004.ways);
+  chk('2004: LRU on 8, 12, 0, 12, 8 in a 2-way 4-block cache misses 4 times',
+    sim.misses === 4, 'misses ' + sim.misses);
+  chk('2004: all five accesses land in set 0 and set 1 is never touched',
+    sim.steps.every(function (s) { return s.set === 0; }),
+    'sets ' + sim.steps.map(function (s) { return s.set; }).join(','));
+  chk('2004: fully associative with the same 4 blocks misses only 3 times',
+    MODEL.cls.fa === 3, 'fa misses ' + MODEL.cls.fa);
+  chk('2004: the classification is 3 compulsory, 0 capacity, 1 conflict',
+    MODEL.cls.compulsory === 3 && MODEL.cls.capacity === 0 && MODEL.cls.conflict === 1,
+    'C ' + MODEL.cls.compulsory + ', Cap ' + MODEL.cls.capacity + ', Con ' + MODEL.cls.conflict);
+  chk('2004: FIFO also misses 4 times on this trace, so the policy does not matter here',
+    runTrace(PYQ.g2004.trace, 4, 2, 'fifo').misses === 4,
+    'fifo ' + runTrace(PYQ.g2004.trace, 4, 2, 'fifo').misses);
+  chk('2004: a hit still updates recency, which is why the fifth access evicts 0',
+    sim.steps[3].hit === true && sim.steps[4].victim === 0,
+    'step4 hit ' + sim.steps[3].hit + ', step5 victim ' + sim.steps[4].victim);
+
+  /* ---- 11. the FIFO anomaly and the LRU properties ---- */
+  var cyc = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5];
+  MODEL.anomaly = {
+    fifo3: runTrace(cyc, 3, 3, 'fifo').misses,
+    fifo4: runTrace(cyc, 4, 4, 'fifo').misses,
+    lru4: runTrace(cyc, 4, 4, 'lru').misses,
+    opt4: runOpt(cyc, 4)
+  };
+  chk('Belady anomaly: FIFO misses 9 with 3 lines and 10 with 4 lines',
+    MODEL.anomaly.fifo3 === 9 && MODEL.anomaly.fifo4 === 10,
+    'fifo3 ' + MODEL.anomaly.fifo3 + ', fifo4 ' + MODEL.anomaly.fifo4);
+  chk('LRU with 4 lines misses 8 on the same trace, fewer than FIFO',
+    MODEL.anomaly.lru4 === 8, 'lru4 ' + MODEL.anomaly.lru4);
+  chk('optimal replacement with 4 lines misses 6, so LRU is not optimal',
+    MODEL.anomaly.opt4 === 6, 'opt ' + MODEL.anomaly.opt4);
+
+  /* ---- 12. LRU monotonicity over 200 seeded traces ---- */
+  var rand = rng(20261027), violations = 0, optViolations = 0, tested = 0;
+  for (i = 0; i < 200; i++) {
+    var tr = [], len = 20 + Math.floor(rand() * 40);
+    for (j = 0; j < len; j++) tr.push(Math.floor(rand() * 9));
+    var prev = Infinity, o;
+    for (var L = 1; L <= 6; L++) {
+      var m = runTrace(tr, L, L, 'lru').misses;
+      if (m > prev) violations++;
+      prev = m;
+      o = runOpt(tr, L);
+      if (m < o) optViolations++;
+      tested++;
+    }
+  }
+  chk('LRU never misses more when given more lines (200 random traces, ' + tested + ' comparisons)',
+    violations === 0, violations + ' violations');
+  chk('LRU never beats optimal replacement (' + tested + ' comparisons)',
+    optViolations === 0, optViolations + ' violations');
+
+  /* ---- 13. GATE 2013: the line range of block j ---- */
+  var v = PYQ.g2013.v, k = PYQ.g2013.k, ok = true, detail = '';
+  for (var b = 0; b < 24; b++) {
+    var lo = (b % v) * k, hi = lo + k - 1;
+    for (var line = lo; line <= hi; line++) {
+      if (Math.floor(line / k) !== (b % v)) { ok = false; detail = 'block ' + b + ' line ' + line; }
+    }
+    if (hi - lo + 1 !== k) { ok = false; detail = 'range length for block ' + b; }
+  }
+  chk('2013: (j mod v) k to (j mod v) k + k - 1 holds exactly k lines, all in set j mod v',
+    ok, detail);
+
+  /* ---- 14. the edge-case arithmetic quoted in the tabs ---- */
+  var big = split(20, 1048576, 1, 1048576);
+  chk('a fully associative cache has no index, so its tag is the whole block number',
+    big.tag === 20 && big.idx === 0 && big.off === 0,
+    'tag ' + big.tag + ', idx ' + big.idx + ', off ' + big.off);
+  chk('a fully associative cache always has zero index bits',
+    split(32, 16384, 16, 1024).idx === 0, 'idx ' + split(32, 16384, 16, 1024).idx);
+  chk('the 2019-style fully associative split gives 28 tag bits and 0 index bits',
+    split(32, 16384, 16, 1024).tag === 28, 'tag ' + split(32, 16384, 16, 1024).tag);
+
+  var slowBig = amat(10, 0.2, 100), fastSmall = amat(25, 0.1, 100);
+  MODEL.sizeTrade = { before: slowBig, after: fastSmall };
+  chk('a bigger or better cache can raise the average: 30 ns against 35 ns',
+    approx(slowBig, 30) && approx(fastSmall, 35), slowBig + ' vs ' + fastSmall);
+
+  var o1 = amat(4, 0.10, 60), o2 = amat(6, 0.05, 60);
+  MODEL.optTrade = { before: o1, after: o2, pct: (o1 - o2) / o1 * 100 };
+  chk('the hit-time trade in the original MCQ improves 10 ns to 9 ns, which is 10 per cent',
+    approx(o1, 10) && approx(o2, 9) && approx(MODEL.optTrade.pct, 10),
+    o1 + ' -> ' + o2 + ', ' + MODEL.optTrade.pct.toFixed(2) + ' per cent');
+
+  var half = cpiStalls(2, 0.01, 0.25, 0.04, 100);
+  chk('halving the stall cycles takes CPI 6 to 4, a speedup of 1.5 and not 2',
+    approx(cpiStalls(2, 0.02, 0.25, 0.08, 100), 6) && approx(half, 4) && approx(6 / 4, 1.5),
+    'half-stall CPI ' + half);
+
+  chk('the answer recorded for GATE 2022 is A, B and D',
+    PYQ.g2022.answer === 'A, B, D', PYQ.g2022.answer);
+}
+
+/* ======================================================================
+   LAYER 2 - DRAWING
+   Reads the validated structure. Re-derives nothing.
+   ====================================================================== */
+
+function bg(P) {
+  P.rect(0, 0, W, H, { fill: '#ffffff' });
+  P.rect(0, 0, W, 52, { fill: PAL.surface2 });
+  P.line(0, 52, W, 52, { stroke: PAL.border });
+}
+function head(P, kicker, title) {
+  P.text(24, 14, kicker.toUpperCase(), { size: 10, mono: true, color: PAL.accent });
+  P.text(24, 28, title, { size: 17, bold: true, color: PAL.ink });
+}
+function note(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, color: colour || PAL.dim });
+}
+function mono(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, mono: true, color: colour || PAL.ink });
+}
+function box(P, x, y, w, h, label, o) {
+  o = o || {};
+  P.rect(x, y, w, h, {
+    fill: o.fill || '#ffffff', stroke: o.stroke || PAL.border,
+    radius: o.radius === undefined ? 6 : o.radius, sw: o.sw || 1.2, dash: o.dash
+  });
+  if (label) {
+    P.text(x + w / 2, y + h / 2, label, {
+      size: o.size || 10, mono: true, color: o.color || PAL.ink,
+      align: 'center', base: 'middle', bold: !!o.bold
+    });
+  }
+}
+function rule(P, x1, y, x2, colour) {
+  P.line(x1, y, x2, y, { stroke: colour || PAL.border, sw: 1 });
+}
+function prog(t, at) { return t >= at ? 1 : 0; }
+
+/* ---------- scene 1: locality ---------- */
+function sceneLocality(P, t) {
+  head(P, 'scene 1', 'Why a small fast memory helps at all');
+
+  var levels = [
+    { name: 'registers', half: 50, time: '~1 cycle' },
+    { name: 'L1 cache', half: 78, time: '~10 cycles' },
+    { name: 'L2 cache', half: 106, time: '~40 cycles' },
+    { name: 'L3 cache', half: 134, time: '~150 cycles' },
+    { name: 'main memory', half: 162, time: '~600 cycles' }
+  ];
+  var cx = 218, y0 = 84, hh = 40, gap = 6, i;
+
+  note(P, 24, 68, 'the ladder, in orders of magnitude only', PAL.faint, 9);
+
+  for (i = 0; i < levels.length; i++) {
+    var y = y0 + i * (hh + gap);
+    var lv = levels[i];
+    P.rect(cx - lv.half, y, lv.half * 2, hh, {
+      fill: i === 0 ? PAL.accentDim : PAL.surface2,
+      stroke: i === 0 ? PAL.accent : PAL.border, radius: 3, sw: 1
+    });
+    mono(P, cx, y + hh / 2 - 4, lv.name, i === 0 ? PAL.accent : PAL.ink, 10);
+    mono(P, cx + lv.half + 10, y + hh / 2 - 4, lv.time, PAL.faint, 9);
+  }
+  mono(P, 24, y0 + 5 * (hh + gap) + 4, 'down: bigger, slower, cheaper per byte', PAL.dim, 9);
+  mono(P, 24, y0 + 5 * (hh + gap) + 20, 'up: faster, smaller, dearer per byte', PAL.dim, 9);
+
+  /* the trace */
+  var trace = [100, 104, 108, 112, 100, 116, 120, 100, 104];
+  var tx = 486, ty = 128, cw = 36, cg = 6, k;
+
+  note(P, tx, 68, 'one trace, and the two kinds of locality', PAL.faint, 9);
+
+  for (k = 0; k < trace.length; k++) {
+    var x = tx + k * (cw + cg);
+    var isRepeat = (k === 4 || k === 7 || k === 8);
+    var isNeighbour = (k === 1 || k === 2 || k === 3);
+    var fillc = isRepeat ? PAL.accentDim : (isNeighbour && prog(t, 22.5) ? '#e7f0e9' : '#ffffff');
+    var strokec = isRepeat ? PAL.accent : (isNeighbour && prog(t, 22.5) ? PAL.valid : PAL.border);
+    P.rect(x, ty, cw, 30, { fill: fillc, stroke: strokec, radius: 3, sw: 1 });
+    mono(P, x + cw / 2, ty + 10, String(trace[k]), PAL.ink, 9);
+  }
+
+  /* block brace over the first four cells */
+  var bx1 = tx, bx2 = tx + 3 * (cw + cg) + cw;
+  rule(P, bx1, ty + 40, bx2, PAL.border);
+  rule(P, bx1, ty + 34, bx1, ty + 40, PAL.border);
+  rule(P, bx2, ty + 34, bx2, ty + 40, PAL.border);
+  mono(P, bx1, ty + 46, 'block A: 16 bytes, four words', PAL.dim, 9);
+  mono(P, bx1, ty + 62, 'one trip brings all four', PAL.faint, 9);
+
+  /* the legend */
+  var ly = 300;
+  P.rect(tx, ly, 12, 12, { fill: PAL.accentDim, stroke: PAL.accent, radius: 2, sw: 1 });
+  note(P, tx + 18, ly + 1, 'temporal: 100 and 104 come back', PAL.dim, 9);
+  P.rect(tx, ly + 22, 12, 12, { fill: '#e7f0e9', stroke: PAL.valid, radius: 2, sw: 1 });
+  note(P, tx + 18, ly + 23, 'spatial: 104, 108, 112 are neighbours of 100', PAL.dim, 9);
+  P.rect(tx, ly + 44, 12, 12, { fill: '#ffffff', stroke: PAL.border, radius: 2, sw: 1 });
+  note(P, tx + 18, ly + 45, '116 and 120 open a new block', PAL.dim, 9);
+
+  if (prog(t, 15)) {
+    box(P, tx, ly + 70, 380, 46, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, tx + 10, ly + 80, 'hit: one access.  miss: one access + the trip down.', PAL.ink, 9);
+    note(P, tx + 10, ly + 98, 'the trip is the miss penalty, and it is what the next scene averages.', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 2: the average ---------- */
+function sceneAmat(P, t) {
+  head(P, 'scene 2', 'One average, and two conventions');
+
+  box(P, 24, 64, 500, 56, '', { fill: PAL.surface2, stroke: PAL.border });
+  mono(P, 40, 76, 'T = T_hit + m x P', PAL.ink, 16);
+  note(P, 40, 100, 'hit time, plus the miss rate times the miss penalty', PAL.dim, 9);
+
+  /* the weighted bar, 14 ns across 500 px */
+  var total = 14, bw = 500, x0 = 24, yb = 148, bh = 34;
+  var hitPart = (0.8 * 5 / total) * bw;
+  var missPart = (0.2 * 50 / total) * bw;
+  var grow = Math.min(1, t / 12);
+
+  P.rect(x0, yb, hitPart * grow, bh, { fill: PAL.valid, stroke: PAL.valid, radius: 2, sw: 1 });
+  P.rect(x0 + hitPart * grow, yb, missPart * grow, bh, { fill: PAL.warnDim, stroke: PAL.warn, radius: 2, sw: 1 });
+  if (grow > 0.5) {
+    mono(P, x0 + 8, yb + 12, '0.8 x 5 = 4 ns', '#ffffff', 9);
+    mono(P, x0 + hitPart + 12, yb + 12, '0.2 x 50 = 10 ns', PAL.warn, 9);
+  }
+  mono(P, x0, yb - 18, 'GATE 2015 Set 2: 80 per cent hits at 5 ns, a 50 ns miss', PAL.faint, 9);
+
+  if (prog(t, 9)) {
+    mono(P, x0, yb + 50, 'average = 4 + 10 = ' + MODEL.g2015.weighted.toFixed(0) + ' ns', PAL.accent, 14);
+  }
+  if (prog(t, 15)) {
+    box(P, x0, yb + 76, 500, 62, '', { fill: PAL.invalidDim, stroke: PAL.invalid });
+    mono(P, x0 + 12, yb + 86, 'using 50 as a penalty instead', PAL.invalid, 9);
+    mono(P, x0 + 12, yb + 106, '5 + 0.2 x 50 = ' + MODEL.g2015.usingPenalty.toFixed(0) + ' ns, which counts the hit time twice',
+         PAL.invalid, 10);
+    note(P, x0 + 12, yb + 124, 'The paper gave the whole miss time, not the extra part.', PAL.dim, 9);
+  }
+
+  /* the two conventions, on the right */
+  var rx = 556, ry = 64;
+  note(P, rx, ry, 'the two access conventions', PAL.faint, 9);
+
+  box(P, rx, ry + 14, 150, 40, 'cache', { fill: '#ffffff' });
+  box(P, rx, ry + 84, 150, 40, 'memory', { fill: PAL.surface2 });
+  P.arrow(rx + 75, ry + 56, rx + 75, ry + 80, { stroke: PAL.accent, sw: 1.4, head: 7 });
+  mono(P, rx + 160, ry + 22, 'serial:', PAL.ink, 9);
+  mono(P, rx + 160, ry + 38, 'miss =', PAL.dim, 9);
+  mono(P, rx + 160, ry + 54, 'cache +', PAL.dim, 9);
+  mono(P, rx + 160, ry + 70, 'memory', PAL.dim, 9);
+  mono(P, rx + 160, ry + 96, 'a miss pays', PAL.faint, 9);
+  mono(P, rx + 160, ry + 110, 'the cache twice', PAL.faint, 9);
+
+  box(P, rx, ry + 180, 150, 40, 'cache', { fill: '#ffffff' });
+  box(P, rx + 170, ry + 180, 150, 40, 'memory', { fill: PAL.surface2 });
+  P.arrow(rx + 75, ry + 162, rx + 75, ry + 176, { stroke: PAL.accent, sw: 1.4, head: 7 });
+  P.arrow(rx + 245, ry + 162, rx + 245, ry + 176, { stroke: PAL.accent, sw: 1.4, head: 7 });
+  mono(P, rx, ry + 236, 'parallel: both read at once,', PAL.ink, 9);
+  mono(P, rx, ry + 252, 'a miss pays only the memory', PAL.dim, 9);
+  mono(P, rx, ry + 268, 'but every access pays the slower', PAL.faint, 9);
+}
+
+/* ---------- scene 3: the address split ---------- */
+function sceneAddress(P, t) {
+  head(P, 'scene 3', 'The address splits into three fields');
+
+  function bar(y, label, r, addrBits, caption, colourTag) {
+    var x0 = 60, wTot = 800;
+    var wTag = (r.tag / addrBits) * wTot;
+    var wIdx = (r.idx / addrBits) * wTot;
+    var wOff = (r.off / addrBits) * wTot;
+
+    mono(P, x0, y - 16, label, PAL.faint, 9);
+
+    P.rect(x0, y, wTag, 44, { fill: colourTag ? PAL.accentDim : PAL.surface2, stroke: colourTag ? PAL.accent : PAL.border, radius: 2, sw: 1 });
+    P.rect(x0 + wTag, y, wIdx, 44, { fill: PAL.warnDim, stroke: PAL.warn, radius: 2, sw: 1 });
+    P.rect(x0 + wTag + wIdx, y, wOff, 44, { fill: PAL.surface2, stroke: PAL.border, radius: 2, sw: 1 });
+
+    mono(P, x0 + wTag / 2, y + 16, 'TAG ' + r.tag, PAL.ink, 11);
+    mono(P, x0 + wTag + wIdx / 2, y + 16, 'INDEX ' + r.idx, PAL.warn, 10);
+    mono(P, x0 + wTag + wIdx + wOff / 2, y + 16, 'OFF ' + r.off, PAL.dim, 10);
+    mono(P, x0, y + 54, caption, PAL.dim, 9);
+  }
+
+  bar(96, 'GATE 2021 Set 1: 32-bit address, 32 KB direct mapped, 64-byte blocks',
+      MODEL.g2021s1, 32, 'lines 512 = 2^9, block 64 = 2^6, so tag = 32 - 9 - 6', true);
+
+  if (prog(t, 7.5)) {
+    mono(P, 60, 168, '17 + 9 + 6 = 32', PAL.valid, 12);
+  }
+
+  if (prog(t, 15)) {
+    bar(226, 'GATE 2025 Set 1 Q36: 20-bit address, 16 KB direct mapped, 16-byte blocks',
+        MODEL.g2025q36, 20, 'lines 1024 = 2^10, block 16 = 2^4, so tag = 20 - 10 - 4', true);
+  }
+
+  if (prog(t, 22.5)) {
+    box(P, 60, 300, 800, 54, '', { fill: PAL.accentDim, stroke: PAL.accent });
+    mono(P, 76, 312, 'but Q36 asks for all the tag storage, not one tag', PAL.accent, 10);
+    mono(P, 76, 332, MODEL.g2025q36.lines + ' lines x ' + MODEL.g2025q36.tag + ' bits = ' + MODEL.tagStorage + ' bits', PAL.ink, 13);
+    note(P, 420, 334, 'one tag is 6 bits; the answer is 6144', PAL.dim, 9);
+  }
+
+  mono(P, 60, 380, 'offset = log2(block bytes)   index = log2(capacity / (block x ways))   tag = width - both', PAL.dim, 9);
+  mono(P, 60, 400, 'the three fields are disjoint and cover the address, so they must add up', PAL.faint, 9);
+}
+
+/* ---------- scene 4: the three mappings ---------- */
+function sceneMapping(P, t) {
+  head(P, 'scene 4', 'One block, three homes');
+
+  var panels = [
+    { x: 24, title: 'DIRECT (k = 1)', lines: ['L0', 'L1', 'L2', 'L3'], target: [2],
+      formula: 'line = b mod 4', sub: 'index 2 bits, one comparison' },
+    { x: 312, title: '2-WAY SET ASSOC.', lines: ['S0 w0', 'S0 w1', 'S1 w0', 'S1 w1'], target: [0, 1],
+      formula: 'set = b mod 2, then either line', sub: 'index 1 bit, two comparisons' },
+    { x: 600, title: 'FULLY ASSOC. (k = 4)', lines: ['any', 'any', 'any', 'any'], target: [0, 1, 2, 3],
+      formula: 'no index at all', sub: 'index 0 bits, four comparisons' }
+  ];
+  var i, j;
+
+  for (i = 0; i < panels.length; i++) {
+    var pn = panels[i], x0 = pn.x;
+    mono(P, x0, 68, pn.title, PAL.accent, 9);
+
+    /* memory blocks 0..7 */
+    for (j = 0; j < 8; j++) {
+      var my = 150 + j * 23;
+      var isB = (j === 6);
+      P.rect(x0 + 14, my, 70, 20, {
+        fill: isB ? PAL.warnDim : '#ffffff',
+        stroke: isB ? PAL.warn : PAL.border, radius: 2, sw: isB ? 1.4 : 0.8
+      });
+      mono(P, x0 + 49, my + 6, 'b' + j, isB ? PAL.warn : PAL.faint, 8);
+    }
+
+    /* cache lines */
+    for (j = 0; j < 4; j++) {
+      var cy = 158 + j * 42;
+      var isT = pn.target.indexOf(j) >= 0;
+      P.rect(x0 + 152, cy, 104, 32, {
+        fill: isT ? PAL.accentDim : PAL.surface2,
+        stroke: isT ? PAL.accent : PAL.border, radius: 3, sw: isT ? 1.4 : 0.9
+      });
+      mono(P, x0 + 204, cy + 11, pn.lines[j], isT ? PAL.accent : PAL.dim, 8);
+    }
+
+    /* the arrows from block 6 */
+    var fromY = 150 + 6 * 23 + 10;
+    for (j = 0; j < pn.target.length; j++) {
+      var toY = 158 + pn.target[j] * 42 + 16;
+      P.arrow(x0 + 86, fromY, x0 + 150, toY, { stroke: PAL.accent, sw: 1.1, head: 6 });
+    }
+
+    mono(P, x0 + 14, 366, pn.formula, PAL.ink, 9);
+    mono(P, x0 + 14, 382, pn.sub, PAL.faint, 8);
+  }
+
+  if (prog(t, 22.5)) {
+    box(P, 24, 400, 852, 44, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, 40, 410, 'GATE 2013: block j may occupy any line from (j mod v) x k to (j mod v) x k + k - 1', PAL.ink, 10);
+    note(P, 40, 428, 'v is the number of sets, k the associativity, and the modulus is always the number of sets.', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 5: the exchange rate ---------- */
+function sceneAssoc(P, t) {
+  head(P, 'scene 5', 'Associativity trades index bits for tag bits');
+
+  var x0 = 60, wTot = 620;
+  var tW = 300, iW = 200, oW = 120;
+
+  mono(P, x0, 80, 'direct mapped: tag T, index i, offset o', PAL.faint, 9);
+  P.rect(x0, 88, tW, 38, { fill: PAL.surface2, stroke: PAL.border, radius: 2, sw: 1 });
+  P.rect(x0 + tW, 88, iW, 38, { fill: PAL.warnDim, stroke: PAL.warn, radius: 2, sw: 1 });
+  P.rect(x0 + tW + iW, 88, oW, 38, { fill: PAL.surface2, stroke: PAL.border, radius: 2, sw: 1 });
+  mono(P, x0 + tW / 2, 102, 'TAG', PAL.ink, 11);
+  mono(P, x0 + tW + iW / 2, 102, 'INDEX', PAL.warn, 10);
+  mono(P, x0 + tW + iW + oW / 2, 102, 'OFF', PAL.dim, 10);
+
+  if (prog(t, 7.5)) {
+    var shift = 78;
+    mono(P, x0, 146, '16-way: four bits move from the index to the tag', PAL.faint, 9);
+    P.rect(x0, 154, tW + shift, 38, { fill: PAL.accentDim, stroke: PAL.accent, radius: 2, sw: 1.2 });
+    P.rect(x0 + tW + shift, 154, iW - shift, 38, { fill: PAL.warnDim, stroke: PAL.warn, radius: 2, sw: 1 });
+    P.rect(x0 + tW + iW, 154, oW, 38, { fill: PAL.surface2, stroke: PAL.border, radius: 2, sw: 1 });
+    mono(P, x0 + (tW + shift) / 2, 168, 'TAG + 4', PAL.accent, 11);
+    mono(P, x0 + tW + shift + (iW - shift) / 2, 168, 'IDX - 4', PAL.warn, 9);
+    mono(P, x0 + tW + iW + oW / 2, 168, 'OFF', PAL.dim, 10);
+    mono(P, x0 + tW + shift - 34, 198, 'log2(16) = 4', PAL.accent, 10);
+  }
+
+  if (prog(t, 15)) {
+    mono(P, x0, 220, 'GATE 2017 Set 1: a 10-bit direct tag becomes ' + MODEL.g2017.sixteen.tag + ' bits at 16-way', PAL.ink, 11);
+    mono(P, x0, 238, 'capacity and block size are unchanged, so the line count is unchanged', PAL.dim, 9);
+  }
+
+  /* the reversal, in a box on the right */
+  var bx = 700;
+  if (prog(t, 22.5)) {
+    box(P, bx, 64, 176, 194, '', { fill: '#ffffff', stroke: PAL.border });
+    mono(P, bx + 12, 76, 'GATE 2021 Set 2', PAL.accent, 9);
+    mono(P, bx + 12, 96, '2 KB cache', PAL.ink, 9);
+    mono(P, bx + 12, 112, '64-byte blocks', PAL.ink, 9);
+    mono(P, bx + 12, 128, '32-bit address', PAL.ink, 9);
+    mono(P, bx + 12, 144, 'tag = 22', PAL.ink, 9);
+    rule(P, bx + 12, 154, bx + 164, PAL.border);
+    mono(P, bx + 12, 162, 'index = 32 - 22 - 6 = 4', PAL.dim, 9);
+    mono(P, bx + 12, 180, 'sets = 16', PAL.dim, 9);
+    mono(P, bx + 12, 196, 'lines = 2048/64 = 32', PAL.dim, 9);
+    mono(P, bx + 12, 218, 'ways = 32/16 = ' + (MODEL.g2021s2 ? MODEL.g2021s2.ways : '?'), PAL.accent, 13);
+  }
+
+  if (prog(t, 26)) {
+    note(P, 60, 300, 'associativity buys fewer conflict misses,', PAL.dim, 10);
+    note(P, 60, 318, 'and pays a wider tag, more comparators, and usually a longer hit time.', PAL.dim, 10);
+    note(P, 60, 344, 'The exchange rate is fixed: log2 of the associativity, in bits.', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 6: the LRU walk ---------- */
+function sceneReplacement(P, t) {
+  head(P, 'scene 6', 'A replacement walk on a real trace');
+
+  var sim = MODEL.sim;
+  if (!sim) return;
+
+  var x0 = 24, y0 = 92, rh = 38;
+  var cols = [56, 62, 150, 150, 160];
+
+  /* header */
+  var hx = x0;
+  var heads = ['step', 'block', 'way 0', 'way 1', 'result'];
+  var i;
+  for (i = 0; i < heads.length; i++) {
+    mono(P, hx + 6, y0, heads[i], PAL.faint, 8);
+    hx += cols[i];
+  }
+  rule(P, x0, y0 + 12, x0 + 578, PAL.border);
+
+  for (i = 0; i < sim.steps.length; i++) {
+    if (t < 3 + i * 3.4) break;
+    var st = sim.steps[i];
+    var y = y0 + 20 + i * rh;
+    var cx = x0;
+
+    if (i % 2 === 0) P.rect(x0, y, 578, rh - 3, { fill: '#f8fafb' });
+
+    mono(P, cx + 6, y + 10, String(i + 1), PAL.faint, 9); cx += cols[0];
+    mono(P, cx + 6, y + 10, String(st.block), PAL.ink, 11); cx += cols[1];
+
+    for (var w = 0; w < 2; w++) {
+      var tag = st.ways[w];
+      var isMru = (st.mru === w);
+      P.rect(cx + 4, y + 2, 60, rh - 12, {
+        fill: tag === null ? '#ffffff' : (isMru ? PAL.accentDim : PAL.surface2),
+        stroke: tag === null ? PAL.border : (isMru ? PAL.accent : PAL.border),
+        radius: 2, sw: isMru ? 1.3 : 0.8, dash: tag === null ? [3, 3] : null
+      });
+      mono(P, cx + 34, y + 9, tag === null ? '-' : ('tag ' + tag), tag === null ? PAL.faint : PAL.ink, 8);
+      cx += cols[2 + w];
+    }
+
+    var msg, col;
+    if (st.hit) { msg = 'hit'; col = PAL.valid; }
+    else if (st.victim === null) { msg = 'miss, fill'; col = PAL.invalid; }
+    else { msg = 'miss, evict ' + st.victim; col = PAL.invalid; }
+    mono(P, cx + 6, y + 10, msg, col, 9);
+  }
+
+  /* the right-hand column */
+  var rx = 620;
+  box(P, rx, 88, 256, 66, '', { fill: PAL.surface2, stroke: PAL.border });
+  mono(P, rx + 12, 98, 'four blocks at two-way', PAL.ink, 9);
+  mono(P, rx + 12, 116, '= two sets of two lines', PAL.dim, 9);
+  mono(P, rx + 12, 136, 'set = block mod 2', PAL.warn, 10);
+
+  box(P, rx, 168, 256, 66, '', { fill: PAL.invalidDim, stroke: PAL.invalid });
+  mono(P, rx + 12, 178, 'every block here is even', PAL.invalid, 9);
+  mono(P, rx + 12, 196, 'so set 1 is never touched', PAL.invalid, 9);
+  mono(P, rx + 12, 216, 'and set 0 holds all five', PAL.dim, 9);
+
+  if (prog(t, 20)) {
+    box(P, rx, 248, 256, 58, '', { fill: '#ffffff', stroke: PAL.border });
+    mono(P, rx + 12, 258, 'misses ' + MODEL.cls.real + ' of ' + sim.steps.length + ' accesses', PAL.ink, 11);
+    mono(P, rx + 12, 278, 'fully associative, 4 lines: ' + MODEL.cls.fa, PAL.valid, 10);
+    mono(P, rx + 12, 294, 'the fourth miss is a conflict miss', PAL.dim, 8);
+  }
+
+  if (prog(t, 25)) {
+    mono(P, 24, 372, 'a hit refreshes recency: after step 4, block 12 is the most recent', PAL.dim, 9);
+    mono(P, 24, 390, 'so step 5 evicts block 0, not block 12', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 7: the three Cs ---------- */
+function sceneThrees(P, t) {
+  head(P, 'scene 7', 'Compulsory, conflict, capacity');
+
+  var sim = MODEL.sim, cls = MODEL.cls;
+  if (!sim || !cls) return;
+
+  var x0 = 40, cw = 118, cg = 12, i;
+  for (i = 0; i < sim.steps.length; i++) {
+    var st = sim.steps[i];
+    var x = x0 + i * (cw + cg);
+    var isComp = (i === 0 || i === 1 || i === 2);
+    var isConflict = (i === 4);
+    var col = st.hit ? PAL.valid : (isConflict ? PAL.warn : PAL.invalid);
+    var fillc = st.hit ? '#eef6f0' : (isConflict ? PAL.warnDim : PAL.invalidDim);
+
+    P.rect(x, 96, cw, 62, { fill: fillc, stroke: col, radius: 4, sw: 1.1 });
+    mono(P, x + cw / 2, 106, 'block ' + st.block, PAL.ink, 10);
+    mono(P, x + cw / 2, 124, st.hit ? 'HIT' : 'MISS', col, 10);
+    mono(P, x + cw / 2, 142, st.hit ? '' : (isConflict ? 'conflict' : 'compulsory'), col, 8);
+  }
+
+  var rows = [
+    { label: 'this cache, 2-way, 4 blocks', n: cls.real, col: PAL.invalid, fill: PAL.invalidDim },
+    { label: 'fully associative, same 4 blocks', n: cls.fa, col: PAL.valid, fill: '#eef6f0' },
+    { label: 'unbounded cache', n: cls.unbounded, col: PAL.faint, fill: PAL.surface2 }
+  ];
+
+  if (prog(t, 15)) {
+    for (i = 0; i < rows.length; i++) {
+      var y = 196 + i * 54;
+      mono(P, 40, y, rows[i].label, PAL.dim, 9);
+      P.rect(40, y + 12, rows[i].n * 44, 24, { fill: rows[i].fill, stroke: rows[i].col, radius: 3, sw: 1 });
+      mono(P, 48 + rows[i].n * 44, y + 17, rows[i].n + ' misses', rows[i].col, 10);
+    }
+  }
+
+  if (prog(t, 22.5)) {
+    box(P, 520, 190, 356, 116, '', { fill: '#ffffff', stroke: PAL.border });
+    mono(P, 534, 202, 'the arithmetic', PAL.accent, 9);
+    mono(P, 534, 222, 'compulsory = ' + cls.compulsory, PAL.ink, 10);
+    mono(P, 534, 240, 'capacity = ' + cls.fa + ' - ' + cls.unbounded + ' = ' + cls.capacity, PAL.ink, 10);
+    mono(P, 534, 258, 'conflict = ' + cls.real + ' - ' + cls.fa + ' = ' + cls.conflict, PAL.ink, 10);
+    mono(P, 534, 282, 'only the last one moves with associativity', PAL.dim, 9);
+  }
+
+  if (prog(t, 26)) {
+    note(P, 40, 400, 'Classify by counterfactual, never by intuition: run the same trace in a different cache and see which misses vanish.', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 8: write policy ---------- */
+function sceneWrite(P, t) {
+  head(P, 'scene 8', 'Two write policies, side by side');
+
+  function panel(x, title, colour, fill) {
+    mono(P, x, 68, title, colour, 10);
+    box(P, x, 80, 130, 34, 'CPU', { fill: '#ffffff' });
+    box(P, x, 140, 130, 34, 'cache', { fill: fill, stroke: colour });
+    box(P, x, 200, 130, 34, 'memory', { fill: PAL.surface2 });
+    P.arrow(x + 65, 114, x + 65, 136, { stroke: PAL.border, sw: 1.2, head: 6 });
+    P.arrow(x + 65, 174, x + 65, 196, { stroke: colour, sw: 1.4, head: 6 });
+  }
+
+  panel(40, 'WRITE-THROUGH', PAL.accent, PAL.accentDim);
+  mono(P, 182, 146, 'every store goes down', PAL.ink, 9);
+  mono(P, 182, 162, 'memory is never stale', PAL.dim, 9);
+  mono(P, 182, 186, 'no dirty bit exists', PAL.valid, 9);
+  mono(P, 182, 208, 'eviction moves nothing', PAL.valid, 9);
+
+  panel(470, 'WRITE-BACK', PAL.warn, PAL.warnDim);
+  mono(P, 612, 146, 'the store stops at the cache', PAL.ink, 9);
+  mono(P, 612, 162, 'the dirty bit records it', PAL.dim, 9);
+  mono(P, 612, 186, 'memory learns on eviction', PAL.warn, 9);
+  mono(P, 612, 208, 'and only if the line is dirty', PAL.dim, 9);
+
+  P.rect(470, 244, 130, 18, { fill: PAL.warnDim, stroke: PAL.warn, radius: 3, sw: 1 });
+  mono(P, 478, 249, 'dirty = 1', PAL.warn, 8);
+
+  if (prog(t, 15)) {
+    note(P, 40, 268, 'Separately, on a write miss: write-allocate fetches the block first, no-write-allocate writes around it.', PAL.dim, 9);
+    note(P, 40, 284, 'That choice is independent of the two above.', PAL.faint, 9);
+  }
+
+  if (prog(t, 22.5)) {
+    var rows = [
+      ['A', 'each block in WB and WT has a dirty bit', 'false', PAL.invalid],
+      ['B', 'every write hit in WB transfers to memory', 'false', PAL.invalid],
+      ['C', 'eviction from WT moves no data', 'true', PAL.valid],
+      ['D', 'a read miss in WB never evicts a dirty block', 'false', PAL.invalid]
+    ];
+    for (var i = 0; i < rows.length; i++) {
+      var y = 304 + i * 26;
+      mono(P, 40, y, rows[i][0], PAL.faint, 9);
+      note(P, 60, y, rows[i][1], PAL.ink, 9);
+      mono(P, 700, y, rows[i][2], rows[i][3], 9);
+    }
+    mono(P, 40, 424, 'GATE 2022 answer: ' + PYQ.g2022.answer, PAL.accent, 12);
+  }
+}
+
+/* ---------- scene 9: two levels and CPI ---------- */
+function sceneMultilevel(P, t) {
+  head(P, 'scene 9', 'Two levels, and the move to CPI');
+
+  var o = MODEL.outcomes;
+  if (!o) return;
+
+  var i, y0 = 74;
+  for (i = 0; i < o.length; i++) {
+    if (t < 2 + i * 5) break;
+    var y = y0 + i * 46;
+    P.rect(24, y, 470, 38, { fill: '#ffffff', stroke: PAL.border, radius: 4, sw: 1 });
+    mono(P, 36, y + 8, o[i].label, PAL.dim, 9);
+    mono(P, 36, y + 22, o[i].p.toFixed(4).replace(/0+$/, '').replace(/\.$/, '') + ' x ' + o[i].t + ' ns', PAL.ink, 10);
+    mono(P, 400, y + 12, (o[i].p * o[i].t).toFixed(2), PAL.accent, 12);
+  }
+
+  if (prog(t, 17)) {
+    var total = MODEL.amat2;
+    var bw = 470, x0 = 24, yb = 214;
+    var seg = [o[0].p * o[0].t, o[1].p * o[1].t, o[2].p * o[2].t];
+    var fills = [PAL.accentDim, PAL.warnDim, PAL.invalidDim];
+    var strokes = [PAL.accent, PAL.warn, PAL.invalid];
+    var acc = 0;
+    for (i = 0; i < 3; i++) {
+      var wSeg = (seg[i] / total) * bw;
+      P.rect(x0 + acc, yb, wSeg, 26, { fill: fills[i], stroke: strokes[i], radius: 2, sw: 1 });
+      mono(P, x0 + acc + wSeg / 2, yb + 9, seg[i].toFixed(2), strokes[i], 8);
+      acc += wSeg;
+    }
+    mono(P, x0, yb + 38, 'sum = ' + total.toFixed(2) + ' ns', PAL.accent, 13);
+    mono(P, x0, yb + 58, 'the three probabilities sum to 1, which is the check', PAL.faint, 9);
+  }
+
+  if (prog(t, 22.5)) {
+    box(P, 24, 292, 470, 76, '', { fill: PAL.invalidDim, stroke: PAL.invalid });
+    mono(P, 36, 302, 'adding the 10 ns L1 time again inside the lower terms', PAL.invalid, 9);
+    mono(P, 36, 322, 'gives ' + MODEL.doubleCount.toFixed(2) + ' ns, outside the published range', PAL.invalid, 10);
+    note(P, 36, 344, 'the paper says each time already includes the penalty above it', PAL.dim, 9);
+  }
+
+  /* the CPI box */
+  var rx = 528;
+  box(P, rx, 64, 348, 150, '', { fill: '#ffffff', stroke: PAL.border });
+  mono(P, rx + 12, 76, 'stall cycles per instruction', PAL.accent, 9);
+  mono(P, rx + 12, 98, '= accesses x miss rate x penalty', PAL.ink, 10);
+  rule(P, rx + 12, 112, rx + 336, PAL.border);
+  mono(P, rx + 12, 120, 'GATE 2024 Set 1, ideal CPI 2', PAL.faint, 8);
+  mono(P, rx + 12, 138, 'I: 0.02 x 100 = 2', PAL.ink, 9);
+  mono(P, rx + 12, 156, 'D: 0.25 x 0.08 x 100 = 2', PAL.ink, 9);
+  mono(P, rx + 12, 178, 'CPI = 2 + 2 + 2 = ' + MODEL.g2024.cpi, PAL.accent, 11);
+  mono(P, rx + 12, 198, 'speedup = ' + MODEL.g2024.cpi + ' / 2 = ' + MODEL.g2024.speedup.toFixed(2), PAL.valid, 12);
+
+  if (prog(t, 26)) {
+    note(P, rx, 240, 'the instruction count cancels, so a cache question', PAL.dim, 9);
+    note(P, rx, 256, 'ends as a CPI question.', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 10: the recipe ---------- */
+function sceneRecipe(P, t) {
+  head(P, 'scene 10', 'The procedure, and five traps');
+
+  var steps = [
+    ['1', 'split', 'offset, index, tag; check the sum'],
+    ['2', 'mapping', 'sets = lines / associativity'],
+    ['3', 'trace', 'set = block mod sets, then compare tags'],
+    ['4', 'average', 'pick the convention the words imply'],
+    ['5', 'speedup', 'stalls to CPI, then divide times']
+  ];
+  var n = Math.min(5, 1 + Math.floor(t / 5));
+  var i;
+  for (i = 0; i < n; i++) {
+    var y = 76 + i * 40;
+    P.rect(24, y, 470, 34, { fill: '#ffffff', stroke: PAL.border, radius: 6, sw: 1 });
+    P.circle(44, y + 17, 11, { fill: PAL.accentDim, stroke: PAL.accent });
+    P.text(44, y + 17, steps[i][0], { size: 10, mono: true, align: 'center',
+      base: 'middle', color: PAL.accent, bold: true });
+    mono(P, 64, y + 7, steps[i][1], PAL.ink, 11);
+    mono(P, 128, y + 7, steps[i][2], PAL.dim, 9);
+  }
+
+  var traps = [
+    'miss time used as the miss penalty',
+    'tag width answered for tag storage',
+    'block size left in words',
+    'the lower level time added to itself',
+    'a data miss charged to every instruction'
+  ];
+  note(P, 540, 66, 'five traps', PAL.warn, 11);
+  var m = Math.min(5, 1 + Math.floor(t / 5));
+  for (i = 0; i < m; i++) {
+    var ty = 88 + i * 44;
+    P.rect(540, ty, 336, 38, { fill: PAL.warnDim, stroke: PAL.warn, radius: 5, sw: 1 });
+    mono(P, 552, ty + 8, String(i + 1), PAL.warn, 10);
+    P.text(566, ty + 8, traps[i], { size: 9, color: PAL.ink });
+  }
+
+  if (prog(t, 25)) {
+    mono(P, 24, 300, 'hit time', PAL.faint, 9);
+    mono(P, 24, 318, 'one level, in cycles', PAL.ink, 10);
+    mono(P, 220, 300, 'miss rate', PAL.faint, 9);
+    mono(P, 220, 318, 'a fraction of accesses', PAL.ink, 10);
+    mono(P, 420, 300, 'miss penalty', PAL.faint, 9);
+    mono(P, 420, 318, 'the extra, not the whole', PAL.ink, 10);
+    note(P, 24, 350, 'Three quantities. Every question in this topic is a claim about one of them, and most errors are a claim about one applied to another.', PAL.dim, 10);
+    note(P, 24, 372, 'Write the three down before reading the options.', PAL.faint, 9);
+  }
+}
+
+/* ======================================================================
+   the scene table and the frame loop
+   ====================================================================== */
+var SCENES = {
+  locality: sceneLocality,
+  amat: sceneAmat,
+  address: sceneAddress,
+  mapping: sceneMapping,
+  associativity: sceneAssoc,
+  replacement: sceneReplacement,
+  threes: sceneThrees,
+  write: sceneWrite,
+  multilevel: sceneMultilevel,
+  recipe: sceneRecipe
+};
+
+function drawFrame(painter) {
+  if (!painter) return;
+  var tl = window.LESSON_TIMELINE;
+  var tt = K.state.elapsed;
+  var idx = K.sceneAt(tt);
+  var sc = tl.scenes[idx];
+  painter.alpha(1);
+  painter.clear();
+  bg(painter);
+  if (sc && SCENES[sc.id]) {
+    try {
+      SCENES[sc.id](painter, tt - sc.start);
+    } catch (err) {
+      console.error('scene draw failed', sc.id, err);
+    }
+  }
+}
+
+function fillChecks() {
+  var el = document.getElementById('checks');
+  if (!el) return;
+  var passed = CHECKS.filter(function (c) { return c.pass; }).length;
+  var html = '<span class="k">Model checks</span>' +
+    '<span class="ok">' + passed + ' / ' + CHECKS.length + ' passed</span>';
+  html += '<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--text-faint)">what was checked</summary>';
+  CHECKS.forEach(function (c) {
+    html += '<div style="margin-top:3px">' +
+      (c.pass ? '<span class="ok">\u2713</span>' : '<span style="color:var(--invalid)">\u2717</span> ') +
+      c.name + (c.detail ? '<br><span style="opacity:.7">' + c.detail + '</span>' : '') +
+      '</div>';
+  });
+  html += '</details>';
+  el.innerHTML = html;
+}
+
+function boot() {
+  buildChecks();
+  fillChecks();
+
+  var holder = document.getElementById('canvas-holder');
+  var fallback = document.getElementById('canvas-fallback');
+  var ok = false;
+
+  if (window.p5) {
+    try {
+      new window.p5(function (sk) {
+        sk.setup = function () {
+          sk.createCanvas(W, H);
+          sk.noLoop();
+          P = PR.makePainterP5(sk, W, H);
+          sk.draw = function () { drawFrame(P); };
+          drawFrame(P);
+        };
+      }, holder);
+      ok = true;
+    } catch (e) {
+      console.error('p5 failed', e);
+      ok = false;
+    }
+  }
+
+  if (!ok) {
+    var drew = false;
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      holder.appendChild(cv);
+      var ctx2d = cv.getContext && cv.getContext('2d');
+      if (ctx2d) {
+        P = PR.makePainter2D(ctx2d, W, H);
+        drawFrame(P);
+        drew = true;
+      }
+    } catch (e) {
+      console.error('canvas fallback failed', e);
+    }
+    if (!drew && fallback) fallback.classList.add('show');
+  }
+
+  K.init({
+    timeline: window.LESSON_TIMELINE,
+    draw: function () { if (P) drawFrame(P); }
+  });
+
+  K.onResize(function () { if (P) drawFrame(P); });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { if (P) drawFrame(P); });
+  }
+
+  window.__drawAt = function (t) {
+    K.state.elapsed = t;
+    if (P) drawFrame(P);
+  };
+
+  window.__lessonChecks = CHECKS;
+  var bad = CHECKS.filter(function (c) { return !c.pass; });
+  if (bad.length) console.warn('Model validation did not fully pass:', bad);
+}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
