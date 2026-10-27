@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instruction Set and Addressing Modes — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Instruction Set and Addressing Modes</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Instruction set and addressing modes — the first clause of GATE 2027 Section 3: "Instruction set and addressing modes."</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a word length, a number of instructions, a number of registers and a list of fields, derive every field width and check that they spend the word exactly. Given an instruction set with two or three formats, count how many opcodes each format buys and say why the counts do not simply add. Given a machine state — registers, memory, program counter — compute the effective address of eight common modes and the number of memory reads each costs. Given a branch target and an instruction length, produce the signed PC-relative offset. Given a high-level statement and a load-store machine, write the instruction sequence.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>two questions with one habit</em>. The habit is: never read a field, always decode it. The two questions are "how many bits does each field get?" and "what address does this field finally produce?". Every previous-year item on this clause is one of those two, asked in a different costume. The register, ALU and flag machinery used in the last scenes is built in <a href="../alu-and-control-unit-design/index.html">ALU and Control Unit Design</a>, and the byte-level representation used for scaling and byte order is built in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus, and named first in its section.</strong></p>
+          <p class="small">Section 3 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read for this run) reads: <em>"Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit – hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards."</em> The GATE 2026 wording of this clause was "Machine instructions and addressing modes"; the 2027 document renames it. The content of the clause is unchanged.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One topic-indexed archive of past papers lists 19 questions on this clause from 2011 onwards, worth 29 marks in total, which it summarises as about 1.2 marks per paper. That is a count of what has been asked, not a forecast for 2027, and no official marks distribution exists.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted in this lesson carries its year and paper, and its answer was recomputed here rather than copied.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">This lesson needs four small pieces of machinery, all of which have their own lessons:</p>
+          <ul class="small">
+            <li><strong>Powers of two, and the ceiling of a base-two logarithm.</strong> Every field width here is "the smallest b with 2<sup>b</sup> ≥ n". Nothing harder is used.</li>
+            <li><strong>Two's complement.</strong> A branch offset is signed, and its range is asymmetric. Built in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a>.</li>
+            <li><strong>What a register and an ALU are.</strong> The effective-address arithmetic is done by the ALU; the register file is what makes register-indirect addressing possible. Built in <a href="../alu-and-control-unit-design/index.html">ALU and Control Unit Design</a>.</li>
+            <li><strong>Byte addressing and byte order.</strong> Element scaling and the little-endian questions both assume a byte-addressable machine. Also in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing is assumed about caches, pipelines or control-unit design. Where a question needs a memory access time or a cycle count, the paper gives it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Contract against implementation.</strong> Two columns, and the 2025 MSQ that separates them.</li>
+            <li><strong>The bit budget.</strong> One 32-bit word sliced, with the arithmetic that fixes each width.</li>
+            <li><strong>The escape trick.</strong> Three formats chained by one reserved code, and the prefix test.</li>
+            <li><strong>Addresses per instruction.</strong> One expression on four machines: 3, 5, 7 and 8 instructions.</li>
+            <li><strong>The mode machine.</strong> Eight modes, one fixed state, eight effective addresses.</li>
+            <li><strong>The cost.</strong> Reads per mode, and where the instruction fetch goes.</li>
+            <li><strong>Why each mode exists.</strong> Constant, pointer, array element, record field.</li>
+            <li><strong>The branch offset.</strong> Four instructions, one arrow backwards, minus sixteen.</li>
+            <li><strong>Load-store.</strong> The 2026 sequence and the three that fail.</li>
+            <li><strong>The recipe.</strong> Five steps, five traps, side by side.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>The instruction set is the contract a compiler may rely on. Cache size and clock speed are not in it.</li>
+            <li>Field widths are forced: each names one of n things, so it costs the ceiling of log base two of n, and the widths must sum to the word length.</li>
+            <li>Two formats with different opcode widths are two separate encoding spaces. Their opcode counts do not compete.</li>
+            <li>An addressing mode is a recipe for one address. Count memory reads for the operand, then decide separately whether the fetch is included.</li>
+            <li>A branch stores a signed distance from the <em>next</em> instruction, not an address.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 75–95 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. No marks distribution is claimed for GATE 2027; the frequency figures quoted are counts of past papers. Four neighbouring topics are deliberately not taught here and remain uncovered in the coverage tracker: <strong>design of the control unit</strong> (hardwired and microprogrammed), <strong>memory interfacing and interleaving</strong>, <strong>I/O interface, interrupt and DMA</strong>, and <strong>pipelining and hazards</strong>. Byte order is used here but taught in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a>, so it is not duplicated. Where two public sources disagree about a previous-year answer, this lesson says so instead of choosing silently.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1: intuition -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: the order form and the shelf number</h3>
+              <p>A warehouse clerk receives a form for every job. The form has boxes: <em>what to do</em> (fetch, add, store), <em>which trolley</em> (a register), and <em>where on the shelf</em> (an address, or a hint at one). The clerk never decides anything the form does not say. That is the instruction set: the complete list of forms the clerk is trained to accept, and what each box means.</p>
+              <p class="small">Three facts about this arrangement are the three facts about an instruction set, and each is easy to get wrong. First, <strong>the boxes are a fixed width</strong> — the form is a fixed number of boxes, so making the "what to do" box wider means taking width from somewhere else. Second, <strong>"where on the shelf" is not always a shelf number</strong>: sometimes it is "the shelf number written on the trolley", or "this many shelves past the trolley", and the clerk must know which, because the answer changes. Third, <strong>the form says nothing about how fast the clerk walks</strong>. Speed is not on the form, and a form that mentioned it would have to be reprinted whenever the clerk changed shoes.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is a teaching device, not a model of a processor. It is chosen because it keeps three separate questions separate: how the bits are divided, what address the bits finally name, and which facts a program is allowed to depend on.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The instruction set architecture</h3>
+              <p class="small">The <strong>instruction set architecture</strong>, or ISA, is the programmer-visible interface of a processor: the set of instructions, their encodings, the registers a program may name, the addressing modes, the data types and their sizes, and the memory model — address width, byte addressability and byte order.</p>
+              <p class="small" style="margin-bottom:0">The <strong>microarchitecture</strong> is how one chip implements that interface: cache sizes and levels, clock frequency, pipeline depth, the number of physical registers behind the architectural ones. Two chips with the same ISA run the same binary at different speeds.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The test for "is it in the ISA?"</h3>
+              <p class="small">Ask: <em>could a compiler emit an instruction that depends on this fact?</em> If the answer is no, the fact is implementation.</p>
+              <p class="small" style="margin-bottom:0">A compiler can emit <code>ADD R1, R2, R3</code> only because it knows there are at least four registers, and the encoding fixes how many exist. It cannot emit anything that depends on the L2 cache being 512 KB, because nothing in the instruction stream can observe that.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2: the instruction word and the effective address -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>The instruction word, and the three quantities it fixes</h3>
+              <p class="small">An <strong>instruction format</strong> is a fixed partition of the instruction word into fields. Three kinds of field recur: the <strong>opcode</strong>, which names the operation; one or more <strong>register fields</strong>, each naming one of the machine's registers; and a <strong>constant field</strong> — an immediate value, a displacement, or a jump offset — whose meaning depends on the mode.</p>
+              <p class="small" style="margin-bottom:0">The widths are not a design choice in the questions. A field that must name one of n things needs the smallest b with 2<sup>b</sup> ≥ n bits, which is written ⌈log<sub>2</sub> n⌉. So the whole format is one equation: the sum of the field widths equals the word length.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Addressing mode and effective address</h3>
+              <p class="small">An <strong>addressing mode</strong> is the rule that turns the fields of an instruction, together with the machine state, into the location of an operand. The address it produces is the <strong>effective address</strong>.</p>
+              <p class="small">The machine state the rule may consult is exactly: the program counter, the registers named by the instruction, and — in the indirect modes — the contents of memory.</p>
+              <p class="small" style="margin-bottom:0">A mode is not a property of the instruction word alone. The same bit pattern in the address field means a different address under direct and under indirect, which is why a question must tell you the mode.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Load-store, and register-memory</h3>
+              <p class="small">A <strong>load-store</strong> architecture allows only load and store to name memory. Every arithmetic instruction has all its operands in registers.</p>
+              <p class="small" style="margin-bottom:0">A <strong>register-memory</strong> architecture allows an arithmetic instruction to take one operand from memory directly. Both are legitimate designs; the difference decides whether a sequence of instructions is legal, which is what GATE 2026 Set 1 asked.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3: the catalogue -->
+        <div class="pager-page">
+          <div class="grid">
+            <div class="card card--hero span-2">
+              <h3>The mode catalogue, with one fixed machine state</h3>
+              <p class="small">Every row below is computed from the same state, so the only thing that changes between rows is the rule. State: byte-addressable memory, four-byte words, R1 = 2000, R2 = 3, R3 = 4096, PC = 400. Memory holds 7 at 2000, 11 at 2012, 9 at 4104, 2000 at 5000 and 42 at 496. The animation tab draws this table; the "reads" column counts operand reads only.</p>
+              <div class="table-wrap">
+                <table class="tbl small">
+                  <thead>
+                    <tr><th>Mode</th><th>Effective address</th><th>Operand value</th><th>Operand reads</th><th>What it is for</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Immediate</td><td>none — the value is in the instruction</td><td>25</td><td>0</td><td>a constant</td></tr>
+                    <tr><td>Register</td><td>none — the value is in the register</td><td>3</td><td>0</td><td>a variable already in a register</td></tr>
+                    <tr><td>Direct (absolute)</td><td>2012, taken from the instruction</td><td>11</td><td>1</td><td>a fixed global</td></tr>
+                    <tr><td>Memory indirect</td><td>2000 = mem[5000]</td><td>7</td><td>2</td><td>a pointer</td></tr>
+                    <tr><td>Register indirect</td><td>2000 = R1</td><td>7</td><td>1</td><td>a pointer in a register</td></tr>
+                    <tr><td>Displacement</td><td>4104 = R3 + 8</td><td>9</td><td>1</td><td>a field of a record</td></tr>
+                    <tr><td>Indexed</td><td>2012 = R1 + R2 × 4</td><td>11</td><td>1</td><td>an array element</td></tr>
+                    <tr><td>PC-relative</td><td>496 = PC + 96</td><td>42</td><td>1</td><td>a branch target</td></tr>
+                    <tr><td>Autoincrement</td><td>2000 = R1, then R1 becomes 2004</td><td>7</td><td>1</td><td>walking an array</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Every entry was computed by the lesson's own model and checked against the expected operand value and read count; the "Model checks" panel in the Animation tab lists all 24 checks and their results.</p>
+            </div>
+
+            <div class="card card--trap span-2">
+              <h3>Two rows that look identical and are not</h3>
+              <p class="small" style="margin-bottom:0">Displacement and indexed both compute <em>register plus something</em>. The difference is which part varies at run time. In <strong>displacement</strong> the constant is in the instruction and the register is fixed for the whole loop; the constant selects a field. In <strong>indexed</strong> the register varies and the constant is the element size; the register selects the element. If the thing that changes from one access to the next is a field name, it is displacement. If it is an element number, it is indexed — and then the index is scaled.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager-bar">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="counter" data-pager-count>Page 1 of 3</span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The instruction set architecture is the part of a processor that a compiler is allowed to see.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">What the instruction set architecture is, and what it is not</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The instruction set architecture is the part of a processor that a compiler is allowed to see, and nothing else is in it.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false" title="Browser speech synthesis; voice availability varies">Narrate</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1: bit budgets -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 — three real bit budgets</h3>
+              <p class="small">In each case the method is the same three lines: list the fields, take the ceiling of log base two of each count, and set the sum equal to the word length. The unknown is whatever is left.</p>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge">PYQ</span> GATE 2014 Set 1, Q9</h3>
+              <p class="small">A 32-bit architecture with one-word instructions has 64 registers, each 32 bits long. It must support 45 instructions, each with an immediate operand in addition to two register operands. The immediate is unsigned. What is its maximum value?</p>
+              <div class="step-list small">
+                <div class="step"><span class="n">1</span><span class="t">Opcode: 45 instructions need ⌈log<sub>2</sub> 45⌉ = 6 bits, because 2<sup>5</sup> = 32 is not enough and 2<sup>6</sup> = 64 is.</span></div>
+                <div class="step"><span class="n">2</span><span class="t">Register fields: ⌈log<sub>2</sub> 64⌉ = 6 bits each, so 12 for two operands.</span></div>
+                <div class="step"><span class="n">3</span><span class="t">Immediate: 32 − 6 − 12 = 14 bits.</span></div>
+                <div class="step"><span class="n">4</span><span class="t">Largest unsigned 14-bit value: 2<sup>14</sup> − 1 = 16383.</span></div>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><strong>Answer 16383.</strong> The register width of 32 bits is a distractor: a register <em>field</em> names a register, so it costs six bits regardless of how wide the register is.</p>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge">PYQ</span> GATE 2025 Set 1, Q37</h3>
+              <p class="small">A processor has 64 general-purpose registers and 50 distinct instruction types. An instruction is encoded in 32 bits, and the instruction shown is <code>ADD R1, #25</code>. What is the maximum number of bits for the immediate operand?</p>
+              <div class="step-list small">
+                <div class="step"><span class="n">1</span><span class="t">Opcode: ⌈log<sub>2</sub> 50⌉ = 6 bits.</span></div>
+                <div class="step"><span class="n">2</span><span class="t">Registers: ⌈log<sub>2</sub> 64⌉ = 6 bits — and only <em>one</em> register is encoded, because the <code>#</code> marks the other operand as an immediate.</span></div>
+                <div class="step"><span class="n">3</span><span class="t">Immediate: 32 − 6 − 6 = 20 bits.</span></div>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><strong>Answer 20.</strong> The whole question turns on reading <code>ADD R1, #25</code> as one register and one constant. If you assume two register operands you get 14, which is the trap.</p>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge">PYQ</span> GATE 2024 Set 2, Q57</h3>
+              <p class="small">A processor with 16 general-purpose registers uses a 32-bit instruction format consisting of an opcode field, an addressing-mode field, two register operand fields and a 16-bit scalar field. If 8 addressing modes are supported, what is the maximum number of unique opcodes?</p>
+              <div class="step-list small">
+                <div class="step"><span class="n">1</span><span class="t">Registers: 2 × ⌈log<sub>2</sub> 16⌉ = 8 bits.</span></div>
+                <div class="step"><span class="n">2</span><span class="t">Addressing modes: ⌈log<sub>2</sub> 8⌉ = 3 bits.</span></div>
+                <div class="step"><span class="n">3</span><span class="t">Scalar: 16 bits, given.</span></div>
+                <div class="step"><span class="n">4</span><span class="t">Opcode: 32 − 8 − 3 − 16 = 5 bits, so 2<sup>5</sup> = 32 opcodes.</span></div>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><strong>Answer 32.</strong> The question asks for opcodes, not for the opcode width; five bits buys thirty-two distinct codes.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2: expanding opcodes -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+            <div class="card card--hero span-2">
+              <h3>Worked example 2 — a 16-bit instruction with three formats</h3>
+              <p class="small">Design: 16 registers, so a register field is 4 bits. Three formats are wanted: three registers, two registers, and one register. With one fixed opcode field the answer would be "whatever the widest format leaves", which wastes the narrow ones. The escape trick instead chains them.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The three formats</h3>
+              <div class="table-wrap">
+                <table class="tbl small">
+                  <thead><tr><th>Format</th><th>Opcode bits</th><th>Operand bits</th><th>Codes</th></tr></thead>
+                  <tbody>
+                    <tr><td>A: three registers</td><td>4</td><td>12</td><td>15</td></tr>
+                    <tr><td>B: two registers</td><td>8</td><td>8</td><td>15</td></tr>
+                    <tr><td>C: one register</td><td>12</td><td>4</td><td>15</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="small" style="margin-bottom:0">Format A uses codes 0000 to 1110. Code 1111 means "the opcode continues", so the next four bits are a second opcode field. In format B, codes 0000 to 1110 are two-register instructions and 1111 continues again. In format C, 0000 to 1110 are one-register instructions and 1111 1111 1111 is unused.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Why the counts are 15 and not 16, and why the sum is not 45</h3>
+              <p class="small">Each format gives up exactly one code to the escape, so it keeps 16 − 1 = 15. The three counts cannot be added as "45 opcodes", because a code of one length is not a code of another length: format A's 15 codes each stand for 2<sup>12</sup> distinct instruction words, format B's for 2<sup>8</sup>, and format C's for 2<sup>4</sup>.</p>
+              <p class="small" style="margin-bottom:0"><strong>Check (Kraft):</strong> 15/16 + 15/256 + 15/4096 = 0.99976 ≤ 1, so the design fits in the 16-bit space with one 12-bit prefix unused. If the sum had exceeded 1, some encodings would be reachable two ways and the scheme would be broken.</p>
+            </div>
+
+            <div class="card card--trap span-2">
+              <h3>The prefix test, done mechanically</h3>
+              <p class="small" style="margin-bottom:0">A set of opcodes is decodable exactly when no code is a prefix of another. Here no shorter code begins with 1111, and every longer code begins with it, so the test passes by construction. The lesson's model builds all 45 codes and checks every ordered pair for the prefix relation, and it checks the Kraft sum; both appear in the Model checks panel. <strong>This is the step most hand solutions skip</strong>, and it is what makes the escape trick legal rather than merely convenient.</p>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge">PYQ</span> GATE 2020, Q44</h3>
+              <p class="small">A processor has 64 registers and a 16-bit instruction format with two types. Each I-type instruction has an opcode, one register name and a 4-bit immediate. Each R-type has an opcode and two register names. If there are 8 distinct I-type opcodes, what is the maximum number of R-type opcodes?</p>
+              <p class="small">Register field = 6 bits. I-type: 16 − 6 − 4 = 6 opcode bits. R-type: 16 − 6 − 6 = 4 opcode bits, so 2<sup>4</sup> = <strong>16</strong>.</p>
+              <p class="small muted" style="margin-bottom:0">The eight used I-type codes live in a six-bit space; the R-type codes live in a four-bit space. They are disjoint, so nothing is subtracted.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3: modes -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+            <div class="card card--hero span-2">
+              <h3>Worked example 3 — eight effective addresses from one state</h3>
+              <p class="small">State: byte-addressable memory, four-byte words. R1 = 2000, R2 = 3, R3 = 4096, PC = 400. Memory: 2000 → 7, 2004 → 8, 2008 → 9, 2012 → 11, 4096 → 5, 4104 → 9, 5000 → 2000, 496 → 42. Work each row before reading the answer column.</p>
+            </div>
+
+            <div class="card">
+              <h3>The four that need no address arithmetic</h3>
+              <div class="step-list small">
+                <div class="step"><span class="n">1</span><span class="t"><strong>Immediate, field 25.</strong> The operand is 25. No address, no read.</span></div>
+                <div class="step"><span class="n">2</span><span class="t"><strong>Register, field R2.</strong> The operand is R2, which is 3. No read.</span></div>
+                <div class="step"><span class="n">3</span><span class="t"><strong>Direct, field 2012.</strong> Effective address 2012, operand mem[2012] = 11. One read.</span></div>
+                <div class="step"><span class="n">4</span><span class="t"><strong>Register indirect, field R1.</strong> Effective address R1 = 2000, operand 7. One read.</span></div>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Direct and register indirect cost the same one read. What differs is where the address came from — the instruction word or a register — and therefore whether it can change at run time.</p>
+            </div>
+
+            <div class="card">
+              <h3>The four that do</h3>
+              <div class="step-list small">
+                <div class="step"><span class="n">5</span><span class="t"><strong>Memory indirect, field 5000.</strong> Read mem[5000] = 2000, then read mem[2000] = 7. <em>Two</em> reads.</span></div>
+                <div class="step"><span class="n">6</span><span class="t"><strong>Displacement, field 8, base R3.</strong> 4096 + 8 = 4104, operand 9. One read.</span></div>
+                <div class="step"><span class="n">7</span><span class="t"><strong>Indexed, field R2, base R1.</strong> 2000 + 3 × 4 = 2012, operand 11. One read.</span></div>
+                <div class="step"><span class="n">8</span><span class="t"><strong>PC-relative, field 96.</strong> 400 + 96 = 496, operand 42. One read.</span></div>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Row 7 is the one that catches people: 2000 + 3 = 2003 is not an element boundary on a four-byte machine. The index is a count of elements, so it is multiplied by the element size before it is added.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- page 4: branch and load-store -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+            <div class="card card--hero span-2">
+              <h3>Worked example 4 — a branch offset, and a load-store sequence</h3>
+              <p class="small">Two previous-year questions that are pure procedure once the convention is stated.</p>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge">PYQ</span> GATE 2017 Set 1, Q49</h3>
+              <p class="small">A RISC machine has four-byte instructions. Branch instructions use PC-relative addressing with the offset in bytes, measured from the address of the next instruction. The branch is the fourth instruction in the sequence and its target is the first. Give the offset.</p>
+              <div class="step-list small">
+                <div class="step"><span class="n">1</span><span class="t">Let the first instruction be at address i. Four instructions of four bytes occupy i to i + 15.</span></div>
+                <div class="step"><span class="n">2</span><span class="t">The branch is the fourth, at i + 12. The next instruction is at i + 16.</span></div>
+                <div class="step"><span class="n">3</span><span class="t">Offset = target − next = i − (i + 16) = −16.</span></div>
+                <div class="step"><span class="n">4</span><span class="t">Check forward: next + offset = (i + 16) + (−16) = i, the target.</span></div>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><strong>Answer −16.</strong> Measuring from the branch itself would give −12, which is the standard wrong answer.</p>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge">PYQ</span> GATE 2026 Set 1, Q15</h3>
+              <p class="small">Processor P has a load-store architecture. The first operand of every instruction is the destination. Which sequence implements Z = X + Y, where X, Y and Z are memory operands and R0, R1, R2 are registers?</p>
+              <div class="step-list small">
+                <div class="step"><span class="n">1</span><span class="t"><code>LOAD R0, X</code> — memory to register, allowed.</span></div>
+                <div class="step"><span class="n">2</span><span class="t"><code>LOAD R1, Y</code> — memory to register, allowed.</span></div>
+                <div class="step"><span class="n">3</span><span class="t"><code>ADD R2, R0, R1</code> — all three operands in registers, allowed.</span></div>
+                <div class="step"><span class="n">4</span><span class="t"><code>STORE Z, R2</code> — register to memory, allowed.</span></div>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><strong>Answer: that four-instruction sequence.</strong> The distractors were <code>ADD Z, X, Y</code>; <code>LOAD R0, X</code> then <code>ADD Z, R0, Y</code>; and <code>ADD R0, X, Y</code> then <code>STORE Z, R0</code>. Each puts at least one memory operand inside the add.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager-bar">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="counter" data-pager-count>Page 1 of 4</span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ========================= -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries where the usual sentence stops being true</h3>
+          <p class="small" style="margin-bottom:0">Each card names the condition the case breaks. If you can name the condition, you can usually see which of two answers the question wants.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A field of b bits does not hold 2<sup>b</sup></h3>
+          <p class="small">It holds 2<sup>b</sup> <em>patterns</em>, numbered 0 to 2<sup>b</sup> − 1. An unsigned 14-bit immediate therefore reaches 16383, and a signed 14-bit one reaches −8192 to +8191.</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "largest value equals number of patterns". True only for one bit.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An operand value of 0 and an address of 0 are different facts</h3>
+          <p class="small">Under immediate mode the field 0 means the operand is zero. Under direct mode the field 0 means the operand lives at address 0. Under indirect mode the field 0 means "read address 0, and the operand is at whatever address is stored there".</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "the address field is the operand". That is only the direct mode.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A branch offset of zero is legal</h3>
+          <p class="small">Offset 0 means "the target is the next instruction", which is a fall-through that happens to be encoded as a branch. It is not an error and it is not an infinite loop; a backward loop needs a negative offset.</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "a branch must change the control flow". The encoding does not promise that.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A two-word instruction is two fetches, not one</h3>
+          <p class="small">On a machine whose instruction is two words, the second word holds the address field and is fetched separately. A question that says "in the execution cycle" excludes both fetches; one that says "to fetch and execute" includes both.</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "the instruction costs one memory access". True only for a one-word instruction.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Autoincrement by one is wrong for anything wider than a byte</h3>
+          <p class="small">The register advances by the size of the item accessed, because advancing by one would land inside the next element. This is exactly what GATE 2008 Q33 tested: of the three statements about autoincrement, only "the amount depends on the size of the data item" is true.</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "increment means add one".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Scaling applies to an element number, not to a byte offset</h3>
+          <p class="small">In <code>A[i]</code> the index i is a count of elements, so the machine multiplies it by the element size. In <code>S.grade</code> the offset is already a byte count computed by the compiler, so it is added unchanged.</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "indexed mode always scales". It scales when the field is an element number.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Zero-address does not mean zero work</h3>
+          <p class="small">A zero-address instruction names no operand, but it still pops its operands from a stack that lives in memory or in registers, and the stack pointer still moves. The instruction is short; the work is not absent.</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "no address field means no addressing".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Two formats with different opcode widths do not compete</h3>
+          <p class="small">In GATE 2020 Q44 the I-type opcode field is six bits and the R-type field is four. Eight used I-type codes leave the entire four-bit R-type space free, so the answer is 16, not 8.</p>
+          <p class="small muted" style="margin-bottom:0">Broken condition: "all opcodes share one space". They share a space only when the field is the same width.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ========================= -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Six wrong beliefs, each with the smallest counterexample</h3>
+          <p class="small" style="margin-bottom:0">Each card gives the belief, why it is tempting, and the one case that settles it. The counterexample is deliberately the smallest one that can exist.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Cache size is part of the architecture"</h3>
+          <p class="small"><strong>Why it tempts:</strong> datasheets list cache size next to the instruction set, and the word "architecture" is used loosely in marketing.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> two x86 chips with 256 KB and 1 MB of L2 run the same compiled binary unchanged. If cache size were in the ISA, the binary would have to differ.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correct rule:</strong> the ISA is what a compiler may depend on. GATE 2025 Set 2 Q28 accepts only "the total number of registers" out of cache size, clock frequency, number of cache levels and register count.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Memory indirect is one memory access"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the mode is named after one idea — follow a pointer — so it feels like one step.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> with the pointer at 5000 holding 2000, reaching the operand needs a read of 5000 and a read of 2000. Stop after one read and you have the pointer, not the operand.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correct rule:</strong> indirect is two reads. Register indirect is one, because the pointer is already in a register.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"An n-bit immediate reaches 2<sup>n</sup>"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the number of patterns really is 2<sup>n</sup>, and the difference of one looks like rounding.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a one-bit unsigned field holds 0 and 1, so its maximum is 1, not 2. The pattern count and the maximum differ by exactly one at every width.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correct rule:</strong> maximum unsigned = 2<sup>n</sup> − 1. Maximum signed = 2<sup>n−1</sup> − 1, with minimum −2<sup>n−1</sup>.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The branch offset is measured from the branch"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the branch is the instruction you are looking at, so it feels like the origin.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> GATE 2017 Set 1 Q49. Measured from the branch the answer is −12; from the next instruction it is −16, which is the official answer.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correct rule:</strong> offset = target − address of the next instruction. Always check by adding it back.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Base with index and base with displacement are the same mode"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both compute base plus something, and many textbooks use "indexed" for both.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> GATE 2026 Set 1 Q14 offers both and asks which maps to an array element and which to a record field. Only base-with-index matches the array, because only there does the varying part need scaling.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correct rule:</strong> the varying part decides the name. Element number → base with index. Fixed field offset → base with displacement.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A bigger opcode field always means fewer instructions"</h3>
+          <p class="small"><strong>Why it tempts:</strong> within one format, more opcode bits do buy more opcodes, and that sentence is true there.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> in a two-format design, shrinking the opcode field from six bits to four reduces that format's opcodes from 64 to 16 — but if the six-bit codes were only eight used, nothing is lost and the four bits buy a separate 16.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correct rule:</strong> compare within a format. Across formats of different opcode widths, the encoding spaces are disjoint.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ========================= -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Eight question shapes, and the reasoning each one demands</h3>
+          <p class="small" style="margin-bottom:0">This is a map of the clause, not a prediction. The years listed are the papers that actually asked the shape; no marks distribution is implied.</p>
+        </div>
+
+        <div class="card span-2">
+          <div class="table-wrap">
+            <table class="tbl small">
+              <thead>
+                <tr><th>Shape</th><th>Papers that asked it</th><th>The reasoning it demands</th><th>The common wrong approach</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Bit budget</strong> (NAT)</td>
+                  <td>2014 Set 1 Q9; 2016 Set 2 Q10; 2025 Set 1 Q37; 2024 Set 2 Q57</td>
+                  <td>Sum of ceilings of log base two = word length. Read the operand list from the instruction shown, not from the format's widest case.</td>
+                  <td>Assuming every arithmetic instruction has two register operands.</td>
+                </tr>
+                <tr>
+                  <td><strong>Expanding opcode</strong> (NAT/MCQ)</td>
+                  <td>2020 Q44; 2026 Set 2 Q44</td>
+                  <td>Different opcode widths are disjoint spaces. Use the escape and check prefix-freeness.</td>
+                  <td>Subtracting the used opcodes of one format from another format's total.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mode to construct</strong> (MCQ/MSQ)</td>
+                  <td>2026 Set 1 Q14; 2017 Set 1 Q11; 2005; 2001</td>
+                  <td>Derive from what varies at run time: constant, pointer, element number, fixed field.</td>
+                  <td>Memorising the pairs and confusing the two base modes.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mode identification</strong> (MCQ)</td>
+                  <td>2011 Q21; 2002; 2004</td>
+                  <td>Read the syntax: <code>20(R2)</code> is base plus displacement; <code>[BX]</code> is register indirect; a bare number is immediate.</td>
+                  <td>Calling <code>20(R2)</code> "register indirect scaled" because a number appears.</td>
+                </tr>
+                <tr>
+                  <td><strong>Branch offset</strong> (NAT)</td>
+                  <td>2017 Set 1 Q49</td>
+                  <td>Offset = target − next instruction, in bytes or words as stated, signed.</td>
+                  <td>Measuring from the branch, or dropping the sign.</td>
+                </tr>
+                <tr>
+                  <td><strong>ISA boundary</strong> (MSQ)</td>
+                  <td>2025 Set 2 Q28</td>
+                  <td>Ask whether a compiler could emit an instruction that depends on the fact.</td>
+                  <td>Treating any datasheet number as architectural.</td>
+                </tr>
+                <tr>
+                  <td><strong>Load-store legality</strong> (MCQ)</td>
+                  <td>2026 Set 1 Q15; 2018 Q5</td>
+                  <td>Only load and store name memory; arithmetic is register-only. RISC = register-to-register, fixed length, hardwired control.</td>
+                  <td>Accepting an add with one memory operand as "mostly correct".</td>
+                </tr>
+                <tr>
+                  <td><strong>Relocation</strong> (MCQ)</td>
+                  <td>1998 Q19; 2004</td>
+                  <td>Ask what must change when the program moves. PC-relative: nothing. Base register: the register, not the code. Absolute: the code.</td>
+                  <td>Treating base addressing and PC-relative as identical when the wording is "without any change whatsoever".</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one habit that answers most of these</h3>
+          <p class="small" style="margin-bottom:0">Before computing anything, write down what the field <em>names</em>: an operation, a register, a value, an address, or a distance. Almost every error on this clause is a field read as the wrong one of those five.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Twelve questions</h3>
+          <p class="small">Three single-correct, three multiple-select and six numerical. Answers are hidden until you reveal them, one at a time, or all at once with the mock-test switch. Every previous-year question carries its year and paper; everything else is labelled as original practice written for this lesson.</p>
+          <div class="practice-bar">
+            <label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Submit and reveal all</button>
+          </div>
+        </div>
+
+        <!-- Q1 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">MCQ</span><span class="badge badge--dim">original practice</span><span class="badge badge--dim">easy</span></div>
+          <p class="small">A processor has a 24-bit instruction word, 32 registers and 60 distinct instructions. Each instruction has an opcode and two register operands. How many bits are left for an immediate operand?</p>
+          <ol class="opts small" type="A"><li>6</li><li>8</li><li>10</li><li>12</li></ol>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: B, 8 bits.</strong> Opcode: ⌈log<sub>2</sub> 60⌉ = 6. Two register fields: 2 × ⌈log<sub>2</sub> 32⌉ = 10. Immediate: 24 − 6 − 10 = 8.</p>
+            <p><strong>Why the others are wrong.</strong> 6 comes from forgetting one register field (24 − 6 − 5 = 13, so no) or from using ⌈log<sub>2</sub> 60⌉ twice. 10 is the register-field total, not the remainder. 12 comes from using a five-bit opcode, which is the rounding-down error: 2<sup>5</sup> = 32 &lt; 60.</p>
+            <p><strong>Shortcut and its assumption.</strong> "Sum the ceilings and subtract" works only when every field width is independent, which it is here. It fails the moment one format has a variable-length opcode.</p>
+          </div>
+        </div>
+
+        <!-- Q2 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">MCQ</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2011 Q21</span></div>
+          <p class="small">A processor has an instruction <code>LW R1, 20(R2)</code>, which reads a 32-bit word from memory into R1. The effective address is the sum of the constant 20 and the contents of R2. Which addressing mode does this use for the memory operand?</p>
+          <ol class="opts small" type="A"><li>Immediate addressing</li><li>Register addressing</li><li>Register indirect scaled addressing</li><li>Base indexed addressing</li></ol>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: D.</strong> A register supplies the base and a constant supplies the offset, which is the base-plus-displacement (base-indexed) form.</p>
+            <p><strong>Why the others are wrong.</strong> Immediate would mean the operand is 20 itself. Register addressing would mean the operand is inside R2, with no memory read at all. "Register indirect scaled" would mean an index register multiplied by a scale factor, and here nothing is scaled — the 20 is a byte displacement, not an element number.</p>
+            <p><strong>Edge case.</strong> The same syntax with a scale, as in <code>LW R1, (R2)[R3]</code>, would be indexed mode. The presence of a constant does not by itself make a mode indexed.</p>
+          </div>
+        </div>
+
+        <!-- Q3 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">MCQ</span><span class="badge badge--dim">original practice</span><span class="badge badge--dim">easy</span></div>
+          <p class="small">Which addressing mode allows a program to be loaded at any address and run without changing a single bit of its code, and without reloading any register?</p>
+          <ol class="opts small" type="A"><li>Direct addressing</li><li>Base register addressing</li><li>PC-relative addressing</li><li>Memory indirect addressing</li></ol>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: C.</strong> Both the offset and the program counter move together, so the computed address is unchanged and nothing at all has to be adjusted.</p>
+            <p><strong>Why the others are wrong.</strong> Direct addressing stores absolute addresses, which are wrong as soon as the program moves. Base register addressing keeps the code unchanged but the base register must be reloaded — which is why GATE 1998, whose wording is "without any change whatsoever in the code", takes PC-relative while GATE 2004, whose wording is "suitable for relocation at run time", takes both base and relative.</p>
+            <p><strong>Distinction to keep.</strong> "No change to the code" and "no change at all" are different requirements, and two papers chose the two different answers on purpose.</p>
+          </div>
+        </div>
+
+        <!-- Q4 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">MSQ</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2025 Set 2 Q28</span></div>
+          <p class="small">Which of the following is/are part of the Instruction Set Architecture of a processor?</p>
+          <ol class="opts small" type="A"><li>The size of the cache memory</li><li>The clock frequency of the processor</li><li>The number of cache memory levels</li><li>The total number of registers</li></ol>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: D only.</strong> The number of architectural registers is fixed by the ISA, because instructions must name registers with a field of a defined width.</p>
+            <p><strong>Why the others are wrong.</strong> Cache size, cache levels and clock frequency are all microarchitecture. Two chips implementing the same ISA may differ in all three, and the same binary runs on both.</p>
+            <p><strong>The test that generalises.</strong> Could a compiler emit an instruction that depends on this fact? It can depend on how many registers exist. It cannot depend on how big the cache is.</p>
+          </div>
+        </div>
+
+        <!-- Q5 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">MSQ</span><span class="badge badge--dim">original practice</span><span class="badge badge--dim">medium</span></div>
+          <p class="small">A byte-addressable machine has four-byte words. Which statements about memory indirect addressing are true?</p>
+          <ol class="opts small" type="A">
+            <li>It requires two operand memory reads.</li>
+            <li>It is the natural encoding of a pointer variable.</li>
+            <li>It costs the same number of operand reads as register indirect addressing.</li>
+            <li>Its effective address is the contents of the memory location named in the instruction.</li>
+          </ol>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: A, B and D.</strong></p>
+            <p><strong>Why C is wrong.</strong> Register indirect costs one read, because the pointer is already in a register. Memory indirect costs two, because the pointer itself must be fetched.</p>
+            <p><strong>Why D is worth stating carefully.</strong> The effective address is what the pointer holds, not the pointer's own location. With the pointer at 5000 holding 2000, the effective address is 2000 and the operand is at 2000.</p>
+            <p><strong>Edge case.</strong> If the pointer is held in a register instead, the mode is register indirect and the cost drops to one read — the arithmetic is the same, the storage of the pointer is not.</p>
+          </div>
+        </div>
+
+        <!-- Q6 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">MSQ</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2008 Q33</span></div>
+          <p class="small">Which of the following is/are true of the auto-increment addressing mode?</p>
+          <ol class="opts small" type="A">
+            <li>It is useful in creating self-relocating code.</li>
+            <li>If it is included in an ISA, an additional ALU is required for effective address calculation.</li>
+            <li>The amount of increment depends on the size of the data item accessed.</li>
+          </ol>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: III only.</strong></p>
+            <p><strong>Why I is wrong.</strong> Autoincrement works from an absolute register value, so moving the program invalidates it. Self-relocating code needs PC-relative or base addressing, where the operand is an offset rather than an address.</p>
+            <p><strong>Why II is wrong.</strong> The increment can be done by a small adder in the address-generation path, exactly as the program counter is incremented. No extra ALU is required.</p>
+            <p><strong>Why III is right.</strong> Advancing by one would land inside the next element on any machine whose items are wider than a byte. The step is the item size.</p>
+          </div>
+        </div>
+
+        <!-- Q7 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">NAT</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2014 Set 1 Q9</span></div>
+          <p class="small">A machine has a 32-bit architecture with one-word instructions and 64 registers, each 32 bits long. It supports 45 instructions, each with an unsigned immediate operand in addition to two register operands. What is the maximum value of the immediate operand?</p>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: 16383.</strong></p>
+            <p><strong>Work.</strong> Opcode 6 bits, two register fields 6 bits each, immediate 32 − 6 − 12 = 14 bits. Largest unsigned 14-bit value = 2<sup>14</sup> − 1 = 16383.</p>
+            <p><strong>Traps.</strong> 16384 is the pattern count, not the maximum. Using a five-bit opcode gives 15 immediate bits and 32767, which is the answer to a different question. The 32-bit register width is irrelevant: a field names a register rather than holding one.</p>
+          </div>
+        </div>
+
+        <!-- Q8 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">NAT</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2025 Set 1 Q37</span></div>
+          <p class="small">A processor has 64 general-purpose registers and 50 distinct instruction types. An instruction is encoded in 32 bits, and the instruction is <code>ADD R1, #25</code>. What is the maximum number of bits that can be used for the immediate operand?</p>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: 20.</strong></p>
+            <p><strong>Work.</strong> Opcode ⌈log<sub>2</sub> 50⌉ = 6 bits. One register field ⌈log<sub>2</sub> 64⌉ = 6 bits. Immediate = 32 − 6 − 6 = 20.</p>
+            <p><strong>The trap.</strong> Assuming two register operands, which gives 14. The <code>#</code> in the operand list is the signal that the second operand is a constant carried in the instruction, not a register name.</p>
+          </div>
+        </div>
+
+        <!-- Q9 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">NAT</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2024 Set 2 Q57</span></div>
+          <p class="small">A processor with 16 general-purpose registers uses a 32-bit instruction format: an opcode field, an addressing-mode field, two register operand fields and a 16-bit scalar field. If 8 addressing modes are supported, what is the maximum number of unique opcodes?</p>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: 32.</strong></p>
+            <p><strong>Work.</strong> Registers 2 × 4 = 8 bits; addressing modes 3 bits; scalar 16 bits. Opcode = 32 − 8 − 3 − 16 = 5 bits, so 2<sup>5</sup> = 32 opcodes.</p>
+            <p><strong>Traps.</strong> Answering 5 (the width, not the count). Forgetting the addressing-mode field, which gives 40. Using 8 registers per field instead of 16.</p>
+          </div>
+        </div>
+
+        <!-- Q10 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">NAT</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2020 Q44</span></div>
+          <p class="small">A processor has 64 registers and a 16-bit instruction format with two instruction types. Each I-type instruction contains an opcode, a register name and a 4-bit immediate. Each R-type instruction contains an opcode and two register names. If there are 8 distinct I-type opcodes, what is the maximum number of R-type opcodes?</p>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: 16.</strong></p>
+            <p><strong>Work.</strong> Register field 6 bits. I-type opcode = 16 − 6 − 4 = 6 bits. R-type opcode = 16 − 6 − 6 = 4 bits, so 2<sup>4</sup> = 16.</p>
+            <p><strong>The trap.</strong> Subtracting 8 from 64 and treating the remainder as available R-type opcodes. The two opcode fields have different widths, so they are different encoding spaces and do not compete.</p>
+          </div>
+        </div>
+
+        <!-- Q11 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">NAT</span><span class="badge">PYQ</span><span class="badge badge--dim">GATE 2017 Set 1 Q49</span></div>
+          <p class="small">A RISC machine has four-byte instructions. Branches use PC-relative addressing with the offset in bytes, measured from the address of the next instruction. The branch is the fourth instruction of a sequence and its target is the first instruction, at address i. Give the decimal value of the offset.</p>
+          <button class="reveal btn btn--small">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: −16.</strong></p>
+            <p><strong>Work.</strong> Branch at i + 12, next instruction at i + 16, target i. Offset = i − (i + 16) = −16.</p>
+            <p><strong>Traps.</strong> −12 (measuring from the branch), +16 (wrong direction), and 16 (dropping the sign). Check by adding: (i + 16) + (−16) = i.</p>
+          </div>
+        </div>
+
+        <!-- Q12 -->
+        <div class="question card">
+          <div class="q-head"><span class="badge">NAT</span><span class="badge badge--dim">original practice</span><span class="badge badge--dim">medium</span></div>
+          <p class="small">Memory is byte addressable and an integer is four bytes. Register R1 holds 5000, the base address of an array of integers, and R2 holds 7, an element number. Using indexed addressing with R1 as base and R2 as index, what effective address is produced?</p>
+          <button class="reveal btn --small btn">Show answer</button>
+          <div class="answer small" hidden>
+            <p><strong>Answer: 5028.</strong></p>
+            <p><strong>Work.</strong> Element 7 of a four-byte array begins 7 × 4 = 28 bytes past the base: 5000 + 28 = 5028.</p>
+            <p><strong>The trap.</strong> 5007, which forgets the scaling. On a byte-addressable machine the index is a count of elements, so it is multiplied by the element size before being added.</p>
+            <p><strong>Distinction.</strong> If the field had been a byte offset, as it is for a record field, no scaling would apply and 5007 would be correct. The mode name does not decide this; what the field means does.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ========================= -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">One screen. If a line here is not obvious, the tab that explains it is named beside it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Widths</h3>
+          <p class="small">A field naming one of n things: ⌈log<sub>2</sub> n⌉ bits.<br>
+          Unsigned maximum: 2<sup>b</sup> − 1.<br>
+          Signed range: −2<sup>b−1</sup> to 2<sup>b−1</sup> − 1.<br>
+          Format: sum of field widths = word length.</p>
+          <p class="small muted" style="margin-bottom:0">Two formats with different opcode widths have disjoint opcode spaces.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Addresses</h3>
+          <p class="small">Immediate: value in the instruction, 0 reads.<br>
+          Register: value in a register, 0 reads.<br>
+          Direct: address in the instruction, 1 read.<br>
+          Register indirect: address is R, 1 read.<br>
+          Memory indirect: address is mem[field], 2 reads.<br>
+          Displacement: R<sub>base</sub> + constant, 1 read.<br>
+          Indexed: R<sub>base</sub> + R<sub>index</sub> × element size, 1 read.<br>
+          PC-relative: PC + signed offset, 1 read.<br>
+          Autoincrement: address is R, then R += element size.</p>
+          <p class="small muted" style="margin-bottom:0">Add one read per instruction word if the question includes the fetch.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Constructs</h3>
+          <p class="small">Constant → immediate.<br>
+          Pointer → indirect (memory or register).<br>
+          Array element → base with index (scaled).<br>
+          Record field → base with displacement (unscaled).<br>
+          Loop or branch → PC-relative.<br>
+          Array walk → autoincrement / autodecrement.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Branch offsets</h3>
+          <p class="small">offset = target − address of the <em>next</em> instruction.<br>
+          Check: next + offset = target.<br>
+          Backward branch ⇒ negative offset.<br>
+          Offset 0 means fall through to the next instruction.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Architectures</h3>
+          <p class="small">Load-store: only load and store name memory.<br>
+          Register-memory: arithmetic may take one memory operand.<br>
+          RISC: register-to-register, fixed length, hardwired control.<br>
+          CISC: variable length, memory operands, often microprogrammed.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The five traps</h3>
+          <p class="small" style="margin-bottom:0">1. Forgetting the instruction fetch (or including it when the question says execution cycle). &nbsp; 2. Forgetting to scale an index. &nbsp; 3. Charging memory indirect as one read. &nbsp; 4. Writing a branch offset unsigned, or measuring from the branch. &nbsp; 5. Calling cache size or clock frequency part of the architecture.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ========================= -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind, with what each one supports. Community sources are used for question text and for reported difficulty, never as authority for a definition. Every previous-year answer quoted in this lesson was recomputed here from the stated numbers rather than copied.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small">
+            <li><a href="https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf" rel="noopener">GATE 2027 CS syllabus (IIT Madras)</a> — the wording of Section 3, including the clause taught here. <span class="claim-chip claim-chip--verified">Verified fact</span></li>
+            <li><a href="https://gate2027ib.iitm.ac.in/GATE2027-IB.pdf" rel="noopener">GATE 2027 Information Brochure</a> — question types (MCQ, MSQ, NAT), paper structure and the statement that the 2027 syllabi were revised.</li>
+            <li><a href="https://gateforum.com/wp-content/uploads/2013/01/CS-2008.pdf" rel="noopener">GATE 2008 CS question paper</a> — the exact text of Q33 on auto-increment addressing.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook</h3>
+          <ul class="small">
+            <li>Patterson and Hennessy, <em>Computer Organization and Design</em> — the load-store contract, RISC characteristics, immediate and displacement modes.</li>
+            <li>Hamacher, Vranesic and Zaky, <em>Computer Organization</em> — the addressing-mode catalogue and the memory-access accounting used in scenes 5 and 6.</li>
+            <li>Hennessy and Patterson, <em>Computer Architecture: A Quantitative Approach</em> — the ISA/microarchitecture boundary, including the sentence that clock rate, cache size and cache levels are not part of the ISA.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">These are cited as standard references for the definitions. Page numbers are not given because they differ between editions, and no quotation is attributed to them beyond the substance of the definitions.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community</h3>
+          <ul class="small">
+            <li><a href="https://questions.examside.com/past-years/gate/gate-cse/computer-organization/machine-instructions-and-addressing-modes" rel="noopener">ExamSIDE topic index</a> — a topic-indexed list of past papers on this clause, used to check that no question shape was overlooked. <span class="claim-chip claim-chip--community">Community observation</span></li>
+            <li><a href="https://www.trygateai.com/pyq/computer-organization-and-architecture/instruction-set-and-addressing-modes" rel="noopener">GateAI topic index</a> — the count of 19 questions and 29 marks since 2011 quoted in the Overview, and its list of examiner traps.</li>
+            <li><a href="https://gateoverflow.in/1656/gate-cse-1998-question-1-19" rel="noopener">GateOverflow, GATE 1998 Q1.19</a> — discussion of PC-relative against base-register relocation, including the reading that "without any change whatsoever" selects PC-relative alone.</li>
+            <li><a href="https://gateoverflow.in/444/gate-cse-2008-question-33-isro2009-80" rel="noopener">GateOverflow, GATE 2008 Q33</a> — the auto-increment question, and the argument that no additional ALU is needed.</li>
+            <li><a href="https://gateoverflow.in/460817/gate-cse-2025-set-2-question-18" rel="noopener">GateOverflow, GATE 2025 Set 2</a> — the ISA-versus-microarchitecture MSQ. That site numbers the thread 18; the paper numbers the question 28.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where the sources disagree, and what was done</h3>
+          <p class="small" style="margin-bottom:0">For GATE 2004's relocation question, some solutions list only base addressing and others list base and relative. The lesson states both modes, and explains why GATE 1998 — whose wording adds "without any change whatsoever in the code" — admits only PC-relative. No official answer key was available for the 2004 paper during this run, so the lesson does not present a single option letter as official. For GATE 2026 Set 1 Q15 the option text and answer (D) were cross-checked against two independent reproductions of the paper. For the 2025 Set 2 MSQ the official answer is D and three sources agree.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var W = 900, H = 470;
+  var K = window.LessonKit;
+  var PR = window.Painters;
+  var PAL = PR.PAL;
+  var P = null;
+
+/* ======================================================================
+   LAYER 1 - THE MODEL (instruction-set-and-addressing-modes)
+   Pure data and pure functions. No drawing here. Nothing in this section
+   knows what a canvas is. Every number the lesson quotes is computed.
+   ====================================================================== */
+
+var CHECKS = [];
+function chk(name, pass, detail) { CHECKS.push({ name: name, pass: !!pass, detail: detail || '' }); }
+
+/* smallest b with 2^b >= n: the ceiling of log base 2 */
+function bitsFor(n) {
+  var b = 0;
+  while (Math.pow(2, b) < n) b++;
+  return b;
+}
+function bin(v, w) {
+  var s = v.toString(2);
+  while (s.length < w) s = '0' + s;
+  return s;
+}
+
+/* ---------------- the bit budget ---------------- */
+
+var G2014 = { total: 32, regs: 64, instr: 45, regOperands: 2 };
+G2014.opcode = bitsFor(G2014.instr);                     /* 6 */
+G2014.reg = G2014.regOperands * bitsFor(G2014.regs);     /* 12 */
+G2014.imm = G2014.total - G2014.opcode - G2014.reg;      /* 14 */
+G2014.maxUnsigned = Math.pow(2, G2014.imm) - 1;          /* 16383 */
+
+var G2025Q37 = { total: 32, regs: 64, instr: 50, regOperands: 1 };
+G2025Q37.opcode = bitsFor(G2025Q37.instr);               /* 6 */
+G2025Q37.reg = bitsFor(G2025Q37.regs);                   /* 6 */
+G2025Q37.imm = G2025Q37.total - G2025Q37.opcode - G2025Q37.reg;   /* 20 */
+
+var G2024Q57 = { total: 32, regs: 16, modes: 8, scalar: 16, regOperands: 2 };
+G2024Q57.reg = G2024Q57.regOperands * bitsFor(G2024Q57.regs);      /* 8 */
+G2024Q57.modeBits = bitsFor(G2024Q57.modes);                       /* 3 */
+G2024Q57.opcode = G2024Q57.total - G2024Q57.reg - G2024Q57.modeBits - G2024Q57.scalar; /* 5 */
+G2024Q57.maxOpcodes = Math.pow(2, G2024Q57.opcode);                /* 32 */
+
+var G2020Q44 = { total: 16, regs: 64, itypeImm: 4, usedI: 8 };
+G2020Q44.reg = bitsFor(G2020Q44.regs);                             /* 6 */
+G2020Q44.itypeOpcode = G2020Q44.total - G2020Q44.reg - G2020Q44.itypeImm; /* 6 */
+G2020Q44.rtypeOpcode = G2020Q44.total - G2020Q44.reg - G2020Q44.reg;      /* 4 */
+G2020Q44.maxR = Math.pow(2, G2020Q44.rtypeOpcode);                        /* 16 */
+
+var G2016S2Q10 = { total: 32, instr: 40, regs: 24, regOperands: 2 };
+G2016S2Q10.imm = G2016S2Q10.total - bitsFor(G2016S2Q10.instr)
+                 - G2016S2Q10.regOperands * bitsFor(G2016S2Q10.regs);     /* 16 */
+
+/* ---------------- expanding opcodes ---------------- */
+
+var EXP = (function () {
+  var regBits = 4, codes = [], i;
+  for (i = 0; i < 15; i++) codes.push({ code: bin(i, 4), fmt: 'A', len: 4 });
+  for (i = 0; i < 15; i++) codes.push({ code: '1111' + bin(i, 4), fmt: 'B', len: 8 });
+  for (i = 0; i < 15; i++) codes.push({ code: '1111' + '1111' + bin(i, 4), fmt: 'C', len: 12 });
+
+  var prefixFree = true, witness = null;
+  for (i = 0; i < codes.length; i++) {
+    for (var j = 0; j < codes.length; j++) {
+      if (i === j) continue;
+      var a = codes[i].code, b = codes[j].code;
+      if (a.length < b.length && b.indexOf(a) === 0) { prefixFree = false; witness = a + ' / ' + b; }
+    }
+  }
+  var kraft = 0;
+  for (i = 0; i < codes.length; i++) kraft += Math.pow(2, -codes[i].len);
+
+  return {
+    regBits: regBits,
+    codes: codes,
+    countA: codes.filter(function (c) { return c.fmt === 'A'; }).length,
+    countB: codes.filter(function (c) { return c.fmt === 'B'; }).length,
+    countC: codes.filter(function (c) { return c.fmt === 'C'; }).length,
+    prefixFree: prefixFree,
+    witness: witness,
+    kraft: kraft,
+    widthA: 4 + 3 * regBits,
+    widthB: 8 + 2 * regBits,
+    widthC: 12 + 1 * regBits
+  };
+})();
+
+/* ---------------- the addressing-mode machine ---------------- */
+
+var WORD = 4;
+var MACH = {
+  R1: 2000, R2: 3, R3: 4096, PC: 400,
+  mem: { 2000: 7, 2004: 8, 2008: 9, 2012: 11, 4096: 5, 4104: 9, 5000: 2000, 496: 42 }
+};
+
+function readMem(m, addr, ctr) {
+  ctr.n++;
+  if (!(addr in m.mem)) throw new Error('unmapped read at ' + addr);
+  return m.mem[addr];
+}
+
+var MODES = [
+  { name: 'immediate', field: '25', formula: 'the value is the field', expectEA: null, reads: 0, value: 25, use: 'a constant' },
+  { name: 'register', field: 'R2', formula: 'the value is R2', expectEA: null, reads: 0, value: 3, use: 'a variable in a register' },
+  { name: 'direct', field: '2012', formula: 'EA = the field', expectEA: 2012, reads: 1, value: 11, use: 'a fixed global' },
+  { name: 'memory indirect', field: '5000', formula: 'EA = mem[field]', expectEA: 2000, reads: 2, value: 7, use: 'a pointer in memory' },
+  { name: 'register indirect', field: 'R1', formula: 'EA = R1', expectEA: 2000, reads: 1, value: 7, use: 'a pointer in a register' },
+  { name: 'displacement', field: '8', formula: 'EA = R3 + 8', expectEA: 4104, reads: 1, value: 9, use: 'a field of a record' },
+  { name: 'indexed', field: 'R2', formula: 'EA = R1 + R2 x 4', expectEA: 2012, reads: 1, value: 11, use: 'an array element' },
+  { name: 'pc-relative', field: '96', formula: 'EA = PC + 96', expectEA: 496, reads: 1, value: 42, use: 'a branch target' },
+  { name: 'autoincrement', field: 'R1', formula: 'EA = R1, then R1 += 4', expectEA: 2000, reads: 1, value: 7, use: 'walking an array' }
+];
+
+/* run every mode against the same state and record what actually happened */
+function runModes() {
+  var out = [];
+  for (var i = 0; i < MODES.length; i++) {
+    var mo = MODES[i];
+    var ctr = { n: 0 };
+    var ea = null, v;
+    if (mo.name === 'immediate') { v = 25; }
+    else if (mo.name === 'register') { v = MACH.R2; }
+    else if (mo.name === 'direct') { ea = 2012; v = readMem(MACH, ea, ctr); }
+    else if (mo.name === 'memory indirect') { var p = readMem(MACH, 5000, ctr); ea = p; v = readMem(MACH, p, ctr); }
+    else if (mo.name === 'register indirect') { ea = MACH.R1; v = readMem(MACH, ea, ctr); }
+    else if (mo.name === 'displacement') { ea = MACH.R3 + 8; v = readMem(MACH, ea, ctr); }
+    else if (mo.name === 'indexed') { ea = MACH.R1 + MACH.R2 * WORD; v = readMem(MACH, ea, ctr); }
+    else if (mo.name === 'pc-relative') { ea = MACH.PC + 96; v = readMem(MACH, ea, ctr); }
+    else if (mo.name === 'autoincrement') { ea = MACH.R1; v = readMem(MACH, ea, ctr); }
+    out.push({ name: mo.name, ea: ea, value: v, reads: ctr.n, ok: (v === mo.value && ctr.n === mo.reads && ea === mo.expectEA) });
+  }
+  return out;
+}
+
+/* ---------------- pc-relative branch (GATE 2017 Set 1 Q49) ---------------- */
+
+var BR = (function () {
+  var instrBytes = 4, index = 3, base = 1000;         /* the branch is the 4th instruction */
+  var branchAddr = base + index * instrBytes;         /* 1012 */
+  var nextAddr = branchAddr + instrBytes;             /* 1016 */
+  var offset = base - nextAddr;                       /* -16 */
+  return {
+    base: base, instrBytes: instrBytes, index: index,
+    branchAddr: branchAddr, nextAddr: nextAddr, target: base,
+    offset: offset,
+    reproduces: nextAddr + offset === base,
+    signed16: [Math.pow(2, 15) * -1, Math.pow(2, 15) - 1],
+    fits: offset >= -Math.pow(2, 15) && offset <= Math.pow(2, 15) - 1
+  };
+})();
+
+/* ---------------- one expression on four machines ---------------- */
+/* (A + B) * (C + D), evaluated by an interpreter for each format */
+
+var ENV = { A: 2, B: 3, C: 4, D: 5 };
+
+function machine3() {
+  var R = {};
+  R.R1 = ENV.A + ENV.B;
+  R.R2 = ENV.C + ENV.D;
+  R.R3 = R.R1 * R.R2;
+  return { n: 3, value: R.R3, program: ['ADD R1, A, B', 'ADD R2, C, D', 'MUL R3, R1, R2'] };
+}
+function machine2() {
+  var R = {};
+  R.R1 = ENV.A; R.R1 += ENV.B;
+  R.R2 = ENV.C; R.R2 += ENV.D;
+  R.R1 *= R.R2;
+  return { n: 5, value: R.R1, program: ['MOV R1, A', 'ADD R1, B', 'MOV R2, C', 'ADD R2, D', 'MUL R1, R2'] };
+}
+function machine1() {
+  var acc, T = {}, n = 0;
+  acc = ENV.A; n++;
+  acc += ENV.B; n++;
+  T.t = acc; n++;
+  acc = ENV.C; n++;
+  acc += ENV.D; n++;
+  acc = acc * T.t; n++;
+  T.r = acc; n++;
+  return { n: n, value: T.r, program: ['LOAD A', 'ADD B', 'STORE T', 'LOAD C', 'ADD D', 'MUL T', 'STORE R'] };
+}
+function machine0() {
+  var st = [], n = 0;
+  st.push(ENV.A); n++;
+  st.push(ENV.B); n++;
+  st.push(st.pop() + st.pop()); n++;
+  st.push(ENV.C); n++;
+  st.push(ENV.D); n++;
+  st.push(st.pop() + st.pop()); n++;
+  st.push(st.pop() * st.pop()); n++;
+  var r = st.pop(); n++;
+  return { n: n, value: r, program: ['PUSH A', 'PUSH B', 'ADD', 'PUSH C', 'PUSH D', 'ADD', 'MUL', 'POP R'] };
+}
+
+var MACHINES = { three: machine3(), two: machine2(), one: machine1(), zero: machine0() };
+
+/* ---------------- byte order, used only for the scaling argument ---------------- */
+
+var ENDIAN = (function () {
+  var v = 0x12345678;
+  var be = [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
+  var le = be.slice().reverse();
+  var rebuilt = le.reduce(function (a, b) { return a * 256 + b; }, 0);
+  return { value: v, be: be, le: le, littleRebuilds: rebuilt === 0x78563412 };
+})();
+
+/* ---------------- the checks ---------------- */
+
+function buildChecks() {
+  var i;
+
+  chk('bitsFor(45) = 6, because 2^5 < 45 <= 2^6', bitsFor(45) === 6, 'GATE 2014 Set 1: a five-bit opcode cannot name 45 instructions');
+  chk('bitsFor(50) = 6', bitsFor(50) === 6, 'GATE 2025 Set 1 Q37');
+  chk('bitsFor(24) = 5', bitsFor(24) === 5, 'GATE 2016 Set 2 Q10: 24 registers');
+  chk('bitsFor(8) = 3', bitsFor(8) === 3, 'GATE 2024 Set 2 Q57: 8 addressing modes');
+
+  chk('GATE 2014: 6 + 6 + 6 + 14 = 32', G2014.opcode + 6 + 6 + G2014.imm === 32,
+      'opcode ' + G2014.opcode + ', registers 12, immediate ' + G2014.imm);
+  chk('GATE 2014: largest unsigned 14-bit immediate is 16383', G2014.maxUnsigned === 16383,
+      '2^14 - 1, not 2^14');
+  chk('GATE 2025 Set 1: immediate is 20 bits', G2025Q37.imm === 20,
+      '32 - 6 opcode - 6 for one register field');
+  chk('GATE 2024 Set 2: opcode field 5 bits, 32 opcodes', G2024Q57.opcode === 5 && G2024Q57.maxOpcodes === 32,
+      '32 - 8 registers - 3 mode bits - 16 scalar');
+  chk('GATE 2016 Set 2: immediate is 16 bits', G2016S2Q10.imm === 16, '32 - 6 - 10');
+
+  chk('GATE 2020: I-type opcode 6 bits, R-type 4 bits', G2020Q44.itypeOpcode === 6 && G2020Q44.rtypeOpcode === 4,
+      'different widths, so different spaces');
+  chk('GATE 2020: 16 R-type opcodes, not 64 - 8', G2020Q44.maxR === 16,
+      'the eight I-type codes do not consume any four-bit code');
+
+  chk('expanding opcode: 15 codes per format', EXP.countA === 15 && EXP.countB === 15 && EXP.countC === 15,
+      'each format gives one code to the escape');
+  chk('expanding opcode: no code is a prefix of another', EXP.prefixFree,
+      EXP.witness ? 'witness ' + EXP.witness : 'checked all 45 x 44 ordered pairs');
+  chk('expanding opcode: Kraft sum <= 1', EXP.kraft <= 1,
+      'sum of 2^-len = ' + EXP.kraft.toFixed(6) + ', so the design fits in 16 bits');
+  chk('expanding opcode: every format fills 16 bits', EXP.widthA === 16 && EXP.widthB === 16 && EXP.widthC === 16,
+      'A 4+12, B 8+8, C 12+4');
+
+  var modes = runModes();
+  var allModes = true, detail = '';
+  for (i = 0; i < modes.length; i++) {
+    if (!modes[i].ok) { allModes = false; detail += modes[i].name + ' '; }
+  }
+  chk('all nine modes produce the expected operand value and read count', allModes,
+      detail || 'simulated against one fixed machine state; every read counted');
+
+  var ind = modes.filter(function (m) { return m.name === 'memory indirect'; })[0];
+  var rind = modes.filter(function (m) { return m.name === 'register indirect'; })[0];
+  chk('memory indirect costs two reads and register indirect one',
+      ind.reads === 2 && rind.reads === 1,
+      'the pointer itself must be fetched in the memory form');
+  chk('direct and register indirect cost the same one read',
+      modes.filter(function (m) { return m.name === 'direct'; })[0].reads === rind.reads,
+      'the address source differs; the cost does not');
+
+  chk('GATE 2017 Set 1: the branch offset is -16', BR.offset === -16,
+      'branch at ' + BR.branchAddr + ', next at ' + BR.nextAddr + ', target ' + BR.target);
+  chk('GATE 2017 Set 1: next + offset reproduces the target', BR.reproduces, BR.nextAddr + ' + (-16) = ' + BR.target);
+  chk('the -16 offset fits a signed 16-bit field', BR.fits,
+      'range ' + BR.signed16[0] + ' to ' + BR.signed16[1]);
+
+  chk('(A+B)*(C+D) gives the same value on all four machines',
+      MACHINES.three.value === 45 && MACHINES.two.value === 45 &&
+      MACHINES.one.value === 45 && MACHINES.zero.value === 45,
+      'A=2 B=3 C=4 D=5, so the answer is 45 on each');
+  chk('the four machines need 3, 5, 7 and 8 instructions',
+      MACHINES.three.n === 3 && MACHINES.two.n === 5 && MACHINES.one.n === 7 && MACHINES.zero.n === 8,
+      'fewer addresses per instruction, more instructions');
+  chk('every program length equals the number of instructions listed',
+      MACHINES.three.program.length === MACHINES.three.n &&
+      MACHINES.two.program.length === MACHINES.two.n &&
+      MACHINES.one.program.length === MACHINES.one.n &&
+      MACHINES.zero.program.length === MACHINES.zero.n,
+      'the listing and the count are the same object');
+
+  chk('indexed mode scales the index: 2000 + 3 x 4 = 2012',
+      modes.filter(function (m) { return m.name === 'indexed'; })[0].ea === 2012,
+      '2003 would be inside an element');
+  chk('little-endian stores 0x12345678 as 78 56 34 12', ENDIAN.littleRebuilds,
+      'used only to justify scaling by the element size');
+}
+
+/* ======================================================================
+   LAYER 2 - THE DRAWING. Reads the model; never re-derives it.
+   ====================================================================== */
+
+function bg(P) {
+  P.rect(0, 0, W, H, { fill: '#ffffff' });
+  P.rect(0, 0, W, 52, { fill: PAL.surface2 });
+  P.line(0, 52, W, 52, { stroke: PAL.border });
+}
+function head(P, kicker, title) {
+  P.text(24, 14, kicker.toUpperCase(), { size: 10, mono: true, color: PAL.accent });
+  P.text(24, 28, title, { size: 17, bold: true, color: PAL.ink });
+}
+function note(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, color: colour || PAL.dim });
+}
+function mono(P, x, y, s, colour, size) {
+  P.text(x, y, s, { size: size || 10, mono: true, color: colour || PAL.ink });
+}
+function box(P, x, y, w, h, label, o) {
+  o = o || {};
+  P.rect(x, y, w, h, {
+    fill: o.fill || '#ffffff', stroke: o.stroke || PAL.border,
+    radius: o.radius === undefined ? 6 : o.radius, sw: o.sw || 1.2, dash: o.dash
+  });
+  if (label) {
+    P.text(x + w / 2, y + h / 2, label, {
+      size: o.size || 10, mono: true, color: o.color || PAL.ink,
+      align: 'center', base: 'middle', bold: !!o.bold
+    });
+  }
+}
+function rule(P, x1, y, x2, colour) {
+  P.line(x1, y, x2, y, { stroke: colour || PAL.border, sw: 1 });
+}
+function prog(t, at) { return t >= at ? 1 : 0; }
+function tick(P, x, y, ok) {
+  P.circle(x, y, 5, { fill: ok ? PAL.valid : PAL.invalid, stroke: ok ? PAL.valid : PAL.invalid });
+  P.text(x, y, ok ? '\u2713' : '\u2717', { size: 8, color: '#ffffff', align: 'center', base: 'middle', bold: true });
+}
+
+/* ---------- scene 1: the ISA against the implementation ---------- */
+function sceneIsa(P, t) {
+  head(P, 'scene 1', 'The contract against the implementation');
+
+  var vis = ['the set of instructions', 'the registers a program names',
+             'the instruction formats', 'the addressing modes',
+             'data types, address width, byte order'];
+  var hid = ['the size of the cache', 'the clock frequency',
+             'the number of cache levels', 'the pipeline depth',
+             'physical registers behind the architectural ones'];
+  var i, y;
+
+  box(P, 24, 66, 400, 214, '', { fill: '#ffffff', stroke: PAL.valid });
+  mono(P, 40, 78, 'IN THE ARCHITECTURE', PAL.valid, 10);
+  note(P, 40, 94, 'a compiler may depend on these', PAL.faint, 9);
+  for (i = 0; i < vis.length; i++) {
+    y = 118 + i * 28;
+    tick(P, 50, y, true);
+    note(P, 66, y - 6, vis[i], PAL.ink, 10);
+  }
+
+  box(P, 448, 66, 428, 214, '', { fill: PAL.surface2, stroke: PAL.invalid, dash: [5, 4] });
+  mono(P, 464, 78, 'NOT IN THE ARCHITECTURE', PAL.invalid, 10);
+  note(P, 464, 94, 'these change speed, never meaning', PAL.faint, 9);
+  for (i = 0; i < hid.length; i++) {
+    y = 118 + i * 28;
+    tick(P, 474, y, false);
+    note(P, 490, y - 6, hid[i], PAL.ink, 10);
+  }
+
+  if (prog(t, 15)) {
+    box(P, 24, 296, 852, 64, '', { fill: PAL.accentDim, stroke: PAL.accent });
+    mono(P, 40, 306, 'GATE 2025 Set 2, Q28 (MSQ, 1 mark)', PAL.accent, 9);
+    note(P, 40, 322, 'Which of these is part of the ISA?  (A) cache size  (B) clock frequency  (C) number of cache levels  (D) total registers', PAL.ink, 10);
+    mono(P, 40, 344, 'answer: D only  -  the other three are microarchitecture', PAL.valid, 10);
+  }
+
+  if (prog(t, 24)) {
+    note(P, 24, 384, 'the test: could a compiler emit an instruction that depends on this fact?', PAL.dim, 10);
+    note(P, 24, 404, 'if not, the fact is implementation, and a question calling it architecture is testing the boundary.', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 2: the bit budget ---------- */
+function sceneBudget(P, t) {
+  head(P, 'scene 2', 'One word, four fields, one equation');
+
+  var x0 = 60, total = 560, y = 96;
+  var fields = [
+    { label: 'OPCODE', bits: G2014.opcode, colour: PAL.accent, fill: PAL.accentDim },
+    { label: 'R1', bits: 6, colour: PAL.warn, fill: PAL.warnDim },
+    { label: 'R2', bits: 6, colour: PAL.warn, fill: PAL.warnDim },
+    { label: 'IMMEDIATE', bits: G2014.imm, colour: PAL.info, fill: PAL.surface2 }
+  ];
+  var acc = 0, i;
+
+  note(P, x0, 70, 'GATE 2014 Set 1: 32-bit word, 64 registers, 45 instructions, two register operands', PAL.faint, 9);
+
+  for (i = 0; i < fields.length; i++) {
+    var w = (fields[i].bits / 32) * total;
+    var x = x0 + acc;
+    P.rect(x, y, w, 46, { fill: fields[i].fill, stroke: fields[i].colour, radius: 2, sw: 1 });
+    mono(P, x + w / 2, y + 8, fields[i].label, fields[i].colour, 9);
+    mono(P, x + w / 2, y + 26, fields[i].bits + ' b', PAL.ink, 11);
+    acc += w;
+  }
+
+  mono(P, x0, y + 66, '6 + 6 + 6 + 14 = 32', PAL.valid, 12);
+  mono(P, x0, y + 86, 'opcode = ceil(log2 45) = 6    registers = 2 x ceil(log2 64) = 12    immediate = the remainder', PAL.dim, 9);
+
+  if (prog(t, 7.5)) {
+    box(P, x0, 216, 560, 52, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, x0 + 12, 228, 'largest unsigned 14-bit value', PAL.faint, 9);
+    mono(P, x0 + 12, 248, '2^14 - 1 = ' + G2014.maxUnsigned, PAL.ink, 14);
+    note(P, x0 + 260, 250, '2^14 = 16384 is the pattern count, not the maximum', PAL.dim, 9);
+  }
+
+  if (prog(t, 15)) {
+    mono(P, x0, 296, 'GATE 2025 Set 1 Q37: 64 registers, 50 instruction types, ADD R1, #25', PAL.ink, 10);
+    mono(P, x0, 314, '6 opcode + 6 for ONE register field = 12, so the immediate is ' + G2025Q37.imm + ' bits', PAL.accent, 11);
+    note(P, x0, 330, 'the hash marks the second operand as a constant, so no second register field exists', PAL.dim, 9);
+  }
+
+  if (prog(t, 22.5)) {
+    box(P, x0, 350, 560, 52, '', { fill: '#ffffff', stroke: PAL.border });
+    mono(P, x0 + 12, 362, 'GATE 2024 Set 2 Q57: 16 registers, 8 modes, 16-bit scalar, 32-bit word', PAL.ink, 9);
+    mono(P, x0 + 12, 382, '8 + 3 + 16 = 27 used, opcode 5 bits, so ' + G2024Q57.maxOpcodes + ' opcodes', PAL.accent, 10);
+  }
+
+  /* the right-hand column: the two ceilings */
+  var rx = 660;
+  mono(P, rx, 70, 'the two ceilings', PAL.faint, 9);
+  box(P, rx, 82, 216, 40, '', { fill: '#ffffff', stroke: PAL.border });
+  mono(P, rx + 10, 92, 'names one of n things', PAL.dim, 9);
+  mono(P, rx + 10, 108, 'costs ceil(log2 n) bits', PAL.ink, 10);
+  box(P, rx, 132, 216, 40, '', { fill: '#ffffff', stroke: PAL.border });
+  mono(P, rx + 10, 142, '45 instructions', PAL.dim, 9);
+  mono(P, rx + 10, 158, '2^5 = 32 is too few, 2^6 = 64', PAL.ink, 10);
+  if (prog(t, 18)) {
+    box(P, rx, 186, 216, 56, '', { fill: PAL.invalidDim, stroke: PAL.invalid });
+    mono(P, rx + 10, 196, 'rounding down', PAL.invalid, 9);
+    note(P, rx + 10, 212, 'five bits name 32 instructions,', PAL.ink, 9);
+    note(P, rx + 10, 226, 'so 13 of the 45 have no code.', PAL.ink, 9);
+  }
+}
+
+/* ---------- scene 3: expanding opcodes ---------- */
+function sceneExpanding(P, t) {
+  head(P, 'scene 3', 'One reserved code, three formats');
+
+  var x0 = 60, y = 84, i;
+  var rows = [
+    { name: 'A: three registers', code: '0000..1110', bits: 4, colour: PAL.accent, fill: PAL.accentDim },
+    { name: 'B: two registers', code: '1111 xxxx', bits: 8, colour: PAL.warn, fill: PAL.warnDim },
+    { name: 'C: one register', code: '1111 1111 xxxx', bits: 12, colour: PAL.info, fill: PAL.surface2 }
+  ];
+
+  for (i = 0; i < rows.length; i++) {
+    var ry = y + i * 62;
+    if (i > 0 && !prog(t, 5 + i * 5)) continue;
+    var wOp = (rows[i].bits / 16) * 300;
+    P.rect(x0, ry, wOp, 40, { fill: rows[i].fill, stroke: rows[i].colour, radius: 2, sw: 1.2 });
+    P.rect(x0 + wOp, ry, 300 - wOp, 40, { fill: '#ffffff', stroke: PAL.border, radius: 2, sw: 1 });
+    mono(P, x0 + wOp / 2, ry + 12, 'OPCODE ' + rows[i].bits, rows[i].colour, 9);
+    mono(P, x0 + wOp + (300 - wOp) / 2, ry + 12, 'OPS ' + (16 - rows[i].bits), PAL.dim, 9);
+    mono(P, x0 + 322, ry + 6, rows[i].name, PAL.ink, 10);
+    mono(P, x0 + 322, ry + 22, rows[i].code + ' = 15 codes', PAL.faint, 8);
+  }
+
+  if (prog(t, 20)) {
+    mono(P, x0, 280, 'each format gives exactly one code to the escape, so 16 - 1 = 15', PAL.ink, 10);
+    mono(P, x0, 298, 'the three counts cannot be added as 45 opcodes: a 4-bit code is not a 12-bit code', PAL.dim, 9);
+  }
+
+  if (prog(t, 25)) {
+    box(P, x0, 314, 360, 74, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, x0 + 12, 326, 'Kraft check: 15/16 + 15/256 + 15/4096', PAL.ink, 9);
+    mono(P, x0 + 12, 344, '= ' + EXP.kraft.toFixed(5) + '  <= 1', PAL.valid, 11);
+    note(P, x0 + 12, 364, 'one 12-bit prefix is left unused, so the scheme fits', PAL.dim, 9);
+    note(P, x0 + 12, 378, 'if the sum exceeded 1, two encodings would collide', PAL.faint, 8);
+  }
+
+  /* right: the prefix test */
+  var rx = 500;
+  mono(P, rx, 84, 'the prefix test, on all ' + EXP.codes.length + ' codes', PAL.faint, 9);
+  box(P, rx, 96, 376, 92, '', { fill: '#ffffff', stroke: EXP.prefixFree ? PAL.valid : PAL.invalid });
+  mono(P, rx + 12, 108, 'no code is the beginning of another', PAL.ink, 9);
+  mono(P, rx + 12, 128, EXP.prefixFree ? 'PASS  (' + EXP.codes.length + ' x ' + (EXP.codes.length - 1) + ' pairs)' : 'FAIL', EXP.prefixFree ? PAL.valid : PAL.invalid, 12);
+  note(P, rx + 12, 148, 'every longer code starts with 1111, and no', PAL.dim, 9);
+  note(P, rx + 12, 162, 'shorter code does, so the escape buys it.', PAL.dim, 9);
+  note(P, rx + 12, 178, 'without this, one bit string means two instructions.', PAL.faint, 8);
+
+  if (prog(t, 15)) {
+    box(P, rx, 200, 376, 88, '', { fill: PAL.accentDim, stroke: PAL.accent });
+    mono(P, rx + 12, 212, 'GATE 2020 Q44', PAL.accent, 9);
+    mono(P, rx + 12, 230, 'I-type opcode ' + G2020Q44.itypeOpcode + ' bits, R-type ' + G2020Q44.rtypeOpcode + ' bits', PAL.ink, 10);
+    mono(P, rx + 12, 248, '8 of 64 I-type used; R-type = 2^4 = ' + G2020Q44.maxR, PAL.valid, 11);
+    note(P, rx + 12, 268, 'different widths, so the spaces never compete', PAL.dim, 9);
+    note(P, rx + 12, 282, 'subtracting 8 from 64 is the trap', PAL.invalid, 8);
+  }
+}
+
+/* ---------- scene 4: addresses per instruction ---------- */
+function sceneAddresses(P, t) {
+  head(P, 'scene 4', '(A + B) x (C + D) on four machines');
+
+  var cols = [
+    { key: 'three', title: '3-ADDRESS', x: 24, colour: PAL.accent },
+    { key: 'two', title: '2-ADDRESS', x: 240, colour: PAL.warn },
+    { key: 'one', title: '1-ADDRESS', x: 456, colour: PAL.info },
+    { key: 'zero', title: '0-ADDRESS', x: 672, colour: PAL.invalid }
+  ];
+  var i, j;
+
+  for (i = 0; i < cols.length; i++) {
+    var c = cols[i], m = MACHINES[c.key];
+    if (i > 0 && !prog(t, 4 + i * 5)) continue;
+    var x = c.x, y = 76;
+    mono(P, x, y, c.title, c.colour, 10);
+    mono(P, x, y + 16, m.n + ' instructions', PAL.ink, 11);
+
+    for (j = 0; j < m.program.length; j++) {
+      var ly = y + 34 + j * 18;
+      if (ly > 380) break;
+      P.rect(x, ly - 2, 200, 16, { fill: j % 2 ? '#ffffff' : PAL.surface2, stroke: PAL.border, radius: 2, sw: 0.6 });
+      mono(P, x + 6, ly + 1, m.program[j], PAL.dim, 8);
+    }
+  }
+
+  if (prog(t, 22.5)) {
+    box(P, 24, 388, 852, 56, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, 40, 398, '3, 5, 7, 8  -  and all four produce 45', PAL.accent, 11);
+    note(P, 40, 416, 'fewer addresses per instruction means shorter instructions and more of them; the value is the same.', PAL.dim, 9);
+    note(P, 40, 432, 'GATE 2015 Set 1 Q8: a three-address format may name a memory operand or a register, never an implied accumulator.', PAL.faint, 8);
+  }
+}
+
+/* ---------- scene 5: the mode machine ---------- */
+function sceneModes(P, t) {
+  head(P, 'scene 5', 'Eight ways to name an operand');
+
+  var modes = runModes();
+  var x0 = 24, y0 = 70, rh = 32;
+  var cols = [150, 200, 100, 96, 66];
+  var heads = ['mode', 'effective address', 'operand', 'reads', 'for'];
+  var i, hx = x0;
+
+  for (i = 0; i < heads.length; i++) {
+    mono(P, hx + 6, y0, heads[i], PAL.faint, 8);
+    hx += cols[i];
+  }
+  rule(P, x0, y0 + 12, x0 + 852, PAL.border);
+
+  var shown = 0;
+  for (i = 0; i < modes.length; i++) {
+    if (t < 3 + i * 2.6) break;
+    shown++;
+    var m = modes[i], y = y0 + 22 + i * rh, cx = x0;
+    var ea = m.ea === null ? 'none' : String(m.ea);
+    var vals = [m.name, ea, String(m.value), String(m.reads),
+                (MODES[i].use || '')];
+    for (var k = 0; k < vals.length; k++) {
+      var col = k === 3 ? (m.reads === 2 ? PAL.warn : PAL.valid) : PAL.ink;
+      mono(P, cx + 6, y, vals[k], k === 0 ? PAL.accent : col, k === 0 ? 9 : 8);
+      cx += cols[k];
+    }
+    rule(P, x0, y + 16, x0 + 852, PAL.border);
+  }
+
+  if (shown >= 5 && t < 30) {
+    mono(P, 24, 408, 'state: byte addressable, 4-byte words, R1=2000  R2=3  R3=4096  PC=400', PAL.dim, 9);
+    mono(P, 24, 426, 'memory: 2000->7  2012->11  4104->9  5000->2000  496->42', PAL.faint, 9);
+    mono(P, 24, 444, 'indexed scales the index by the element size: 2000 + 3 x 4 = 2012, never 2003', PAL.warn, 9);
+  }
+}
+
+/* ---------- scene 6: the cost ---------- */
+function sceneCost(P, t) {
+  head(P, 'scene 6', 'What each mode costs in memory accesses');
+
+  var modes = runModes();
+  var x0 = 60, y0 = 90, bh = 26, gap = 8;
+  var maxReads = 2;
+
+  mono(P, x0, 74, 'operand reads only, instruction fetch excluded', PAL.faint, 9);
+
+  for (var i = 0; i < modes.length; i++) {
+    if (t < 2 + i * 2.6) break;
+    var m = modes[i], y = y0 + i * (bh + gap);
+    mono(P, x0, y + 8, m.name, PAL.dim, 9);
+    var w = (m.reads / maxReads) * 260;
+    if (m.reads === 0) {
+      mono(P, x0 + 230, y + 8, '0 reads - it is in a register or the instruction', PAL.valid, 8);
+    } else {
+      P.rect(x0 + 230, y, w, bh, {
+        fill: m.reads === 2 ? PAL.warnDim : PAL.accentDim,
+        stroke: m.reads === 2 ? PAL.warn : PAL.accent, radius: 2, sw: 1
+      });
+      mono(P, x0 + 238, y + 8, m.reads + (m.reads === 1 ? ' read' : ' reads'), m.reads === 2 ? PAL.warn : PAL.accent, 9);
+    }
+  }
+
+  if (prog(t, 20)) {
+    box(P, 608, 74, 268, 118, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, 620, 86, 'where the fetch goes', PAL.ink, 9);
+    note(P, 620, 104, '"in the execution cycle"', PAL.dim, 9);
+    note(P, 620, 118, 'excludes the instruction fetch', PAL.faint, 8);
+    rule(P, 620, 128, 864, PAL.border);
+    note(P, 620, 140, '"to fetch and execute"', PAL.dim, 9);
+    note(P, 620, 154, 'includes one fetch per word', PAL.faint, 8);
+    rule(P, 620, 164, 864, PAL.border);
+    mono(P, 620, 178, 'a 2-word instruction: 2 fetches', PAL.warn, 8);
+  }
+
+  if (prog(t, 24)) {
+    mono(P, 60, 380, 'indexed costs one read plus an addition; the addition is time, not a memory access', PAL.dim, 9);
+    mono(P, 60, 400, 'memory indirect is the only common mode that costs two operand reads', PAL.warn, 10);
+    mono(P, 60, 420, 'the same instruction is charged 4 or 5 depending on which question is asked', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 7: why each mode exists ---------- */
+function sceneWhy(P, t) {
+  head(P, 'scene 7', 'One construct, one mode');
+
+  var pairs = [
+    { c: 'a constant', m: 'immediate', why: 'the value is known before the run' },
+    { c: 'a pointer', m: 'memory indirect', why: 'the address must be read first' },
+    { c: 'an array element', m: 'base with index', why: 'the element number varies, and scales' },
+    { c: 'a record field', m: 'base with displacement', why: 'the field offset is fixed' }
+  ];
+  var x0 = 60, i;
+
+  for (i = 0; i < pairs.length; i++) {
+    if (t < 1 + i * 3.4) break;
+    var y = 82 + i * 50;
+    box(P, x0, y, 190, 38, pairs[i].c, { fill: PAL.surface2, stroke: PAL.border, size: 10 });
+    P.arrow(x0 + 194, y + 19, x0 + 236, y + 19, { stroke: PAL.accent, sw: 1.4, head: 7 });
+    box(P, x0 + 240, y, 210, 38, pairs[i].m, { fill: PAL.accentDim, stroke: PAL.accent, size: 10 });
+    note(P, x0 + 462, y + 12, pairs[i].why, PAL.dim, 9);
+  }
+
+  if (prog(t, 16)) {
+    box(P, 60, 296, 780, 74, '', { fill: '#ffffff', stroke: PAL.border });
+    mono(P, 74, 308, 'the two base modes, side by side', PAL.ink, 10);
+    mono(P, 74, 328, 'base with index:  R1 + R2 x 4   the 3rd element of an int array at 2000 is at 2012', PAL.accent, 9);
+    mono(P, 74, 348, 'base with disp.:  R3 + 8        the field 8 bytes into a record at 4096 is at 4104', PAL.warn, 9);
+    note(P, 74, 362, 'the varying part decides the name: an element number scales, a byte offset does not.', PAL.faint, 8);
+  }
+
+  if (prog(t, 24)) {
+    mono(P, 60, 396, 'GATE 2026 Set 1 Q14: immediate-constant, indirect-pointer, base with index-array element, base with displacement-record field', PAL.dim, 8);
+    mono(P, 60, 416, 'GATE 2017 Set 1 Q11: student.grade sits 400 bytes into the struct, so the offset field must be wide', PAL.dim, 8);
+    mono(P, 60, 436, 'the distractors swap the two base modes; only the scaling tells them apart', PAL.faint, 8);
+  }
+}
+
+/* ---------- scene 8: pc-relative and relocation ---------- */
+function sceneRelocate(P, t) {
+  head(P, 'scene 8', 'A branch stores a distance');
+
+  var x0 = 60, y0 = 84, i;
+  var addrs = ['i', 'i+4', 'i+8', 'i+12'];
+
+  for (i = 0; i < 4; i++) {
+    var y = y0 + i * 34;
+    P.rect(x0, y, 150, 26, {
+      fill: i === 3 ? PAL.warnDim : PAL.surface2,
+      stroke: i === 3 ? PAL.warn : PAL.border, radius: 2, sw: 1
+    });
+    mono(P, x0 + 10, y + 6, addrs[i], i === 3 ? PAL.warn : PAL.dim, 9);
+    mono(P, x0 + 66, y + 6, i === 3 ? 'BEQ  i' : 'instr ' + i, PAL.ink, 9);
+  }
+
+  /* the arrow from the next instruction back to the target */
+  if (prog(t, 6)) {
+    var fromY = y0 + 3 * 34 + 26;
+    P.arrow(x0 + 190, fromY, x0 + 190, y0 + 13, { stroke: PAL.invalid, sw: 1.6, head: 9 });
+    mono(P, x0 + 200, y0 + 3 * 34 - 4, 'next instruction is at i+16', PAL.invalid, 9);
+    mono(P, x0 + 200, y0 + 3 * 34 + 14, 'offset = i - (i + 16) = ' + BR.offset, PAL.invalid, 11);
+    mono(P, x0 + 200, y0 + 3 * 34 + 32, 'check: (i + 16) + (-16) = i', PAL.valid, 9);
+  }
+
+  if (prog(t, 14)) {
+    box(P, 60, 236, 470, 70, '', { fill: PAL.surface2, stroke: PAL.border });
+    mono(P, 74, 248, 'signed, because branches go backwards', PAL.ink, 9);
+    mono(P, 74, 266, 'an 8-bit offset: -128 .. +127 bytes', PAL.dim, 9);
+    mono(P, 74, 284, 'a 16-bit offset: ' + BR.signed16[0] + ' .. ' + BR.signed16[1] + '   ( -16 fits )', PAL.accent, 9);
+  }
+
+  if (prog(t, 20)) {
+    var rx = 560;
+    mono(P, rx, 84, 'what survives the program moving', PAL.faint, 9);
+    box(P, rx, 96, 316, 40, '', { fill: PAL.invalidDim, stroke: PAL.invalid });
+    mono(P, rx + 12, 108, 'absolute', PAL.invalid, 9);
+    note(P, rx + 12, 124, 'every address in the code is wrong', PAL.ink, 9);
+    box(P, rx, 144, 316, 40, '', { fill: PAL.warnDim, stroke: PAL.warn });
+    mono(P, rx + 12, 156, 'base register', PAL.warn, 9);
+    note(P, rx + 12, 172, 'the code is fine, the register is reloaded', PAL.ink, 9);
+    box(P, rx, 192, 316, 40, '', { fill: PAL.accentDim, stroke: PAL.accent });
+    mono(P, rx + 12, 204, 'pc-relative', PAL.accent, 9);
+    note(P, rx + 12, 220, 'nothing at all changes', PAL.ink, 9);
+  }
+
+  if (prog(t, 26)) {
+    mono(P, 60, 336, 'GATE 1998 Q19: "without any change whatsoever in the code" -> PC-relative', PAL.dim, 9);
+    mono(P, 60, 356, 'GATE 2004: "suitable for relocation at run time" -> base and relative', PAL.dim, 9);
+    mono(P, 60, 376, 'the wording decides, and the two papers chose deliberately', PAL.faint, 9);
+    mono(P, 60, 404, 'an offset of 0 is legal: it means fall through to the next instruction', PAL.faint, 9);
+  }
+}
+
+/* ---------- scene 9: load-store ---------- */
+function sceneLoadStore(P, t) {
+  head(P, 'scene 9', 'Only load and store touch memory');
+
+  var seq = ['LOAD R0, X', 'LOAD R1, Y', 'ADD R2, R0, R1', 'STORE Z, R2'];
+  var x0 = 60, y0 = 84, i;
+
+  mono(P, x0, 72, 'GATE 2026 Set 1 Q15:  Z = X + Y  on a load-store machine', PAL.faint, 9);
+
+  for (i = 0; i < seq.length; i++) {
+    if (t < 2 + i * 3) break;
+    var y = y0 + i * 34;
+    P.rect(x0, y, 300, 26, { fill: PAL.accentDim, stroke: PAL.accent, radius: 2, sw: 1.1 });
+    mono(P, x0 + 10, y + 6, seq[i], PAL.accent, 10);
+    var why = ['memory to register', 'memory to register', 'all three in registers', 'register to memory'][i];
+    note(P, x0 + 314, y + 8, why, PAL.dim, 9);
+  }
+
+  if (prog(t, 16)) {
+    box(P, x0, 232, 300, 26, '', { fill: PAL.accentDim, stroke: PAL.accent });
+    mono(P, x0 + 10, 238, 'this sequence is the answer', PAL.accent, 10);
+  }
+
+  if (prog(t, 20)) {
+    var rx = 480;
+    mono(P, rx, 84, 'the three that fail', PAL.invalid, 9);
+    var bad = [
+      ['ADD Z, X, Y', 'all three operands in memory'],
+      ['LOAD R0, X', 'then ADD Z, R0, Y  -  memory inside the add'],
+      ['ADD R0, X, Y', 'then STORE Z, R0  -  sources still in memory']
+    ];
+    for (i = 0; i < bad.length; i++) {
+      var by = 100 + i * 58;
+      box(P, rx, by, 400, 48, '', { fill: PAL.invalidDim, stroke: PAL.invalid, dash: [5, 4] });
+      tick(P, rx + 16, by + 14, false);
+      mono(P, rx + 30, by + 8, bad[i][0], PAL.invalid, 9);
+      note(P, rx + 30, by + 26, bad[i][1], PAL.ink, 8);
+    }
+  }
+
+  if (prog(t, 25)) {
+    mono(P, 60, 300, 'RISC: register-to-register arithmetic, fixed instruction length, hardwired control', PAL.ink, 10);
+    mono(P, 60, 320, 'GATE 2018 Q5 lists exactly those three, and all three are RISC characteristics', PAL.valid, 9);
+    mono(P, 60, 344, 'CISC: variable length, memory operands, often microprogrammed - a shorter program, a harder decoder', PAL.dim, 9);
+  }
+}
+
+/* ---------- scene 10: the recipe ---------- */
+function sceneRecipe(P, t) {
+  head(P, 'scene 10', 'Five steps, five traps');
+
+  var steps = [
+    ['1', 'write the format as a sum of widths = word length', 'forgetting the instruction fetch'],
+    ['2', 'every field is ceil(log2 n); never round down', 'answering 2^n instead of 2^n - 1'],
+    ['3', 'compute the effective address, then read once', 'charging memory indirect as one read'],
+    ['4', 'branch offset = target - next instruction, signed', 'measuring from the branch, or dropping the sign'],
+    ['5', 'the ISA is what a compiler may depend on', 'calling cache size part of the architecture']
+  ];
+  var x0 = 60, i;
+
+  mono(P, x0, 70, 'step', PAL.faint, 9);
+  mono(P, 110, 70, 'the procedure', PAL.faint, 9);
+  mono(P, 560, 70, 'the trap beside it', PAL.faint, 9);
+
+  for (i = 0; i < steps.length; i++) {
+    if (t < 1 + i * 3.6) break;
+    var y = 88 + i * 44;
+    P.circle(x0 + 8, y + 10, 11, { fill: PAL.accentDim, stroke: PAL.accent });
+    P.text(x0 + 8, y + 10, steps[i][0], { size: 10, mono: true, bold: true, color: PAL.accent, align: 'center', base: 'middle' });
+    note(P, 110, y + 6, steps[i][1], PAL.ink, 10);
+    P.arrow(548, y + 10, 566, y + 10, { stroke: PAL.invalid, sw: 1.2, head: 6 });
+    note(P, 574, y + 6, steps[i][2], PAL.invalid, 9);
+    rule(P, x0, y + 26, 860, PAL.border);
+  }
+
+  if (prog(t, 24)) {
+    box(P, 60, 312, 780, 52, '', { fill: PAL.accentDim, stroke: PAL.accent });
+    mono(P, 74, 324, 'before computing anything, write down what the field names:', PAL.accent, 10);
+    mono(P, 74, 344, 'an operation, a register, a value, an address, or a distance.', PAL.ink, 11);
+    note(P, 60, 388, 'almost every error on this clause is a field read as the wrong one of those five.', PAL.dim, 9);
+    note(P, 60, 408, 'check it forward: next + offset = target; the widths sum to the word; the reads add up.', PAL.faint, 9);
+  }
+}
+
+var SCENES = {
+  isa: sceneIsa,
+  budget: sceneBudget,
+  expanding: sceneExpanding,
+  addresses: sceneAddresses,
+  modes: sceneModes,
+  cost: sceneCost,
+  why: sceneWhy,
+  relocate: sceneRelocate,
+  loadstore: sceneLoadStore,
+  recipe: sceneRecipe
+};
+
+function drawFrame(painter) {
+  if (!painter) return;
+  var tl = window.LESSON_TIMELINE;
+  var tt = K.state.elapsed;
+  var idx = K.sceneAt(tt);
+  var sc = tl.scenes[idx];
+  painter.alpha(1);
+  painter.clear();
+  bg(painter);
+  if (sc && SCENES[sc.id]) {
+    try {
+      SCENES[sc.id](painter, tt - sc.start);
+    } catch (err) {
+      console.error('scene draw failed', sc.id, err);
+    }
+  }
+}
+
+function fillChecks() {
+  var el = document.getElementById('checks');
+  if (!el) return;
+  var passed = CHECKS.filter(function (c) { return c.pass; }).length;
+  var html = '<span class="k">Model checks</span>' +
+    '<span class="ok">' + passed + ' / ' + CHECKS.length + ' passed</span>';
+  html += '<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--text-faint)">what was checked</summary>';
+  CHECKS.forEach(function (c) {
+    html += '<div style="margin-top:3px">' +
+      (c.pass ? '<span class="ok">\u2713</span>' : '<span style="color:var(--invalid)">\u2717</span> ') +
+      c.name + (c.detail ? '<br><span style="opacity:.7">' + c.detail + '</span>' : '') +
+      '</div>';
+  });
+  html += '</details>';
+  el.innerHTML = html;
+}
+
+function boot() {
+  buildChecks();
+  fillChecks();
+
+  var holder = document.getElementById('canvas-holder');
+  var fallback = document.getElementById('canvas-fallback');
+  if (fallback) fallback.classList.remove('show');
+
+  var ok = false;
+  try {
+    if (typeof window.p5 === 'function' && holder) {
+      new window.p5(function (sk) {
+        sk.setup = function () {
+          var c = sk.createCanvas(W, H);
+          c.parent(holder);
+          sk.pixelDensity(1);
+          sk.noLoop();
+          P = PR.makePainterP5(sk, W, H);
+          sk.draw = function () { drawFrame(P); };
+          drawFrame(P);
+        };
+      }, holder);
+      ok = true;
+    }
+  } catch (e) {
+    console.error('p5 failed', e);
+    ok = false;
+  }
+
+  if (!ok) {
+    var drew = false;
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      holder.appendChild(cv);
+      var ctx2d = cv.getContext && cv.getContext('2d');
+      if (ctx2d) {
+        P = PR.makePainter2D(ctx2d, W, H);
+        drawFrame(P);
+        drew = true;
+      }
+    } catch (e) {
+      console.error('canvas fallback failed', e);
+    }
+    if (!drew && fallback) fallback.classList.add('show');
+  }
+
+  K.init({
+    timeline: window.LESSON_TIMELINE,
+    draw: function () { if (P) drawFrame(P); }
+  });
+
+  K.onResize(function () { if (P) drawFrame(P); });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { if (P) drawFrame(P); });
+  }
+
+  window.__drawAt = function (t) {
+    K.state.elapsed = t;
+    if (P) drawFrame(P);
+  };
+
+  window.__lessonChecks = CHECKS;
+  var bad = CHECKS.filter(function (c) { return !c.pass; });
+  if (bad.length) console.warn('Model validation did not fully pass:', bad);
+}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
