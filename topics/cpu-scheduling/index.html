@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPU Scheduling — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">CPU Scheduling</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> CPU scheduling — the algorithms that decide which ready process runs next, the five quantities a schedule is scored on, and the trade between them. This is the "CPU and I/O scheduling" clause of Section 8 of the official GATE 2027 CS syllabus. The CPU half is here; the disk half (FCFS, SSTF, SCAN, C-SCAN, LOOK) is a separate lesson and is still recorded as uncovered.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a process table, draw the Gantt chart for FCFS, non-preemptive SJF, SRTF, round robin with a stated quantum, or preemptive and non-preemptive priority; read completion times off it; compute average turnaround, waiting and response time; and say which algorithm optimises which metric and what it costs. Given a switch cost and a quantum, compute the fraction of CPU time lost.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one decision, five numbers</em>. The scheduler makes a single choice — who runs now — and every question in the topic is either "what does your rule choose" or "which number does your rule improve". The algorithms differ only in what they are allowed to look at: arrival order, burst length, remaining time, priority, or recent behaviour.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 8 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, lists Operating Systems as: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em> "CPU and I/O scheduling" is the clause this lesson covers.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive lists 39 GATE CSE questions tagged to CPU and I/O scheduling between 2007 and 2026, including at least one in 2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2017, 2016, 2015, 2014, 2013, 2012 and 2011. That is one archive's tagging of its own index, not an official count and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. Every previous-year item quoted carries its year and set, and every answer was recomputed by the simulation on this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>The process states, and the ready queue.</strong> Ready means runnable and waiting for the CPU; blocked means waiting for an event. Built in <a href="../processes-threads-and-ipc/index.html">Processes, Threads and IPC</a>.</li>
+            <li><strong>The context switch as pure overhead.</strong> Save one context, load another. Same lesson, scene 3.</li>
+            <li><strong>Arithmetic with averages.</strong> A mean is a sum over the number of processes in the set.</li>
+            <li><strong>Reading a time axis.</strong> A Gantt chart is a bar per run, laid against a time axis; the left edge of a bar is a start time and the right edge is a completion.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing from Computer Organization is assumed beyond "the CPU executes one instruction stream at a time". Where a question needs the hardware to preempt — a timer interrupt — that is stated rather than assumed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>The decision and the metrics.</strong> One choice, five numbers, three formulas.</li>
+            <li><strong>FCFS.</strong> The chart, 8.25, and the convoy effect.</li>
+            <li><strong>SJF.</strong> 7.5, and the exchange argument drawn as two bars.</li>
+            <li><strong>SRTF.</strong> Six segments, 6.0, and A's 16 units.</li>
+            <li><strong>Round robin.</strong> Quantum 4 against quantum 10, response against waiting.</li>
+            <li><strong>Priority.</strong> Preemptive 3.67 against non-preemptive 5.00, then starvation and aging.</li>
+            <li><strong>Multilevel feedback.</strong> Three queues, demotion, response 0 and waiting 11.5.</li>
+            <li><strong>Quantum against switch.</strong> The curve of q/(q+s) with s fixed.</li>
+            <li><strong>CPU and I/O.</strong> Burst patterns, idle time, and why short bursts help twice.</li>
+            <li><strong>The procedure.</strong> Four steps and five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Turnaround is completion minus arrival; waiting is turnaround minus the burst; response is the first slice minus arrival. Waiting and turnaround differ by a constant, so one is a proxy for the other.</li>
+            <li>FCFS is arrival order, never preempts, and never starves. Its failure is the convoy effect: waiting equals the sum of the bursts ahead of you.</li>
+            <li>SJF minimises average waiting among non-preemptive schedules that respect arrivals — by an exchange argument, and only if the bursts are known. SRTF is the preemptive version and can starve long jobs.</li>
+            <li>Round robin optimises response time, not waiting time. A quantum at least as long as the longest burst makes it exactly FCFS; a very small quantum is dominated by switch overhead.</li>
+            <li>Priority scheduling is the one that starves; aging fixes it and degrades the policy towards round robin. Feedback queues buy response time at the cost of average waiting.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 70–90 minutes with the practice set, and it is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. The switch-cost figures in scene 8 use s = 1 ms as a stated model, not a measurement of any machine. The disk-scheduling half of "CPU and I/O scheduling" is deliberately not taught here and remains recorded as uncovered in the coverage tracker. The 2026 paper items are reported by an archive and were not checked against the paper itself; they are labelled as such wherever they appear.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: one counter, many customers</h3>
+              <p>A shop has one counter and a queue. The assistant serves whoever is at the front until that customer is done. That is first come first served, and it has an obvious flaw: if the first customer has a trolley of sixty items, the person behind with a single loaf waits for the trolley.</p>
+              <p class="small">Now give the assistant a rule: look at the baskets, serve the small ones first. The average wait drops, and the trolley owner — who was served first a moment ago — now waits a long time. That is shortest job first, and it is the same trade, made explicit. Give the assistant a timer instead: serve each customer for two minutes, then send them to the back. Nobody waits long before being served at all, and everybody finishes later on average. That is round robin.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy fixes one thing: a scheduling policy is a rule for choosing, and the choice always trades one customer's wait against another's. It says nothing about preemption cost or about how a burst length is estimated, which are separate ideas below.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the CPU scheduler</h3>
+              <p class="small">A process in the <strong>ready queue</strong> is runnable and not running. The CPU can run one at a time. The <strong>CPU scheduler</strong> (short-term scheduler) is the function that selects one ready process whenever the CPU becomes free: at a completion, at a block, at a preemption, or at the arrival of a process that outranks the running one.</p>
+              <p class="small"><strong>Non-preemptive</strong> (cooperative): a running process keeps the CPU until it blocks or terminates. <strong>Preemptive</strong>: the system may take the CPU away, either on a timer or when a higher-priority process arrives.</p>
+              <p class="small" style="margin-bottom:0"><strong>Dispatch</strong> is the act of handing the CPU to the chosen process; the <strong>dispatcher</strong> does the context switch. The time it takes is <strong>dispatch latency</strong>, and it is overhead, not work.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the five metrics</h3>
+              <p class="small">For a process with arrival time $$A$$, burst time $$B$$ and completion time $$C$$:</p>
+              <p class="formula">turnaround T = C − A</p>
+              <p class="small">The whole time the process existed in the system, from arrival to finish.</p>
+              <p class="formula">waiting W = T − B = C − A − B</p>
+              <p class="small">The time it spent ready. It excludes the burst and excludes time spent blocked.</p>
+              <p class="formula">response R = first service − A</p>
+              <p class="small">How long before it ran at all. For a non-preemptive algorithm with no idle gaps, R equals W.</p>
+              <p class="small" style="margin-bottom:0"><strong>CPU utilisation</strong> is busy time over total time; <strong>throughput</strong> is completions per unit time. Both are system-wide, while T, W and R are per process and then averaged.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The identity that makes the topic tractable</h3>
+              <p class="small">Sum the turnaround formula over all processes: the sum of T equals the sum of C minus the sum of A. The arrivals are fixed by the problem and the bursts are fixed by the processes, so on a given process set the sum of waiting times and the sum of turnaround times differ by the constant sum of the bursts.</p>
+              <p class="formula">sum(T) = sum(W) + sum(B)</p>
+              <p class="small" style="margin-bottom:0">So "minimise average turnaround" and "minimise average waiting" are the same instruction. It does not follow that they are the same as "minimise average response": that one is a different question, and it is the question round robin answers.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The policies, each defined by what it is allowed to look at</h3>
+              <p class="small" style="margin-bottom:0">Every algorithm below is the same loop — pick one ready process — with a different input. That is the whole taxonomy, and it is why the questions are answerable from a single table of rules.</p>
+            </div>
+
+            <div class="card">
+              <h3>FCFS</h3>
+              <p class="small">Looks at: <strong>arrival order</strong>. Preempts: <strong>no</strong>. Runs each process to completion, in the order it joined the ready queue. Waiting time of a process is the sum of the bursts of everyone ahead of it, which is the convoy effect. Starvation: impossible, because the queue advances.</p>
+              <p class="small" style="margin-bottom:0">On the set used throughout this lesson — A(0,10), B(2,6), C(4,3), D(6,7) — the order is A, B, C, D and the average waiting time is 8.25.</p>
+            </div>
+
+            <div class="card">
+              <h3>SJF and SRTF</h3>
+              <p class="small">SJF looks at: <strong>burst length among those that have arrived</strong>. Preempts: <strong>no</strong>. SRTF is the same rule on <strong>remaining time</strong>, and it preempts at arrivals. Both minimise average waiting (SRTF among preemptive schedules too), and both starve long jobs.</p>
+              <p class="small" style="margin-bottom:0">On the same set: SJF gives A, C, B, D with average waiting 7.5; SRTF gives six segments with average waiting 6.0 and average response 1.25.</p>
+            </div>
+
+            <div class="card">
+              <h3>Round robin</h3>
+              <p class="small">Looks at: <strong>arrival order and a fixed quantum q</strong>. Preempts: <strong>yes, on the timer</strong>. A process that exhausts its slice rejoins the tail of the ready queue. It optimises response time, not waiting time.</p>
+              <p class="small" style="margin-bottom:0">On the same set with q = 4: eight segments, average waiting 10.75, average response 3.75. With q ≥ 10 the chart is identical to FCFS.</p>
+            </div>
+
+            <div class="card">
+              <h3>Priority, with and without preemption</h3>
+              <p class="small">Looks at: <strong>a priority number</strong>. Whether a larger number is "higher" is stated by the question, not assumed. Preemptive priority takes the CPU at once when a higher-priority process arrives; non-preemptive priority waits for the running one to finish.</p>
+              <p class="small" style="margin-bottom:0">On P1(0,8,p2), P2(1,3,p1), P3(2,2,p3): preemptive gives P1, P3, P1, P2 with average waiting 3.67; non-preemptive gives P1, P3, P2 with 5.00.</p>
+            </div>
+
+            <div class="card">
+              <h3>Multilevel feedback queue</h3>
+              <p class="small">Looks at: <strong>recent behaviour</strong>. Several queues with increasing quanta; a new process enters the top; a process that uses its whole slice is demoted, one that blocks early stays. The bottom queue is usually FCFS so that every process eventually finishes.</p>
+              <p class="small" style="margin-bottom:0">On the same set with quanta 2, 4, then FCFS: average waiting 11.5, and a response time of 0 for every process.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>What "optimal" means here, precisely</h3>
+              <p class="small" style="margin-bottom:0">SJF is optimal for <em>average waiting time</em>, among <em>non-preemptive</em> schedules, on a <em>fixed set of processes with known bursts</em>, with arrivals respected. It is not optimal for response time, not optimal for the worst-case process, and its guarantee disappears the moment bursts must be predicted. A claim of optimality without those four conditions is a different, false claim.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The scheduler makes one decision, again and again: which ready process runs next.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">What the scheduler decides, and what we measure</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The scheduler makes one decision, again and again: which ready process runs next.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>One process set, five algorithms</h3>
+              <p class="small" style="margin-bottom:0">Every worked example on this page uses the same four processes, so the numbers are comparable: <strong>A (arrival 0, burst 10), B (2, 6), C (4, 3), D (6, 7)</strong>. Total burst is 26 units. Each row below was produced by the simulation on the Animation tab, not by hand.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 1 — FCFS</h3>
+              <p class="small">Order A, B, C, D. The chart is A 0–10, B 10–16, C 16–19, D 19–26.</p>
+              <p class="small">Waiting: A 0, B 8, C 12, D 13. Sum 33, average <strong>8.25</strong>. Turnaround: 10, 14, 15, 20; sum 59, average <strong>14.75</strong>. Check the identity: 59 = 33 + 26.</p>
+              <p class="small" style="margin-bottom:0">C needs three units and waits twelve. That factor of four is the convoy effect, and it is caused entirely by A's ten units.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — non-preemptive SJF</h3>
+              <p class="small">At t = 0 only A has arrived, so A runs 0–10. Then the shortest of B (6), C (3), D (7) is C: 10–13. Then B 13–19, then D 19–26.</p>
+              <p class="small">Waiting: A 0, B 11, C 6, D 13. Sum 30, average <strong>7.5</strong>. Turnaround average 14.0.</p>
+              <p class="small" style="margin-bottom:0">B is worse off than under FCFS (8 → 11) and C is much better off (12 → 6). The average fell, which is all SJF promises.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — SRTF</h3>
+              <p class="small">A runs 0–2. At 2, B arrives with 6 against A's 8, so B runs 2–4. At 4, C arrives with 3 against B's 4, so C runs 4–7 and finishes. B resumes 7–11. D runs 11–18. A resumes 18–26.</p>
+              <p class="small">Waiting: A 16, B 3, C 0, D 5. Sum 24, average <strong>6.0</strong>. Response: 0, 0, 0, 5; average <strong>1.25</strong>.</p>
+              <p class="small" style="margin-bottom:0">Six segments, and the last one is the process that started first. That sentence is the whole cost of preemption.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 4 — round robin, q = 4</h3>
+              <p class="small">A 0–4 (6 left), B 4–8 (2 left), C 8–11 (done), A 11–15 (2 left), D 15–19 (3 left), B 19–21 (done), A 21–23 (done), D 23–26 (done).</p>
+              <p class="small">Waiting: A 13, B 13, C 4, D 12. Sum 43, average <strong>10.75</strong>. Response: 0, 2, 4, 9; average <strong>3.75</strong>.</p>
+              <p class="small" style="margin-bottom:0">Judged on waiting it is the worst of the four; judged on response it is better than FCFS by more than half. Both statements are true of the same schedule.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 5 — the degenerate quantum</h3>
+              <p class="small">Take the same round robin with q = 10. No process needs more than ten units in one slice except A, which needs exactly ten, so nothing is ever cut off. The chart becomes A 0–10, B 10–16, C 16–19, D 19–26.</p>
+              <p class="small" style="margin-bottom:0">That is the FCFS chart, and the average waiting time is 8.25. The simulation checks the equality for q = 10 and q = 20. So "round robin with a large quantum" and "FCFS" are the same schedule, which is a statement about a limit, not a coincidence.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — priority, both ways</h3>
+              <p class="small">P1 (arrival 0, burst 8, priority 2), P2 (1, 3, 1), P3 (2, 2, 3). Larger number is higher priority, as stated here.</p>
+              <p class="small"><strong>Preemptive:</strong> P1 0–2, then P3 preempts 2–4 and finishes, P1 resumes 4–10, P2 10–13. Waiting: P1 2, P2 9, P3 0. Average <strong>3.67</strong>.</p>
+              <p class="small" style="margin-bottom:0"><strong>Non-preemptive:</strong> P1 0–8, P3 8–10, P2 10–13. Waiting: 0, 9, 6. Average <strong>5.00</strong>. Same priorities, same processes, a different chart, because "preemptive" is a rule about events.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 7 — a full previous-year item, worked from the table</h3>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified by recomputation</span> GATE CSE 2024 Set 2, Q37. Four processes A (0, 10), B (2, 6), C (4, 3), D (6, 7) — the same set used throughout this lesson. The question asks which option gives the average waiting times under preemptive SRTF and non-preemptive SJF. SRTF gives 6 and NP-SJF gives 7.5, so the option "SRTF = 6, NP-SJF = 7.5" is correct. The two simulations on this page produce exactly those numbers, independently of any answer key.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 8 — round robin by transition counting</h3>
+              <p class="small">GATE CSE 2022, Q42. Four processes P, Q, R, S arrive together in that order; the quantum is 4. The question states that there is exactly one switch S→Q, exactly one R→Q and exactly two Q→R, and no S→P, then asks which burst table is impossible.</p>
+              <p class="small">Simulating all four options: A (4, 10, 6, 2), B (2, 9, 5, 1) and C (4, 12, 5, 4) each produce exactly one S→Q, one R→Q and two Q→R. Option D (3, 7, 7, 3) produces one S→Q and two Q→R but <strong>no R→Q at all</strong>, because R finishes before Q's last slice ends. So D is the impossible one.</p>
+              <p class="small" style="margin-bottom:0">This is the pattern worth remembering: a round-robin question with constraints on switches is answered by simulating and counting, never by guessing at a formula.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 9 — SRTF with a gap in arrivals</h3>
+              <p class="small">GATE CSE 2025 Set 2, Q26. P1 to P4 arrive at 0, 1, 2 and 8 with bursts 10, 13, 6 and 9. SRTF is used and context switches are ignored.</p>
+              <p class="small">The chart is P1 0–2, P3 2–8 (it finishes), P1 8–16, P4 16–25, P2 25–38. Turnarounds are 16, 37, 6 and 17, which average <strong>19</strong>.</p>
+              <p class="small" style="margin-bottom:0">Two things to notice: the long P2 finishes last despite arriving second, and the arithmetic is only safe if every resume is drawn as its own segment.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 10 — the minimum average waiting time</h3>
+              <p class="small">GATE CSE 2021 Set 1, Q25. Three processes arrive at time zero with bursts 16, 20 and 10, and the scheduler knows the bursts in advance. The minimum achievable average waiting time under a non-preemptive scheduler is asked.</p>
+              <p class="small">With all three available at zero, SJF is available and optimal: 10, then 16, then 20. Waiting is 0, 10, 26, which averages <strong>12</strong>.</p>
+              <p class="small" style="margin-bottom:0">The phrase "prior knowledge about the length of the CPU bursts" is what licenses SJF here. Without it, the question would be unanswerable.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 11 — utilisation from a quantum</h3>
+              <p class="small">A system switches context in 1 ms and uses a quantum of 4 ms. One cycle is 5 ms, of which 4 ms is user work, so utilisation is 4/5 = 80 per cent and 20 per cent of the CPU is spent switching.</p>
+              <p class="small" style="margin-bottom:0">Raise the quantum to 19 ms and the cycle becomes 20 ms: 19/20 = 95 per cent. The gain from 4 to 19 is large; the gain from 19 to 99 is small. That flattening is the reason real quanta are a few tens of milliseconds rather than a few thousand.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 12 — why a small quantum is not "more fair"</h3>
+              <p class="small">Take the same four processes with q = 1 and a 1 ms switch. There are 26 units of work and therefore about 26 slices, so about 26 switches: 26 ms of switching against 26 ms of work, and utilisation near 50 per cent.</p>
+              <p class="small" style="margin-bottom:0">The response time improves — every process is touched almost at once — while the completion time of everything roughly doubles. Fairness in slices is not the same as efficiency, and no metric in this lesson rewards slicing alone.</p>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rules stop working</h3>
+          <p class="small" style="margin-bottom:0">Each card is a boundary: a condition a result depends on, or a case where the usual shortcut gives the wrong number.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Idle time at the start</h3>
+          <p class="small">If the first process arrives at t = 5, the axis still starts at 0 and the CPU is idle for five units. Every completion time is measured from 0, not from the first arrival.</p>
+          <p class="small" style="margin-bottom:0">The case where this matters: a question that says "assume the CPU is free at time 0" is telling you to count that idle gap as zero; a question that gives an arrival of 5 is telling you to draw it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A tie in the remaining time</h3>
+          <p class="small">At an arrival, if the new process's burst equals the running process's remaining time, SRTF has no reason to preempt. The running process continues unless the question states a tie rule.</p>
+          <p class="small" style="margin-bottom:0">Counterexample to "always preempt on arrival": A has 5 left and B arrives with exactly 5. Preempting changes the chart and the average, but nothing in the definition requires it. This is why questions say "scheduling is carried out only at arrival or completion" and why they state the tie rule when it matters.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>SJF optimality without known bursts</h3>
+          <p class="small">The exchange argument compares the true burst lengths. If the scheduler must predict them, the argument does not apply to the schedule it actually produces.</p>
+          <p class="small" style="margin-bottom:0">So "SJF minimises average waiting" is true of the algorithm with perfect information, and false of an implementation that guesses. The GATE wording "if the scheduler has prior knowledge about the length of the CPU bursts" exists for exactly this reason.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A quantum longer than every burst</h3>
+          <p class="small">Then no process is ever cut off, and round robin is FCFS — the simulation confirms identical charts for q = 10 and q = 20 on this set.</p>
+          <p class="small" style="margin-bottom:0">The boundary is the longest burst in the set, not a fixed number. A question that says "the time slice exceeds the maximum burst" is telling you the answer is FCFS, not asking you to simulate.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Arrivals during the first slice</h3>
+          <p class="small">In round robin, a process that arrives while another is running joins the tail of the queue immediately. When the running process is then preempted, it goes behind the arrival.</p>
+          <p class="small" style="margin-bottom:0">Getting this order wrong changes every later completion time. The convention used here — arrival first, then the preempted process — is the standard one; a question that uses the other convention says so.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Starvation against a long wait</h3>
+          <p class="small">A process waiting 100 units under FCFS is not starving: it is at a known position in the queue and will run. A process under priority scheduling whose wait has no upper bound is starving.</p>
+          <p class="small" style="margin-bottom:0">The distinguishing property is the existence of a finite bound, not the size of the number. GATE 2023 asked which algorithms can starve, and the answer was priority scheduling and SJF — the two that can postpone a job indefinitely — not FCFS and not round robin.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What the switch-cost formula assumes</h3>
+          <p class="small">Utilisation q/(q+s) assumes exactly one switch per cycle, a fixed switch cost s, and no other overhead. Real systems also have cache effects, and a process switch costs more than a thread switch because the address space changes.</p>
+          <p class="small" style="margin-bottom:0">It is a model, and it is the model the questions use. It is not a measurement of any particular machine.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six wrong beliefs, each with the smallest case that refutes it</h3>
+          <p class="small" style="margin-bottom:0">Every counterexample below is computed by the same simulation as the animation, so the numbers can be checked against the chart.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"Waiting time and turnaround time are the same"</h3>
+          <p class="small"><strong>Why it tempts:</strong> for the first process in a non-preemptive schedule, both are zero, and the two words are used loosely in conversation.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> A runs 0–10 with arrival 0. Turnaround is 10, waiting is 0. They differ by the burst, always.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> T = C − A and W = T − B. If an answer is off by a constant, it is the other metric.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"FCFS can starve a process"</h3>
+          <p class="small"><strong>Why it tempts:</strong> FCFS can make a process wait a very long time, and "very long" sounds like starvation.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> every process in the queue is at a fixed position that only moves forward, so each is served after finitely many completions.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> FCFS is starvation-free and non-preemptive. SJF, SRTF and priority scheduling are the starvation risks.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"Preemptive is always better"</h3>
+          <p class="small"><strong>Why it tempts:</strong> preemption improves the averages in most textbook examples, including both used here.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> under SRTF on this set, A waits 16 units where FCFS gave it 0. Under preemptive priority here the average improves, but only because the high-priority job was short.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> preemption improves an average, at the cost of the processes that lose, plus a switch per preemption. It is not a per-process improvement.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"A smaller quantum always gives better performance"</h3>
+          <p class="small"><strong>Why it tempts:</strong> smaller quanta do improve response time, and response time is what users notice.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> q = 1 with s = 1 gives 50 per cent utilisation, so half the CPU is spent switching. Waiting times rise even as response times fall.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> name the metric first. Response improves as q falls; utilisation and average turnaround worsen.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"Round robin has better average waiting time than SJF"</h3>
+          <p class="small"><strong>Why it tempts:</strong> round robin is "fair", and fair sounds efficient.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> on this set round robin with q = 4 gives 10.75 against SJF's 7.5, and even FCFS beats it at 8.25.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> round robin optimises response time. Its waiting time is typically worse than SJF and often worse than FCFS.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"A lower priority number always means higher priority"</h3>
+          <p class="small"><strong>Why it tempts:</strong> many GATE questions say "0 is the highest priority", which makes the convention feel universal.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> this lesson's own priority example uses larger numbers as higher, and states it. With the opposite reading, the chart reverses.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the convention is part of the question. Read the sentence, then draw.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five question shapes, and the reasoning each demands</h3>
+          <p class="small" style="margin-bottom:0">These are categories, not predictions. The counts quoted are one archive's tagging of its own index, not an official weightage.</p>
+        </div>
+
+        <div class="card">
+          <h3>1. Draw the chart, average a metric</h3>
+          <p class="small">The commonest shape: a table of arrivals and bursts, a named algorithm, and "the average waiting time is ____". NAT answers are usually one decimal place.</p>
+          <p class="small" style="margin-bottom:0"><strong>Demands:</strong> the correct preemption rule, every resume drawn, and the right divisor. <strong>Common wrong approach:</strong> sorting the whole set by burst length and ignoring arrivals.</p>
+        </div>
+
+        <div class="card">
+          <h3>2. Compare two algorithms on one set</h3>
+          <p class="small">"Which of the following gives the lowest average turnaround time?" with FCFS, SJF, SRTF and RR as options. GATE 2015 Set 3 and GATE 2016 Set 1 are of this shape.</p>
+          <p class="small" style="margin-bottom:0"><strong>Demands:</strong> the theorem that SJF/SRTF minimises average waiting (hence turnaround), which settles the comparison without a full simulation when bursts are known. <strong>Common wrong approach:</strong> choosing round robin because it is "fairest".</p>
+        </div>
+
+        <div class="card">
+          <h3>3. Constrained round robin</h3>
+          <p class="small">"There is exactly one switch from S to Q, exactly two from Q to R…" — GATE 2022 Q42. The options are burst tables, and exactly one is inconsistent with the stated switch pattern.</p>
+          <p class="small" style="margin-bottom:0"><strong>Demands:</strong> simulating each option and counting transitions, including the switch after a termination. <strong>Common wrong approach:</strong> trying to derive a closed-form condition on the bursts.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. Missing value, given the average</h3>
+          <p class="small">"If the average waiting time is 1 ms, then Z is ____" — GATE 2019. One burst is unknown and the average pins it down.</p>
+          <p class="small" style="margin-bottom:0"><strong>Demands:</strong> the chart as a function of the unknown, then one linear equation. <strong>Common wrong approach:</strong> assuming the order does not depend on Z. It usually does not, but that must be checked, because a different Z can change the order.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Property and definition questions</h3>
+          <p class="small">"Which algorithm cannot be preemptive?" (GATE 2026 Set 2, reported), "which can cause starvation?" (GATE 2023), "which statements are correct about CPU scheduling?" (GATE 2021 Set 2), "which minimises average waiting for jobs submitted together?" (GATE 2016 Set 1).</p>
+          <p class="small" style="margin-bottom:0"><strong>Demands:</strong> the definition of each algorithm and of starvation, not arithmetic. <strong>Common wrong approach:</strong> treating "preemptive" as a property of the system rather than of the algorithm.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps that cost marks</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Dividing by the number of processes that had arrived rather than by the set size.</li>
+            <li>Forgetting that the axis advances through idle time before the first arrival.</li>
+            <li>Preempting on a tie in remaining time when the question gives no tie rule.</li>
+            <li>Computing turnaround when waiting was asked, so the answer is off by the burst.</li>
+            <li>Adding the switch cost to the numerator, or forgetting it entirely when one is given.</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 1 of 2 — previous-year items</h3>
+              <p class="small" style="margin-bottom:0">Learning mode: answers are hidden until you reveal them, one at a time. Every answer here was recomputed by the simulation on this page. Where an archive reports a different numbering, the year and set are given and the disagreement is stated rather than resolved silently.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2024 Set 2, Q37</span></div>
+              <div class="q-body">
+                <p>Four processes A (arrival 0, burst 10), B (2, 6), C (4, 3) and D (6, 7) run on one CPU. Which option gives the average waiting times under preemptive SRTF and non-preemptive SJF?</p>
+                <p class="small">(A) SRTF = 6, NP-SJF = 7 &nbsp;&nbsp; (B) SRTF = 6, NP-SJF = 7.5 &nbsp;&nbsp; (C) SRTF = 7, NP-SJF = 7.5 &nbsp;&nbsp; (D) SRTF = 7, NP-SJF = 8.5</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) SRTF = 6, NP-SJF = 7.5</span></p>
+                  <p class="small">SRTF: A 0–2, B 2–4, C 4–7, B 7–11, D 11–18, A 18–26. Waiting 16, 3, 0, 5 — average 6.</p>
+                  <p class="small">NP-SJF: A 0–10, C 10–13, B 13–19, D 19–26. Waiting 0, 11, 6, 13 — average 7.5.</p>
+                  <p class="small" style="margin-bottom:0">(A) and (C) come from losing a resume segment. (D) comes from computing turnaround instead of waiting.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ — GATE CSE 2025 Set 2, Q26</span></div>
+              <div class="q-body">
+                <p>P1, P2, P3, P4 arrive at 0, 1, 2 and 8 ms with execution times 10, 13, 6 and 9 ms. SRTF is used and context switches are ignored. Which one gives the average turnaround time?</p>
+                <p class="small">(A) 22 &nbsp;&nbsp; (B) 15 &nbsp;&nbsp; (C) 37 &nbsp;&nbsp; (D) 19</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (D) 19</span></p>
+                  <p class="small">Chart: P1 0–2, P3 2–8, P1 8–16, P4 16–25, P2 25–38. Completions 16, 38, 8, 25; turnarounds 16, 37, 6, 17; sum 76, average 19.</p>
+                  <p class="small" style="margin-bottom:0">(C) 37 is P2's own turnaround, not the average. (A) 22 is close to the average waiting plus something arbitrary — the usual sign that the wrong column was averaged.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2021 Set 1, Q25</span></div>
+              <div class="q-body">
+                <p>Three processes arrive at time zero with CPU bursts of 16, 20 and 10 ms. If the scheduler has prior knowledge of the burst lengths, the minimum achievable average waiting time for a non-preemptive scheduler is ______ ms.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 12</span></p>
+                  <p class="small">With all three available at zero, SJF is available and optimal: 10, then 16, then 20. Waiting times 0, 10, 26; average 36/3 = 12.</p>
+                  <p class="small" style="margin-bottom:0">"Prior knowledge" is the licence for SJF. Without it, the question has no defined answer, because the optimal order depends on information the scheduler would not have.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge">PYQ — GATE CSE 2022, Q42</span></div>
+              <div class="q-body">
+                <p>Four processes P, Q, R, S arrive in that order at t = 0; the quantum is 4. There is exactly one switch S→Q, exactly one R→Q and exactly two Q→R, and no switch S→P. Switching to a ready process after a termination also counts. Which is NOT a possible burst table?</p>
+                <p class="small">(A) P = 4, Q = 10, R = 6, S = 2 &nbsp;&nbsp; (B) P = 2, Q = 9, R = 5, S = 1 &nbsp;&nbsp; (C) P = 4, Q = 12, R = 5, S = 4 &nbsp;&nbsp; (D) P = 3, Q = 7, R = 7, S = 3</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (D)</span></p>
+                  <p class="small">Option D's chart is P 0–3, Q 3–7, R 7–11, S 11–14, Q 14–17, R 17–20. Transitions: P→Q, Q→R, R→S, S→Q, Q→R. There is no R→Q, because R finishes at 20 while Q has already completed.</p>
+                  <p class="small" style="margin-bottom:0">A, B and C each produce exactly one S→Q, one R→Q and two Q→R. Counting transitions is the only safe method here; the burst lengths interact with the quantum in ways no simple inequality captures.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2023, Q27</span></div>
+              <div class="q-body">
+                <p>Which one or more of the following CPU scheduling algorithms can potentially cause starvation?</p>
+                <p class="small">(A) First-in First-out &nbsp;&nbsp; (B) Round Robin &nbsp;&nbsp; (C) Priority scheduling &nbsp;&nbsp; (D) Shortest Job First</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C) and (D)</span></p>
+                  <p class="small">Priority scheduling postpones a low-priority process while higher-priority ones keep arriving. SJF postpones a long job while shorter ones keep arriving. In both cases the wait has no finite bound.</p>
+                  <p class="small" style="margin-bottom:0">FIFO advances every process through a fixed position, and round robin gives every process a slice in turn, so neither can postpone one indefinitely. A long wait under FIFO is not starvation.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ — GATE CSE 2016 Set 1, Q20</span></div>
+              <div class="q-body">
+                <p>An arbitrary set of CPU-bound processes with unequal burst lengths is submitted at the same time. Which scheduling algorithm minimises the average waiting time in the ready queue?</p>
+                <p class="small">(A) Shortest remaining time first &nbsp;&nbsp; (B) Round robin with a quantum shorter than the shortest burst &nbsp;&nbsp; (C) Uniform random &nbsp;&nbsp; (D) Highest priority first, with priority proportional to burst length</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A)</span></p>
+                  <p class="small">With all processes available at once, SRTF behaves exactly as SJF, and SJF minimises average waiting by the exchange argument. (B) is dominated by switch overhead and is not optimal for waiting.</p>
+                  <p class="small" style="margin-bottom:0">(D) is the worst of the four: priority proportional to burst length runs the longest job first, which is exactly the convoy effect generalised.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice, page 2 of 2 — original questions, marked as original</h3>
+              <p class="small" style="margin-bottom:0">These are written for this lesson. They are <strong>not</strong> previous-year questions, and they are not presented as such. Answers are hidden until revealed.</p>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original</span><span class="badge">Medium</span></div>
+              <div class="q-body">
+                <p>Using A (0, 10), B (2, 6), C (4, 3), D (6, 7), what is the average waiting time under round robin with quantum 4?</p>
+                <p class="small">(A) 8.25 &nbsp;&nbsp; (B) 10.75 &nbsp;&nbsp; (C) 13.0 &nbsp;&nbsp; (D) 12.5</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (B) 10.75</span></p>
+                  <p class="small">Chart: A 0–4, B 4–8, C 8–11, A 11–15, D 15–19, B 19–21, A 21–23, D 23–26. Waiting 13, 13, 4, 12; sum 43; average 10.75.</p>
+                  <p class="small" style="margin-bottom:0">(A) is the FCFS answer for the same set. (C) and (D) come from forgetting that a preempted process rejoins the tail rather than resuming immediately.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original</span><span class="badge">Easy</span></div>
+              <div class="q-body">
+                <p>A system switches context in 2 ms and uses a quantum of 18 ms. What percentage of CPU time is spent on useful work, to one decimal place?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 90.0 per cent</span></p>
+                  <p class="small">One cycle is 18 + 2 = 20 ms, of which 18 ms is user work: 18/20 = 0.9.</p>
+                  <p class="small" style="margin-bottom:0">The trap is dividing 18 by 18, which gives 100 per cent. The switch is part of the cycle, always.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original</span><span class="badge">Medium</span></div>
+              <div class="q-body">
+                <p>Which statement is <strong>false</strong>?</p>
+                <p class="small">(A) A quantum at least as long as the longest burst makes round robin identical to FCFS. &nbsp;&nbsp; (B) SRTF can give a longer job a larger waiting time than FCFS does. &nbsp;&nbsp; (C) Round robin always has a lower average turnaround time than SJF. &nbsp;&nbsp; (D) Aging can turn priority scheduling into something close to round robin.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (C) is false</span></p>
+                  <p class="small">On this lesson's set, round robin q = 4 gives average waiting 10.75 against SJF's 7.5, and turnaround follows waiting plus a constant, so round robin is worse.</p>
+                  <p class="small" style="margin-bottom:0">(A) is the degenerate limit, checked by simulation at q = 10 and q = 20. (B) is scene 4: A waits 16 under SRTF and 0 under FCFS. (D) is the GATE 2013 observation that priority proportional to waiting time behaves like round robin.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original</span><span class="badge">Medium</span></div>
+              <div class="q-body">
+                <p>For the multilevel feedback queue in scene 7 (quanta 2, then 4, then FCFS) applied to A, B, C, D, which statements are true?</p>
+                <p class="small">(A) Every process has a response time of 0. &nbsp;&nbsp; (B) The average waiting time is lower than round robin with q = 4. &nbsp;&nbsp; (C) Every process uses its full quantum in the top queue at least once. &nbsp;&nbsp; (D) The average waiting time is higher than FCFS.</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) and (D)</span></p>
+                  <p class="small">Every process is served in Q0 on arrival, so all four response times are 0. Average waiting is 11.5, which is above round robin's 10.75 and above FCFS's 8.25.</p>
+                  <p class="small" style="margin-bottom:0">(B) is false for exactly that reason. (C) is false because C needs only 3 units in total: it uses 2 in Q0 and finishes with 1 unit in Q1, never completing a Q0 slice.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original</span><span class="badge">Hard</span></div>
+              <div class="q-body">
+                <p>Processes arrive at 0, 1 and 2 with bursts 8, 3 and 2 and priorities 2, 1 and 3, where a larger number is higher. Under preemptive priority, what is the average waiting time?</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: 11/3, about 3.67</span></p>
+                  <p class="small">P1 runs 0–2; P3 arrives with the highest priority and preempts, running 2–4 and finishing; P1 resumes 4–10; P2 runs 10–13.</p>
+                  <p class="small" style="margin-bottom:0">Waiting: P1 2, P2 9, P3 0. Sum 11, average 3.67. Under non-preemptive priority the same set averages 5.00 — the difference is entirely the one preemption at t = 2.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original</span><span class="badge">Easy</span></div>
+              <div class="q-body">
+                <p>A process arrives at time 5 with a burst of 4 and is scheduled first. It completes at time 9. Its turnaround time is</p>
+                <p class="small">(A) 4 &nbsp;&nbsp; (B) 5 &nbsp;&nbsp; (C) 9 &nbsp;&nbsp; (D) 0</p>
+                <button class="reveal">Show answer</button>
+                <div class="answer" hidden>
+                  <p><span class="verdict">Answer: (A) 4</span></p>
+                  <p class="small">Turnaround is completion minus arrival: 9 − 5 = 4. Its waiting time is 0, and its response time is 0.</p>
+                  <p class="small" style="margin-bottom:0">(C) 9 is the completion time, which is what a chart shows directly; the subtraction is the step people skip. (B) 5 is the arrival. (D) is the waiting time.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager-nav">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the rules per algorithm, the formulas and the traps, in the order a question uses them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Scheduler</strong> — chooses one ready process when the CPU becomes free.</li>
+            <li><strong>Dispatcher</strong> — performs the context switch to the chosen process.</li>
+            <li><strong>Preemptive</strong> — the system may take the CPU away; non-preemptive may not.</li>
+            <li><strong>Quantum</strong> — the maximum slice a process gets before rejoining the queue.</li>
+            <li><strong>Turnaround</strong> — completion minus arrival.</li>
+            <li><strong>Waiting</strong> — turnaround minus burst.</li>
+            <li><strong>Response</strong> — first service minus arrival.</li>
+            <li><strong>Throughput</strong> — completions per unit time.</li>
+            <li><strong>Starvation</strong> — no finite bound on a process's wait.</li>
+            <li><strong>Aging</strong> — raising priority with waiting time to bound the wait.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The rules, per algorithm</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>FCFS</strong> — arrival order, never preempts, never starves, convoy effect.</li>
+            <li><strong>SJF</strong> — shortest burst among arrived, never preempts, starves long jobs.</li>
+            <li><strong>SRTF</strong> — shortest remaining time, preempts at arrivals.</li>
+            <li><strong>Round robin</strong> — fixed quantum, FIFO queue, timer preemption.</li>
+            <li><strong>Priority</strong> — highest priority; preemptive or not as stated.</li>
+            <li><strong>MLFQ</strong> — several queues, demote on full slice, promote periodically.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas, with their licences</h3>
+          <p class="formula">T = C − A, W = T − B, R = first − A</p>
+          <p class="small">Licence: none needed; these are definitions.</p>
+          <p class="formula">sum(T) = sum(W) + sum(B)</p>
+          <p class="small">Licence: a fixed process set. This is why SJF's optimality for one metric carries to the other.</p>
+          <p class="formula">utilisation = q / (q + s)</p>
+          <p class="small" style="margin-bottom:0">Licence: one switch per cycle, fixed cost s, no other overhead. It is a model, not a measurement.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Decision procedure for any question</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Read the rules: preemptive or not, bursts known or not, which metric. <em>Justification:</em> all three change the chart.</li>
+            <li>Mark arrivals on the axis, including any gap before the first one.</li>
+            <li>Walk the timeline, choose by the stated rule, and break the bar at every choice.</li>
+            <li>Read completion times, then subtract: T, then W, then R.</li>
+            <li>Average over the set size; check no waiting time is negative.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Numbers from this lesson, for recall</h3>
+          <p class="small" style="margin-bottom:0">On A(0,10), B(2,6), C(4,3), D(6,7): FCFS average waiting <strong>8.25</strong>; NP-SJF <strong>7.5</strong>; SRTF <strong>6.0</strong> with response <strong>1.25</strong>; RR q=4 <strong>10.75</strong> with response <strong>3.75</strong>; MLFQ <strong>11.5</strong> with response <strong>0</strong>. Priority example: preemptive <strong>3.67</strong>, non-preemptive <strong>5.00</strong>. Utilisation with s = 1: q = 10 → <strong>90.9%</strong>, q = 4 → <strong>80%</strong>, q = 2 → <strong>66.7%</strong>, q = 1 → <strong>50%</strong>.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Dividing by the number of arrived processes instead of the set size.</li>
+            <li>Ignoring idle time before the first arrival.</li>
+            <li>Preempting on a tie in remaining time.</li>
+            <li>Answering turnaround when waiting was asked.</li>
+            <li>Forgetting to add the switch cost to the cycle.</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind. Official material is separated from textbook material, and community material is labelled as observation rather than proof.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> — the clause "CPU and I/O scheduling" in Section 8 (Operating Systems). This is the source for the Class A classification and for the scope boundary that excludes disk scheduling from this lesson.</p>
+          <p class="small" style="margin-bottom:0"><strong>Previous-year papers</strong> — the process tables and the question wording for 2016 Set 1 Q20, 2021 Set 1 Q25, 2022 Q42, 2023 Q27, 2024 Set 2 Q37 and 2025 Set 2 Q26. Every numerical answer in this lesson was recomputed by the simulation here; no answer was taken from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Textbook-level references</h3>
+          <p class="small"><strong>Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em></strong> — the scheduling criteria (utilisation, throughput, turnaround, waiting, response), the FCFS/SJF/SRTF/RR catalogue, the convoy effect, the priority and aging discussion, and the multilevel feedback queue structure used in scene 7.</p>
+          <p class="small" style="margin-bottom:0"><strong>Tanenbaum and Bos, <em>Modern Operating Systems</em></strong> — the treatment of scheduling goals, the quantum-versus-switch-cost trade, and the feedback-queue demotion and promotion rules.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <p class="small">Two question-indexed archives, which agree with each other on the year and question number for the items quoted, and which are the source of the 39-question count reported on the Overview tab. That count is one archive's tagging of its own index.</p>
+          <p class="small" style="margin-bottom:0">Discussion threads for the 2022 round-robin item and the 2013 priority-proportional-to-waiting item — the reasoning offered for those answers, used to check the argument, not as proof.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">The 2026 items (Set 1 Q64 and Set 2 Q23) are reported by an archive only; neither was checked against the paper, and they are labelled "reported" wherever they appear, with no numerical answer quoted for Q64 because its full table could not be confirmed. The 2013 item is quoted by year and question number, with the answer described as reported rather than recomputed, because the priority rule it describes is stated in prose rather than as a table. The switch cost s = 1 ms and the two-process I/O picture in scene 9 are stated models for teaching, not measurements. The disk-scheduling half of the syllabus clause is not covered here and remains recorded as uncovered.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
