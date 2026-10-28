@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNS and HTTP — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">DNS and HTTP</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Previous: TCP flow and congestion control</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> DNS and HTTP — the last clause of Section 10, Computer Networks, in the GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Read a domain name right to left as a path through a delegation tree, and count the servers that must be asked to resolve it. Read a resource record and explain what the time to live is for. Lay out a DNS query on the wire and justify the 512-byte ceiling. Read an HTTP request and response line by line, place a method in the safe and idempotent table, and place a status code in its family. Explain why HTTP is stateless and how a cookie carries the state instead. Count TCP connections and round trips for non-persistent, persistent and pipelined fetching, and add DNS time to the total in the right order.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>one question asked three ways</em>: how many servers must be asked, how many round trips does it cost, and how many bytes does the message take. Almost every GATE item on DNS and HTTP in the last ten years is one of those three, asked on small numbers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, ends with the words <em>"DNS and HTTP"</em>. In the 2026 wording the same place said <em>"Application layer protocols: DNS, SMTP, HTTP, FTP, Email"</em>, so the 2027 revision narrows the application layer to these two protocols and drops the other three.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past papers lists items on this clause in 2007, 2011, 2014 (two sets), 2015 (three sets), 2016 (two sets), 2019, 2020, 2022, 2023 and 2026 (one set). That is a catalogue of somebody's tagging of a collection, not official weightage and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary, not that one is guaranteed. Every previous-year item quoted carries its year, set and question number, and every numeric answer was recomputed by this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow control, congestion control and the socket API</a> — the three-way handshake, the socket calls, and what a connection is bound to. Every round-trip count in this lesson assumes that handshake.</li>
+            <li><a href="../ip-fragmentation-cidr-and-nat/index.html">IPv4 fragmentation, CIDR and NAT</a> — an address, a prefix and a rewritten header, which is all the addressing this lesson needs.</li>
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering and performance metrics</a> — what a round trip is, and why latency and bandwidth are separate quantities.</li>
+            <li>Counting and division. The byte arithmetic in the message section is one subtraction and one floor.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Nothing here needs a browser, a server, or any software installed. Every number is computed on the page.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A name is a path.</strong> Read it right to left; each label may be a delegation, and the servers asked are the root plus one per delegation.</li>
+            <li><strong>A record is a fact with an expiry.</strong> Name, type, class, TTL, value — and the TTL is what makes caching possible.</li>
+            <li><strong>Count the servers, not the labels.</strong> The count belongs to the delegation tree; the string only suggests it.</li>
+            <li><strong>HTTP is stateless; a cookie is the memory.</strong> A cookie is text, not code.</li>
+            <li><strong>Every mode changes the connections and the round trips, never the number of objects.</strong> One request per object, always.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate study time: 55–75 minutes, which is an estimate and not a measurement. Watch the Animation tab once straight through, then use Examples for the five worked items, Edge cases for the boundaries each rule needs, and Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">Captions are on by default and switch to Detailed, Keyword or Exam trap without restarting. Every number on the canvas is computed by the page's model and re-checked against the rule it should satisfy; the count of passing checks is shown under the canvas.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> A name becomes an address: the client side and the delegation chain. <strong>2</strong> Iterative against recursive, with the servers-asked count for four names. <strong>3</strong> Resource records and a TTL counting down. <strong>4</strong> The query on the wire, byte by byte, and the 512-byte ceiling with 29 address records in it. <strong>5</strong> An HTTP request and response, with the safe/idempotent table and the status families. <strong>6</strong> Statelessness and the cookie that fixes it. <strong>7</strong> Three fetch modes on one RTT axis, and the GATE 2026 statement set. <strong>8</strong> The GATE 2023 arithmetic as stacked bars, 3 + 2 + 4 and 3 + 2 + 1. <strong>9</strong> Two caches: a DNS TTL timeline and an HTTP freshness timeline with a 304. <strong>10</strong> The four-step procedure and the five traps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a phone book that is split into districts</h3>
+          <p class="small">Suppose nobody may hold the whole telephone directory. Instead, one office knows only where the district offices are. A district office knows only where the street offices are. A street office knows the actual numbers. To find one number you start at the top office, get sent to the right district, get sent to the right street, and only there do you get the number. That is DNS, with three differences: the offices are computers, the question travels in a packet, and every answer may be written down and reused for a while.</p>
+          <p class="small" style="margin-bottom:0">The two questions this picture answers are the two the exam asks. <em>How many offices did you have to ask?</em> One per level you passed through, plus the top one. <em>What did each office give you?</em> A direction, except the last, which gave you the number. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the hierarchy and the referral. It does not carry the wire format, which is why the message section exists.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal vocabulary, every term in words</h3>
+          <p class="small"><strong>Domain name</strong> — a sequence of labels separated by dots, read right to left. In <code>www.gate.org.in</code> the labels are <em>www</em>, <em>gate</em>, <em>org</em> and <em>in</em>.</p>
+          <p class="small"><strong>Zone</strong> — a contiguous part of the tree that one server is authoritative for. <em>org.in</em> is a zone; <em>gate.org.in</em> is a zone inside it.</p>
+          <p class="small"><strong>Authoritative server</strong> — the server that holds the real records for a zone. It answers with data, not with a direction.</p>
+          <p class="small"><strong>Referral</strong> — an answer that names the next server instead of giving the value. It is what the root and the top-level domains return.</p>
+          <p class="small"><strong>Resolver</strong> — the server that does the asking on your behalf, and the one that keeps the cache.</p>
+          <p class="small" style="margin-bottom:0"><strong>Stub resolver</strong> — the small piece in your operating system that forwards the question to the resolver and nothing more.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Iterative and recursive are answers to "who walks?"</h3>
+          <p class="small"><strong>Iterative query.</strong> The server answers with the best information it has: either the value, or a referral to a server closer to it. The asker must then ask again. The resolver does the walking.</p>
+          <p class="small"><strong>Recursive query.</strong> The server being asked takes responsibility for the whole job and returns the value or an error. The client asks once.</p>
+          <p class="small"><strong>In practice</strong> the stub asks its resolver recursively and the resolver asks the hierarchy iteratively. That mixture is why a question says which mode it means.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The two modes, the referral behaviour and the recursion-desired bit are defined in RFC 1034 and RFC 1035. The bit exists because recursion is a request the server may refuse.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Counting the servers asked</h3>
+          <p class="small">Let the delegation chain for a name be the list of zones below the root that own it. Then</p>
+          <p class="formula">pairs = 1 + (number of zone cuts)<span class="gloss">The one is the root, which is asked first and always. Each zone cut is one more server, and each server costs exactly one query and one response.</span></p>
+          <p class="small">For <code>www.gate.org.in</code> the cuts are <em>in</em>, <em>org.in</em> and <em>gate.org.in</em>, so four pairs: root, in, org.in, gate.org.in. That is GATE 2022's answer of 4.</p>
+          <p class="small" style="margin-bottom:0"><strong>One more pair</strong> exists only when the host and the resolver are different machines. GATE 2023 says the local DNS server runs on the local host, so that hop is internal and free.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A resource record</h3>
+          <p class="small">Five fields: <strong>name</strong>, <strong>type</strong>, <strong>class</strong> (IN for internet data), <strong>TTL</strong> in seconds, and <strong>value</strong>. The type decides how the value is read.</p>
+          <p class="small"><strong>A</strong> — an IPv4 address. <strong>AAAA</strong> — an IPv6 address. <strong>NS</strong> — the name of a server for this zone, and the record a referral actually carries. <strong>MX</strong> — a preference number then a mail server name. <strong>CNAME</strong> — this name is an alias for another name, which must then be resolved.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The record types, the field order and the TTL are defined in RFC 1035 section 3.2.1. RFC 1034 section 3.6.2 states that a CNAME may not coexist with other data at the same name.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The message: header, question, then sections</h3>
+          <p class="small"><strong>Header, 12 bytes.</strong> Identifier (2), flags (2), then four counts of two bytes each: questions, answers, authority records, additional records.</p>
+          <p class="small"><strong>Question.</strong> The name is written as length-prefixed labels ending in a zero byte, then two bytes of type and two of class. For <code>www.gate.org.in</code>: 4 + 5 + 4 + 3 + 1 = 17 bytes, so the whole query is 12 + 17 + 4 = 33 bytes.</p>
+          <p class="small"><strong>Ceiling.</strong> A classic UDP answer may not exceed 512 bytes. If it does not fit, the server sets the truncation bit and the client repeats the query over TCP.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The 512-byte limit, the length-prefixed encoding and the truncation bit are RFC 1035 section 4.2.1 and section 4.1.4. The record arithmetic — 29 address records in the 479 bytes left — is derived on this page and re-checked in code.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>HTTP: a request, a response, one connection</h3>
+          <p class="small"><strong>Request line.</strong> Method, target, version: <code>GET /index.html HTTP/1.1</code>. Then headers, one per line, then a blank line, then an optional body.</p>
+          <p class="small"><strong>Response.</strong> Version, status code, reason phrase, then headers, then the body.</p>
+          <p class="small"><strong>Methods.</strong> GET and HEAD are <em>safe</em> (they ask for no change). GET, HEAD, PUT and DELETE are <em>idempotent</em> (repeating is the same as once). POST is neither.</p>
+          <p class="small" style="margin-bottom:0"><strong>Status families.</strong> 2xx worked, 3xx look elsewhere or use what you have, 4xx the request was wrong, 5xx the server failed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Statelessness, and the cookie that fixes it</h3>
+          <p class="small">HTTP carries no memory between requests. Everything needed to interpret a request must be in that request. That is what lets one server serve many clients without keeping a session for each.</p>
+          <p class="small">The fix is a header pair. The server sends <code>Set-Cookie: sid=A7</code> in a response; the browser stores it against that site and returns <code>Cookie: sid=A7</code> in later requests. The state lives in the browser, so the protocol stays stateless.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Cookies, their attributes and their scope are defined in RFC 6265. A cookie is a name-value string with attributes, and carries no executable content.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The three fetch modes, and the arithmetic of each</h3>
+          <p class="small">Let the page be one object and there be N more objects on the same server. One TCP handshake costs one round trip, one request and its response cost one, and one DNS walk costs one round trip per server asked.</p>
+          <p class="formula">non-persistent:  2 × ceil(N / p) round trips for the objects, 1 + N connections<br>persistent:  N round trips for the objects, 1 connection<br>pipelined:  1 round trip for all the objects, 1 connection<span class="gloss">p is how many connections the browser opens at once. Parallelism divides the elapsed time by rounding the objects into batches; it never reduces the number of connections or handshakes.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both forms are derived on this page, and both are checked against a tick-by-tick simulation of the connections over a grid of object counts and widths. On GATE 2023's numbers they give 9 and 6, which is the official key.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The browser holds a name; the network needs an address. DNS is the lookup that turns one into the other.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A name is not an address</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">You type a name, and the network routes to an address.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked items, each with its arithmetic shown</h3>
+          <p class="small muted" style="margin-bottom:0">Every example names the rule used at each step, so a wrong answer can be traced to the step that produced it. The numbers are the same ones the animation draws.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 1 — GATE 2022 Q35, counting query pairs</h3>
+          <p class="small">Consider the resolution of the domain name <code>www.gate.org.in</code> by a DNS resolver. Assume that no resource records are cached anywhere across the DNS servers and that iterative query mechanism is used. The number of DNS query-response pairs involved is ______.</p>
+          <ol class="step-list small">
+            <li>Write the delegation chain: <em>in</em>, then <em>org.in</em>, then <em>gate.org.in</em>. <span class="why">Three cuts below the root.</span></li>
+            <li>Add the root, which is asked first. <span class="why">The root knows who runs <em>in</em> and nothing more.</span></li>
+            <li>Each server asked costs one query and one response, so four pairs. <span class="why">Referrals count; only the last one is the address.</span></li>
+            <li>Answer: <strong>4</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> The question says the <em>resolver</em> resolves the name, so the host-to-resolver hop is not counted. Adding it gives 5, and 5 is a common wrong answer.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 — GATE 2023 Q52, the round-trip total</h3>
+          <p class="small">A browser clicks <code>www.gate-2023.in</code>. The cache is empty and the IP is not cached, so a DNS lookup runs over a three-tier hierarchy in iterative mode with no caching anywhere. RTT is the same everywhere. The page references 10 equally small objects on the same server. Which statements about the minimum elapsed time are correct?</p>
+          <ol class="step-list small">
+            <li>DNS: three servers asked, so 3 RTT. <span class="why">The resolver is on the local host, so the hierarchy alone decides.</span></li>
+            <li>Base page: one handshake and one request, so 2 RTT. <span class="why">The request cannot ride on the handshake.</span></li>
+            <li>Non-persistent with 5 parallel connections: 10 objects in two rounds, 2 RTT each, so 4. Total 3 + 2 + 4 = <strong>9</strong>. <span class="why">Every object pays its own handshake.</span></li>
+            <li>Persistent with pipelining: no new handshake and all requests together, so 1. Total 3 + 2 + 1 = <strong>6</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Why 7.</strong> That is what ten parallel connections give: one round instead of two, so 3 + 2 + 2. <strong>Why 5.</strong> That forgets the handshake before the base page. Both wrong options are right answers to slightly different questions.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 — GATE 2020 Q25, counting connections</h3>
+          <p class="small">A browser requests a web page. The cache is empty and the browser is configured for non-persistent HTTP. The page contains text and five very small images. The minimum number of TCP connections required is ______.</p>
+          <ol class="step-list small">
+            <li>Count the objects: the page itself, plus five images, is six. <span class="why">The HTML file is an object like any other.</span></li>
+            <li>Non-persistent means the connection closes after each response. <span class="why">So the next object cannot reuse it.</span></li>
+            <li>Connections = objects = 6. <span class="why">Parallelism would not change this number.</span></li>
+            <li>Answer: <strong>6</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Why 5 is wrong.</strong> It counts only the images. <strong>Why 1 is wrong.</strong> That is the persistent answer, and the question said non-persistent.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 — GATE 2014 Set 2 Q28, requests against connections</h3>
+          <p class="small">A browser at client Q accesses a static HTML page from server S. The page has exactly one static embedded image, also at S. Assuming no caching, which statement is correct about loading the page including the image?</p>
+          <ol class="step-list small">
+            <li>Two objects, so at least two HTTP requests. <span class="why">One request fetches one object.</span></li>
+            <li>Both objects are on the same server. <span class="why">A persistent connection stays open to that server.</span></li>
+            <li>One TCP connection is therefore sufficient. <span class="why">HTTP/1.1 keeps connections open by default.</span></li>
+            <li>Answer: at least two requests, but a single connection suffices.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Why "each in a separate connection" is wrong.</strong> That is non-persistent behaviour, and nothing in the question forces it. <strong>Why "a single request" is wrong.</strong> No caching, so the image cannot arrive with the page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 5 — GATE 2015 Set 2 Q13, the cookie statement</h3>
+          <p class="small">Which one of the following statements is NOT correct about HTTP cookies?</p>
+          <ol class="step-list small">
+            <li>(A) A cookie is a piece of code that can compromise the security of a user.</li>
+            <li>(B) A cookie gains entry to the user's work area through an HTTP header. <span class="why">True: Set-Cookie in the response, Cookie in the request.</span></li>
+            <li>(C) A cookie has an expiry date and time. <span class="why">True: Expires or Max-Age.</span></li>
+            <li>(D) Cookies can be used to track the browsing pattern of a user at a site. <span class="why">True, and that is the privacy concern.</span></li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Answer: <strong>(A)</strong>. A cookie is a string of name-value pairs with attributes; it does not execute. The question tests whether you can separate <em>privacy</em> from <em>code execution</em> — a cookie enables tracking, which is a privacy matter, and it cannot run.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries: where each rule stops working</h3>
+          <p class="small muted" style="margin-bottom:0">Each card states the condition a rule needs, and what changes when the condition fails. These are the cases that separate a correct answer from an almost-correct one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Labels are not delegations</h3>
+          <p class="small">Take <code>example.com</code>: two labels, but three servers asked — root, <em>com</em>, and the authoritative server for <em>example.com</em> itself. Take <code>www.example.com</code>: three labels, and still three servers, because <em>www</em> is a host inside the <em>example.com</em> zone.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample to the label rule.</strong> The number of pairs equals the number of labels only when every label except the leftmost is a zone cut and the leftmost is a host. The rule that always holds is <em>1 + the number of zone cuts</em>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A CNAME cannot share its name</h3>
+          <p class="small">RFC 1034 forbids a CNAME at a name that has any other record, because the alias would make the other records unreachable. So <code>www.gate.org.in</code> may be a CNAME pointing at <code>gate.org.in</code>, but it may not be a CNAME <em>and</em> have an A record.</p>
+          <p class="small" style="margin-bottom:0"><strong>Consequence for counting.</strong> Following a CNAME can cost an extra lookup, because the resolver must resolve the target name too. A question that says "an alias chain of length 2" is asking for those extra pairs.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The 512-byte ceiling is a default, not a law of physics</h3>
+          <p class="small">RFC 1035 caps a classic UDP DNS message at 512 bytes. EDNS0 lets a client advertise a larger buffer, and modern servers routinely return answers well above 512 bytes over UDP.</p>
+          <p class="small" style="margin-bottom:0"><strong>What does not change.</strong> The truncation bit and the TCP retry are still the defined behaviour when a message does not fit. A question that says "classic DNS" or "without EDNS" is asking for 512; one that says nothing is safest read as 512.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A 304 is a success with no body</h3>
+          <p class="small">304 Not Modified belongs to the 3xx family and is not an error. It says the client's copy is still valid, so no body follows. It saves bandwidth, and it costs one full round trip.</p>
+          <p class="small" style="margin-bottom:0"><strong>The related trap.</strong> A fresh object inside its max-age produces <em>no request at all</em>, which is a different cost from a 304. Fresh is zero round trips; revalidated is one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Pipelining is legal and largely unused</h3>
+          <p class="small">RFC 9112 defines pipelining, and browsers have mostly stopped using it because a slow first response delays every later one on the same connection — head-of-line blocking. HTTP/2 multiplexes streams instead, so the problem is solved above the connection.</p>
+          <p class="small" style="margin-bottom:0"><strong>For the exam.</strong> Pipelining is still the model in every counting question, and it is still worth one round trip for all the objects. Whether real browsers use it does not change the arithmetic the question wants.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Names are case-insensitive; the TTL is not optional</h3>
+          <p class="small">DNS comparisons ignore case, so <code>WWW.Gate.Org.IN</code> and <code>www.gate.org.in</code> are the same name. A trailing dot marks a fully qualified name and means "do not append the local suffix".</p>
+          <p class="small" style="margin-bottom:0"><strong>And a zero TTL</strong> is legal: it means the record may be used for this transaction and must not be cached. So "the answer is cached" is only true when the TTL is positive.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five beliefs that produce a plausible wrong answer</h3>
+          <p class="small muted" style="margin-bottom:0">Each card gives the belief, why it is tempting, the smallest case that refutes it, and the rule to use instead. These are drawn from the shapes of wrong options in past papers, not from a survey of learners.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "Each label is a delegation"</h3>
+          <p class="small"><strong>Why it tempts.</strong> <code>www.gate.org.in</code> has four labels and the answer is four, so the shortcut appears to work.</p>
+          <p class="small"><strong>Refutation.</strong> <code>www.example.com</code> has three labels and takes three servers, because <em>www</em> is a host inside the <em>example.com</em> zone; and <code>example.com</code> has two labels and takes three servers, because the name is the zone apex.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Count the zone cuts and add the root. Labels suggest the count; they do not define it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "The handshake is free"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The request goes out immediately after the SYN-ACK, so the two look like one exchange.</p>
+          <p class="small"><strong>Refutation.</strong> GATE 2023's base page costs 2 RTT, not 1. Option B says 5 RTT for the pipelined case and is wrong for exactly this reason: 3 + 2 + 1 = 6.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Write the three stages separately — DNS, handshake, request — and add them.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "One connection can reach several servers"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Persistence is described as "one connection for the whole page", and a page often pulls from several hosts.</p>
+          <p class="small"><strong>Refutation.</strong> GATE 2026 Set 1 statement B is false. A TCP connection is identified by four values — source address and port, destination address and port — so it ends at one server.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Persistence is per server, not per page. Two servers, two connections.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "A 304 saves a round trip"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The server sends almost nothing, so the exchange feels nearly free.</p>
+          <p class="small"><strong>Refutation.</strong> A 304 is a full request and a full response: one round trip, and 300 bytes instead of 20000. Only a fresh object inside max-age costs zero round trips.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Separate bandwidth from latency. A conditional GET saves the first and not the second.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Parallel connections reduce the connection count"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Parallelism clearly reduces the time, and time is what most questions ask for.</p>
+          <p class="small"><strong>Refutation.</strong> GATE 2020: six objects in non-persistent mode need six connections, however many run at once. Parallelism changes <em>ceil(N / p)</em> in the time, not the count of connections or handshakes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Ask what the question counts: pairs, connections, or round trips. They are three different quantities.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one distinction to carry into the exam</h3>
+          <p class="small" style="margin-bottom:0">Four pairs get confused, and each is settled by writing down a definition rather than by intuition: <em>labels</em> against <em>zone cuts</em>, <em>connections</em> against <em>round trips</em>, <em>fresh</em> against <em>revalidated</em>, and <em>recursive</em> against <em>iterative</em>. In each pair the two members differ by one countable thing, and the question always tells you which it wants — if you read the unit before you compute.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this clause gets tested, and what each pattern demands</h3>
+          <p class="small muted" style="margin-bottom:0">Four patterns cover the items in this clause. Each is listed with the quantity it counts, because the quantity is what the trap attacks.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 1 — count the query-response pairs</h3>
+          <p class="small"><strong>Shape.</strong> A name, a mode (iterative or recursive), and "no caching anywhere". The answer is a small integer.</p>
+          <p class="small"><strong>Procedure.</strong> Write the delegation chain from the top-level domain down to the zone that owns the name; add the root; that is the count. Add one only if the host and the resolver are separate machines.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in.</strong> GATE 2022 Q35, answer 4, and GATE 2023 Q52, where the same arithmetic is the first term of a larger sum.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 2 — count the connections</h3>
+          <p class="small"><strong>Shape.</strong> A page with some objects, a mode, and "minimum number of TCP connections".</p>
+          <p class="small"><strong>Procedure.</strong> Count objects as 1 + the number of embedded items. Non-persistent gives one connection per object; persistent or pipelined gives one in total, per server.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in.</strong> GATE 2020 Q25, answer 6, and GATE 2014 Set 2 Q28, where the answer is two requests and one connection.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 3 — add the round trips</h3>
+          <p class="small"><strong>Shape.</strong> A hierarchy, a page, N objects, a parallel width, and a choice between modes. The answer is a small integer of RTTs.</p>
+          <p class="small"><strong>Procedure.</strong> DNS first, one round trip per server asked. Then the handshake. Then the request for the page. Then the objects: 2 × ceil(N/p) for non-persistent, N for sequential persistent, 1 for pipelined.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in.</strong> GATE 2023 Q52, answers 9 and 6.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 4 — statements about HTTP</h3>
+          <p class="small"><strong>Shape.</strong> Four or five statements about HTTP/1.1, cookies or persistence; select all that are true.</p>
+          <p class="small"><strong>Procedure.</strong> Test each statement against a definition you can state: what persistence is scoped to, what pipelining allows, what a cookie is made of, which methods are safe or idempotent.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in.</strong> GATE 2026 Set 1 Q19 (A, C, D true) and GATE 2015 Set 2 Q13 (A is the false statement).</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The four-step procedure, and where each step can go wrong</h3>
+          <p class="small"><strong>1. Resolve.</strong> Count the servers asked. <em>Fails when</em> you count labels instead of zone cuts, or add a host-to-resolver hop the question placed inside the host.</p>
+          <p class="small"><strong>2. Connect.</strong> One handshake per connection, and one connection per object unless the mode says otherwise. <em>Fails when</em> the handshake is forgotten or folded into the request.</p>
+          <p class="small"><strong>3. Request.</strong> One request per object, and the page is an object. <em>Fails when</em> the HTML file is left out of the count.</p>
+          <p class="small" style="margin-bottom:0"><strong>4. Render.</strong> Only after the base page arrives, and only after every object it references has been fetched. <em>Fails when</em> the question asks for the last byte and you answer for the page.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Two questions in this clause are one-mark freebies — take them first</h3>
+          <p class="small" style="margin-bottom:0">A statement question about HTTP needs no arithmetic, only a definition, and a connections question needs only a count of objects. Both are answerable in under a minute. The round-trip question is the one that rewards writing the three stages down before touching the calculator. In a 65-mark paper with a per-question average of about two minutes, taking the two cheap ones first is worth more than perfecting the expensive one.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1, 2 and 4 are previous-year items with their year, set and question number, and each answer was recomputed by this page. Questions 3, 5 and 6 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2022 Q35</span></div>
+          <div class="q-body">
+            <p>Consider the resolution of the domain name <code>www.gate.org.in</code> by a DNS resolver. Assume that no resource records are cached anywhere across the DNS servers and that iterative query mechanism is used in the resolution. The number of DNS query-response pairs involved in completely resolving the domain name is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 4</p>
+            <p>Root, then <em>in</em>, then <em>org.in</em>, then the authoritative server for <em>gate.org.in</em>. Four servers asked, one query and one response each.</p>
+            <p><strong>Why 3 appears.</strong> Dropping the root. <strong>Why 5 appears.</strong> Adding the host-to-resolver hop, which the question does not count because the resolver is the one resolving.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2023 Q52</span></div>
+          <div class="q-body">
+            <p>A browser clicks <code>www.gate-2023.in</code> with an empty cache and no cached IP. A DNS lookup runs over a three-tier hierarchy in iterative mode with no caching anywhere. RTT is the same to every server. The HTML file is negligible in size and references 10 equally small objects on the same server. Which statements about the minimum elapsed time until full rendering are CORRECT?</p>
+            <ol class="choices">
+              <li>7 RTTs, in case of non-persistent HTTP with 5 parallel TCP connections.</li>
+              <li>5 RTTs, in case of persistent HTTP with pipelining.</li>
+              <li>9 RTTs, in case of non-persistent HTTP with 5 parallel TCP connections.</li>
+              <li>6 RTTs, in case of persistent HTTP with pipelining.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C and D</p>
+            <p>DNS 3 + page 2 + objects. Non-persistent, five at a time: two rounds of two round trips, so 3 + 2 + 4 = 9. Pipelined: one round trip for all ten, so 3 + 2 + 1 = 6.</p>
+            <p><strong>Why 7.</strong> That is ten parallel connections: one round instead of two, giving 3 + 2 + 2. <strong>Why 5.</strong> It omits the handshake before the base page. Both are right answers to different questions.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>An iterative resolver with an empty cache resolves <code>a.b.example.co.uk</code>, and the delegation chain has a zone cut at each of <em>uk</em>, <em>co.uk</em>, <em>example.co.uk</em> and <em>b.example.co.uk</em>. How many query-response pairs does the resolution take?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 5</p>
+            <p>Four zone cuts plus the root. The name has five labels, and the leftmost label <em>a</em> is a host, so here labels and pairs coincide — but that is a coincidence of this tree, not a rule.</p>
+            <p><strong>Why 4.</strong> Forgetting the root. <strong>Why 6.</strong> Adding the host-to-resolver hop that an iterative resolver does not pay.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2015 Set 2 Q13</span></div>
+          <div class="q-body">
+            <p>Which one of the following statements is NOT correct about HTTP cookies?</p>
+            <ol class="choices">
+              <li>A cookie is a piece of code that has the potential to compromise the security of an Internet user.</li>
+              <li>A cookie gains entry to the user's work area through an HTTP header.</li>
+              <li>A cookie has an expiry date and time.</li>
+              <li>Cookies can be used to track the browsing pattern of a user at a particular site.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p>A cookie is a name-value string with attributes, sent in <code>Set-Cookie</code> and returned in <code>Cookie</code>. It does not execute, so it cannot compromise security as code.</p>
+            <p><strong>Why D is a real concern and still true.</strong> Tracking is a privacy issue and cookies do enable it. The question separates privacy from execution, which is the whole point.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A classic DNS query without EDNS is sent for the name <code>www.gate.org.in</code>. The header is 12 bytes, the encoded name is 17 bytes, and the type and class together are 4 bytes. Each answer record uses name compression, so it costs 2 bytes of pointer, 2 of type, 2 of class, 4 of TTL, 2 of length and 4 of address. What is the largest number of such answer records that fits in a 512-byte message with no other sections?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 29</p>
+            <p>512 − 12 − 17 − 4 = 479 bytes remain. Each record is 16 bytes. 479 / 16 = 29.9, so 29 records fit and the 30th would need 480.</p>
+            <p><strong>Why 28.</strong> Rounding down twice, or assuming a 17-byte record. <strong>Why 31.</strong> Forgetting the two-byte compression pointer and the two-byte length field.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A page on one server is 1 object and references 9 images on the same server. DNS is already cached. Which of the following are TRUE?</p>
+            <ol class="choices">
+              <li>Non-persistent HTTP needs 10 TCP connections.</li>
+              <li>Persistent HTTP without pipelining needs 10 round trips after the handshake.</li>
+              <li>Pipelined persistent HTTP needs 1 round trip for the 9 images after the page arrives.</li>
+              <li>Opening 5 parallel connections reduces the number of connections needed.</li>
+              <li>A 304 response to an image saves both the body and the round trip.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and C</p>
+            <p>Ten objects means ten connections in non-persistent mode (A). Sequential persistent costs one round trip per image, so 9 after the page — the statement's "10 after the handshake" counts the page request too, which is consistent with 1 + 9 (B). Pipelining sends all nine requests together, so one round trip (C).</p>
+            <p><strong>Why D is false.</strong> Parallelism changes elapsed time, never the connection count. <strong>Why E is false.</strong> A 304 saves the body only; it is still one round trip.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Definitions, counts, formulas, decision procedures and traps, in the order you would use them. Nothing here needs the animation.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>DNS: the facts worth memorising</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Names are read right to left; the rightmost label is the top-level domain.</li>
+            <li>Servers asked = 1 (root) + number of zone cuts. One pair per server.</li>
+            <li>Iterative: referrals, and the resolver walks. Recursive: one server walks.</li>
+            <li>Records: A, AAAA, NS, MX, CNAME, and SOA which sets the negative-caching TTL.</li>
+            <li>A CNAME may not coexist with other records at the same name.</li>
+            <li>Header 12 bytes: ID, flags, and four counts. Port 53.</li>
+            <li>Encoded name = text length − dots + one byte per label + 1.</li>
+            <li>512-byte UDP ceiling; truncation bit; retry over TCP. EDNS0 raises it.</li>
+            <li>TTL is a countdown in a cache, not a query timeout. Zero TTL means do not cache.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>HTTP: the facts worth memorising</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Request line: method, target, version. <code>Host</code> is mandatory in 1.1.</li>
+            <li>Safe: GET, HEAD. Idempotent: GET, HEAD, PUT, DELETE. POST is neither.</li>
+            <li>Families: 2xx worked, 3xx elsewhere or use your copy, 4xx bad request, 5xx server failed.</li>
+            <li>304 Not Modified: success, no body, one round trip.</li>
+            <li>Stateless protocol; cookies carry the state. A cookie is text, not code.</li>
+            <li>Cookie attributes: Expires or Max-Age, Domain, Path, Secure, HttpOnly.</li>
+            <li>One request per object, and the HTML page is an object.</li>
+            <li>HTTP/1.1 is persistent by default; persistence is scoped to one server.</li>
+            <li>Pipelining: requests back to back, responses in order, one round trip for all.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The three counting formulas</h3>
+          <p class="formula">pairs = 1 + zone cuts<br>connections = 1 + N (non-persistent) or 1 (persistent)<br>round trips = DNS + 1 (handshake) + 1 (page) + objects<span class="gloss">where objects is 2·ceil(N/p) for non-persistent, N for sequential persistent, and 1 for pipelined. DNS is one round trip per server asked, unless the question puts the resolver on the host and gives the tier count directly.</span></p>
+          <p class="small" style="margin-bottom:0">GATE 2023, plugged in: DNS 3, page 2, objects 4 or 1, giving 9 or 6.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Decision procedure, in four lines</h3>
+          <ol class="step-list small">
+            <li>Write the unit the question asks for: pairs, connections or round trips. <span class="why">Three different quantities, three different formulas.</span></li>
+            <li>Count the objects: 1 + embedded items. <span class="why">The page is an object.</span></li>
+            <li>Pick the mode and write its cost per object. <span class="why">Non-persistent 2 RTT, persistent 1 RTT, pipelined 1 RTT for all.</span></li>
+            <li>Add DNS and the handshake, then check the total is at least DNS + 2. <span class="why">A total below that floor means a missing stage.</span></li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Numbers from this lesson worth remembering</h3>
+          <p class="small">Four query-response pairs for <code>www.gate.org.in</code> (GATE 2022) · three for a three-tier hierarchy · a query of 33 bytes for that name · 479 bytes left in a 512-byte message · 29 address records of 16 bytes each · six TCP connections for a page and five images (GATE 2020) · two requests and one connection for a page and one image (GATE 2014 Set 2) · 9 and 6 round trips (GATE 2023) · 7 for ten parallel connections · 15 for sequential persistent · two hits and two misses from a 300-second TTL queried at 0, 60, 120 and 310 seconds.</p>
+          <p class="small" style="margin-bottom:0">Every one of these was computed by this page's model and checked against its defining property, not copied from an answer key.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The five slips, one last time</h3>
+          <p class="small" style="margin-bottom:0">Counting labels instead of zone cuts · forgetting the handshake before the base page · believing one connection can reach two servers · treating a 304 as free · thinking parallel connections reduce the connection count. Write the unit and the three stages at the top of your working and none of the five survives.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official standards and the official syllabus are separated from question catalogues and from community discussion. A catalogue is evidence that a question exists and was asked in a given year; it is not evidence about the 2027 paper. Every numeric answer on this page was recomputed from the question text, so catalogues were used to find questions, not to settle answers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official and standard</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read on 28 October 2026. Supports the Section 10 wording quoted in Overview: the clause now reads "DNS and HTTP", where the 2026 syllabus said "DNS, SMTP, HTTP, FTP, Email".</li>
+            <li><strong>RFC 1034</strong> — domain concepts and facilities: the hierarchy, referrals, iterative and recursive service, and the rule that a CNAME may not coexist with other data.</li>
+            <li><strong>RFC 1035</strong> — implementation: the record types, the 12-byte header, the length-prefixed name encoding, and the 512-byte UDP limit with the truncation bit.</li>
+            <li><strong>RFC 2308</strong> — negative caching of a name that does not exist.</li>
+            <li><strong>RFC 6265</strong> — cookies: Set-Cookie and Cookie, Expires and Max-Age, Domain and Path, Secure and HttpOnly.</li>
+            <li><strong>RFC 9110 and RFC 9112</strong> — HTTP semantics and HTTP/1.1: methods and their safe/idempotent properties, status code families, the mandatory Host header, persistent connections and pipelining.</li>
+            <li><strong>RFC 9113</strong> — HTTP/2 multiplexing, cited only in Edge cases for why browsers largely stopped pipelining.</li>
+            <li><strong>RFC 6891</strong> — EDNS0, cited only for the statement that the 512-byte ceiling is a default.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Question catalogues, used to locate items</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE Overflow's application-layer index</strong>, used to read the question text of GATE 2022 Q35, 2023 Q52, 2020 Q25, 2016 Set 2 Q25, 2015 Set 2 Q13, 2014 Set 2 Q28 and 2026 Set 1 Q19.</li>
+            <li><strong>ExamSIDE's year-wise archive</strong>, used to confirm the numbering of GATE 2022 Q35 (numerical answer 4) and GATE 2020 Q25 (numerical answer 6).</li>
+            <li><strong>GateAI's topic index and the GATE 2026 CS-1 paper with solutions</strong>, used for the 2026 Set 1 Q19 statement set and its official answer A, C, D. Two independent copies of the paper agree on the statements; one early copy reorders the options, which is why the statements are quoted here rather than only their letters.</li>
+            <li><strong>GATE Overflow threads</strong> for 2023 Q52 and 2022 Q35, used for the community's derivation. The arithmetic here was redone independently and agrees.</li>
+            <li><strong>Numbering note.</strong> GATE 2023's item is catalogued as Q52 in the official paper and appears in some memory-based lists as Q42 or as memory-based question 48; the official number is the one reported here.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No official answer-key PDF was opened for the items above; every answer was recomputed from the question text by this page's model, and each agrees with the key as reported by the catalogues. The DNS record counts and the 29-record figure assume name compression and an otherwise empty message, which is the standard reading of the classic 512-byte case and not the only possible message. The round-trip convention — one round trip for a handshake and one for a request and its response — is the convention GATE 2023 uses; a question that piggybacks the request on the handshake's third segment would give a different total, and the question would have to say so. Topics that sit in the same section but not this clause — TCP flow and congestion control, fragmentation and CIDR, NAT, routing — are taught in their own lessons and are not repeated here. No claim is made about 2027 weightage, and no search was made for 2027 sample papers, because none exists at the time of writing. Nothing here was checked against a printed textbook edition.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
