@@ -2293,15 +2293,110 @@ topics.append(topic(
                  "conditional GET and Cache-Control max-age",
                  "the five counting traps"]))
 
+# General Aptitude is four separate skills with four separate procedures, so it is
+# tracked as four lessons rather than one. The syllabus section names each of them.
+GA_EVIDENCE = ("General Aptitude is common to all GATE papers and carries 15 of 100 marks in "
+               "ten questions (five of one mark, five of two). Verified against the GATE 2027 "
+               "General Aptitude syllabus, GA_GATE2027_Syllabus.pdf, IIT Madras.")
+
 topics.append(topic(
-    "General Aptitude", "Aptitude", "Verbal, quantitative, analytical and spatial aptitude",
-    ["verbal ability", "numerical estimation", "data interpretation",
-     "logical and analytical reasoning", "spatial aptitude"],
+    "General Aptitude", "Aptitude", "Verbal aptitude",
+    ["English grammar: tenses, articles, adjectives, prepositions, conjunctions, verb-noun agreement",
+     "basic vocabulary, idioms and phrases in context",
+     "reading and comprehension",
+     "narrative sequencing"],
     prereq=["none"],
-    related=["probability", "counting"],
+    related=["verbal aptitude"],
     importance="high",
-    evidence="General Aptitude is common to all GATE papers and carries 15 of 100 marks (GATE 2026 brochure, section 4; the same split is stated for GATE 2027).",
-    difficulty="easy-medium"))
+    evidence=GA_EVIDENCE + " Section 1 of the General Aptitude syllabus.",
+    difficulty="easy",
+    status="READY"))
+
+topics.append(topic(
+    "General Aptitude", "Aptitude", "Quantitative aptitude",
+    ["data interpretation: bar graphs, pie charts, 2- and 3-dimensional plots, maps, tables",
+     "numerical computation and estimation: ratios, percentages, powers, exponents and logarithms",
+     "permutations and combinations, and series",
+     "mensuration and geometry",
+     "elementary statistics and probability"],
+    prereq=["none"],
+    related=["counting and combinatorics", "probability and random variables"],
+    importance="high",
+    evidence=GA_EVIDENCE + " Section 2 of the General Aptitude syllabus.",
+    difficulty="easy-medium",
+    status="READY"))
+
+topics.append(topic(
+    "General Aptitude", "Aptitude", "Analytical aptitude",
+    ["logic: deduction and induction",
+     "analogy",
+     "numerical relations and reasoning"],
+    prereq=["none"],
+    related=["propositional logic", "counting and combinatorics"],
+    importance="high",
+    evidence=GA_EVIDENCE + " Section 3 of the General Aptitude syllabus.",
+    difficulty="easy-medium",
+    status="READY"))
+
+topics.append(topic(
+    "General Aptitude", "Aptitude", "Spatial aptitude",
+    ["transformation of shapes: translation, rotation, scaling, mirroring",
+     "assembling and grouping",
+     "paper folding and cutting",
+     "patterns in 2 and 3 dimensions",
+     "lines of symmetry and rotational order",
+     "cube nets and opposite faces",
+     "minimum cuts and piece counts",
+     "tiling and colour invariants"],
+    prereq=["counting and combinatorics", "graphs: matching and colouring"],
+    related=["counting and combinatorics", "graphs: matching and colouring", "graphs: connectivity and structure"],
+    importance="high",
+    evidence=GA_EVIDENCE + " Section 4 of the General Aptitude syllabus names 'Transformation of "
+             "shapes: translation, rotation, scaling, mirroring, assembling, and grouping; paper "
+             "folding, cutting, and patterns in 2 and 3 dimensions'. Previous-year items worked in "
+             "the lesson: GATE CSE 2024 Set 1 GA Q9 and Q10, GATE CSE 2024 Set 2 GA Q9, GATE CSE "
+             "2025 Set 1 GA Q9, GATE CSE 2025 Set 2 GA Q4, GATE CSE 2023 GA Q10. A community "
+             "archive indexes 16 GATE CSE spatial items since 2017; that is an observation about "
+             "past papers, not a weightage figure.",
+    difficulty="easy-medium",
+    status="PUBLISHED",
+    slug="spatial-aptitude",
+    path="topics/spatial-aptitude/index.html",
+    execution="2026-10-28: published by the scheduled run; 44/44 model checks passed, geometry audit clean",
+    microtopics=[
+        "a spatial question shows a figure and its image; the operation is the answer",
+        "translation changes only position; rotation preserves orientation; scaling changes length",
+        "only a mirror reverses orientation, and no rotation in the plane undoes it",
+        "the three-corner test: read A B C clockwise, preserved means rotation, reversed means mirror",
+        "chirality: the L tetromino cannot be rotated into its mirror image",
+        "eight operations fix a square: four rotations and four mirrors, closed under composition",
+        "order matters: rotate then mirror differs from mirror then rotate",
+        "line of symmetry and rotational order, with the do-nothing turn counted",
+        "lines plus turn order equals the number of the eight operations that fix the shape",
+        "orbit times stabiliser equals eight",
+        "a non-square rectangle has two mirror lines, never four",
+        "folding halves one dimension and doubles the layers; the paper area never changes",
+        "the long edge is re-found after every fold: 20x8 gives 10x8, 5x8, 5x4 and perimeter 18",
+        "the careless 2.5x8 and its perimeter 21 as the planted wrong option",
+        "area conservation as the check: original area equals final area times layers",
+        "holes equal punches times layers, with punches on a crease counted once",
+        "unfold in the reverse order, reflecting the hole set across each fold line",
+        "the hole set is closed under the reflections the folds used",
+        "35 free hexominoes, of which 11 fold into a cube, reproduced by rolling a cube",
+        "two steps apart in a straight run means opposite faces",
+        "opposite faces are never both visible in one view",
+        "pieces equal the product of each axis count plus one",
+        "eight equal pieces need three cuts; two reach four and four is not the minimum",
+        "cuts are a sum and pieces are a product",
+        "tiling: area must divide, then the chessboard colours must tie",
+        "8x8 minus two opposite corners is 30 and 32; minus two adjacent corners is 31 and 31",
+        "both tiling tests prove impossibility only; a construction is needed for possibility"]))
+
+# the four General Aptitude lessons were split from one tracker entry on 2026-10-28,
+# so the published one carries the date it was verified rather than the syllabus date.
+for _t in topics:
+    if _t.get("lesson_slug") == "spatial-aptitude":
+        _t["last_verified_date"] = "2026-10-28"
 
 # ---------------------------------------------------------------- preservation
 # The tracker is regenerated from this file, so anything an earlier run recorded

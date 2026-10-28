@@ -67,6 +67,7 @@ lessons are static files and work from a local clone.
 | TCP Flow Control, Congestion Control and the Socket API | Computer Networks | A — explicitly in the syllabus | `topics/tcp-flow-congestion-control-and-sockets/index.html` |
 | Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
 | Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
+| Spatial Aptitude: Transformations, Paper Folding and Patterns | General Aptitude | A — explicitly in the syllabus | `topics/spatial-aptitude/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
