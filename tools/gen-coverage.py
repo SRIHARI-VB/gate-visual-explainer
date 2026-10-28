@@ -2306,11 +2306,37 @@ topics.append(topic(
      "reading and comprehension",
      "narrative sequencing"],
     prereq=["none"],
-    related=["verbal aptitude"],
+    related=["quantitative aptitude", "analytical aptitude", "spatial aptitude",
+             "graphs and connectivity"],
     importance="high",
-    evidence=GA_EVIDENCE + " Section 1 of the General Aptitude syllabus.",
+    evidence=GA_EVIDENCE + " Section 1 of the General Aptitude syllabus. Previous-year "
+             "verbal items were read for GATE CSE 2020 GA Q1, 2023 GA Q6 and Q8, 2024 "
+             "Set 1 GA Q1 and Q6, 2024 Set 2 GA Q6, and 2025 Set 1 GA Q1 and Q2, each "
+             "with its published key.",
     difficulty="easy",
-    status="READY"))
+    status="PUBLISHED",
+    slug="verbal-aptitude",
+    path="topics/verbal-aptitude/index.html",
+    execution="published 2026-10-28; all 34 model checks pass",
+    microtopics=[
+        "agreement by the head noun, and the nearest-noun attraction error",
+        "\"a number of\" against \"the number of\", and \"one of the ... who\"",
+        "a and an by the first sound, not the first letter",
+        "silent h, /j/ before a vowel letter, and articles before acronyms",
+        "for a length, since a point, within a deadline",
+        "present perfect with a span that reaches now",
+        "idioms and phrasal verbs as fixed particles",
+        "four idioms that share the word head",
+        "intensity ladders: dry-arid-parched against diet-fast-starve",
+        "a word defined by its own because-clause, and the figurative sense",
+        "polarity of the clue against polarity of the options",
+        "entailment, and the absolute-word test (all, only, must, never)",
+        "true in the world against entailed by the passage",
+        "pronoun, demonstrative, definite-article and connector edges",
+        "a jumbled paragraph as a topological ordering",
+        "counting all 24 orders and keeping the one that respects every edge",
+        "concluding connectors that can never open a paragraph",
+        "the five-step procedure across all four question shapes"]))
 
 topics.append(topic(
     "General Aptitude", "Aptitude", "Quantitative aptitude",
