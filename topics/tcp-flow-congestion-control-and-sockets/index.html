@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP Flow Control, Congestion Control and the Socket API — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">TCP Flow Control, Congestion Control and the Socket API</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Previous: IP fragmentation, CIDR and NAT</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> TCP flow control, congestion control and the socket API — one clause of GATE 2027 Section 10, Computer Networks.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Separate the two limits on a TCP sender — the advertised receiver window and the sender's own congestion window — and compute the smaller one. Walk a congestion window round trip by round trip through slow start and congestion avoidance, applying the correct rule below and at the slow-start threshold. Apply the two loss signals correctly, and say why a timeout and three duplicate acknowledgements give different answers from the same numbers. Turn a sawtooth into an average throughput, and compute the window a path needs from its bandwidth-delay product. Finally, order the socket calls on each side, map them onto the three-way handshake, and size a segment from the link MTU.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>two windows and two signals</em>. Flow control is a budget the receiver publishes; congestion control is a rate the sender infers from loss. Everything a GATE question asks here — a window at round trip <em>k</em>, a time to reach a target, an average throughput, a socket call order — is one of those two ideas evaluated on a small table.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 10 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, ends: <em>"... IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP- flow control and congestion control, socket API; DNS and HTTP."</em> The middle clause is this lesson: flow control, congestion control and the socket API are named in it.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past papers lists items from this clause in 2012, 2014 (two sets), 2015 (two sets), 2017, 2018, 2020, 2021 (two sets), 2022, 2023, 2024 (two sets), 2025 (two sets) and 2026 (two sets). That is a catalogue of somebody's tagging of somebody's collection, not official weightage and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary, not that one is guaranteed. Every previous-year item quoted carries its year and set, and every numeric answer was recomputed by this page's model rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering, switching and performance metrics</a> — delay, bandwidth, round trip, and the throughput arithmetic this lesson reuses.</li>
+            <li><a href="../ip-fragmentation-cidr-and-nat/index.html">IP fragmentation, CIDR and NAT</a> — the IPv4 header, and therefore where the 20-byte overhead in MSS comes from.</li>
+            <li>Arithmetic you already have: doubling, halving, ceilings, and converting between bytes, bits and time.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Nothing here needs the routing lesson. A question may quote a round trip time without saying how it was measured; treat it as given.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Two windows.</strong> In flight ≤ min(receiver window, congestion window). The smaller one binds and names the limit.</li>
+            <li><strong>Flow control.</strong> Usable window = advertised window − bytes in flight. Signalled in every ACK, in bytes.</li>
+            <li><strong>Slow start.</strong> +1 MSS per ACK, so a doubling per round trip, until the threshold.</li>
+            <li><strong>Congestion avoidance.</strong> +1 MSS per round trip; a loss halves the threshold, and the signal decides what the window becomes.</li>
+            <li><strong>The socket API.</strong> Server: socket, bind, listen, accept. Client: socket, connect. The kernel runs the handshake underneath.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate study time: 55–75 minutes, which is an estimate and not a measurement. Watch the Animation tab once straight through, then use Examples for the four worked traces, Edge cases for the conditions, and Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">Captions are on by default and switch to Detailed, Keyword or Exam trap without restarting. Every number on the canvas is computed by the page's model and re-checked against the rule it should satisfy; the count of passing checks is shown under the canvas.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a counter with a shelf and a road</h3>
+          <p class="small">Picture a shop that sends parcels down a road. Two things can stop the parcels. The shop's counter has shelf space — once the shelf is full, no more parcels can be handed over, however empty the road is. And the road itself can jam — once too many vans are out there, everything slows and some are lost, however much shelf space remains.</p>
+          <p class="small" style="margin-bottom:0">The shopkeeper keeps two numbers: how much shelf space the customer has left (the customer tells them this with every delivery note), and how many vans they believe the road can take (nobody tells them; they learn it by watching for losses). The number of vans in motion is the smaller of the two. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the structure — two independent limits, one published and one inferred — but not the timing details, so do not read any number out of it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal vocabulary, every symbol in words</h3>
+          <p class="small"><strong>MSS</strong> — maximum segment size: the largest amount of application data one TCP segment carries, in bytes.</p>
+          <p class="small"><strong>Bytes in flight</strong> — bytes sent whose receipt has not yet been acknowledged. Equivalently: last byte sent minus last byte acknowledged.</p>
+          <p class="small"><strong>rwnd</strong> — the receive window, or advertised window. A 16-bit field in every segment header, in bytes, saying how much more data the receiver is willing to buffer. This is the flow-control limit.</p>
+          <p class="small"><strong>cwnd</strong> — the congestion window, in bytes or in segments. A sender-side variable, never transmitted, standing for what the sender believes the network can carry. This is the congestion-control limit.</p>
+          <p class="small" style="margin-bottom:0"><strong>ssthresh</strong> — the slow-start threshold. The value of cwnd at which the sender stops doubling and starts adding one segment per round trip.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two rules of the sender</h3>
+          <p class="small"><strong>Rule 1, the cap.</strong> The sender may have at most $$\min(\text{rwnd},\ \text{cwnd})$$ bytes in flight. Nothing else limits it.</p>
+          <p class="small"><strong>Rule 2, the budget.</strong> The usable window right now is the advertised window minus what is already in flight: $$\text{usable} = \text{rwnd} - (\text{lastByteSent} - \text{lastByteAcked}).$$</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Both rules are the standard statement of flow control: the receive window bounds outstanding data, and the sender must not reuse window space until it is acknowledged. RFC 9293 (TCP) states the window as a byte count measured from the acknowledgement number.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Slow start, stated exactly</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> In slow start, each incoming acknowledgement increases cwnd by at most one segment: cwnd grows by $$\min(N,\ \text{SMSS})$$ where N is the number of newly acknowledged bytes. Because a whole window is acknowledged per round trip, cwnd approximately doubles per round trip.</p>
+          <p class="small">Starting at one segment the series is 1, 2, 4, 8, 16, 32 … in segments. In bytes with a 2 KB segment it is 2, 4, 8, 16, 32 KB.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 5681 also allows an initial window of up to four segments. GATE questions state a start of one segment; use the number the question gives, and do not import the RFC's initial window into an exam trace.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Congestion avoidance, and the two cuts</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> In congestion avoidance cwnd increases by about one segment per round trip — per acknowledgement the increase is $$\text{SMSS} \times \text{SMSS} / \text{cwnd}$$ so that a full window of acknowledgements adds one segment.</p>
+          <p class="small"><strong>On a timeout:</strong> $$\text{ssthresh} = \max(\text{flight}/2,\ 2\ \text{SMSS}),\qquad \text{cwnd} = 1\ \text{SMSS}.$$ The connection restarts in slow start and doubles up to the new threshold.</p>
+          <p class="small" style="margin-bottom:0"><strong>On three duplicate ACKs:</strong> the missing segment is retransmitted immediately without waiting for the timer. In the Reno variant $$\text{cwnd} = \text{ssthresh}$$ and growth continues linearly; in Tahoe cwnd restarts at one segment. Exam questions either name the variant or state the rule to use.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The formula that turns the sawtooth into a number</h3>
+          <p class="small">The window climbs linearly from half its peak to the peak and is then cut back to half. Its time average is therefore three quarters of the peak, so the average rate is</p>
+          <p class="formula">average rate = 0.75 × W_max / RTT<span class="gloss">W_max is the peak congestion window, in bytes if the answer is to be bytes per second; RTT is one round trip. Divide by 8 for bytes and multiply by 8 for bits — decide which the question wants before the last step.</span></p>
+          <p class="small" style="margin-bottom:0">The bandwidth-delay product is the companion quantity: $$\text{BDP} = \text{bandwidth} \times \text{RTT}$$ is the data the path can hold in flight, so a window smaller than the BDP leaves the link idle. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both statements are derived on this page from the sawtooth and from the definition of delay, and the arithmetic is re-checked in code.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Two numbers limit a TCP sender: what the receiver can hold, and what the network can carry.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two windows, one sender</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with the two limits, not with the growth rules.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked traces, each with its arithmetic shown</h3>
+          <p class="small muted" style="margin-bottom:0">Each example states the rule used at every step, so that a wrong answer can be traced to the step that produced it. The numbers are the same ones the animation draws.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 1 — the usable window, one step</h3>
+          <p class="small">A receiver advertises 6 MSS and 2 MSS are unacknowledged.</p>
+          <ol class="step-list small">
+            <li>Usable = 6 − 2 = 4 MSS. <span class="why">Rule 2: the window is a byte count, and acknowledged bytes free it.</span></li>
+            <li>If cwnd were 3 MSS, the sender could still send only 3. <span class="why">Rule 1: the smaller window binds.</span></li>
+          </ol>
+          <p class="small" style="margin-bottom:0">The connection is <em>congestion limited</em> in the second case and <em>flow limited</em> in the first, and the name comes from which window is smaller, never from which one changed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 — GATE 2014 Set 1 Q27, fully walked</h3>
+          <p class="small">cwnd is 32 KB at a timeout, MSS 2 KB, RTT 100 ms. How long to get back to 32 KB?</p>
+          <ol class="step-list small">
+            <li>Convert: 32 KB ÷ 2 KB = 16 MSS.</li>
+            <li>Timeout: ssthresh = 16 ÷ 2 = 8, cwnd = 1. <span class="why">Halve the flight, restart at one segment.</span></li>
+            <li>Slow start below 8: 1, 2, 4, 8 — reached at round trip 3, i.e. after four round trips of transmission.</li>
+            <li>Congestion avoidance from 8: 9, 10, 11, 12, 13, 14, 15, 16 — eight more round trips.</li>
+            <li>16 MSS is reached at round trip 11, so 11 × 100 ms = 1100 ms.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Doubling to 16 directly would give 4 round trips and 400 ms: that ignores the threshold and the linear phase. The published key accepts a range because the round trip containing the timeout may or may not be counted; the trace here counts from the restart and gives 1100 ms.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 — GATE 2020 Q55, ten round trips</h3>
+          <p class="small">RTT 6 ms, rwnd 50 KB, ssthresh 32 KB, MSS 2 KB, no losses. cwnd at t + 60 ms?</p>
+          <ol class="step-list small">
+            <li>60 ms ÷ 6 ms = 10 round trips.</li>
+            <li>Doubling in KB: 2, 4, 8, 16, 32 — the threshold is reached after four round trips.</li>
+            <li>Linear at 2 KB per round trip: 34, 36, 38, 40, 42, 44 — six more round trips.</li>
+            <li>44 KB is below 50 KB, so rwnd never bound. Answer 44 KB.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Inventing a threshold by halving rwnd (25 KB) changes every line after round trip 5. The threshold here is stated in the question.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 — GATE 2024 Set 2 Q54, both signals</h3>
+          <p class="small">cwnd is 12 MSS at a loss, and the next two round trips are clean.</p>
+          <ol class="step-list small">
+            <li>ssthresh = 12 ÷ 2 = 6 in both cases.</li>
+            <li><strong>Timeout:</strong> cwnd = 1, then 2, then 4. Answer 4 MSS.</li>
+            <li><strong>Three duplicate ACKs, Reno:</strong> cwnd = 6, then 7, then 8. Answer 8 MSS.</li>
+            <li>A third clean round trip after the timeout gives 6, not 8: doubling stops at the threshold.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Takeaway.</strong> The same numbers produce 4 or 8 depending on one word in the question. The loss signal is part of the given data, not a detail.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Example 5 — throughput and the window the path needs</h3>
+          <p class="small">Peak window 100 MSS, MSS 1460 B, RTT 40 ms.</p>
+          <ol class="step-list small">
+            <li>Average window = 0.75 × 100 = 75 MSS. <span class="why">The sawtooth spends its time between half the peak and the peak.</span></li>
+            <li>75 × 1460 = 109500 bytes per round trip.</li>
+            <li>109500 ÷ 0.04 s = 2737500 B/s = 21.9 Mbps.</li>
+            <li>BDP = 100 Mbps × 0.1 s = 1.25 MB, which needs a window of 857 segments — far more than a 16-bit field names, so window scaling is required.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Using the peak window instead of the average overstates throughput by a third (100/75). Using bytes per second as bits per second understates it by eight.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Example 6 — socket calls and the segment size</h3>
+          <p class="small">A server and a client on Ethernet, MTU 1500, transferring 10000 bytes.</p>
+          <ol class="step-list small">
+            <li>Server: socket → bind → listen → accept → recv/send → close.</li>
+            <li>Client: socket → connect → send/recv → close. connect sends the SYN.</li>
+            <li>MSS = 1500 − 20 − 20 = 1460 bytes. With IPv6: 1500 − 40 − 20 = 1440.</li>
+            <li>10000 bytes = 6 × 1460 + 1240, so seven segments and a 1240-byte tail.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Note.</strong> accept returns a <em>new</em> socket for the connection; the listening socket stays listening. The handshake is completed by the kernel before accept returns.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rules stop being enough</h3>
+          <p class="small muted" style="margin-bottom:0">Each card names a boundary case, the condition that makes it a boundary case, and what the correct behaviour is. Read these before the practice set: every one of them has been the subject of a real question somewhere in this clause.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Zero window</h3>
+          <p class="small"><strong>Condition:</strong> the receiver buffer is full, so the advertised window is 0.</p>
+          <p class="small">The sender must not send data, but it must keep probing, because the window update that reopens the connection can be lost. Without a probe the connection deadlocks with both sides waiting.</p>
+          <p class="small" style="margin-bottom:0">A zero window is a pause, not a close. Only FIN or RST ends the connection.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A loss at the end of a window: no duplicate ACKs</h3>
+          <p class="small"><strong>Condition:</strong> the last segment of the window is lost and no further data is in flight.</p>
+          <p class="small">Duplicate acknowledgements are generated by <em>later</em> segments arriving out of order. If nothing follows the lost segment, none are generated, so fast retransmit cannot fire and the loss is detected by the retransmission timer — with cwnd restarted at one segment rather than halved to the threshold.</p>
+          <p class="small" style="margin-bottom:0">This is the counterexample to "TCP always detects loss by duplicate ACKs". It also explains why the number of dup ACKs a sender sees depends on how much data follows the hole.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The threshold floor of two segments</h3>
+          <p class="small"><strong>Condition:</strong> the window at the loss is very small — one or two segments.</p>
+          <p class="small">Halving one segment gives zero, which would forbid transmission. The rule therefore floors the threshold at two segments: $$\text{ssthresh} = \max(\text{flight}/2,\ 2\ \text{SMSS}).$$</p>
+          <p class="small" style="margin-bottom:0">A trace that halves 1 MSS to 0 has applied the formula without its guard.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>When the receiver window binds first</h3>
+          <p class="small"><strong>Condition:</strong> rwnd is smaller than cwnd over the whole range the question covers.</p>
+          <p class="small">The congestion window may keep growing in the sender's own bookkeeping, but the bytes on the wire stop at rwnd. In the GATE 2020 trace the answer stayed below 50 KB, so rwnd never bound; if the trace had reached 25 MSS the answer would have been capped there and the question would have had a different shape.</p>
+          <p class="small" style="margin-bottom:0">Always check the final value against rwnd. A trace that crosses it has not finished the question.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Nagle plus delayed ACK</h3>
+          <p class="small"><strong>Condition:</strong> an application writes small records, the sender has Nagle enabled, and the receiver delays acknowledgements.</p>
+          <p class="small">The sender holds the second small segment until the first is acknowledged; the receiver waits for a second full segment or about half a second before acknowledging. Each waits for the other, so the transfer crawls at roughly one record per round trip instead of one per window.</p>
+          <p class="small" style="margin-bottom:0">The fix is at the application or at the socket option, not in the congestion algorithm.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An MSS larger than the path allows</h3>
+          <p class="small"><strong>Condition:</strong> the sender's MSS was chosen from its own link MTU, but a later link is smaller.</p>
+          <p class="small">The segment is then fragmented at the IP layer, and the loss of any fragment costs the whole segment a retransmission. Path MTU discovery exists to avoid exactly this, and it is why the fragmentation lesson's arithmetic reaches into this one.</p>
+          <p class="small" style="margin-bottom:0">MSS is not a constant of TCP. It is a function of the smallest MTU on the path.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Three exam conventions that are not in the RFC</h3>
+          <p class="small"><strong>Initial window.</strong> RFC 5681 allows up to four segments; almost every GATE trace starts at one segment, and the question says so when it differs.</p>
+          <p class="small"><strong>Which variant.</strong> "Three duplicate ACKs" behaves as Tahoe (restart at one) or Reno (restart at the threshold) depending on the question. If neither is named, say which you assumed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counting the loss round trip.</strong> A published key that accepts a range is telling you the convention is arguable. Write your convention next to your answer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce wrong answers, and the smallest fact that refutes each</h3>
+          <p class="small muted" style="margin-bottom:0">A misconception is not a slip of arithmetic; it is a rule that is wrong and will keep producing wrong answers. Each card gives the belief, why it tempts, the minimal counterexample, and the correct rule.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"In slow start, cwnd doubles on every acknowledgement."</h3>
+          <p class="small"><strong>Why it tempts.</strong> Slow start really does double per round trip, and an acknowledgement is what arrives at the sender, so the two get merged.</p>
+          <p class="small"><strong>Counterexample.</strong> Start at 1 MSS. If cwnd doubled per ACK, two ACKs would give 4 MSS within one round trip. The actual sequence is 1 → 2 after the first window of ACKs, because each ACK adds one segment and there are only as many ACKs as segments in the window.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> +1 MSS per ACK; a doubling per round trip. GATE 2018 Q14 turns on exactly this distinction.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Slow start is the slow phase."</h3>
+          <p class="small"><strong>Why it tempts.</strong> The name.</p>
+          <p class="small"><strong>Counterexample.</strong> From 1 MSS, slow start reaches 16 MSS in four round trips; congestion avoidance needs eight more round trips to go from 8 to 16. Slow start is the fast phase.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> "Slow" describes the starting point, not the rate. Exponential versus linear is the distinction to hold on to.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A timeout and three duplicate ACKs do the same thing."</h3>
+          <p class="small"><strong>Why it tempts.</strong> Both halve the threshold, so the first line of the trace is identical.</p>
+          <p class="small"><strong>Counterexample.</strong> GATE 2024 Set 2 Q54: from 12 MSS with two clean round trips, a timeout gives 4 MSS and Reno's duplicate ACKs give 8 MSS.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Both halve the threshold; only the timeout resets the window to one segment. The duplicate ACKs say the path is still delivering, which is why the cut is smaller.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The slow-start threshold starts at half the receiver window."</h3>
+          <p class="small"><strong>Why it tempts.</strong> The threshold <em>is</em> half of something, and the receiver window is the only window printed in the question.</p>
+          <p class="small"><strong>Counterexample.</strong> GATE 2020 Q55 states a threshold of 32 KB with a receiver window of 50 KB. Half of 50 is 25, which is not the threshold and gives a different answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The threshold is halved from the data in flight at a loss. If no loss has occurred and the question gives no threshold, the question is incomplete — do not invent one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"cwnd can never exceed rwnd."</h3>
+          <p class="small"><strong>Why it tempts.</strong> The cap rule is stated as a minimum, so the two numbers look coupled.</p>
+          <p class="small"><strong>Counterexample.</strong> The sender's cwnd can grow past rwnd in its own bookkeeping — nothing on the wire reveals cwnd, so nothing stops it. The <em>bytes in flight</em> are what stop at rwnd.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The minimum applies to data in flight, not to the variable. A question about "the congestion window" and a question about "the data sent" can therefore have different answers.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The advertised window is a number of segments."</h3>
+          <p class="small"><strong>Why it tempts.</strong> Every trace in this clause is written in segments, so the units blur.</p>
+          <p class="small"><strong>Counterexample.</strong> A window field of 50 KB with a 2 KB segment is 25 segments; treating 50 as a segment count gives a window 25 times too large, and the 2020 trace then never reaches it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The field counts bytes. Convert to segments at the top of your working, and write the unit beside every number.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>A belief that is only half wrong: "flow control and congestion control are the same mechanism"</h3>
+          <p class="small">They share the shape — a window that the sender respects — which is why the sentence is tempting. They differ in what the window protects, who sets it, and how it is learned: rwnd protects the receiver buffer and is published in every ACK; cwnd protects the network and is inferred from loss.</p>
+          <p class="small" style="margin-bottom:0">The separating test: on a path with no loss at all, does the rate still have a ceiling? If yes, that ceiling is flow control, because congestion control has nothing to react to. The animation's second scene computes that ceiling: 65535 bytes over a 100 ms round trip is about 5.24 Mbps however fast the link is.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six question shapes, and the reasoning each one demands</h3>
+          <p class="small muted" style="margin-bottom:0">These are patterns observed in past papers of this clause, described as patterns and not as predictions. Each card names the shape, the procedure, and the wrong approach that the distractors are built from.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 1 — the window at a given time</h3>
+          <p class="small"><strong>Shape.</strong> A round trip, a segment size, a threshold, sometimes a receiver window, and a time or a number of round trips. Find cwnd.</p>
+          <p class="small"><strong>Procedure.</strong> Divide the elapsed time by the round trip. Convert everything to segments. Walk the trace: double below the threshold, +1 at or above it, cap at rwnd.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distractor.</strong> One option always continues doubling past the threshold; another always halves rwnd to invent a threshold. Seen in GATE 2020 Q55 and GATE 2024 Set 2 Q54.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 2 — the time to reach a target window</h3>
+          <p class="small"><strong>Shape.</strong> The window at a loss, the round trip, and a target. Find the time, or the number of round trips.</p>
+          <p class="small"><strong>Procedure.</strong> Halve to get the threshold, restart at one, count the doublings to the threshold, then count the linear steps to the target, then multiply by the round trip.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distractor.</strong> Pure doubling gives a much smaller answer, and forgetting the endpoint gives one round trip too few. Seen in GATE 2014 Set 1 Q27, where the key accepts a range because of the counting convention.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 3 — which statement about growth is true</h3>
+          <p class="small"><strong>Shape.</strong> Four statements about per-ACK and per-round-trip growth; pick the true one, or the set of true ones.</p>
+          <p class="small"><strong>Procedure.</strong> Check each statement against the phase it claims. "+2 MSS per ACK" is wrong in both phases; "doubles per ACK" is wrong; "one MSS per round trip" is congestion avoidance; "doubles per round trip" is slow start.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distractor.</strong> The statement that is true of the <em>other</em> phase. Seen in GATE 2018 Q14.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 4 — throughput, or the window a path needs</h3>
+          <p class="small"><strong>Shape.</strong> Bandwidth and round trip, sometimes a peak window and a segment size. Find an average rate, or the window that fills the pipe.</p>
+          <p class="small"><strong>Procedure.</strong> Average window = 0.75 × peak; divide by the round trip; convert bytes to bits only at the end. For the other direction, BDP = bandwidth × round trip, then divide by MSS for segments.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distractor.</strong> Using the peak instead of the average, or the BDP in bits compared against a window in bytes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 5 — the socket API</h3>
+          <p class="small"><strong>Shape.</strong> The correct order of calls, or which call makes a socket passive, or what accept returns.</p>
+          <p class="small"><strong>Procedure.</strong> Server: socket, bind, listen, accept, recv. Client: socket, connect. listen is the passive call; accept returns a new socket; connect is where the SYN goes.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distractor.</strong> accept offered before listen. Seen in GATE 2015 Set 2 Q20 and GATE 2014 Set 2 Q24.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 6 — the handshake and the header</h3>
+          <p class="small"><strong>Shape.</strong> Which flags are set in each of the three handshake packets, which sequence and acknowledgement numbers they carry, or how many bytes of a segment are header.</p>
+          <p class="small"><strong>Procedure.</strong> SYN carries SYN only; the second packet carries SYN and ACK; the third carries ACK only. The acknowledgement number is the peer's sequence number plus one. Header arithmetic: 20 + 20 bytes off the MTU.</p>
+          <p class="small" style="margin-bottom:0"><strong>Recent shape.</strong> A 2025 Set 1 multiple-select item asks which flags are set in each of the three packets, and a 2024 Set 1 item asks about the sequence and acknowledgement numbers in SYN and SYN-ACK.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The decision procedure, before any arithmetic</h3>
+          <p class="small"><strong>Step 1.</strong> Which window binds over the range asked — rwnd or cwnd? That decides whether the receiver's buffer can affect the answer at all.</p>
+          <p class="small"><strong>Step 2.</strong> Which signal fired — a timeout, three duplicate ACKs, or neither? That decides the window immediately after a loss.</p>
+          <p class="small"><strong>Step 3.</strong> Which variant — Tahoe, or Reno? Only matters for duplicate ACKs, and only if the question does not state the rule.</p>
+          <p class="small" style="margin-bottom:0"><strong>Step 4.</strong> Convert to segments, walk the trace, and stop at the round trip named. Write the unit beside every number.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 2 to 7 are previous-year items with their year and set, and each answer was recomputed by this page. Questions 1, 8, 9 and 10 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A TCP sender's congestion window is 24 MSS when a retransmission timeout occurs. Assume the window is restarted at one segment and grows by the standard rules with no further loss. The congestion window, in MSS, after two further round trips is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 4</p>
+            <p>ssthresh = 24 ÷ 2 = 12 and cwnd = 1. Round trip one: 1 &lt; 12, so doubling gives 2. Round trip two: 2 &lt; 12, so doubling gives 4.</p>
+            <p><strong>Why 6 and 8 are wrong.</strong> Both come from applying the threshold as if it were 6, i.e. halving twice. <strong>Why 2 is wrong.</strong> It counts one round trip instead of two.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2018 Q14</span></div>
+          <div class="q-body">
+            <p>Consider the following statements regarding the slow start phase of the TCP congestion control algorithm, where cwnd is the congestion window and MSS the maximum segment size.</p>
+            <p>(i) cwnd increases by 2 MSS on every successful acknowledgement.<br>
+               (ii) cwnd approximately doubles on every successful acknowledgement.<br>
+               (iii) cwnd increases by 1 MSS every round trip time.<br>
+               (iv) cwnd approximately doubles every round trip time.</p>
+            <p>Which one of the following is correct?</p>
+            <ol class="choices">
+              <li>Only (ii) and (iii) are true</li>
+              <li>Only (i) and (iii) are true</li>
+              <li>Only (iv) is true</li>
+              <li>Only (i) and (iv) are true</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C — only (iv) is true</p>
+            <p>Per acknowledgement cwnd grows by one segment, so a whole window of acknowledgements doubles it. (i) and (ii) are false; (iii) describes congestion avoidance.</p>
+            <p><strong>Why D tempts.</strong> It pairs the one true statement with the one that sounds most like it, "doubling per ACK". The rate per ACK is additive; the rate per round trip is multiplicative.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2020 Q55</span></div>
+          <div class="q-body">
+            <p>A TCP connection has round trip time 6 ms, receiver advertised window 50 KB, slow-start threshold 32 KB and MSS 2 KB. The connection is established at t = 0 with no timeouts and no errors. The size of the congestion window, in KB, at t + 60 ms after all acknowledgements are processed is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 44</p>
+            <p>60 ÷ 6 = 10 round trips. Doubling gives 2, 4, 8, 16, 32 KB after four round trips; then +2 KB per round trip gives 34, 36, 38, 40, 42, 44 KB over six more round trips. The receiver window of 50 KB never binds.</p>
+            <p><strong>Why 42 tempts.</strong> It stops one round trip early. <strong>Why 25 appears in discussions.</strong> Halving the receiver window to invent a threshold, which the question does not ask for.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2014 Set 1 Q27</span></div>
+          <div class="q-body">
+            <p>The size of the congestion window of a TCP connection is 32 KB when a timeout occurs. The round trip time is 100 ms and the maximum segment size is 2 KB. The time taken, in ms, for the connection to get back to a 32 KB congestion window is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 1100 (the published key accepts a range around 1000–1300)</p>
+            <p>16 MSS at the timeout, so ssthresh = 8 and cwnd = 1. Doubling gives 1, 2, 4, 8; linear gives 9 … 16, reached at round trip 11. Eleven round trips of 100 ms is 1100 ms.</p>
+            <p><strong>Why 400 tempts.</strong> Doubling from 1 to 16 ignores the threshold. <strong>Why the range exists.</strong> Some solutions count the round trip in which the timeout occurs; state your convention.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2024 Set 2 Q54</span></div>
+          <div class="q-body">
+            <p>A TCP connection is operating with a congestion window of 12 MSS when a timeout occurs due to packet loss. Assuming all segments transmitted in the next two round trips are acknowledged correctly, the congestion window size, in MSS, is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 4</p>
+            <p>ssthresh = 6, cwnd = 1. Round trip one gives 2, round trip two gives 4, both still below the threshold.</p>
+            <p><strong>Why 6 is wrong.</strong> It jumps straight to the threshold. <strong>Why 8 is wrong.</strong> It doubles past the threshold — and it is the right answer only if the loss were signalled by three duplicate ACKs under Reno.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2014 Set 2 Q24</span></div>
+          <div class="q-body">
+            <p>Which one of the following socket API functions converts an unconnected active TCP socket into a passive socket?</p>
+            <ol class="choices">
+              <li>connect</li>
+              <li>bind</li>
+              <li>listen</li>
+              <li>accept</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C — listen</p>
+            <p>listen marks the socket as willing to accept incoming connections, which is exactly the passive-open state. bind only attaches a local address and port.</p>
+            <p><strong>Why accept is wrong.</strong> accept does not change the listening socket at all; it returns a new socket for one connection, while the original stays passive.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2015 Set 2 Q20</span></div>
+          <div class="q-body">
+            <p>Identify the correct order in which a server process must invoke the function calls accept, bind, listen and recv according to the UNIX socket API.</p>
+            <ol class="choices">
+              <li>listen, accept, bind, recv</li>
+              <li>bind, listen, accept, recv</li>
+              <li>bind, accept, listen, recv</li>
+              <li>accept, listen, bind, recv</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — bind, listen, accept, recv</p>
+            <p>A socket must be named before it can be made passive, and made passive before a connection can be taken from it. Only then can data be read.</p>
+            <p><strong>Why A and D fail.</strong> Both call accept before the socket is listening, so there is no connection queue to take from. <strong>Why C fails.</strong> accept on a socket that never listened fails with an invalid-argument error.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following statements about flow control and congestion control in TCP is/are TRUE?</p>
+            <ol class="choices">
+              <li>Flow control prevents a fast sender from overrunning the receiver's buffer.</li>
+              <li>The congestion window is communicated to the sender in a field of the TCP header.</li>
+              <li>The data a sender may have in flight is bounded by the smaller of the two windows.</li>
+              <li>If the receiver advertises a larger window, the sender can always send more data immediately.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and C</p>
+            <p>A is the definition of flow control. C is the cap rule. B is false: no header field carries cwnd; it is inferred from loss. D is false: cwnd may be the smaller window, in which case a larger rwnd changes nothing.</p>
+            <p><strong>Trap.</strong> D is the sentence that separates the two ideas, and it is the option most often marked true by mistake.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A sender's congestion window is 4 MSS. The last segment of that window is lost, and the sender has no further data to send. How is the loss detected?</p>
+            <ol class="choices">
+              <li>By three duplicate acknowledgements, so fast retransmit fires</li>
+              <li>By the retransmission timeout, because no duplicate acknowledgements are generated</li>
+              <li>By a negative acknowledgement from the receiver</li>
+              <li>By the receiver advertising a zero window</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Duplicate acknowledgements are produced by later segments arriving out of order. With nothing after the lost segment, none are produced, so the timer is the only detector — and the window restarts at one segment rather than being cut to the threshold.</p>
+            <p><strong>Why A tempts.</strong> It applies "TCP detects loss by duplicate ACKs" without its condition. <strong>Why C is wrong.</strong> TCP has no NACK; the receiver only repeats its cumulative acknowledgement.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A TCP connection under additive increase and multiplicative decrease has a peak congestion window of 80 MSS, an MSS of 1000 bytes and a round trip time of 50 ms. Its average throughput, in Mbps, is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 9.6</p>
+            <p>Average window = 0.75 × 80 = 60 MSS = 60000 bytes per round trip. 60000 ÷ 0.05 = 1200000 bytes per second, which is 9.6 Mbps.</p>
+            <p><strong>Why 12.8 tempts.</strong> It uses the peak window instead of the average. <strong>Why 1.2 tempts.</strong> It forgets the conversion from bytes to bits.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — everything on this page, compressed</h3>
+          <p class="small muted" style="margin-bottom:0">Use this after the practice set. If a line here is not obvious, the tab that explains it is named beside it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two windows</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>In flight ≤ min(rwnd, cwnd). The smaller binds.</li>
+            <li>rwnd: 16-bit header field, in bytes, from the acknowledgement number. Flow control.</li>
+            <li>cwnd: sender-side only, never transmitted. Congestion control.</li>
+            <li>Usable = rwnd − (last byte sent − last byte acknowledged).</li>
+            <li>Scaling multiplies the advertised field by a power of two agreed at setup.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Growth rules</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Slow start, below ssthresh: +1 MSS per ACK, so a doubling per round trip.</li>
+            <li>Congestion avoidance, at or above ssthresh: +1 MSS per round trip.</li>
+            <li>Doubling never lands past the threshold.</li>
+            <li>Timeout: ssthresh = max(flight/2, 2 MSS), cwnd = 1.</li>
+            <li>Three duplicate ACKs: ssthresh = flight/2; Tahoe sets cwnd = 1, Reno sets cwnd = ssthresh.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Numbers to have ready</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>2014 Set 1: 16 → threshold 8 → 1, 2, 4, 8, 9 … 16 → 11 RTT → 1100 ms.</li>
+            <li>2020: 10 RTT → 2, 4, 8, 16, 32 KB after four → +2 KB for six more → 44 KB.</li>
+            <li>2024 Set 2: 12 → threshold 6 → timeout gives 4, duplicate ACKs give 8.</li>
+            <li>Average rate = 0.75 × W_max ÷ RTT; 100 MSS × 1460 B ÷ 40 ms = 21.9 Mbps.</li>
+            <li>BDP = bandwidth × RTT; 100 Mbps × 100 ms = 1.25 MB.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Sockets and segments</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Server: socket, bind, listen, accept, recv/send, close.</li>
+            <li>Client: socket, connect, send/recv, close.</li>
+            <li>listen = passive open; accept returns a new connected socket.</li>
+            <li>Handshake: SYN, SYN + ACK, ACK. connect sends the SYN.</li>
+            <li>MSS = MTU − 40 for IPv4 TCP, − 60 for IPv6. 1500 → 1460.</li>
+            <li>Connection identity = (source IP, source port, destination IP, destination port).</li>
+            <li>Only the active closer waits in TIME_WAIT, for 2 × MSL.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Decision procedure in one line each</h3>
+          <p class="small"><strong>Window at a time.</strong> Time ÷ RTT → convert to segments → double below the threshold → +1 at it → cap at rwnd.</p>
+          <p class="small"><strong>Time to a target.</strong> Halve to the threshold → count doublings → count linear steps → multiply by the RTT.</p>
+          <p class="small"><strong>Throughput.</strong> 0.75 × peak ÷ RTT, then bytes to bits at the last step.</p>
+          <p class="small" style="margin-bottom:0"><strong>Socket question.</strong> Name the side first (server or client), then recite the order; the distractors are always a permutation.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The four slips, one last time</h3>
+          <p class="small" style="margin-bottom:0">Doubling past the threshold · halving the receiver window to invent a threshold · reading per-ACK growth as per-RTT growth · treating flow control and congestion control as one limit. Write the unit and the loss signal at the top of your working and none of the four survives.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official documents are separated from question catalogues. A catalogue is evidence that a question exists and was asked in a given year; it is not evidence about the 2027 paper. Every numeric answer on this page was recomputed from the question text, so catalogues were used to find questions, not to settle answers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official and standards</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read on 28 October 2026. Supports the Section 10 wording quoted in Overview, including that flow control, congestion control and the socket API are named in one clause.</li>
+            <li><strong>RFC 5681</strong> (TCP Congestion Control, 2009). The four algorithms — slow start, congestion avoidance, fast retransmit, fast recovery — the per-ACK growth rules, the halving of the threshold and the three-duplicate-ACK trigger. Read for this lesson: the abstract, the table of contents and the definitions of section 2; the growth rules are stated here in the form that section gives them.</li>
+            <li><strong>RFC 9293</strong> (TCP, 2022) — the header fields, the receive window as a byte count measured from the acknowledgement number, the handshake and the state machine including TIME_WAIT.</li>
+            <li><strong>RFC 7323</strong> — the window scale option, which is why a 16-bit field does not cap a fast long path.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Question catalogues, used to locate items</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GateAI's topic index</strong> for TCP flow and congestion control, used to identify which papers carry items in this clause and to read the question text of 2014 Set 1 Q27, 2018 Q14, 2020 Q55 and 2024 Set 2 Q54.</li>
+            <li><strong>GATE Overflow</strong> threads for 2020 Q55 and 2014 Set 1 Q27, used for the community's reasoning about the counting convention and about the threshold that must be given rather than derived.</li>
+            <li><strong>Numbering note.</strong> The 2018 slow-start statement question is numbered 14 by one catalogue and 20 by another. The year and the question text are what matter; the item number is reported here as the catalogue this page read gives it.</li>
+            <li><strong>Coaching practice sets</strong> for the standard AIMD exercise, used only to check that the textbook trace matches the exam trace; no question here is attributed to a coaching source.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No official answer-key PDF was opened for the items above; every answer was recomputed from the question text by this page's model and, where a key accepts a range, the range is reported as the key reports it. The RFCs were read in part rather than in full: RFC 5681's growth rules and RFC 9293's header and window definitions are the parts relied on, and anything beyond them — CUBIC, BBR, SACK-based recovery, ECN — is outside this clause and is not taught here. No claim is made about 2027 weightage, and no search was made for 2027 sample papers, because none exists at the time of writing. Nothing here was checked against a printed textbook edition.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
