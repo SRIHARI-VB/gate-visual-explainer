@@ -438,7 +438,18 @@ topics.append(topic(
     importance="medium",
     evidence="Section 1 of the GATE 2027 CS syllabus lists 'Limits, continuity and differentiability, Maxima and minima, Mean value theorem, Integration'.",
     difficulty="medium",
-    microtopics=["L'Hopital where applicable", "first and second derivative tests"]))
+    microtopics=["L'Hopital where applicable", "first and second derivative tests",
+                 "the five indeterminate forms and the move for each",
+                 "one-sided limits and the three ways continuity fails",
+                 "two one-sided slopes as the test for differentiability",
+                 "the mean value theorem used as an inequality, and sharpness",
+                 "the closed-interval candidate list: critical points, corners, endpoints",
+                 "substitution with its sign and its new limits",
+                 "odd and even integrands over symmetric intervals"],
+    status="PUBLISHED",
+    slug="calculus-limits-extrema-and-integration",
+    path="topics/calculus-limits-extrema-and-integration/index.html",
+    execution="published 2026-10-28; 61 model checks, ten scenes, 40 caption cues"))
 
 topics.append(topic(
     EM, "Probability and statistics", "Probability, random variables and distributions",
