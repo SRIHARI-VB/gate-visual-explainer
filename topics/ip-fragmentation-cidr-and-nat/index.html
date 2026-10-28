@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IP Fragmentation, CIDR and NAT — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">IP Fragmentation, CIDR and NAT</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../distance-vector-and-link-state-routing/index.html">Previous: Distance vector and link state</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> IPv4 fragmentation, CIDR notation and network address translation — one clause of GATE 2027 Section 10, Computer Networks.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Read a prefix as a cut position in a 32-bit number, compute the five numbers of the block that contains a given address, and pick the winning entry in a routing table by longest prefix match rather than by first match. Decide when two adjacent blocks may be merged into one, and check that the merged block steals no address. Fragment a datagram for a given MTU by computing the payload budget, rounding it down to a multiple of eight, and writing the offset, the more-fragments bit and the identification field for each piece; then do it again at a second link, keeping every offset relative to the original data. Finally, follow one packet out through a NAT table and back, and name exactly which header fields change in each direction.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>one arithmetic question asked in three costumes</em>: how many bits belong to whom, where a byte sits inside a bigger byte string, and who is allowed to rewrite an address. The block arithmetic of CIDR, the offset arithmetic of fragmentation and the table arithmetic of NAT are the same three operations — cut, index, substitute — applied to an address, to a payload and to a connection.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 10 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: <em>"Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; Data link layer: error detection, Medium Access Control, Ethernet; Distance vector and link state routing; IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP- flow control and congestion control, socket API; DNS and HTTP."</em> The fourth sentence is this lesson.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The 2027 wording names fragmentation, CIDR notation and NAT, and does <em>not</em> name "IP addressing" as a separate item; the 2026 wording did. Subnetting is still required, because CIDR notation is meaningless without it, but treat the address-arithmetic parts as the prerequisite they are rather than as a separately listed item.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One topic-indexed archive lists eight fragmentation items in the CS papers from 2014 to 2026, and analyst compilations place Computer Networks at roughly 6 to 11 marks per paper over 2009–2026. Both are somebody's tagging of somebody's collection, not official weightage and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary, not that one is guaranteed. Every previous-year item quoted carries its year and set, and every answer was recomputed by this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Binary, and bitwise AND.</strong> Every number here is produced by ANDing an address with a mask, or by dividing a byte count by eight. Built in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a>.</li>
+            <li><strong>Encapsulation, and what a per-hop header is.</strong> An IP datagram is a header plus data, and the data may itself be a transport segment. Built in <a href="../layering-switching-and-performance-metrics/index.html">Layering, Switching and Performance Metrics</a>.</li>
+            <li><strong>Store-and-forward, and link capacity.</strong> An MTU is a property of one link, which is why the same datagram may be too large on the next hop. Same lesson as above.</li>
+            <li><strong>Routing tables and next hops.</strong> Longest prefix match is what a routing table is read with; the table itself is built by the routing protocols. Built in <a href="../distance-vector-and-link-state-routing/index.html">Distance Vector and Link State Routing</a>.</li>
+            <li><strong>Transport headers and ports.</strong> The UDP header sits inside the IP data, which is why fragment 1 carries the ports and the others do not. Built in <a href="../layering-switching-and-performance-metrics/index.html">Layering, Switching and Performance Metrics</a>.</li>
+            <li><strong>Sets and union.</strong> Aggregation is a union of address blocks, and a correct merge covers exactly that union. Built in <a href="../sets-and-set-operations/index.html">Sets and Set Operations</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about TCP congestion control, DNS or HTTP is assumed; those are the next two lessons in this section.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>The split.</strong> Thirty-two bit cells with the prefix cut drawn, then the /27 block on a number line from .128 to .159.</li>
+            <li><strong>Five numbers.</strong> The block's five quantities computed, then the three GATE 2019 machines placed in their blocks.</li>
+            <li><strong>Longest match.</strong> A routing table with each candidate marked, the candidate list sorted by prefix length, and the winner arrowed.</li>
+            <li><strong>Aggregation.</strong> The four octets in binary, the two merged /22 bars, and the address count proving nothing extra was captured.</li>
+            <li><strong>Rules.</strong> One datagram drawn with its header, the payload budget bracketed, and the 8-byte grid that makes the offset integral.</li>
+            <li><strong>GATE 2016.</strong> All thirteen fragments drawn with data and offset under each, plus the five invariant checks.</li>
+            <li><strong>GATE 2025.</strong> Six fragments, the last one sized as 116 bytes, with the 108-versus-116 trap beside it.</li>
+            <li><strong>GATE 2024.</strong> Three fragments after the first hop, six at the receiver, offsets continuing from 65 units.</li>
+            <li><strong>NAT.</strong> Three private hosts, the translation table, and the outbound and returning packet paths.</li>
+            <li><strong>Procedure.</strong> Two five-step routines and the four slips that produce the wrong option.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A prefix is a cut, not a mask value. Turn it into a block size first, and every other number follows by counting from the two ends.</li>
+            <li>Longest prefix match, never first match. A default route is a prefix of length zero and wins nothing.</li>
+            <li>Two blocks merge exactly when they are the same size, adjacent, and aligned as a pair — and the merged block must capture no foreign address.</li>
+            <li>The fragment budget is MTU minus header, and it is rounded <em>down</em> to a multiple of eight. Only the last fragment may carry a remainder.</li>
+            <li>Offsets are absolute positions in the original data. A second fragmentation continues the numbering; it never restarts it.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 70–90 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Three things are deliberately outside this lesson. <strong>ARP, DHCP and ICMP</strong> are not taught, because the 2027 wording no longer names them; ICMP "fragmentation needed" appears once, in Edge cases, marked as outside the listed wording. <strong>TCP flow control, congestion control and the socket API</strong>, and <strong>DNS and HTTP</strong>, are the next two lessons in this section and are not assumed here. And the classful addressing scheme is mentioned only to explain why a table of prefixes replaced it; no question in the recent papers needs classful arithmetic.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: a street, a parcel, and a receptionist</h3>
+              <p>An IPv4 address is a 32-bit number, and a prefix is a pair of scissors. Where you cut decides which part names the street and which part names the house. Move the cut one bit left and the street doubles in length while each street loses half its houses. Nothing about the number changed; only the cut moved.</p>
+              <p class="small muted" style="margin-bottom:0">That single picture covers the whole addressing half of this clause: block size, network address, broadcast address and usable hosts are all consequences of where the cut sits. Fragmentation is a different costume for the same arithmetic — a parcel too big for a van is cut into boxes, and each box is labelled with the byte range it carries, measured from the start of the <em>original</em> parcel, not from the previous box. NAT is the third costume: a receptionist who signs for parcels on behalf of everybody inside, and who has to remember which insider each returning parcel belongs to.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 1 — Intuition, in one sentence each</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Prefix.</strong> How many of the leftmost bits are the street name.</li>
+                <li><strong>Block.</strong> All the addresses with the same street name, which is a run of consecutive numbers starting at a multiple of its own length.</li>
+                <li><strong>Longest prefix match.</strong> When several rules apply, obey the most specific one.</li>
+                <li><strong>Aggregation.</strong> Two neighbouring streets with the same destination can be announced as one bigger street, provided the bigger street contains nobody else.</li>
+                <li><strong>MTU.</strong> The biggest parcel the next van will take, box and label included.</li>
+                <li><strong>Fragment.</strong> One box, labelled with the byte range it carries and whether more boxes follow.</li>
+                <li><strong>NAT.</strong> One public return address for many private senders, with a ledger that says which sender each reply belongs to.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Level 2 — Formal definitions</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> A <strong>CIDR block</strong> is written <code>a.b.c.d/p</code>, where p is the prefix length. Its mask has p one-bits followed by 32 − p zero-bits. Its network address is the bitwise AND of the address and the mask, and its block contains exactly $$2^{32-p}$$ consecutive addresses beginning at that network address.</p>
+              <p class="small"><strong>Usable hosts.</strong> With h = 32 − p host bits, $$2^h - 2$$ addresses may be assigned: the all-zero host value names the network and the all-one host value is the directed broadcast. Two exceptions are stated in Edge cases.</p>
+              <p class="small"><strong>Longest prefix match.</strong> Among the entries whose network address equals the destination AND that entry's mask, forward to the one with the largest prefix length. If none matches, use the default route, which is the entry with prefix length zero.</p>
+              <p class="small" style="margin-bottom:0"><strong>MTU and fragmentation.</strong> For a link of MTU M and header length H, the payload budget is M − H and the usable payload per fragment is $$8\left\lfloor \frac{M-H}{8} \right\rfloor$$. A datagram of L bytes of data becomes $$\left\lceil \frac{L}{\text{usable}} \right\rceil$$ fragments, the last of which may carry any remainder.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Level 5 — the boundary conditions, stated up front</h3>
+              <p class="small" style="margin-bottom:0">The formula $$2^h - 2$$ assumes a subnet with a network address and a broadcast address. It fails for a /31 point-to-point link and for a /32 single host, where a later standard reuses those two values. The fragmentation formula assumes the datagram is larger than the budget and that the don't-fragment bit is clear; if DF is set, the datagram is not fragmented at all, and it is discarded with an error back to the source. The offset field is 13 bits, so the largest expressible position is $$8191 \times 8 = 65528$$ bytes, which is why the maximum datagram of 65535 bytes can still be described. And the aggregation rule assumes both halves are reachable through the same next hop; without that assumption, a merge can send foreign traffic to the wrong place.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 3 and 4 — why each mechanism is built this way</h3>
+              <p>The three mechanisms look unrelated and are not. Each one answers the question "where does this byte, or this address, sit inside a longer string, and who is allowed to change it". CIDR asks where the network part ends inside a 32-bit address. Fragmentation asks where a fragment's first byte sits inside the original payload. NAT asks which private address sits behind one public address-and-port pair. All three are answered by an index plus a substitution, and all three are examined by making you compute the index.</p>
+              <p class="small muted" style="margin-bottom:0">That is why the arithmetic in this clause is short and the mistakes are frequent: the operations are trivial, and the errors are all about <em>units</em> and <em>bases</em> — bits against bytes, block size against mask value, offset units against offset bytes, total length against data length.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Why the fragment offset is counted in eights</h3>
+              <p class="small"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The offset field is 13 bits. Counting in bytes, 13 bits reach only 8191 bytes, which is far below the 65535-byte maximum datagram. Counting in 8-byte units multiplies the reach by eight, to 65528 bytes, which is just short of the maximum data a 20-byte header can precede. The unit was chosen so that the field could address the whole datagram.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The cost of that choice is the alignment rule. A fragment's start must be a multiple of 8, so every fragment except the last must carry a multiple of 8 bytes. This is why the usable payload is the budget rounded <em>down</em>: rounding up would produce a start position that is not a whole number of units, which the field cannot express.</p>
+            </div>
+
+            <div class="card">
+              <h3>Why reassembly is at the destination only</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> IPv4 places reassembly at the destination host. A router that reassembled would spend buffer memory on every passing datagram, and would then have to fragment the result again if the next link were smaller. GATE CSE 2024 Set 2 Question 28 tests exactly this as a statement set, and the two true statements are "fragmentation may happen at any router whose outgoing link is too small" and "reassembly happens only at the destination".</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A consequence worth knowing: if one fragment is lost, the destination cannot reassemble, so the transport layer must resend the whole segment, because the sender never learned that fragmentation happened at all. That is the reasoning behind the second correct option of GATE CSE 2021 Set 1 Question 45.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Why NAT needs a port</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Plain NAT maps one private address to one public address. When many hosts must share a single public address, the device also rewrites the source port, so the pair (public address, public port) becomes the key of the table. This is port address translation, and it is what a home router does.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The pair must be unique, or two flows collide: two internal hosts using the same source port would receive each other's replies. The page checks uniqueness on its own table rather than assuming it. And because the source address changed, the header checksum — which covers the header — must be recomputed; the total length does not change, because no byte was added or removed.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 6 and 7 — where the exam actually bites</h3>
+              <p>Two shapes account for nearly every question in this clause. The first gives you an address, a prefix and a question about one of the five numbers, or a table and a destination. The second gives you a datagram, one or two MTUs and asks for a count, an offset, a size, or which statement is true. Both are mechanical once the units are fixed, and both are decided by a single line of arithmetic that the paper expects you to write down.</p>
+              <p class="small muted" style="margin-bottom:0">The GATE patterns tab lists every previous-year item this page recomputed, with its year and set. Nothing there is a claim about 2027; it is a list of what has been asked, so that the shape of the question is familiar before it arrives.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Level 5 again — what breaks each formula</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Block size</strong> assumes the address is inside the block you computed. Round <em>down</em>, then check the answer is between the network and the broadcast address.</li>
+                <li><strong>Longest match</strong> assumes at least one entry matches. If none does and there is no default, the packet is discarded, and "interface 0" is not a fallback.</li>
+                <li><strong>Aggregation</strong> assumes the same next hop. Two blocks that merge arithmetically but leave through different interfaces must stay as two entries.</li>
+                <li><strong>Fragment count</strong> assumes the datagram exceeds the budget. If it fits, there is one fragment, no fragmentation, and MF stays zero.</li>
+                <li><strong>Offset arithmetic</strong> assumes the same header length in every fragment. If options are present and not copied, the header length changes and the budget changes with it.</li>
+              </ul>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Level 9 — consolidation before the animation</h3>
+              <ol class="small" style="margin-bottom:0">
+                <li>Prefix → block size → block start → five numbers. Never skip the second step.</li>
+                <li>Match by ANDing, choose by prefix length. Write the candidate list down; it is two lines and it prevents the first-match error.</li>
+                <li>Merge only equal, adjacent, aligned pairs, then count the union to prove nothing extra was captured.</li>
+                <li>Budget, floor to eight, count, then offsets as running sums over eight.</li>
+                <li>Write the unit next to every number: bytes, units of eight, or addresses. Most lost marks are unit errors.</li>
+              </ol>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">An IPv4 address is 32 bits. A prefix is a cut position in those bits.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One 32-bit number, cut in two</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with the cut, not with the mask.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2 — five fragmentations, every number recomputed</h3>
+              <p class="small" style="margin-bottom:0">Each list below was produced by the model on this page and then checked against five invariants: the data sums to the original, every non-last fragment carries a multiple of 8, the offsets are the running sums over 8, every fragment fits the MTU, and the more-fragments bit is zero only on the last. The counts are printed under the canvas in the Animation tab.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 1 — GATE CSE 2016 Set 1 Q53 (NAT, 2 marks)</h3>
+              <p class="small">Datagram 1000 bytes including a 20-byte header; link MTU 100 bytes. Data is 980. Budget is 100 − 20 = 80, already a multiple of 8. 980 = 12 × 80 + 20, so there are <strong>13 fragments</strong>; the twelfth ends at byte 959 and the thirteenth carries 20 bytes with total length 40, offset 120, MF = 0.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The accepted answer to this paper item is 13. The popular wrong answer, 12, is the number of <em>full</em> fragments.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — GATE CSE 2025 Set 2 Q23 (MCQ, 1 mark)</h3>
+              <p class="small">UDP payload 7488, UDP header 8, so the IP data is 7496. Ethernet data field 1500 with no IP options gives a budget of 1480. 7496 = 5 × 1480 + 96, so <strong>6 fragments</strong>, and the last is 96 + 20 = <strong>116 bytes</strong>.</p>
+              <p class="small" style="margin-bottom:0">The options offered were 5/1488, 6/88, 6/108 and 6/116. Each wrong option corresponds to one unit error: ignoring the UDP header, or reporting the last fragment's data without its IP header.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — GATE CSE 2015 Set 2 Q52 (MCQ, 2 marks)</h3>
+              <p class="small">UDP user data 8880 with an 8-byte UDP header, so 8888 bytes of IP data, MTU 1500, IP header 20. Budget 1480. 8888 = 6 × 1480 + 8, so <strong>7 fragments</strong>, and the last fragment's offset is 6 × 1480 / 8 = <strong>1110 units</strong>.</p>
+              <p class="small" style="margin-bottom:0">The eighth byte of data in the last fragment is the entire remainder; it is not an error in the arithmetic. A remainder of exactly zero would have produced six fragments instead.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 4 — GATE CSE 2021 Set 1 Q45 (MSQ, 2 marks)</h3>
+              <p class="small">TCP segment 1400 bytes, MTU 1500 then 820, IP header 20, DF clear. The first link carries the datagram whole. At the router the budget is 800, so the datagram becomes 800 + 600 of data: fragment sizes 820 and <strong>620 bytes</strong>.</p>
+              <p class="small" style="margin-bottom:0">The two correct statements are that two fragments are created with the second 620 bytes, and that a lost second fragment forces the source to resend the whole TCP segment. The statement that the destination port can be read from the second fragment alone is false: the transport header lives in fragment 1.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>Example 5 — GATE CSE 2024 Set 1 Q65 (NAT, 2 marks)</h3>
+              <p class="small">Datagram 1420 bytes including a 20-byte header, so 1400 bytes of data. First link MTU 542: budget 522, usable 520. 1400 = 520 + 520 + 360, so three fragments leave the sender. Second link MTU 360: budget 340, usable 336. Each 520 becomes 336 + 184; the 360 becomes 336 + 24. So <strong>6 fragments</strong> reach the receiver, carrying 336 + 184 + 336 + 184 + 336 + 24 = 1400 bytes.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The offsets of the six pieces are 0, 42, 65, 107, 130 and 172 units. They are positions in the original data: the pieces of the second fragment start at byte 520, which is 65 units, and never restart at zero. That is what lets the receiver reassemble without knowing the path.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2 — six addressing items, every answer recomputed</h3>
+              <p class="small" style="margin-bottom:0">The prefix arithmetic, the candidate lists and the aggregation cover are all computed by the model and printed on the canvas or in the checks. Where a paper's official key is quoted, it is quoted as the paper's key, and the page's own computation is shown beside it.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — GATE CSE 2015 Set 3 Q38 (NAT, 1 mark)</h3>
+              <p class="small">In 200.10.11.144/27, the fourth octet of the last assignable host. A /27 leaves five host bits, so the block size is 32 and the mask octet is 224. 144 AND 224 = 128, so the block is .128 to .159; .159 is the broadcast, so the last host is <strong>158</strong>.</p>
+              <p class="small" style="margin-bottom:0">Accepted answer 158. The tempting 159 is the broadcast address, and it is usually one of the options.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 7 — GATE CSE 2019 Q28 (MCQ, 1 mark)</h3>
+              <p class="small">Mask 255.255.255.252 is a /30 with block size 4. Of 100.10.5.2, .5 and .6, the block starts are .0, .4 and .4, so only N and P share a subnet — <strong>option C</strong>.</p>
+              <p class="small" style="margin-bottom:0">Two addresses three apart can be in different blocks, and two addresses one apart can be in the same one. The boundary decides.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 8 — GATE CSE 2023 Q55 (NAT, 1 mark)</h3>
+              <p class="small">Destination 200.150.68.118 against a table of /16, /19, /24 and /27. The first three match; the /27 entry 200.150.68.64/27 ends at .95 and does not. The longest match is the /24, so the packet leaves on <strong>interface 3</strong>.</p>
+              <p class="small" style="margin-bottom:0">Checking the /27 range first is the fast route: one range check eliminates it and the answer is the next longest.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 9 — GATE CSE 2024 Set 1 (longest match, NAT, 2 marks)</h3>
+              <p class="small">Table 10.1.1.0/24 → R1, 10.1.1.128/25 → R2, 10.1.1.64/26 → R3, 10.1.1.192/26 → R4. Hosts .16 → R1, .72 → R3, .132 → R2, .191 → R2, .205 → R4. Two hosts take R2, twenty packets each, so <strong>40 packets</strong>.</p>
+              <p class="small" style="margin-bottom:0">Host .191 is the interesting one: it is inside 10.1.1.128/25 and also inside the /24, and it is <em>not</em> inside 10.1.1.192/26 because 191 is below 192. That single comparison is the whole question.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 10 — GATE CSE 2022 Q45 (MSQ, 2 marks)</h3>
+              <p class="small">Four subnets: 12.20.164.0/22, 12.20.166.0/23, 12.20.168.0/23, 12.20.170.0/23. The /22 runs from 164 to 167 and already contains the /23 at 166. The blocks at 168 and 170 are the two halves of 168.0/22. So <strong>164.0/22 and 168.0/22</strong> cover everything, and cover 2048 addresses, exactly the union of the four.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The official key was B and D. Community discussion of this item notes that merging 168.0/23 with 170.0/23 is only valid if both are reached through the same next hop; that assumption is not stated in the question. State it whenever you aggregate.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 11 — GATE CSE 2014 Set 3 Q26 (NAT, 1 mark)</h3>
+              <p class="small">Destination 131.23.151.76 against 131.16.0.0/12, 131.28.0.0/14, 131.19.0.0/16 and 131.22.0.0/15. ANDing gives 131.16.0.0 (match, /12) and 131.22.0.0 (match, /15); the /14 and /16 entries do not match. The /15 is longer, so the packet leaves on <strong>interface 1</strong>.</p>
+              <p class="small" style="margin-bottom:0">Note the direction of the answer: the <em>shorter</em> of the two matching prefixes is not chosen. Longest wins even when the shorter one appears earlier in the table.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundary cases that change the answer</h3>
+          <p class="small muted" style="margin-bottom:0">Each item below is a case where the standard formula gives the wrong answer, or where the formula's assumption fails. They are here because a well-written paper can reach any of them, and because two of them are the reason a formula that always works is worth stating with its assumptions.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. /31 and /32 break the minus-two rule</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> A /31 has two addresses, and a later standard allows both to be used on a point-to-point link, so the usable count is 2 rather than 0. A /32 is a single host route, where the one address is the host itself, so the usable count is 1 rather than −1.</p>
+          <p class="small" style="margin-bottom:0">The page computes usable as $$2^h - 2$$ for prefixes up to /30 and as $$2^h$$ for /31 and /32, and says so in the code. If a question uses the older convention, both addresses of a /31 are still unusable; read the question's convention before answering.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. A datagram that already fits is not fragmented</h3>
+          <p class="small">If the total length is at most the MTU, there is one fragment, MF is zero, the offset is zero, and no new header is created. A question that gives a datagram of exactly the MTU is testing whether you notice.</p>
+          <p class="small" style="margin-bottom:0">Similarly, a datagram of MTU + 1 byte becomes two fragments, the second carrying one byte. The count is a ceiling, and it never rounds down to zero.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. DF set means no fragmentation at all</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> If the don't-fragment bit is one and the datagram exceeds the MTU, the router does not fragment it: it discards the datagram and reports the problem to the source, which is how path-MTU discovery works.</p>
+          <p class="small" style="margin-bottom:0">The reporting protocol is ICMP, which the 2027 wording no longer names. Treat the DF behaviour as the syllabus item and the ICMP message as context.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. An MTU smaller than the header</h3>
+          <p class="small">If the MTU is 20 bytes or less, the budget is zero or negative, and no fragment can be formed. The page's fragmentation routine returns an empty list in that case rather than dividing by zero, and the checks would fail loudly if a question implied it.</p>
+          <p class="small" style="margin-bottom:0">Real links do not have MTUs that small, but a malformed question can. Saying "no valid fragmentation exists" is a legitimate answer.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. The 13-bit offset is a hard ceiling</h3>
+          <p class="small"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The offset field holds 0 to 8191 in units of 8, so it can name a position up to byte 65528. The maximum IPv4 datagram is 65535 bytes, of which at most 65515 is data, so the field is exactly large enough — and a fragment starting beyond 65528 bytes cannot be described at all.</p>
+          <p class="small" style="margin-bottom:0">This is the derivation behind the 8-byte unit, and it is also the reason no valid fragmentation question produces a larger offset.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. Two prefixes of the same length can both match</h3>
+          <p class="small">Longest prefix match does not order equal-length matches. In a well-formed table, two distinct prefixes of the same length cannot both contain the same address, because they would have to agree on all p fixed bits and still differ. So a tie is a symptom of a malformed table, not a case the rule resolves.</p>
+          <p class="small" style="margin-bottom:0">If you meet one, say the table is inconsistent rather than inventing a tie-break.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>7. A prefix of length zero</h3>
+          <p class="small">The default route is 0.0.0.0/0: it matches every address and is the longest match only when nothing else matches. It is not "interface 0" and it is not a rule about the address.</p>
+          <p class="small" style="margin-bottom:0">A table with no default and no match discards the packet. That is a legitimate question outcome.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>8. NAT with no free port</h3>
+          <p class="small">Port address translation is limited by the port space: with one public address, roughly 64K flows at a time. When the table is full, new connections fail rather than queue.</p>
+          <p class="small" style="margin-bottom:0">This is a consequence of the design, not a syllabus item, but it explains why a NAT table has to be aged out and why the pair must be unique.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce wrong answers, each with the smallest case that refutes it</h3>
+          <p class="small muted" style="margin-bottom:0">Each entry states the belief in the form a learner would hold it, gives the counterexample, and then states the correction as a rule that can be applied. The counterexamples are computed by the model, not quoted.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. "A /27 means the mask is .27"</h3>
+          <p class="small"><strong>Counterexample.</strong> A /27 mask is 255.255.255.224. The 224 is not the prefix and the prefix is not 224; one is a count of bits and the other is the value of the last non-zero octet.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correction.</strong> Turn the prefix into a block size, $$2^{32-p}$$, before doing anything else. A /27 gives 32, and 32 divides the octet into eight blocks of 32: 0, 32, 64, 96, 128, 160, 192, 224.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. "The network address is the first usable host"</h3>
+          <p class="small"><strong>Counterexample.</strong> In 200.10.11.128/27 the network address is .128 and the first usable host is .129. Assigning .128 to a host gives an address that duplicates the network name.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correction.</strong> Network and broadcast are names, not hosts. First host = network + 1, last host = broadcast − 1, and usable = 2<sup>h</sup> − 2.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. "The first matching row is the route"</h3>
+          <p class="small"><strong>Counterexample.</strong> GATE CSE 2014 Set 3 Q26: 131.23.151.76 matches both 131.16.0.0/12 and 131.22.0.0/15. The /12 row comes first in the table and is the wrong answer; interface 1 is correct.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correction.</strong> Collect every match, then take the largest prefix length. Order in the table is not part of the rule.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. "Divide the data by the MTU"</h3>
+          <p class="small"><strong>Counterexample.</strong> 980 bytes of data on a 100-byte MTU: 980/100 gives 9.8, so 10, but the answer is 13, because only 80 bytes of each fragment can be data.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correction.</strong> Budget first: MTU − header. Then round the budget down to a multiple of 8. Divide by that. Three operations, in that order.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. "The offset is the number of bytes before this fragment"</h3>
+          <p class="small"><strong>Counterexample.</strong> In GATE CSE 2016 Set 1, the second fragment starts at byte 80 and its offset field holds 10, not 80. Writing 80 gives a value that names byte 640.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correction.</strong> Offset = bytes before this fragment ÷ 8. To read a fragment's start, multiply the offset by 8. The unit is part of the field's definition.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. "NAT changes the destination on the way out"</h3>
+          <p class="small"><strong>Counterexample.</strong> GATE CSE 2024 Set 1 Q21 offers destination IP and total length among the fields; neither changes on an outbound packet. Only the source address (and, with port translation, the source port) changes, plus the header checksum.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correction.</strong> Outbound: rewrite the source. Inbound: rewrite the destination. In both directions the checksum is recomputed, and the total length never changes.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Closely confused pairs, side by side</h3>
+          <p class="small"><strong>Block size against number of usable hosts.</strong> A /27 has 32 addresses and 30 usable hosts. A question about "how many hosts" wants 30; a question about "how many addresses" wants 32. GATE 2015 Set 3 asks neither directly, and instead asks for the last assignable address, which is the block end minus one.</p>
+          <p class="small"><strong>Total length against data length.</strong> Fragment total length includes its own 20-byte header; the offset counts data only. GATE 2025 Set 2 mixes the two deliberately: 88 bytes of remainder is data, 108 is data plus header, and 116 is the same thing computed after including the UDP header.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fragmentation against segmentation.</strong> Fragmentation is an IP-layer operation on a datagram, invisible to the transport layer. Segmentation is a transport-layer operation on a byte stream, visible to the receiver. A lost fragment costs a whole segment; a lost segment costs a retransmission sized by the transport layer, not the MTU.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Every previous-year item this page recomputed</h3>
+          <p class="small" style="margin-bottom:0">Year and set are as the question is catalogued. Where a paper's key is quoted it is named as the paper's key; every numeric answer below was recomputed by the model on this page before being written here, and the recomputation is visible in the Animation tab's check counter.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>The items, by shape</h3>
+          <table class="small" style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border-strong)">Paper</th>
+                <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border-strong)">Shape</th>
+                <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border-strong)">Answer recomputed here</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2014 Set 3 Q26</td><td style="padding:6px;border-bottom:1px solid var(--border)">CIDR longest match, four prefixes</td><td style="padding:6px;border-bottom:1px solid var(--border)">interface 1</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2015 Set 2 Q52</td><td style="padding:6px;border-bottom:1px solid var(--border)">fragment count and last offset</td><td style="padding:6px;border-bottom:1px solid var(--border)">7 fragments, offset 1110</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2015 Set 3 Q38</td><td style="padding:6px;border-bottom:1px solid var(--border)">last assignable host in a /27</td><td style="padding:6px;border-bottom:1px solid var(--border)">158</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2016 Set 1 Q53</td><td style="padding:6px;border-bottom:1px solid var(--border)">fragment count on a small MTU</td><td style="padding:6px;border-bottom:1px solid var(--border)">13</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2019 Q28</td><td style="padding:6px;border-bottom:1px solid var(--border)">which machines share a /30</td><td style="padding:6px;border-bottom:1px solid var(--border)">only N and P</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2021 Set 1 Q45</td><td style="padding:6px;border-bottom:1px solid var(--border)">fragment sizes and transport consequences</td><td style="padding:6px;border-bottom:1px solid var(--border)">two fragments, second 620; whole segment resent</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2022 Q45</td><td style="padding:6px;border-bottom:1px solid var(--border)">route aggregation, multiple correct</td><td style="padding:6px;border-bottom:1px solid var(--border)">164.0/22 and 168.0/22</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2023 Q55</td><td style="padding:6px;border-bottom:1px solid var(--border)">longest prefix match on a four-row table</td><td style="padding:6px;border-bottom:1px solid var(--border)">interface 3</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2024 Set 1 Q21</td><td style="padding:6px;border-bottom:1px solid var(--border)">which fields NAT modifies</td><td style="padding:6px;border-bottom:1px solid var(--border)">source IP and header checksum</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2024 Set 1 Q65</td><td style="padding:6px;border-bottom:1px solid var(--border)">two hops, two MTUs</td><td style="padding:6px;border-bottom:1px solid var(--border)">6 fragments</td></tr>
+              <tr><td style="padding:6px;border-bottom:1px solid var(--border)">2024 Set 1 (LPM item)</td><td style="padding:6px;border-bottom:1px solid var(--border)">five hosts, packets per next hop</td><td style="padding:6px;border-bottom:1px solid var(--border)">40 packets</td></tr>
+              <tr><td style="padding:6px">2024 Set 2 Q28</td><td style="padding:6px">which statements about fragmentation are true</td><td style="padding:6px">any router may fragment; only the destination reassembles</td></tr>
+              <tr><td style="padding:6px">2025 Set 2 Q23</td><td style="padding:6px">count and size of the last fragment</td><td style="padding:6px">6 fragments, last 116 bytes</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four question shapes, and what each demands</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>One number out of a block.</strong> Prefix → block size → block start → count from an end. Almost always one mark, almost always lost to an off-by-one.</li>
+            <li><strong>A table and a destination.</strong> AND each entry, list the matches, take the longest. Two marks when five hosts are involved, because the count multiplies.</li>
+            <li><strong>A datagram and one or two MTUs.</strong> Budget, floor to eight, ceiling, offsets. The two-hop version is the current favourite because it tests whether offsets stay absolute.</li>
+            <li><strong>A statement set.</strong> Fragmentation and NAT both generate true/false items, and the false items are usually the plausible design choices a learner would have made — reassembling at a router, changing the destination outbound.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What is <em>not</em> claimed here</h3>
+          <p class="small" style="margin-bottom:0">This table is a list of items that exist, not a distribution and not a forecast. It does not say fragmentation is worth two marks in 2027, and it does not say any of these shapes will appear. It also does not claim to be exhaustive: items on removed protocols (ARP, DHCP, ICMP) and on classful addressing are not listed, because the 2027 wording no longer names those topics. Every answer was recomputed, so where a paper's key and this page disagreed, the disagreement would have been reported here rather than quietly resolved; none was found for the numeric items.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 to 6 are previous-year items with their year and set, and each answer was recomputed. Questions 7 to 10 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2016 Set 1 Q53</span></div>
+          <div class="q-body">
+            <p>An IP datagram of size 1000 bytes arrives at a router. The router must forward it on a link whose MTU is 100 bytes. The IP header is 20 bytes. The number of fragments is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 13</p>
+            <p>Data is 980. Budget is 80, already a multiple of 8. 980 = 12 × 80 + 20, so twelve full fragments and one of 20 bytes.</p>
+            <p><strong>Why the others fail.</strong> 10 comes from dividing 980 by 100 and ignoring the header. 12 is the count of full fragments. 15 comes from dividing the total 1000 by the budget 80 and rounding up, which counts header bytes as data.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2024 Set 1 Q65</span></div>
+          <div class="q-body">
+            <p>An IP datagram of size 1420 bytes (including a 20-byte header) crosses two links with a router between them. The first link has MTU 542 bytes and the second 360 bytes. The number of fragments delivered at the receiver is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 6</p>
+            <p>Data is 1400. First hop: usable 520, so 520 + 520 + 360, three fragments. Second hop: usable 336, so each 520 becomes 336 + 184 and the 360 becomes 336 + 24, giving six.</p>
+            <p><strong>Trap.</strong> Answering 3 reports the count after the first hop, not at the receiver. Answering 7 comes from using 340 (the raw budget) instead of 336.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2024 Set 2 Q28</span></div>
+          <div class="q-body">
+            <p>Which of the following statements about IPv4 fragmentation is/are TRUE?</p>
+            <ol class="choices">
+              <li>Fragmentation is performed only at the source of the datagram.</li>
+              <li>Fragmentation is performed at any IP router which finds that the datagram exceeds the MTU of the outgoing link.</li>
+              <li>Reassembly is performed only at the destination.</li>
+              <li>Reassembly is performed at all intermediate routers along the path.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B and C</p>
+            <p>A router on a smaller link must fragment, and only the destination reassembles. Reassembling at a router would waste memory and would still need re-fragmenting on the next link.</p>
+            <p><strong>Why A and D fail.</strong> A source cannot know the MTU of every later link, and D is exactly the design IPv4 rejected.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2015 Set 3 Q38</span></div>
+          <div class="q-body">
+            <p>In the network 200.10.11.144/27, the fourth octet, in decimal, of the last IP address of the network which can be assigned to a host is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 158</p>
+            <p>Block size 32, block start .128, block end .159. The end is the broadcast, so the last assignable address ends in .158.</p>
+            <p><strong>Why the others fail.</strong> 159 is the broadcast address. 128 is the network address. 144 is the given address, which is neither end.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2023 Q55</span></div>
+          <div class="q-body">
+            <p>A packet with destination 200.150.68.118 arrives at a router whose table is 200.150.0.0/16 → 1, 200.150.64.0/19 → 2, 200.150.68.0/24 → 3, 200.150.68.64/27 → 4, default → 0. The interface chosen is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>Entries /16, /19 and /24 all match; the /27 block ends at .95 so it does not. The longest match is /24, which is interface 3.</p>
+            <p><strong>Why the others fail.</strong> 4 is the trap for anyone who matches on the first three octets and stops. 1 and 2 match but are less specific.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2021 Set 1 Q45</span></div>
+          <div class="q-body">
+            <p>Hosts P and Q are joined by router R. The P–R link has MTU 1500 and the R–Q link has MTU 820. A TCP segment of 1400 bytes is sent from P to Q with IP identification 0x1234; the IP header is 20 bytes and DF is clear. Which statements are correct?</p>
+            <ol class="choices">
+              <li>Two fragments are created at R and the datagram carrying the second is 620 bytes.</li>
+              <li>If the second fragment is lost, R resends it with identification 0x1234.</li>
+              <li>If the second fragment is lost, P must resend the whole TCP segment.</li>
+              <li>The TCP destination port can be determined from the second fragment alone.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and C</p>
+            <p>Budget on the second link is 800, so the 1400 bytes become 800 + 600 and the second datagram is 600 + 20 = 620 bytes. A lost fragment is invisible to P, so the whole segment is resent.</p>
+            <p><strong>Why B and D fail.</strong> R keeps no copy of the datagram and does not retransmit. The transport header sits at the start of the data, so it travels in fragment 1 only.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--orig">Original</span><span class="badge badge--nat">NAT</span></div>
+          <div class="q-body">
+            <p>An organisation is given 172.16.40.0/22. It wants four equal subnets of the largest possible size. What is the prefix of each subnet, how many usable hosts does each hold, and what is the last assignable address of the fourth subnet?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: /24, 254 usable hosts, last assignable address 172.16.43.254</p>
+            <p>A /22 holds 1024 addresses; four equal subnets need 256 each, which is a /24. They are 40.0, 41.0, 42.0 and 43.0. Each /24 has 8 host bits, so 254 usable. The fourth block is 172.16.43.0/24, whose broadcast is .255, so the last host is .254.</p>
+            <p><strong>Shortcut and its assumption.</strong> Splitting a /p into 2<sup>k</sup> equal subnets gives prefix p + k, and it requires the original block to be a single CIDR block, which it is. The shortcut does not apply if the four subnets are not required to be equal.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--orig">Original</span><span class="badge badge--nat">NAT</span></div>
+          <div class="q-body">
+            <p>A datagram of 3000 bytes total, with a 20-byte header and no options, must cross a link of MTU 600 bytes. Give the number of fragments, the offset and total length of the last fragment, and the total number of IP bytes actually put on the link.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 6 fragments; last offset 360 units, last total length 120 bytes; 3120 IP bytes on the link</p>
+            <p>Data 2980. Budget 580, usable 576 (72 units). 2980 = 5 × 576 + 100, so six fragments. The last starts at byte 2880, so its offset is 2880 ÷ 8 = 360 units, and its total length is 100 + 20 = 120 bytes. The link carries 5 × 600 + 120 = 3120 bytes.</p>
+            <p><strong>The lesson in this question.</strong> The extra 120 bytes are five extra 20-byte headers: the link carries more bytes than the datagram contained, which is a real cost of fragmentation and a legitimate thing to be asked.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--orig">Original</span><span class="badge badge--msq">MSQ</span></div>
+          <div class="q-body">
+            <p>Which of these statements are TRUE?</p>
+            <ol class="choices">
+              <li>A /30 block has 2 usable host addresses.</li>
+              <li>The fragment offset field counts bytes, not units of 8.</li>
+              <li>Two adjacent /23 blocks always merge into one /22.</li>
+              <li>Longest prefix match can select a route listed after a shorter matching route.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and D</p>
+            <p>A /30 has four addresses, two of which are reserved, so two usable. Longest match ignores table order entirely, so a later, longer entry wins.</p>
+            <p><strong>Why B and C fail.</strong> The offset counts 8-byte units — that is the whole reason for the alignment rule. Two adjacent /23 blocks merge only if they are aligned as a pair, meaning their start addresses differ by exactly 512 and the pair begins at a multiple of 1024; otherwise the merged /22 would not start on its own boundary.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--orig">Original</span><span class="badge badge--mcq">MCQ</span></div>
+          <div class="q-body">
+            <p>Ten internal hosts behind one NAT device each open a connection to the same web server on port 80, and all ten happen to pick source port 4000. Which statement is correct?</p>
+            <ol class="choices">
+              <li>The device must have at least ten public addresses.</li>
+              <li>The device rewrites the source port so that each (public address, public port) pair is unique.</li>
+              <li>The device leaves the port unchanged and uses the destination port to tell the flows apart.</li>
+              <li>The connections fail, because two flows cannot share a source port.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Port address translation rewrites the source port so the table key stays unique. This is exactly why the pair, not the address alone, is the key.</p>
+            <p><strong>Why the others fail.</strong> A is not required, which is the point of PAT. C fails because the destination port is identical for all ten flows and so distinguishes nothing. D is false once the port is rewritten.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — everything on this page, compressed</h3>
+          <p class="small muted" style="margin-bottom:0">Use this after the practice set. If a line here is not obvious, the tab that explains it is named beside it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Addressing</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Block size = $$2^{32-p}$$. Mask has p ones then zeros.</li>
+            <li>Network = address AND mask. Broadcast = network + block size − 1.</li>
+            <li>First host = network + 1. Last host = broadcast − 1. Usable = $$2^{h} - 2$$, except /31 and /32.</li>
+            <li>Round the address <em>down</em> to the block start; never to the nearest boundary.</li>
+            <li>Forwarding: AND every entry, list the matches, take the longest prefix. Default is prefix 0.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Aggregation</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Two equal blocks merge iff they are adjacent and aligned as a pair; the prefix shortens by one.</li>
+            <li>The merged block must cover exactly the union, or the extra addresses must share the same next hop.</li>
+            <li>Check by counting addresses: union of the parts must equal the size of the merge.</li>
+            <li>A single shorter prefix usually captures foreign addresses; that is why the GATE 2022 answer is a pair of /22s and not one /20.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Fragmentation</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Budget = MTU − header. Usable = budget rounded <em>down</em> to a multiple of 8.</li>
+            <li>Count = ceil(data / usable). Last fragment may carry a remainder of any size.</li>
+            <li>Offset = bytes before this fragment ÷ 8. Total length = this fragment's data + header.</li>
+            <li>Identification is copied. MF is 1 everywhere except the last. Checksum recomputed per fragment.</li>
+            <li>Second fragmentation keeps offsets absolute. Reassembly at the destination only.</li>
+            <li>Transport header sits in fragment 1. A lost fragment costs a whole segment.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>NAT</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Outbound: rewrite source address (and port with PAT), recompute the header checksum.</li>
+            <li>Inbound: match (public address, public port), rewrite destination address and port.</li>
+            <li>Destination IP and total length do not change outbound; source IP does not change inbound.</li>
+            <li>The (public address, public port) pair must be unique. No entry means the packet is dropped.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Decision procedure in one line each</h3>
+          <p class="small"><strong>Address question.</strong> Prefix → block size → block start → five numbers → re-read which one is wanted.</p>
+          <p class="small"><strong>Table question.</strong> AND each entry → list matches → largest prefix length → count hosts and multiply.</p>
+          <p class="small"><strong>Fragmentation question.</strong> Budget → floor to eight → ceiling → offsets as running sums over eight → check the data adds up.</p>
+          <p class="small" style="margin-bottom:0"><strong>Statement question.</strong> Ask what the design would cost if the statement were true. Reassembling at routers costs memory and does not remove the next fragmentation; rewriting the destination outbound breaks delivery.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The four slips, one last time</h3>
+          <p class="small" style="margin-bottom:0">Total addresses against usable hosts · block size against mask value · offset in bytes against offset in units of eight · first match against longest match. Write the unit next to every number and none of the four survives.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official documents are separated from community catalogues. A community catalogue is evidence that a question exists and was asked in a given year; it is not evidence about the 2027 paper. Every numeric answer on this page was recomputed from the question text, so the catalogues were used to find questions, not to settle answers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read on 28 October 2026. Supports the Section 10 wording quoted in Overview, including the fact that "IP addressing" is not named separately in 2027 while fragmentation, CIDR notation and NAT are.</li>
+            <li><strong>RFC 791</strong> (Internet Protocol) — the header fields, the 8-byte offset unit, the 13-bit offset field, and the statement that reassembly happens at the destination.</li>
+            <li><strong>RFC 3021</strong> — the /31 point-to-point convention used in Edge cases.</li>
+            <li><strong>RFC 950 / RFC 1519</strong> — subnetting and classless addressing, the basis of the block arithmetic.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Question catalogues, used to locate items</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE Overflow</strong> threads for 2014 Set 3 Q26, 2015 Set 2 Q52, 2015 Set 3 Q38, 2016 Set 1 Q53, 2021 Set 1 Q45, 2022 Q45, 2023 Q55, 2024 Set 1 Q21 and Q65, 2024 Set 2 Q28. Used for question text and for the community's reasoning about the 2022 aggregation assumption.</li>
+            <li><strong>ExamSide</strong> and <strong>GateAI</strong> topic indexes, used to confirm which papers contain fragmentation items and to see the option lists.</li>
+            <li><strong>Analyst compilations</strong> of subject-wise marks, quoted in Overview only as an observation about past papers, with the caveat that they are somebody's tagging of somebody's collection.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No official answer key PDF was opened for the items above; the answers were recomputed from the question text and, for the two multiple-select items, compared with the keys the community reports. Where a question's own assumptions are contested — the 2022 aggregation item — the contest is stated in the Examples tab rather than resolved silently. No search was done for 2027-specific sample papers, because none exists at the time of writing. And nothing here was checked against a textbook edition; the RFCs were treated as the authority for header behaviour, and the syllabus PDF for scope.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
