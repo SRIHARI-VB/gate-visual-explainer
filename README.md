@@ -75,6 +75,7 @@ lessons are static files and work from a local clone.
 | Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
 | Analytical Aptitude: Deduction, Induction, Analogy and Numerical Relations | General Aptitude | A — explicitly in the syllabus | `topics/analytical-aptitude/index.html` |
 | Quantitative Aptitude: Ratios, Data, Logarithms, Shapes, Statistics and Probability | General Aptitude | A — explicitly in the syllabus | `topics/quantitative-aptitude/index.html` |
+| Tenses, Adjectives and Conjunctions: Form, Degree and Link | General Aptitude | A — explicitly in the syllabus | `topics/tense-adjectives-and-conjunctions/index.html` |
 | Spatial Aptitude: Transformations, Paper Folding and Patterns | General Aptitude | A — explicitly in the syllabus | `topics/spatial-aptitude/index.html` |
 | Verbal Aptitude: Grammar, Vocabulary in Context, Comprehension and Narrative Sequencing | General Aptitude | A — explicitly in the syllabus | `topics/verbal-aptitude/index.html` |
 
