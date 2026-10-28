@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distance Vector and Link State Routing — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Distance Vector and Link State Routing</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../layering-switching-and-performance-metrics/index.html">Layering and metrics</a>
+      <a href="../link-layer-error-detection-mac-and-ethernet/index.html">Link layer</a>
+      <a href="../graph-traversals-mst-shortest-paths/index.html">Shortest paths</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The fourth clause of Section 10 of the official GATE 2027 CS syllabus — <em>distance vector and link state routing</em>. Two families of algorithm that answer the same question in opposite ways: what should a router put in its table, and what is it allowed to know?</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Apply the Bellman-Ford update to a router given its neighbours' vectors, and report both the cost and the next hop; trace a distance vector exchange for exactly one round after a link cost change; follow the count-to-infinity loop and state what split horizon, poison reverse, triggered updates and hold-down timers each change; run Dijkstra on a small graph, record the settlement order and convert the shortest-path tree into next hops; and state the protocol facts that separate RIP from OSPF.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>one question asked with two kinds of knowledge</em>. A distance vector router believes what its neighbours say; a link state router holds the whole map. Every contrast in the clause — convergence, messages, loops, memory — is a consequence of that one difference, and the practice set is built on it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 10 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>) reads: <em>"Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; link layer: error detection, Medium Access Control, Ethernet; Distance vector and link state routing; IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP- flow control and congestion control, socket API; DNS and HTTP."</em></p>
+          <p class="small">This lesson is the clause <em>distance vector and link state routing</em>, in full. The clause before it is taught in <a href="../link-layer-error-detection-mac-and-ethernet/index.html">error detection, MAC and Ethernet</a>.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed. The previous-year items below are an observation about past papers, never a forecast for 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small"><strong>Graph shortest paths</strong> — <a href="../graph-traversals-mst-shortest-paths/index.html">that lesson</a>. Dijkstra, edge weights and shortest-path trees are assumed. This lesson adds the routing-protocol setting, not the graph theory.</p>
+          <p class="small"><strong>Layering and performance metrics</strong> — <a href="../layering-switching-and-performance-metrics/index.html">that lesson</a>. What a router is, what a hop is, and where the network layer sits.</p>
+          <p class="small" style="margin-bottom:0"><strong>Graphs and connectivity</strong> — <a href="../graphs-connectivity/index.html">that lesson</a>. Neighbours, paths, cycles and connectedness are used without further explanation.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas this lesson turns on</h3>
+          <ol class="step-list small">
+            <li><strong>Distance vector is one line of arithmetic.</strong> The best route through any neighbour is that neighbour's advertised distance plus the link cost. The minimum over neighbours is the answer, and the neighbour that achieved it is the next hop.</li>
+            <li><strong>Count to infinity is a provenance problem.</strong> Nothing in a distance vector says where the number came from, so a router can believe a route it is itself the source of.</li>
+            <li><strong>Split horizon is not a cure.</strong> It removes two-router loops; a loop that closes through a third router survives it, and the page simulates that case.</li>
+            <li><strong>Link state removes the loop by removing the disagreement.</strong> Flood first, so every router holds the same map, then compute locally with Dijkstra.</li>
+            <li><strong>Both find the same distances.</strong> The families differ in knowledge, messages and convergence time — never in the final answer on a converged network.</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate learning time: <strong>2 to 3 hours</strong> for the whole page, about 40 minutes for a revision pass. That is an estimate, not a measurement.</p>
+          <p class="small">The <em>Animation</em> tab is ten scenes of thirty seconds. Captions are on by default, and the caption-mode selector switches to a detailed version, a keyword version and an exam-trap version without restarting. Play, pause, restart, previous and next scene, scrub and speed all work; so does the reduced-motion toggle.</p>
+          <p class="small" style="margin-bottom:0">Everything numeric on the canvas is computed by the model in <code>lesson.js</code> and re-checked against its own definition, including against a third all-pairs method that neither algorithm uses. The count of passing checks is printed under the canvas on every load, so a broken computation shows up as a failing count rather than as a quiet wrong answer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 1 of 2 — what a router knows, and the equation that follows</h3>
+              <p class="small" style="margin-bottom:0">Levels 1 to 4: the analogy, the definitions, the structure of the table, and the first worked computation. Nothing here needs the animation running.</p>
+            </div>
+
+            <div class="card">
+              <h3>Intuition: asking directions versus carrying a map</h3>
+              <p class="small">You want to reach a town you have never visited. Two strategies. Ask each person at the crossroads how far the town is, add the distance you just walked, and take the shortest answer. Or buy a map of the whole region and work out the shortest route yourself.</p>
+              <p class="small">The first strategy is cheap and local, and it fails when the person you asked is repeating what you told them last week. The second is expensive to obtain and cannot lie to you, because every road is drawn on the same map.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the separation of local belief from global knowledge, which is the whole clause. It does not carry the terminology, and asking directions is not literally the Bellman-Ford equation.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definitions</h3>
+              <p class="small">A <strong>routing table</strong> maps each destination to a <strong>next hop</strong> and a <strong>cost</strong>. <strong>Forwarding</strong> is reading that table once per packet. <strong>Routing</strong> is the process that builds it.</p>
+              <p class="small">A <strong>distance vector</strong> is a router's row of costs, one entry per destination. The <strong>Bellman-Ford equation</strong> says the cost from $$x$$ to $$y$$ is the smallest, over neighbours $$v$$, of the link cost from $$x$$ to $$v$$ plus the cost that $$v$$ reports to $$y$$.</p>
+              <div class="formula">D(x, y) = min<sub>v ∈ N(x)</sub> [ c(x, v) + D(v, y) ]<span class="gloss">D(x,y) is the cost x records for y; c(x,v) is the cost of the link from x to v; N(x) is the set of x's direct neighbours. The minimisation is over neighbours only.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This is the standard form of the distance-vector update, as given in Kurose and Ross, <em>Computer Networking</em>, and in the Duke CompSci 356 link-state and RIP lecture notes used for this lesson.</p>
+            </div>
+
+            <div class="card">
+              <h3>What "one round" means</h3>
+              <p class="small">All routers send their current row to their neighbours. Then all routers recompute from the rows <em>as they were before the round</em>. The new rows take effect together.</p>
+              <p class="small">A <strong>stabilised</strong> (converged) set of rows is a <em>fixed point</em>: recomputing every row from its neighbours reproduces the same numbers. The model on this page checks that property for all five rows of the GATE 2011 network.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> If no row changes, every row satisfies the Bellman-Ford equation simultaneously, which is exactly the definition of a set of shortest-path distances. So a fixed point is a solution, and Bellman-Ford's convergence theorem makes it the unique one for non-negative costs.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Link state, precisely</h3>
+              <p class="small">A <strong>link state advertisement</strong> (LSA) carries one router's own links and their costs — adjacency and cost, never a distance. Advertisements are <strong>flooded</strong> to every router; the collected set is the <strong>link state database</strong>.</p>
+              <p class="small">Each router then runs <strong>Dijkstra</strong> on that database with itself as the root. The output is a <strong>shortest-path tree</strong>, and the next hop for a destination is the first step from the root along that tree.</p>
+              <div class="formula">settle the unsettled router with the smallest tentative cost, then relax its links<span class="gloss">Relaxing means offering each neighbour (settled cost + link cost) and keeping whichever is smaller. Repeat until every router is settled.</span></div>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The flooding-plus-Dijkstra structure, the OSPF carriage directly in IP protocol 89, and the RIP ceiling of 15 hops with 16 meaning infinity are all stated in the Duke CompSci 356 lecture notes, which follow RFC 2328 and RFC 2453.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The two failure modes, stated before they are used</h3>
+              <p class="small"><strong>Count to infinity.</strong> A router can accept a route whose next hop is the router it just advertised to, so a dead destination stays alive with a rising cost.</p>
+              <p class="small"><strong>Disagreement.</strong> In link state the danger is the opposite: routers holding different maps. Reliable flooding with sequence numbers exists to prevent exactly that.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> If every router holds the same graph and every cost is non-negative, every shortest-path tree is a subgraph of that graph, and a path assembled from two such trees cannot close a cycle unless it repeats a node. That is why link state is loop-free by construction rather than by repair.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Takeaway from page 1</h3>
+              <p class="small" style="margin-bottom:0">Distance vector is a minimisation over neighbours; link state is a shortest-path computation over a map. Say which one a question is about before touching the numbers.</p>
+            </div>
+
+            <div class="card span-2" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <button data-pager-prev disabled>&larr; Previous</button>
+              <span class="count" data-pager-count>Page 1 of 2</span>
+              <button data-pager-next>Next &rarr;</button>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 2 of 2 — loops, repairs, and the honest limits of each</h3>
+              <p class="small" style="margin-bottom:0">Levels 5 to 7: when the equation breaks, what the standard repairs actually repair, and the boundaries that decide whether a shortcut applies.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Counterexample: the loop in three exchanges</h3>
+              <p class="small">Routers A and B are one hop apart. A destination hangs off B, which reaches it in 1; A reaches it in 2 through B. The link from B to the destination dies.</p>
+              <p class="small">B sets infinity. Before B's update reaches A, A advertises 2. B adds its link cost and records 3 through A. A hears 3 and records 4. The two keep handing each other an inflated number: 2, 3, 4, 5, …</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Each update is a correct application of the Bellman-Ford equation to the numbers available. The equation is not wrong; the <em>inputs</em> are stale. That is why the loop is a protocol problem and not an arithmetic one.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The four standard repairs, each as a rule</h3>
+              <p class="small"><strong>Split horizon</strong> — never advertise a route back out of the interface you learned it from.</p>
+              <p class="small"><strong>Poison reverse</strong> — the same rule said out loud: advertise it back, but with metric 16.</p>
+              <p class="small"><strong>Triggered update</strong> — send the bad news at once instead of waiting for the periodic timer.</p>
+              <p class="small"><strong>Hold-down</strong> — refuse to believe good news about a route for a while after bad news.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> All four are described in the Duke CompSci 356 RIP notes and in RFC 2453's account of RIP's loop-avoidance measures.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Where the repairs stop working</h3>
+              <p class="small">Put three routers in a line, A to B to C, with the destination hanging off A. Split horizon silences B in both directions. The two outer routers then oscillate between a real cost and infinity while B climbs — the loop persists.</p>
+              <p class="small">This is exactly why GATE CSE 2014 Set 1 calls the claim <em>"a distance vector protocol with split horizon avoids persistent routing loops"</em> <strong>false</strong>.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Split horizon only removes a two-router loop, because it only suppresses one direction per router. A cycle of length three or more has an edge on which neither endpoint learned from the other, so nothing is suppressed there.</p>
+            </div>
+
+            <div class="card">
+              <h3>Boundaries that decide a shortcut</h3>
+              <p class="small"><strong>Non-negative costs.</strong> Dijkstra's settle-the-minimum step is only safe when no later route can undercut a settled cost.</p>
+              <p class="small"><strong>Symmetric links.</strong> Most GATE items state that costs are the same in both directions. When they are not, each direction is its own problem.</p>
+              <p class="small"><strong>Convergence, not one round.</strong> A one-round answer is a transient value; the true distance may be smaller.</p>
+              <p class="small" style="margin-bottom:0"><strong>A finite ceiling.</strong> RIP's 16 makes count to infinity terminate, and simultaneously caps usable paths at 15 hops.</p>
+            </div>
+
+            <div class="card span-2" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <button data-pager-prev>&larr; Previous</button>
+              <span class="count" data-pager-count>Page 2 of 2</span>
+              <button data-pager-next disabled>Next &rarr;</button>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A router does one small thing per packet: look up the destination and send it to one neighbour.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Routing: two ways to know the way</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with what a router actually does with a packet.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 1 of 2 — vector arithmetic on real papers</h3>
+              <p class="small" style="margin-bottom:0">Every number below is recomputed by the model on this page; the checks are printed under the canvas in the Animation tab.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 1 — GATE CSE 2021 Set 2 Q45</h3>
+              <p class="small">Router R measures its links to X, Y, Z as 3, 2, 5. Their vectors say P is at 7, 6, 5 and Q is at 4, 6, 8.</p>
+              <p class="small">To P: 3+7 = 10, 2+6 = 8, 5+5 = 10 → <strong>8 through Y</strong>. To Q: 3+4 = 7, 2+6 = 8, 5+8 = 13 → <strong>7 through X</strong>.</p>
+              <p class="small" style="margin-bottom:0">So the statements "distance to Q is stored as 7" and "next hop for P is Y" are correct, and "distance to P is stored as 10" is false. The official key is B and C in the paper's original ordering.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — GATE CSE 2011 Q52</h3>
+              <p class="small">Five stabilised vectors; the cost of N2–N3 drops from 6 to 2. Recompute N3 from its neighbours N2, N4, N5, using the vectors as they stood before the round.</p>
+              <p class="small">To N1: 2+1 = 3, 2+8 = 10, 6+4 = 10 → 3. To N2: 2. To itself: 0. To N4: min(2+7, 2, 2+4) = 2. To N5: min(2+3, 2+4, 6) = 5.</p>
+              <p class="small" style="margin-bottom:0"><strong>New row: 3, 2, 0, 2, 5</strong> — option A. The model gets the same row whether N2's vector is the old one or the already-updated one, which is why this item is not sensitive to the round convention.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — GATE CSE 2011 Q53</h3>
+              <p class="small">Next, N1–N2 fails. N2 immediately reports infinity to N1. N3's three neighbours offer 2+∞, 2+8 and 6+4, so N3 records <strong>10</strong>.</p>
+              <p class="small">The true shortest path after the failure is N1–N5–N2–N3 at 4+3+2 = <strong>9</strong>. The algorithm reaches 9 in a later round, not this one.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The question asks for the value after the next round of updates, not the converged value. Both facts are checked in the model, and the difference between 10 and 9 is the point of the item.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Example 4 — reading a table off a tree</h3>
+              <p class="small">Dijkstra from A on the six-router graph settles A, C, B, D, E, F at costs 0, 2, 3, 8, 10, 13. The predecessors are A, A, C, B, D, E.</p>
+              <p class="small">To reach F the path is A→C→B→D→E→F, so the routing table entry for F is cost 13, next hop <strong>C</strong> — the child of the root, not E.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A router can only hand a packet to a direct neighbour, so the stored next hop must be the first node after the root on the tree path. The model checks, for every destination, that the link cost to the next hop plus that neighbour's distance equals the total distance.</p>
+            </div>
+
+            <div class="card span-2" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <button data-pager-prev disabled>&larr; Previous</button>
+              <span class="count" data-pager-count>Page 1 of 2</span>
+              <button data-pager-next>Next &rarr;</button>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples, page 2 of 2 — a Dijkstra run, a loop, and a probability</h3>
+              <p class="small" style="margin-bottom:0">Three longer examples: the full settlement table, the count-to-infinity trace, and the 2022 probability item.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>Example 5 — the settlement table, in full</h3>
+              <p class="small">Edges: A–B 4, A–C 2, B–C 1, B–D 5, C–D 8, C–E 10, D–E 2, D–F 6, E–F 3. Run Dijkstra from A and write the tentative column after each settlement.</p>
+              <div class="formula">settle C (2) → B 3, D 10, E 12 &nbsp;·&nbsp; settle B (3) → D 8 &nbsp;·&nbsp; settle D (8) → E 10, F 14 &nbsp;·&nbsp; settle E (10) → F 13<span class="gloss">Each settle step takes the smallest unsettled cost, then offers every neighbour that cost plus the link cost. A larger offer never replaces a smaller recorded one.</span></div>
+              <p class="small" style="margin-bottom:0">Final costs 0, 2, 3, 8, 10, 13 in settlement order. The C–D edge of cost 8 is never used: D is reached at 8 through B, and the direct route from C would cost 10. That is a deliberate distractor of the kind papers include.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 6 — the count-to-infinity trace</h3>
+              <p class="small">A and B one hop apart, destination on B. After the failure, alternating updates give A = 2, B = 3, A = 4, B = 5, … until both reach 16.</p>
+              <p class="small">The model runs this and reports how many exchanges it takes. Because RIP caps at 16, the climb terminates; without a cap it would not.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Each exchange adds exactly one link cost to the value it received, so the sequence is arithmetic with common difference 1. With a ceiling of 16 it terminates in a number of exchanges bounded by 16.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 — GATE CSE 2022, the probability</h3>
+              <p class="small">Three routers P, Q, R in a line, all links unit cost, converged. The link Q–R fails. P and Q send updates at random times at the same average rate.</p>
+              <p class="small">If Q's update arrives first, Q says infinity and P has no other route, so both settle. If P's update arrives first, Q adopts P's stale value and the loop runs.</p>
+              <p class="small" style="margin-bottom:0"><strong>Probability = 0.5.</strong> Two equally likely orders, exactly one of which loops. The model enumerates both and counts the looping one.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>What the seven examples have in common</h3>
+              <p class="small" style="margin-bottom:0">Every one is a small table of numbers and one rule applied honestly. None needs a diagram to be solved; the diagram only makes the rule visible.</p>
+            </div>
+
+            <div class="card span-2" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <button data-pager-prev>&larr; Previous</button>
+              <span class="count" data-pager-count>Page 2 of 2</span>
+              <button data-pager-next disabled>Next &rarr;</button>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Edge cases and boundaries</h3>
+          <p class="small" style="margin-bottom:0">Each card names a boundary, the condition it violates, and what changes when it is violated.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>One round is not convergence</h3>
+          <p class="small">After a link failure, the first round can produce a cost <em>larger</em> than the true shortest path, because the neighbours are still advertising pre-failure numbers. GATE CSE 2011 Q53 is the clean example: the answer is 10, the true distance is 9.</p>
+          <p class="small" style="margin-bottom:0">The condition violated is "the vectors have stabilised". Answer the question that was asked, then check the magnitude against the true value.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A tie for the minimum</h3>
+          <p class="small">In GATE CSE 2011 Q53 the minimum of 10 is achieved twice, through N4 (2+8) and through N5 (6+4). The cost answer is unique; the next hop is not.</p>
+          <p class="small" style="margin-bottom:0">If a question asks for the next hop and a tie exists, the item is under-specified unless it also fixes a tie-breaking rule. Cost questions are safe; next-hop questions are not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>16 in RIP is not a distance</h3>
+          <p class="small">RIP reserves 16 for "unreachable", so a usable path is at most 15 hops. Writing 16 as a cost, or treating a 16-hop path as reachable, is the most common RIP error.</p>
+          <p class="small" style="margin-bottom:0">The condition violated is the metric range: 1 to 15 for a real route, 16 for no route.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Negative or zero link costs</h3>
+          <p class="small">Dijkstra's greedy step assumes no later route can undercut a settled cost. With a negative link that assumption fails and the settled set is no longer final.</p>
+          <p class="small" style="margin-bottom:0">GATE routing items use positive costs, so this is a boundary rather than a trap in the exam. It is still worth stating, because it is <em>why</em> the algorithm is allowed to settle a minimum.</p>
+        </div>
+
+        <div class="card">
+          <h3>A disconnected graph</h3>
+          <p class="small">If a destination becomes unreachable, the distance vector row holds infinity and Dijkstra leaves the tentative cost at infinity because it never settles that node.</p>
+          <p class="small" style="margin-bottom:0">Both algorithms agree: the entry is unreachable, not "very far". A table with a finite cost to an unreachable destination is a bug or a loop in progress.</p>
+        </div>
+
+        <div class="card">
+          <h3>Asymmetric link costs</h3>
+          <p class="small">If the cost from A to B differs from B to A, the problem becomes directed and the two directions are separate shortest-path problems.</p>
+          <p class="small" style="margin-bottom:0">Most GATE items state explicitly that links are symmetric. When they do not, check before assuming a single weight per edge.</p>
+        </div>
+
+        <div class="card">
+          <h3>Different trees, same map</h3>
+          <p class="small">Two OSPF routers hold the same link state database and compute different shortest-path trees, because each roots its tree at itself.</p>
+          <p class="small" style="margin-bottom:0">So "all routers have the same routing table" is false, and "all routers have the same topology database" is true. Both statements appear in question banks.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Takeaway</h3>
+          <p class="small" style="margin-bottom:0">Almost every edge case in this clause is a violated assumption: convergence, a unique argmin, a bounded metric, non-negative costs, a connected graph. Name the assumption and the edge case answers itself.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Misconceptions, each with the smallest counterexample</h3>
+          <p class="small" style="margin-bottom:0">The wrong belief, why it is tempting, what breaks it, and the rule to use instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Distance vector routers know the whole graph but only use part of it"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the vectors contain a number for every destination, which looks like a compressed map.</p>
+          <p class="small"><strong>What breaks it:</strong> a router has no link costs except its own, and no idea how many hops a neighbour's number represents.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> a distance vector router holds beliefs about costs, not facts about links.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Count to infinity means the numbers are computed wrongly"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the cost rises even though nothing got further away, which looks like an arithmetic error.</p>
+          <p class="small"><strong>What breaks it:</strong> every step is a correct Bellman-Ford update on stale inputs.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> the protocol lacks provenance — nothing records where a number came from. Fix the provenance, not the arithmetic.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Split horizon removes persistent loops"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it demonstrably fixes the two-router case, which is the case drawn in most notes.</p>
+          <p class="small"><strong>What breaks it:</strong> three routers in a line with split horizon still oscillate — the page simulates exactly this, and GATE CSE 2014 Set 1 marks the claim false.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> split horizon removes two-router loops only. Longer cycles survive it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"OSPF is carried over TCP because it needs reliability"</h3>
+          <p class="small"><strong>Why it tempts:</strong> flooding needs acknowledgements, and TCP provides acknowledgements.</p>
+          <p class="small"><strong>What breaks it:</strong> OSPF runs directly in IP with protocol number 89 and implements its own acknowledgement. It is not in TCP and not in UDP.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> RIP over UDP 520; OSPF directly over IP protocol 89; BGP over TCP.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Link state finds shorter paths than distance vector"</h3>
+          <p class="small"><strong>Why it tempts:</strong> Dijkstra on a complete map feels stronger than gossip.</p>
+          <p class="small"><strong>What breaks it:</strong> at convergence both compute shortest paths, and the model checks that the two agree on four graphs.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> they differ in knowledge, messages and convergence time, never in the converged answer.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A routing table stores the full path"</h3>
+          <p class="small"><strong>Why it tempts:</strong> a solved example draws the whole route, so the route looks like the answer.</p>
+          <p class="small"><strong>What breaks it:</strong> a router hands a packet to one neighbour, so only the first hop can be stored.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> destination, next hop, cost. The rest of the path is other routers' business.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Question categories in this clause</h3>
+          <p class="small" style="margin-bottom:0">Four shapes account for every previous-year item I could verify. Each demands a different reasoning step, and each has its own common wrong approach.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>1. Vector-update arithmetic (1 to 2 marks)</h3>
+          <p class="small"><strong>Given:</strong> link costs and neighbour vectors. <strong>Asked:</strong> a new row, a cost, or a next hop after one round.</p>
+          <p class="small"><strong>Procedure:</strong> list only the neighbours; write one candidate sum per neighbour; take the minimum; record the argmin.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> using the updated neighbour vector inside the same round, or letting a non-neighbour contribute directly.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Loop and convergence behaviour (1 to 2 marks)</h3>
+          <p class="small"><strong>Given:</strong> a topology and a failure. <strong>Asked:</strong> a cost after the next round, a probability of looping, or a true-or-false statement about split horizon.</p>
+          <p class="small"><strong>Procedure:</strong> decide who hears what, in which order; then apply the update once.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> assuming convergence, or assuming the failure is known everywhere immediately.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>3. Dijkstra and the tree (2 marks)</h3>
+          <p class="small"><strong>Given:</strong> an edge list. <strong>Asked:</strong> the settlement order, a distance, or a next hop.</p>
+          <p class="small"><strong>Procedure:</strong> draw the graph, settle by increasing cost, keep the predecessor, then take the first hop from the root.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> reading a next hop off the end of the path, or skipping the drawing and mis-reading an edge.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>4. Protocol facts (1 mark, MCQ or MSQ)</h3>
+          <p class="small"><strong>Given:</strong> statements about RIP and OSPF. <strong>Asked:</strong> which are correct or incorrect; or a two-column matching.</p>
+          <p class="small"><strong>Procedure:</strong> sort each fact into algorithm, metric, transport, limit, scope.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> confusing intra-domain with inter-domain, or swapping the transport of the two protocols.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where the marks are actually lost</h3>
+          <p class="small">In the verified items, the recurring losses are: (i) answering a cost when a next hop was asked, or the reverse; (ii) treating a one-round value as the converged value; (iii) writing 16 as a distance in RIP; (iv) accepting "split horizon prevents all loops"; (v) believing OSPF uses TCP. None of these is a conceptual gap — each is a single sentence of care.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The pattern of errors above is reported consistently in discussion threads for the 2011, 2014, 2021 and 2023 items. It is an observation about how learners answer, not a measurement.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — twelve questions</h3>
+          <p class="small">Nine are previous-year items with the year and paper named, and every answer was recomputed by the model on this page. Three are original practice written for this lesson and labelled as such. Answers are hidden until you reveal them.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2025 Set 2</span> <strong>Q1 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">Match List I with List II. (i) Distance vector routing, (ii) Link state routing; (a) Bellman-Ford, (b) Dijkstra.</p>
+          <p class="small">(A) (i)-(a) and (ii)-(b) &nbsp; (B) (i)-(a) and (ii)-(a) &nbsp; (C) (i)-(b) and (ii)-(a) &nbsp; (D) (i)-(b) and (ii)-(b)</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A).</strong> Distance vector is the distributed Bellman-Ford equation; link state floods the map and runs Dijkstra.</p>
+            <p class="small">(B), (C) and (D) each pair at least one protocol with the wrong algorithm. The item is numbered Q17 in two archives and Q7 in another; the wording and the key agree across them.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--msq">GATE CSE 2023, Q25</span> <strong>Q2 (MSQ, 1 mark)</strong></div>
+          <p class="q-body">Which statements are INCORRECT about OSPF? (A) OSPF implements Bellman-Ford to find shortest paths. (B) OSPF uses Dijkstra for least-cost routing. (C) OSPF is used as an inter-domain routing protocol. (D) OSPF implements hierarchical routing.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A) and (C).</strong> OSPF is link state, so Dijkstra, not Bellman-Ford; and it is an interior gateway protocol, not an inter-domain one.</p>
+            <p class="small">(B) and (D) are correct statements: Dijkstra is used, and OSPF divides a domain into areas with a backbone. Hierarchical <em>inside</em> a domain is not inter-domain routing — that distinction is the whole of option (C).</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--msq">GATE CSE 2021 Set 2, Q45</span> <strong>Q3 (MSQ, 2 marks)</strong></div>
+          <p class="q-body">Router R has neighbours X, Y, Z at distances 3, 2, 5. Their vectors give distance to P as 7, 6, 5 and to Q as 4, 6, 8. Which statements are correct about R's new table?</p>
+          <p class="small">(A) Distance to P stored as 10 &nbsp; (B) Distance to Q stored as 7 &nbsp; (C) Next hop for P is Y &nbsp; (D) Next hop for Q is Z</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B) and (C).</strong> To P: min(10, 8, 10) = 8 via Y. To Q: min(7, 8, 13) = 7 via X.</p>
+            <p class="small">(A) quotes the candidate sum through X rather than the minimum. (D) names Z, which is the worst of the three routes to Q. The model computes both minima and both argmins, and the official key is B, C.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2011, Q52</span> <strong>Q4 (MCQ, 2 marks)</strong></div>
+          <p class="q-body">Five routers N1 to N5 use distance vector routing. Stabilised vectors: N1 (0,1,7,8,4), N2 (1,0,6,7,3), N3 (7,6,0,2,6), N4 (8,7,2,0,4), N5 (4,3,6,4,0). The cost of N2–N3 reduces to 2 in both directions. After the next round of updates, N3's vector is:</p>
+          <p class="small">(A) (3,2,0,2,5) &nbsp; (B) (3,2,0,2,6) &nbsp; (C) (7,2,0,2,5) &nbsp; (D) (7,2,0,2,6)</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A).</strong> N3's neighbours are N2, N4 and N5. To N1 the candidates are 3, 10 and 10; to N5 they are 5, 6 and 6.</p>
+            <p class="small">(C) and (D) keep the old cost of 7 to N1, i.e. they ignore the new link cost entirely. (B) and (D) keep 6 to N5, which ignores the shorter route through N2. The model recomputes the whole row and gets 3,2,0,2,5. Some archives number this item 51 or 54.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2011, Q53</span> <strong>Q5 (MCQ, 2 marks)</strong></div>
+          <p class="q-body">After the update above, the link N1–N2 goes down. N2 immediately records infinity to N1. After the NEXT ROUND of update, what is the cost to N1 in N3's vector?</p>
+          <p class="small">(A) 3 &nbsp; (B) 9 &nbsp; (C) 10 &nbsp; (D) ∞</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(C).</strong> N3's neighbours give 2+∞, 2+8 and 6+4, so the minimum is 10.</p>
+            <p class="small">(B) is the <em>true</em> converged distance, 9 through N5, and it is the trap: the question asks for one round, not convergence. (A) would need a cheaper route through N2, which is now unreachable. (D) ignores N4 and N5 entirely. The model checks that 10 is achieved twice and that the converged value is 9.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2014 Set 1, Q23</span> <strong>Q6 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">For a network with 500 nodes and 4000 links: [S1] computational overhead is higher in link state than in distance vector. [S2] A distance vector protocol with split horizon avoids persistent routing loops, but a link state protocol does not. [S3] After a topology change, link state converges faster than distance vector. Which is correct?</p>
+          <p class="small">(A) all true &nbsp; (B) all false &nbsp; (C) S1 and S2 true, S3 false &nbsp; (D) S1 and S3 true, S2 false</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(D).</strong> S1 is true — every router floods and runs a full shortest-path computation. S3 is true — the new map reaches every router at once. S2 is false, and backwards: it is distance vector that has the loop problem, and split horizon does not remove all of it.</p>
+            <p class="small">(A) is the common wrong answer, because S2 sounds like a reasonable statement about split horizon. (C) inverts S3. The page simulates the three-router case that makes S2 false.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2014 Set 2, Q23</span> <strong>Q7 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">Which is TRUE about the interior gateway protocols RIP and OSPF?</p>
+          <p class="small">(A) RIP uses distance vector and OSPF uses link state &nbsp; (B) OSPF uses distance vector and RIP uses link state &nbsp; (C) both use link state &nbsp; (D) both use distance vector</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A).</strong> RIP is the distance vector protocol in the Internet stack; OSPF is the link state one.</p>
+            <p class="small">(B) swaps the two, which is the standard slip when the acronyms are memorised without the algorithms. (C) and (D) are wrong for one of the two protocols each. The five-slot table in the Animation tab is the fastest way to keep this straight.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--mcq">GATE CSE 2017 Set 2</span> <strong>Q8 (MCQ, 1 mark)</strong></div>
+          <p class="q-body">Statements: I. RIP uses distance vector routing. II. RIP packets are sent using UDP. III. OSPF packets are sent using TCP. IV. OSPF operation is based on link-state routing. Which are CORRECT?</p>
+          <p class="small">(A) I and IV only &nbsp; (B) I, II and III only &nbsp; (C) I, II and IV only &nbsp; (D) II, III and IV only</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(C).</strong> I, II and IV are correct. III is false: OSPF runs directly in IP with protocol number 89, with its own acknowledgements.</p>
+            <p class="small">(A) drops the true statement about UDP port 520. (B) and (D) accept the false TCP claim. Some archives number this item Q9.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--nat">GATE CSE 2022</span> <strong>Q9 (NAT, 2 marks)</strong></div>
+          <p class="q-body">Three routers P, Q, R in a line with unit-cost links have converged. The link Q–R fails. P and Q send updates at random times, each at the same average rate. The probability of a routing loop forming between P and Q, to one decimal place, is ______.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>0.5.</strong> Two equally likely orders of the two updates; only "P first" produces the loop.</p>
+            <p class="small">The tempting wrong answers are 1.0 (assuming the loop always forms) and 0.0 (assuming the failure is known everywhere at once). The item is numbered 47 in one archive, 57 in another and 16 in a third; the wording and the answer agree.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q10 (NAT)</strong></div>
+          <p class="q-body">A distance vector network uses the six-router graph of this lesson (A&ndash;B 4, A&ndash;C 2, B&ndash;C 1, B&ndash;D 5, C&ndash;D 8, C&ndash;E 10, D&ndash;E 2, D&ndash;F 6, E&ndash;F 3). Every row starts as the direct link costs, with infinity where no link exists. What cost does A record for E after the FIRST round of updates?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>12.</strong> A's only neighbours are B and C, and in round one their rows still hold direct costs: B has no link to E, so 4 + &infin; is useless, and C reports 10, so A records 2 + 10 = 12.</p>
+            <p class="small">The tempting answer is <strong>10</strong>, which is the converged value, reached through A&rarr;C&rarr;B&rarr;D&rarr;E once B has learned D's 2. Writing 10 here answers a different question. The model's round-by-round trace gives 12 for round one and 10 at convergence, and both are checked.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q11 (MSQ)</strong></div>
+          <p class="q-body">Which of these are TRUE of the six-router Dijkstra run in this lesson?</p>
+          <p class="small">(A) The settlement order is A, C, B, D, E, F. (B) The cost to F is 13. (C) The next hop for F is E. (D) The edge C–D of cost 8 is on a shortest path from A.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(A) and (B).</strong> The settled costs are 0, 2, 3, 8, 10, 13. The next hop for F is C, the child of the root — so (C) is false. C–D is never used: D is reached at 8 through B, and the direct edge would cost 10.</p>
+            <p class="small">(C) confuses the predecessor with the next hop, which is the single most common table-building error. (D) mistakes an edge that exists for an edge that is used.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <div class="q-head"><span class="badge badge--orig">Original practice</span> <strong>Q12 (MCQ)</strong></div>
+          <p class="q-body">A network uses RIP. A route is advertised with metric 15. A router one hop away receives that advertisement. What does it record, and what happens if the route later becomes unreachable?</p>
+          <p class="small">(A) 16, which is a usable cost; on failure it becomes 17. &nbsp; (B) 16, which means unreachable; the route is already unusable. &nbsp; (C) 15, since RIP does not add the link cost. &nbsp; (D) 16, which is usable; on failure it stays 16.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict"><strong>(B).</strong> Adding the link cost gives 16, and 16 is RIP's definition of infinity, so the route is unusable from the moment it is received.</p>
+            <p class="small">(A) and (D) treat 16 as a distance, which is the classic error; there is no 17 in RIP. (C) ignores the Bellman-Ford addition. The practical consequence is that a RIP domain cannot contain a path longer than 15 hops.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — one screen</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the two algorithms, the repairs, the protocol facts, and the five traps.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions</h3>
+          <p class="small"><strong>Routing table:</strong> destination → next hop + cost. <strong>Distance vector:</strong> one row of costs per router. <strong>Converged:</strong> every row is a fixed point of the Bellman-Ford update.</p>
+          <p class="small"><strong>LSA:</strong> one router's own links and costs. <strong>LSDB:</strong> all LSAs, identical at every router. <strong>SPT:</strong> the shortest-path tree rooted at one router.</p>
+          <p class="small" style="margin-bottom:0"><strong>Next hop:</strong> the first step from the root on the tree — never the last.</p>
+        </div>
+
+        <div class="card">
+          <h3>The two algorithms</h3>
+          <div class="formula">DV: D(x,y) = min<sub>v ∈ N(x)</sub> [ c(x,v) + D(v,y) ]<span class="gloss">Neighbours only; value and argmin are two answers.</span></div>
+          <div class="formula">LS: settle min tentative cost, then relax<span class="gloss">Needs the whole graph and non-negative costs.</span></div>
+          <p class="small" style="margin-bottom:0">Both converge to the same distances. DV needs no map; LS needs flooding but no repair.</p>
+        </div>
+
+        <div class="card">
+          <h3>The repairs, and their limit</h3>
+          <p class="small"><strong>Split horizon</strong> — do not advertise a route back where you learned it. Removes two-router loops.</p>
+          <p class="small"><strong>Poison reverse</strong> — advertise it back with 16.</p>
+          <p class="small"><strong>Triggered update / hold-down</strong> — shorten the window in which stale numbers are believed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Limit:</strong> a three-router loop survives all of them; the page simulates it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Protocol facts</h3>
+          <p class="small"><strong>RIP:</strong> distance vector · hop count · UDP 520 · 15 hops, 16 = ∞ · interior · periodic updates.</p>
+          <p class="small"><strong>OSPF:</strong> link state · cost · IP protocol 89 · areas with a backbone · interior · flooded LSAs.</p>
+          <p class="small" style="margin-bottom:0"><strong>BGP:</strong> the exterior protocol. Neither RIP nor OSPF routes between domains.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Five traps, one line each</h3>
+          <p class="small">1. One round is not convergence — 2011 Q53 answers 10 while the true cost is 9. 2. Sixteen means unreachable, not a distance. 3. Split horizon does not remove every loop. 4. Link state trees differ between routers while the map does not. 5. The next hop is the first step from the root, not the destination.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Items 1, 2 and 3 are each anchored to a previous-year statement whose official key is named in the Practice tab.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Sources actually consulted</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind, with what each one supports. Nothing here is cited that was not opened during this run.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras — the clause "Distance vector and link state routing" in Section 10, quoted verbatim in the Overview tab.</p>
+          <p class="small" style="margin-bottom:0"><strong>RFC 2453</strong> (RIP version 2) and <strong>RFC 2328</strong> (OSPF version 2) — the metric ceiling of 15 with 16 as infinity, and OSPF's carriage directly in IP.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and university material</h3>
+          <p class="small">Kurose and Ross, <em>Computer Networking: A Top-Down Approach</em> — the Bellman-Ford form of the distance-vector update and the count-to-infinity discussion.</p>
+          <p class="small" style="margin-bottom:0">Duke CompSci 356, <em>Lecture 12: dynamic routing protocols, link state</em> — RIP timers and metric, split horizon, poison reverse, OSPF packet carriage and hierarchy, and the distance-vector versus link-state comparison.</p>
+        </div>
+
+        <div class="card">
+          <h3>Question papers and archives</h3>
+          <p class="small">GATE CSE 2011 Q52–Q53 (numbered 51–52 and 54–55 in some archives), 2014 Set 1 Q23, 2014 Set 2 Q23, 2017 Set 2 (Q9 in one archive), 2021 Set 2 Q45, 2022 (47 / 57 / 16 across archives), 2023 Q25, 2025 Set 2 (Q7 / Q17).</p>
+          <p class="small" style="margin-bottom:0">Each answer was recomputed by the model on this page, and the 2021 key was checked against an archive that reproduces the official answer key directly.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Where this research stopped</h3>
+          <p class="small" style="margin-bottom:0">Nine previous-year items were checked against published reproductions and every numeric answer was recomputed; none was checked against an original paper PDF. Four items carry differing question numbers across archives, recorded above and in the Practice tab. The lesson does not cover BGP and inter-domain policy, multicast routing, OSPF's designated-router election, EIGRP or IS-IS, or RIP's packet format: the first two are outside this clause, and the rest are beyond what GATE has asked in the items I could verify. The count-to-infinity simulation is the textbook alternating-exchange trace; a strictly synchronous variant behaves differently and is not shown, because the question it would answer is not one GATE asks. Every number in the animation is computed on load and checked, and the pass count is printed under the canvas.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
