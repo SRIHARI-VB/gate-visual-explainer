@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lexical Analysis, Parsing and Syntax-Directed Translation — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Lexical Analysis, Parsing and Syntax-Directed Translation</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../turing-machines-and-undecidability/index.html">Previous: Turing machines</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Lexical analysis, parsing and syntax-directed translation — the first clause of GATE 2027 Section 7, Compiler Design.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Read a line of source as a token stream under the longest-match rule. Compute FIRST and FOLLOW to a fixed point and fill a predictive parsing table from them, reading a cell that holds two productions as the definition of "not LL(1)". Build the canonical LR(0) collection by closure and goto, then apply the three lookahead policies — FOLLOW for SLR, merged cores for LALR, exact lookaheads for canonical LR(1) — and say which grammars each one loses. Read associativity off the recursion side and precedence off the depth of a grammar. Evaluate a syntax-directed definition in reduce order and emit three-address code from the same tree.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one question asked about four objects</em>: what may the parser decide, and how much lookahead does the decision need. The scanner decides with none, LL(1) with one token of the future, LR(0) with none of the future and SLR/LALR/LR(1) with increasing precision about which future. Every definition, table and previous-year item below is that question at a different object.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 7 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: <em>"Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em> The first sentence is this lesson. The remaining three sentences are the back-end clause, tracked separately.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> One topic-indexed archive tabulates this section as lexical analysis 8 questions, parsing 13, syntax-directed translation 7 and optimisation 6 across the 2018–2026 papers it holds. That is one archive's own tagging of its own collection, not an official weightage and not a forecast.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary, not that one is guaranteed. Every previous-year item quoted carries its year and set, and every answer was recomputed by this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Regular expressions, DFA and NFA, and the subset construction.</strong> A scanner is a DFA, and the longest-match rule is a walk on it. Built in <a href="../regular-expressions-and-finite-automata/index.html">Regular Expressions and Finite Automata</a>.</li>
+            <li><strong>Context-free grammars, derivations, parse trees and ambiguity.</strong> Everything after the scanner is a statement about a grammar. Built in <a href="../context-free-grammars-and-pushdown-automata/index.html">Context-Free Grammars and Pushdown Automata</a>.</li>
+            <li><strong>Sets, and closure under a rule applied repeatedly.</strong> FIRST and FOLLOW are least fixed points of a monotone rule on finite sets, and the computation is literally "sweep until nothing changes". Built in <a href="../sets-and-set-operations/index.html">Sets and Set Operations</a>.</li>
+            <li><strong>Finite automata over item sets.</strong> The LR(0) collection is a subset construction on items, so the 2-to-the-n lesson from the theory page is the same construction with a different state type. Built in <a href="../regular-expressions-and-finite-automata/index.html">Regular Expressions and Finite Automata</a>.</li>
+            <li><strong>Recursion, and reading a grammar's shape.</strong> Associativity and precedence are read off the recursion, not off the operator. Built in <a href="../context-free-grammars-and-pushdown-automata/index.html">Context-Free Grammars and Pushdown Automata</a> and <a href="../recursion/index.html">Recursion</a>.</li>
+            <li><strong>Three-address code and a stack machine.</strong> The translation scenes emit code and run it. Built in <a href="../c-fundamentals/index.html">C Fundamentals</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about data-flow analysis, register allocation or runtime environments is assumed or taught here; those belong to the back-end clause. Nothing about LR(k) for k above one is assumed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Tokens.</strong> A line of source scanned into twelve tokens, with the longest-match decision drawn twice: once as the scanner makes it and once as the wrong way.</li>
+            <li><strong>FIRST and FOLLOW.</strong> The GATE 2012 grammar, with FIRST printed after every pass so the fixed point is visible rather than asserted.</li>
+            <li><strong>The LL(1) table.</strong> Two tables: one whose cell holds two productions, and one whose cells hold one.</li>
+            <li><strong>Shift and reduce.</strong> The full fifteen-row trace of aaadbbb, with the handle and the viable prefix named.</li>
+            <li><strong>LR(0).</strong> Seven states drawn with their items, closure and goto explained on the same picture.</li>
+            <li><strong>The ladder.</strong> One automaton, three reduce policies, and the state four conflict that separates SLR from LALR.</li>
+            <li><strong>Precedence.</strong> Two parse trees built by the page from the grammar, leaning opposite ways.</li>
+            <li><strong>Translation.</strong> Reduce-order printing, three-address code, and the 2022 arithmetic evaluated twice.</li>
+            <li><strong>The papers.</strong> Four items, each answer recomputed.</li>
+            <li><strong>The procedure.</strong> Five steps and four slips.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>The scanner decides with no lookahead beyond the current token, and that limit is what makes it a finite automaton.</li>
+            <li>FIRST looks forward and is easy; FOLLOW looks at the whole context and is the one that goes wrong. Seed the end marker into the start symbol and nothing else.</li>
+            <li>A conflict is a cell with two entries, not a cell you could not fill. Filling the cell is a construction; the conflict is a verdict.</li>
+            <li>The LR(0) automaton is built once and shared. SLR, LALR and LR(1) differ only in what a completed item is allowed to reduce on.</li>
+            <li>Associativity is the recursion side; precedence is the grammar's depth. Neither is a property of the operator symbol.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 80–100 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Two neighbouring topics are deliberately not taught here and remain recorded as uncovered in the coverage tracker: <strong>runtime environments, intermediate code generation and optimisation</strong> (the rest of Section 7), and <strong>error recovery and parser generators</strong> (outside the syllabus wording). The claim that LALR has a shift-reduce conflict exactly when canonical LR(1) does is a theorem, cited to the literature and illustrated on six grammars by computation; it is not proved here. The claim that LR(1) parses every deterministic context-free language is likewise cited, not proved.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: two readers, one text</h3>
+              <p>Imagine two people reading the same sentence. The first checks that every word is a word — that <em>recieve</em> is not in the dictionary, that a quotation mark is closed. The second checks that the words are in a legal order — that a sentence can have a verb where this one has it. The first reader needs a dictionary and nothing else. The second needs to remember the beginning of the sentence while reading the end.</p>
+              <p class="small">That is the whole division. The scanner is the dictionary reader: it can be a finite automaton because it never needs to remember anything before the current word. The parser is the grammar reader: it needs a stack, because "is this legal" depends on what is still open. And that is why the two phases are separate, and why the first one is fast.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 1 — what each phase is allowed to know</h3>
+              <p class="small">The scanner sees characters and emits tokens. Its one interesting rule is <strong>longest match</strong>: at each position, take the longest string that is a legal token, then restart. A token is a <em>class</em> plus a <em>lexeme</em>; the class is what the parser reasons about, and the lexeme is kept for the symbol table.</p>
+              <p class="small" style="margin-bottom:0">The parser sees tokens and a grammar. It answers one question — is this token sequence derivable from the start symbol — and in answering it builds a derivation, either from the top down (LL) or from the bottom up (LR).</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Level 1 — why the boundary sits there</h3>
+              <p class="small">Because the scanner's language is regular and the parser's is not. Balanced brackets, matching <code>if</code>/<code>else</code>, and declared-before-use are all beyond a finite automaton. Putting them in the scanner is not a matter of effort; it is impossible.</p>
+              <p class="small" style="margin-bottom:0">The reverse direction is the useful one: everything regular <em>can</em> be pushed down into the scanner, and doing so makes the grammar smaller and the parser table smaller. That is why keywords are handled by the scanner and not by a hundred grammar productions.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 2 — the definitions, each symbol in words</h3>
+              <p class="small"><strong>Grammar.</strong> Four things: a set of <em>terminals</em> (the tokens), a set of <em>nonterminals</em> (the intermediate names), a <em>start symbol</em>, and a set of <em>productions</em> written <code>A → α</code>, read "A may be replaced by α". A <em>derivation</em> is a sequence of such replacements starting at the start symbol. A <em>parse tree</em> is the same derivation drawn as a tree.</p>
+              <p class="small" style="margin-bottom:0"><strong>FIRST(A)</strong> is the set of terminals that can be the first symbol of a string derived from A, together with ε if A can derive the empty string. <strong>FOLLOW(A)</strong> is the set of terminals that can appear immediately after A in some sentential form, together with the end marker $ if A can be last. Neither is a property of a production; both are properties of the whole grammar.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 2 — the parser vocabulary</h3>
+              <p class="small"><strong>Handle.</strong> A right-hand side sitting on top of a shift-reduce stack at the moment replacing it is the correct next step. It is a production <em>and</em> a position.</p>
+              <p class="small"><strong>Viable prefix.</strong> A prefix of a right-sentential form that does not extend past the handle. The stack always holds one.</p>
+              <p class="small"><strong>Item.</strong> A production with a dot showing how much of the right side has been read. <code>A → α·β</code> means "α is on the stack and β is still expected".</p>
+              <p class="small" style="margin-bottom:0"><strong>Conflict.</strong> A cell of a parsing table that asks for two different actions. Shift-reduce means shift and reduce compete; reduce-reduce means two productions compete.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Level 2 — the three tables and what differs</h3>
+              <p class="small">All three LR tables are built on the <em>same</em> LR(0) automaton. The only question is which terminals a completed item may reduce on.</p>
+              <p class="small">LR(0): every terminal. SLR(1): the terminals in FOLLOW of the left side. LALR(1): the lookaheads carried by the item, after merging states that share a core. Canonical LR(1): the lookaheads carried by the item, with no merging.</p>
+              <p class="small" style="margin-bottom:0">So the order of strength is LR(0) &lt; SLR(1) &lt; LALR(1) &lt; LR(1), and the state counts are LR(0) = LALR(1) &lt; LR(1).</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 3 — the visual that carries the mechanism</h3>
+              <p class="small">Three pictures, and the animation draws all three. First, the token stream: a row of boxes, each one a class, with the longest-match decision shown twice so the wrong split is visible next to the right one. Second, the table: a grid of cells, and the only thing that matters is how many productions sit inside a cell. Third, the automaton: a set of boxes each holding items, with arrows for goto — and the reader's eye should go to the <em>dots</em>, because the dot position is the parser state.</p>
+              <p class="small" style="margin-bottom:0">What the pictures must not do is imply that the table is computed from the grammar directly. It is computed from FIRST and FOLLOW, which are computed from the grammar by a fixed point. The order of the three pictures is the order of the dependency.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 4 — one worked example, in full</h3>
+              <p class="small">Take <code>S → A a | b A c | d c | b d a</code> and <code>A → d</code>. FIRST(A) = {d}. FOLLOW(A) = {a, c}: <code>a</code> from the first production and <code>c</code> from the second.</p>
+              <p class="small">SLR completes the item <code>A → d·</code> in a state that also holds <code>S → d·c</code>. It reduces on every terminal in FOLLOW(A), and c is one of them, so it reduces — and loses the shift on c.</p>
+              <p class="small" style="margin-bottom:0">LALR attaches the lookahead to the item: in that state, <code>A → d·</code> carries only <code>a</code>, because only the first production can put an a after this d. The reduce never competes with the shift, and the conflict is gone.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Level 4 — the same example as a sentence</h3>
+              <p class="small" style="margin-bottom:0">FOLLOW(A) answers "may an a ever follow an A?" and the answer is yes. LALR answers "may an a follow <em>this</em> A, here?" and the answer is yes as well — but the c that FOLLOW saw comes from a different production and cannot appear here. The gap between the two questions is the entire difference between the two parsers, and it is exactly one word wide: <em>here</em>.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 4 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 5 — when each construction is licensed</h3>
+              <p class="small">The LL(1) construction is licensed only when the grammar has no left recursion and no common prefixes; otherwise the table conflicts, and left factoring or left-recursion elimination is a <em>preprocessing</em> step, not part of the construction. The LR constructions have no such preprocessing: they handle left recursion natively, which is the practical reason bottom-up parsers are the default in real compilers.</p>
+              <p class="small" style="margin-bottom:0">Every LR class is contained in the unambiguous grammars: an ambiguous grammar can never be LR(k) for any k. The converse fails — an unambiguous grammar need not be in any of these classes — and the gap between "unambiguous" and "LR(1)" is where the harder theory lives.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Level 6 — the edge case that decides marks</h3>
+              <p class="small">The nullable start symbol. If the start symbol can derive ε, then ε is in FOLLOW of the start symbol only through the end marker. Leave the end marker out and every nullable production of the start symbol loses its table entry — the grammar then appears to reject the empty input and every input that could have ended there.</p>
+              <p class="small" style="margin-bottom:0">The GATE 2012 grammar is exactly this case: <code>S → aAbB | bAaB | ε</code>. Its cell for <code>a</code> holds two productions, and one of them is the empty one, placed there by the FOLLOW branch.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Level 6 — the second edge case</h3>
+              <p class="small" style="margin-bottom:0">The reduce-count bound. With every right-hand side of length two, a parse of n tokens takes at most n−1 reduces. Add a production whose right side is a single symbol, like <code>A → a</code>, and the bound fails: the page exhibits a grammar where two tokens take three reduces. The bound is a consequence of an identity, and the identity needs the assumption.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The scanner reads characters and emits tokens. The parser only ever sees tokens.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Characters become tokens</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A compiler reads characters but reasons about tokens. The scanner is the phase that crosses that boundary.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 — filling the GATE 2012 table</h3>
+              <p class="small"><strong>Grammar.</strong> <code>S → aAbB | bAaB | ε</code>, <code>A → S</code>, <code>B → S</code>. <strong>Task.</strong> Find FIRST and FOLLOW, then the entries for the cells the question marks.</p>
+              <p class="small"><strong>FIRST.</strong> Pass one reads only the productions of S: a, b, and ε. Pass two pushes those through <code>A → S</code> and <code>B → S</code>, so FIRST(A) = FIRST(B) = {a, b, ε}. Pass three changes nothing.</p>
+              <p class="small" style="margin-bottom:0"><strong>FOLLOW.</strong> FOLLOW(S) starts as {$}. From <code>aAbB</code>, an a sits before A and a b before B. From <code>bAaB</code>, a b before A and an a before B. So FOLLOW(A) = {a, b}. Since B ends the first production, FOLLOW(B) also gets FOLLOW(S). And <code>A → S</code> and <code>B → S</code> push FOLLOW(A) and FOLLOW(B) back into FOLLOW(S), giving {a, b, $}.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 1 — the verdict</h3>
+              <p class="small">The production <code>S → aAbB</code> goes in the cell for a. The production <code>S → ε</code> has FIRST = {ε}, so it goes into every terminal of FOLLOW(S) — which is a, b and $. So the cell for a holds two productions and so does the cell for b.</p>
+              <p class="small" style="margin-bottom:0">The grammar is therefore <strong>not LL(1)</strong>. The 2012 question only asked which productions the cells hold, and the answer lists both — that is the point of the question.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Example 1 — the check</h3>
+              <p class="small" style="margin-bottom:0">The page recomputes FOLLOW a second way: it expands sentential forms by leftmost derivation to a bounded length and records, for every nonterminal occurrence, the terminal immediately after it. That method never uses the fixed-point equations, so agreement between the two is evidence rather than a tautology. Both give FOLLOW(A) = {a, b}.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 2 — the whole shift-reduce trace</h3>
+              <p class="small"><strong>Grammar.</strong> <code>S → aSB | d</code>, <code>B → b</code>. <strong>Input.</strong> aaadbbb. <strong>Question (GATE 2020).</strong> How many reduce moves?</p>
+              <p class="small">The parser shifts a, a, a, d. Now <code>d</code> is a complete right-hand side, so it reduces to S. It shifts b, and <code>b</code> is a complete right-hand side, so it reduces to B. Now the stack ends in <code>a S B</code>, which is a complete right-hand side, so it reduces to S. That pattern repeats twice more.</p>
+              <p class="small" style="margin-bottom:0">Count the reduces: <code>S → d</code> once, <code>B → b</code> three times, <code>S → aSB</code> three times. Seven. The animation shows all fifteen rows so the pattern is visible rather than memorised.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — the invariant on the same trace</h3>
+              <p class="small" style="margin-bottom:0">Look at the stack column at every row. It never holds a string this grammar could not have produced as a beginning. After two shifts it holds <code>0 2 2</code>, which is <code>a a</code> — a prefix of a right-sentential form. That is the viable-prefix invariant, and it holds because the automaton was built from the grammar: a state is reachable exactly when its items' prefixes are viable.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Example 2 — why the count is not the point</h3>
+              <p class="small" style="margin-bottom:0">Seven is the answer, but the transferable fact is the identity: reduces = 1 − tokens + sum of right-hand-side lengths. Here 1 − 7 + (1 + 1 + 3 + 1 + 3 + 1 + 3) = 1 − 7 + 13 = 7. On any grammar whose right sides all have length two, that forces at most n−1 reduces, which is where the familiar bound comes from.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 3 — SLR against LALR, state by state</h3>
+              <p class="small"><strong>Grammar.</strong> <code>S → Aa | bAc | dc | bda</code>, <code>A → d</code>. <strong>Question (GATE 2025, Set 2).</strong> Which class is it in?</p>
+              <p class="small">The page builds the LR(0) collection — eleven states — and then the three tables on top of it. State 4 holds <code>S → d·c</code> and <code>A → d·</code>. Under SLR, the completed item reduces on FOLLOW(A) = {a, c}, and c is in the state as a shift, so the cell for c holds a shift and a reduce. Under LALR the completed item carries only the lookahead a, so it reduces on a and shifts on c.</p>
+              <p class="small" style="margin-bottom:0">SLR: two conflicts, in state 4 on c and in state 7 on a. LALR: none. Canonical LR(1): none. So the grammar is LALR(1) but not SLR(1), and the page reports the counts rather than recalling them.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — the same automaton, a different grammar</h3>
+              <p class="small" style="margin-bottom:0">Take <code>S → CC</code>, <code>C → cC | d</code>. Seven LR(0) states, and canonical LR(1) needs ten — because the two C's in <code>S → CC</code> carry different lookaheads, and the LR(1) construction keeps them in separate states. Merging those states by core gives back exactly seven. That pair, seven and ten, is the cleanest illustration that LALR's state count is the LR(0) count.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Example 3 — where LALR loses</h3>
+              <p class="small" style="margin-bottom:0">Take <code>S → aEc | aFd | bFc | bEd</code> with <code>E → e</code> and <code>F → e</code>. Canonical LR(1) keeps two states whose items are <code>E → e·</code> with lookahead c and <code>F → e·</code> with lookahead d, and separately the other pairing. Merging them by core puts <code>E → e·{c,d}</code> and <code>F → e·{c,d}</code> in one state, and on c the parser may reduce by either. That is a reduce-reduce conflict, and it is the standard example of an LR(1) grammar that is not LALR(1).</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 4 — a translation scheme evaluated in reduce order</h3>
+              <p class="small"><strong>Scheme (GATE 2016, Set 1).</strong> <code>S → aA {print 1}</code>, <code>S → a {print 2}</code>, <code>A → Sb {print 3}</code>. <strong>Input.</strong> aab. <strong>Question.</strong> What does a bottom-up parser print?</p>
+              <p class="small">The parser shifts a, then a, then b. The top of the stack is now <code>a</code>, which reduces by <code>S → a</code> and prints 2. The stack becomes <code>a S b</code>, which reduces by <code>A → Sb</code> and prints 3. The stack becomes <code>a A</code>, which reduces by <code>S → aA</code> and prints 1.</p>
+              <p class="small" style="margin-bottom:0">Output: <strong>231</strong>. The page runs the real parser and reads the order off its trace, so the answer is not a recital.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 4 — the same tree as code</h3>
+              <p class="small">For <code>8*2+3*5</code> the tree puts both multiplications below the addition. Emitting one temporary per operator in post-order gives <code>t1 = 8 * 2</code>, <code>t2 = 3 * 5</code>, <code>t3 = t1 + t2</code>. Running that on a two-register machine gives 31, and evaluating the expression directly gives 31.</p>
+              <p class="small" style="margin-bottom:0">The page checks this on four expressions, including one with brackets, so the agreement is a test rather than an illustration.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Example 4 — the 2022 arithmetic</h3>
+              <p class="small" style="margin-bottom:0"><code>S → S#T {S.val = S₁.val × T.val}</code>, <code>T → T%R {T.val = T₁.val ÷ R.val}</code>. Because # is left recursive at the S level and % at the T level, % binds tighter and both group left. So <code>20 # 10 % 5 # 8 % 2 % 2</code> is <code>(20 × (10÷5)) × ((8÷2)÷2) = 40 × 2 = 80</code>.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The boundary cases that decide marks</h3>
+              <p class="small">Six cases, each one a place where a definition that works on the easy examples stops working. Each is computed by the page, not asserted.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>1. The nullable start symbol</h3>
+              <p class="small">If the start symbol derives ε, the end marker is the only thing that puts $ into FOLLOW of the start symbol, and the empty production is placed in cells for a, b and $ at once. Miss the end marker and the empty production vanishes from the table.</p>
+              <p class="small" style="margin-bottom:0">Witness: <code>S → aAbB | bAaB | ε</code>. The cell for a holds two productions.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>2. The reduce-count bound</h3>
+              <p class="small">"At most n−1 reduces" needs every right-hand side to have at least two symbols. Witness: <code>S → AB</code>, <code>A → a</code>, <code>B → b</code> parses ab with three reduces — the page counts them on the derivation, not on a parser.</p>
+              <p class="small" style="margin-bottom:0">All-binary witness for the bound itself: <code>S → SS | aa</code> takes 3 reduces on 4 tokens and 5 on 6.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>3. LR(1) without LALR</h3>
+              <p class="small">Merging states with the same core can create a reduce-reduce conflict. Witness: <code>S → aEc | aFd | bFc | bEd</code>, <code>E → e</code>, <code>F → e</code>. Canonical LR(1) is conflict-free; LALR(1) is not.</p>
+              <p class="small" style="margin-bottom:0">What merging <em>cannot</em> do is create a shift-reduce conflict — that is the GATE 2008 item, and the page checks the equivalence on six grammars.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--counterexample">
+              <h3>4. Ambiguous means not LR, for every k</h3>
+              <p class="small" style="margin-bottom:0">The dangling-else grammar is ambiguous, and the page counts two parse trees for <code>i b t i b t a e a</code>. No LR table of any lookahead can be conflict-free on it, because a conflict-free table would give one parse and there are two.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>5. Unambiguous does not mean LR(1)</h3>
+              <p class="small" style="margin-bottom:0">There exist unambiguous context-free grammars with no conflict-free LR(k) table for any k, and deterministic context-free languages are a proper subclass of the context-free languages. This lesson does not construct one; it only records that "unambiguous" is necessary and not sufficient, so an argument that stops at "it is unambiguous" is incomplete.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>6. Left recursion is not ambiguity</h3>
+              <p class="small">A left-recursive grammar is fine for LR and fatal for LL. <code>S → S + T | T</code> is left recursive and unambiguous, and its SLR table has no conflict; its LL(1) table cannot be built at all.</p>
+              <p class="small" style="margin-bottom:0">Conversely the dangling-else grammar is right recursive and ambiguous. The two properties are independent, and exam distractors swap them.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The one that is not a boundary but a definition</h3>
+              <p class="small" style="margin-bottom:0">A token count. Whitespace produces no token; a two-character operator produces one; a keyword is one token of its own class, not an identifier that happens to spell <code>if</code>. On the sample line the page emits twelve tokens from twenty-six characters, and the class counts are computed, not read off a list.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Five beliefs that cost marks</h3>
+              <p class="small">Each is stated as a learner would state it, then corrected with the smallest counterexample or the sharpest distinction.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>1. "More lookahead means more states, so LALR has fewer states than SLR"</h3>
+              <p class="small">No. LALR and SLR are built on the <em>same</em> LR(0) automaton, so their state counts are identical by construction — eleven and eleven on the 2025 grammar, seven and seven on <code>S → CC</code>.</p>
+              <p class="small" style="margin-bottom:0">What LALR adds is not states but precision inside each state: an exact lookahead per item instead of a global FOLLOW set.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>2. "The parser reduces when the stack matches a right-hand side"</h3>
+              <p class="small">Matching is necessary and not sufficient. The stack may match several right-hand sides; the handle is the one whose replacement keeps the parse on a rightmost derivation read backwards.</p>
+              <p class="small" style="margin-bottom:0">That is why the automaton exists at all: it records, per state, which completed items are actually possible.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>3. "Precedence and associativity are properties of the operator"</h3>
+              <p class="small">They are properties of the grammar. In one and the same grammar the page exhibits <code>*</code> left associative and <code>+</code> right associative — because <code>T → T*U</code> recurs on the left and <code>P → Q+P</code> recurs on the right.</p>
+              <p class="small" style="margin-bottom:0">An ambiguous grammar like <code>E → E+E | E*E | id</code> has neither, and the parser is given both by a table.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--trap">
+              <h3>4. "A cell I cannot fill is the conflict"</h3>
+              <p class="small" style="margin-bottom:0">A conflict is a cell holding two productions. An empty cell is just an error entry, and it appears legitimately in every correct LL(1) table — for instance M[S, b] on the GATE 2010 grammar, where S has no production that can start with b.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>5. "FOLLOW is computed from FIRST, so it is the same kind of thing"</h3>
+              <p class="small" style="margin-bottom:0">FOLLOW is not derivable from FIRST alone; it needs the whole context and a backward-closed rule. The page therefore computes it twice by two unrelated methods — the fixed-point equations, and a bounded expansion of sentential forms — and compares. Agreement is evidence; a single method is only a claim.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Closely confused pair 1: grammar class against language class</h3>
+              <p class="small">"Is this grammar LL(1)?" is a question about a grammar. "Is this language deterministic context-free?" is a question about a language. A language can be parsed by an LR(1) parser while the particular grammar you were handed is not LR(1).</p>
+              <p class="small" style="margin-bottom:0">So "not SLR(1)" never means "not context-free", and "ambiguous grammar" never means "ambiguous language".</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Closely confused pair 2: LL against LR</h3>
+              <p class="small">LL builds a <em>leftmost</em> derivation top-down and must decide a production before seeing its body. LR builds a <em>rightmost</em> derivation in reverse bottom-up and decides after seeing the body.</p>
+              <p class="small" style="margin-bottom:0">Consequence: LR handles left recursion natively and LL does not; every LL(1) grammar is LR(1) and not conversely. The GATE 2010 grammar happens to be both, which is why that item's answer is "both" rather than "LR(1) only".</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The five shapes this clause is asked in</h3>
+              <p class="small">Every previous-year item I could verify in this clause falls into one of these. The procedure for each is short, and the marks come from doing it in the right order.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 1 — fill or read a table cell</h3>
+              <p class="small">"The entries M[S, a] and M[S′, $] respectively are…" The work is FIRST and FOLLOW, then the two-branch rule. Read the options as production sets and check whether each production's FIRST or nullable-FOLLOW places it there.</p>
+              <p class="small" style="margin-bottom:0">Trap: the cell may legitimately hold two productions, and the correct option may say so.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 2 — classify a grammar</h3>
+              <p class="small">"The grammar is LL(1) / SLR(1) / LALR(1) / LR(1)…" Build the LR(0) automaton once, then test the rungs from the cheapest up. The first rung that conflicts tells you the answer.</p>
+              <p class="small" style="margin-bottom:0">Trap: options often pair a class with a wrong reason ("not LL(1) because left recursive" on a right-recursive grammar).</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 3 — count states or items</h3>
+              <p class="small">"The number of items in GOTO(I₀, &lt;) is…" Build the closure, apply goto, count items — including the ones added by closure, which is where the count goes wrong.</p>
+              <p class="small" style="margin-bottom:0">On the 2022 grammar, GOTO(closure(I₀), +) holds five items. The page computes it.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition">
+              <h3>Shape 4 — trace a translation</h3>
+              <p class="small">"What does this scheme print / evaluate to?" Reduce order for bottom-up, and the recursion side decides the grouping. Write the reductions in order before evaluating anything.</p>
+              <p class="small" style="margin-bottom:0">Trap: subscripted nonterminals mean "the instance on the right-hand side", not new symbols.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Shape 5 — a true/false statement cluster</h3>
+              <p class="small">"Which of the following statements is/are TRUE?" These test the ladder, the state counts, and what each parser is for. The three recurring facts: every LL(1) grammar is LR(1); LALR has the LR(0) state count; merging cannot create a shift-reduce conflict.</p>
+              <p class="small" style="margin-bottom:0">Trap: a statement that is true of <em>languages</em> offered as if it were about <em>grammars</em>.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>The order that never changes</h3>
+              <p class="small" style="margin-bottom:0">Augment → FIRST and FOLLOW → LL(1) table → LR(0) automaton → add lookaheads one rung at a time. Five steps. Every question in this clause is one of those steps with a number attached, and doing them out of order is the most common way to lose a mark you could have had.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>What I could not verify</h3>
+              <p class="small" style="margin-bottom:0">Two archives give different question numbers for the same 2015 Set 1 item on viable prefixes; this lesson cites the year and set and omits the number. The 2026 Set 2 item on LR(0) shift-reduce conflicts is cited by year and set only, and its answer of five is the number this page computed independently rather than a number copied from an archive.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set A — constructions</h3>
+              <p class="small">Answers are hidden until you reveal them. Switch on mock mode to hide every answer at once and submit at the end.</p>
+              <p class="small"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode — hide all answers</label> <button class="btn" id="mock-submit" hidden>Submit and show all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q1 (original practice, MCQ).</strong> How many tokens does the scanner emit for <code>a1 &lt;= b*c</code>, with longest match and no whitespace sensitivity?</p>
+              <p class="small muted">(A) 4 &nbsp; (B) 5 &nbsp; (C) 6 &nbsp; (D) 7</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(B) 5.</strong> <code>a1</code>, <code>&lt;=</code>, <code>b</code>, <code>*</code>, <code>c</code>. Longest match makes <code>&lt;=</code> one token; the identifier and the number classes each consume a whole run.</p>
+                <p class="small" style="margin-bottom:0">Why not 6: that counts <code>&lt;</code> and <code>=</code> separately, which longest match forbids. Why not 4: that misses the <code>*</code>.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q2 (original practice, MCQ).</strong> Is <code>S → aSb | ε</code> LL(1)?</p>
+              <p class="small muted">(A) Yes &nbsp; (B) No, because it is left recursive &nbsp; (C) No, because M[S, b] holds two productions &nbsp; (D) No, because the grammar is ambiguous</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(A) Yes.</strong> FIRST(S) = {a, ε} and FOLLOW(S) = {b, $}. <code>S → aSb</code> goes in the cell for a; <code>S → ε</code> goes in the cells for b and $. One entry per cell.</p>
+                <p class="small" style="margin-bottom:0">The distractor C is the interesting one: the empty production does go in M[S, b], but only one production does, because no production of S starts with b.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q3 (original practice, NAT).</strong> How many states are in the canonical LR(0) collection for <code>S → CC</code>, <code>C → cC | d</code>?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small" style="margin-bottom:0"><strong>7.</strong> The page builds them: I0 = {S′→·S, S→·CC, C→·cC, C→·d}, and the collection closes at seven. Canonical LR(1) on the same grammar needs ten, and merging those ten by core gives the same seven back.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <p class="small"><strong>Q4 (original practice, MSQ).</strong> Which are TRUE?</p>
+              <p class="small muted">(a) Every LL(1) grammar is LR(1). (b) Every LR(1) grammar is LALR(1). (c) LALR(1) has the same number of states as SLR(1) for the same grammar. (d) Merging LR(1) states by core can create a shift-reduce conflict.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(a) and (c).</strong></p>
+                <p class="small">(b) is false: <code>S → aEc | aFd | bFc | bEd</code> with <code>E → e</code>, <code>F → e</code> is LR(1) and not LALR(1), because merging produces a reduce-reduce conflict.</p>
+                <p class="small" style="margin-bottom:0">(d) is false: merging can only create reduce-reduce conflicts. A shift-reduce conflict in a merged state was already present in the states being merged, since they share a core. This is the GATE 2008 result, checked here on six grammars.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q5 (adapted from GATE 2019).</strong> For <code>S → Aa</code>, <code>A → BD</code>, <code>B → b | ε</code>, <code>D → d | ε</code>, how many terminals are in FOLLOW(B)?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small" style="margin-bottom:0"><strong>2 — namely a and d.</strong> d because D can begin with d, and a because D can vanish, so whatever follows A follows B. The page computes it and gets {a, d}.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q6 (adapted from GATE 2014, Set 2).</strong> In <code>S → T*P</code>, <code>T → U | T*U</code>, <code>P → Q+P | Q</code>, <code>Q → id</code>, <code>U → id</code>, which is TRUE?</p>
+              <p class="small muted">(A) both left associative &nbsp; (B) both right associative &nbsp; (C) <code>+</code> left, <code>*</code> right &nbsp; (D) <code>*</code> left, <code>+</code> right</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small" style="margin-bottom:0"><strong>(D).</strong> <code>T → T*U</code> recurs on the left, so <code>*</code> groups left; <code>P → Q+P</code> recurs on the right, so <code>+</code> groups right. The page builds both trees from the grammar and they lean opposite ways.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q7 (adapted from GATE 2022).</strong> With <code>S → S#T {S.val = S₁.val × T.val}</code>, <code>T → T%R {T.val = T₁.val ÷ R.val}</code>, <code>R → id</code>, the value of <code>20 # 10 % 5 # 8 % 2 % 2</code> is ______.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small" style="margin-bottom:0"><strong>80.</strong> <code>%</code> binds tighter and both operators group left, so it is <code>(20 × (10÷5)) × ((8÷2)÷2) = 40 × 2</code>.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <p class="small"><strong>Q8 (original practice, MCQ).</strong> On the grammar <code>S → ACB</code>, <code>A → aA | ε</code>, <code>C → cC | ε</code>, <code>B → bB | b</code>, the SLR(1) parser built on the LR(0) automaton has how many conflicts?</p>
+              <p class="small muted">(A) 0 &nbsp; (B) 1 &nbsp; (C) 5 &nbsp; (D) cannot be built</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small" style="margin-bottom:0"><strong>(A) 0.</strong> The same automaton under LR(0) has five shift-reduce conflicts, and SLR removes all five by restricting each reduce to FOLLOW of its left side. This is the sharpest illustration in the lesson that a conflict count belongs to a parser, not to a grammar.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q9 (original practice, NAT).</strong> For <code>S → SS | aa</code>, what is the number of reduce moves to parse the four-token input <code>a a a a</code>?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small" style="margin-bottom:0"><strong>3.</strong> Every right-hand side has length two, so n−1 = 3. The page confirms it by counting internal nodes on the derivation: <code>S → SS</code>, then <code>S → aa</code> twice.</p>
+              </div>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>What to do if you got several wrong</h3>
+              <p class="small" style="margin-bottom:0">Nearly every error in this clause is one of four: a FOLLOW set missing the end marker, a conflict counted as a cell rather than as entries inside a cell, associativity read off the operator, or a state count quoted without naming the parser. Check those four before re-deriving anything.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, formulas, the decision procedure and the traps, in the order you would use them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <p class="small"><strong>Token</strong> — a class plus a lexeme. <strong>Longest match</strong> — take the longest legal token, then restart.</p>
+          <p class="small"><strong>FIRST(A)</strong> — terminals that can begin a string from A, plus ε if A can vanish. <strong>FOLLOW(A)</strong> — terminals that can come immediately after A, plus $ if A can be last.</p>
+          <p class="small"><strong>Handle</strong> — a right-hand side on top of the stack at the moment replacing it is correct. <strong>Viable prefix</strong> — a prefix of a right-sentential form that stops at the handle.</p>
+          <p class="small" style="margin-bottom:0"><strong>Item</strong> — a production with a dot. <strong>Conflict</strong> — a table cell holding two actions.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The three tables, and the two numbers</h3>
+          <p class="small">Same LR(0) automaton. Reduce policy: everything (LR(0)), FOLLOW (SLR), merged core lookaheads (LALR), exact lookaheads (LR(1)).</p>
+          <p class="small"><strong>States:</strong> LR(0) = LALR &lt; LR(1).</p>
+          <p class="small" style="margin-bottom:0"><strong>Strength:</strong> LR(0) &lt; SLR(1) &lt; LALR(1) &lt; LR(1) &lt; all unambiguous grammars.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The decision procedure</h3>
+          <p class="small">1. Augment the grammar. 2. FIRST and FOLLOW to a fixed point. 3. LL(1) table; count productions per cell. 4. LR(0) collection by closure and goto. 5. Add lookaheads one rung at a time and count conflicts.</p>
+          <p class="small" style="margin-bottom:0">Every step's output is an input to the next. Doing 5 before 4 is the usual way to lose time.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The four slips</h3>
+          <p class="small">Missing $ in FOLLOW of the start symbol. Reading associativity off the operator instead of the recursion side. Assuming LALR has more states than SLR. Counting cells instead of the productions inside a cell.</p>
+          <p class="small" style="margin-bottom:0">And a fifth, quieter one: quoting a conflict count without naming the parser.</p>
+        </div>
+
+        <div class="card">
+          <h3>Quick revision questions</h3>
+          <p class="small">Is <code>S → aSb | ε</code> LL(1)? Yes — FIRST is {a, ε}, FOLLOW is {b, $}, one entry per cell.</p>
+          <p class="small">Can merging LR(1) states create a shift-reduce conflict? No, only reduce-reduce.</p>
+          <p class="small">Does LALR ever have more states than SLR? No — both are the LR(0) count.</p>
+          <p class="small">Is a left-recursive grammar ambiguous? Not necessarily — <code>S → S+T | T</code> is left recursive and unambiguous.</p>
+          <p class="small" style="margin-bottom:0">What does a cell with two productions mean? The grammar is not LL(1).</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Where this connects next</h3>
+          <p class="small" style="margin-bottom:0">Parsing produces a tree; the back-end clause consumes it. Runtime environments explain where the temporaries live, intermediate code generation is what this lesson's three-address emitter grows into, and the data-flow analyses are what turns that code into better code. The scanner's automata are the same ones built in the theory lesson, and the fixed-point style of FIRST and FOLLOW is the same style as the data-flow equations — a set that grows until a pass changes nothing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind, with what each source supports. Official documents first. Where two archives disagreed on a question number, the number was left out and the year and set kept.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> (<code>CS_GATE2027_Syllabus.pdf</code>, gate2027.iitm.ac.in) — the Section 7 wording quoted in the Overview, and the classification of this topic as Class A.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE question papers and official answer keys, 2007–2026</strong> — the previous-year items cited by year and set in the GATE patterns and practice tabs. Every answer in this lesson was recomputed by the page's own model or by the argument on the card.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Textbooks and course material</h3>
+          <p class="small"><strong>Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em></strong> — the LL(1) table construction, the LR(0) collection by closure and goto, the SLR and canonical LR(1) tables, LALR by merging cores, and the S-attributed and L-attributed definitions. The structure of scenes 3 to 8 follows that treatment, including the <code>S → CC</code> example and the <code>E → e / F → e</code> grammar used for the LALR reduce-reduce conflict.</p>
+          <p class="small"><strong>Aho and Ullman, <em>Principles of Compiler Design</em></strong> — the handle and viable-prefix formulation, and the longest-match rule for scanners.</p>
+          <p class="small" style="margin-bottom:0"><strong>NPTEL compiler design lectures</strong> — the standard sequencing of lexical analysis into parsing, used for orientation and for the prerequisite framing. Used for orientation, not for any specific claim.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Question archives (community)</h3>
+          <p class="small">Used only to identify which questions exist, with which year and set, and to cross-check answers. A question on an archive is not thereby an official question, and none of these archives is an authority on the syllabus.</p>
+          <p class="small" style="margin-bottom:0">GATE Overflow and ExamSIDE — question text, year and set for the items cited. GateAI and EduRev — independent transcriptions used to cross-check the 2025 Set 2, 2024 Set 1, 2022 and 2019 items. Pyqbox, Success Tracker and GateForum's paper PDFs — used to confirm the 2015 Set 1 viable-prefix item, which appears under four different question numbers across archives; this lesson therefore cites the year and set and omits the number.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What was not verified</h3>
+          <p class="small" style="margin-bottom:0">The claim that LALR(1) has a shift-reduce conflict exactly when canonical LR(1) does is a theorem from the literature; the page checks it on six grammars and does not prove it. The claim that canonical LR(1) parses every deterministic context-free language is cited, not proved. The 2026 Set 2 answer of five LR(0) shift-reduce conflicts is the number this page computed on its own automaton; one archive agrees, and no second independent archive was found. No claim is made about how many marks this topic carries in GATE CSE 2027, and the archive counts quoted in the Overview are that archive's own tagging, not a weightage.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
