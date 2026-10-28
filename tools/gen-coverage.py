@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-10-28"  # the date this tracker was regenerated
+RUN_DATE = "2026-10-29"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -967,7 +967,24 @@ topics.append(topic(
     status="PUBLISHED",
     slug="pointers-in-c",
     path="topics/pointers-in-c/index.html",
-    execution="published 2026-10-25 (earlier run)"))
+    execution="published 2026-10-25 (earlier run); microtopics repaired 2026-10-29 from the lesson itself",
+    microtopics=[
+        "memory is a row of numbered bytes; an object owns a range of them",
+        "a pointer holds an address, so its value is a number and not the object",
+        "& gives the address of an object; * follows an address to the object",
+        "pointer arithmetic is scaled by the size of the pointed-to type",
+        "an array name decays to a pointer to its first element in most contexts",
+        "sizeof an array is the array's size; sizeof a pointer is the pointer's size",
+        "sizeof on a function parameter is the pointer size, because the parameter decayed",
+        "the four combinations of * and ++ on the same line, traced in order",
+        "a pointer to a pointer, and why a swap needs one",
+        "one past the end is legal to form and illegal to dereference",
+        "arithmetic outside the array object is undefined behaviour",
+        "pointer subtraction needs both pointers inside one array",
+        "a string literal is not writable even through a char *",
+        "an uninitialised pointer is not NULL and dereferencing it is undefined",
+        "a dangling pointer is not a null pointer: the address is still there, the object is not",
+    ]))
 
 topics.append(topic(
     "Programming and Data Structures", "Programming in C", "C fundamentals: types, operators and control flow",
@@ -1514,6 +1531,54 @@ topics.append(topic(
         "maximum subarray needs the crossing case: best-left plus best-right is not the answer",
         "Towers of Hanoi is recursive with b = 1, so it is exponential and not divide and conquer",
         "a base case changes the exact solution even when the class is unchanged",
+    ]))
+
+topics.append(topic(
+    "Algorithms", "Analysis", "Exact counts: comparisons, probes, transfers and multiplications",
+    ["the four units GATE counts: comparison, probe, block transfer, multiplication",
+     "the four-step counting procedure: unit, one level, identity, second route",
+     "exact comparison counts for merge sort, quicksort and binary search",
+     "probe counts for a stated hash table, against the uniform-hashing estimates",
+     "block transfers and average memory access time for one access sequence",
+     "table cells against table transitions in dynamic programming",
+     "multiplications as a unit: 3^k against 4^k"],
+    prereq=["asymptotic complexity", "sorting algorithms", "binary search and its variants",
+            "hashing", "memory hierarchy and cache", "dynamic programming"],
+    related=["divide and conquer", "sorting algorithms", "hashing", "memory hierarchy and cache",
+             "dynamic programming", "cpu scheduling"],
+    importance="high",
+    evidence="Class B, not class A: 'exact counts' is not a syllabus heading. It is the skill that Section 5's items ('Searching, sorting, hashing. Asymptotic worst case time and space complexity') and Section 3's 'Memory hierarchy: cache, main memory and secondary storage' are examined through, since those items are asked by stating an input and wanting an integer. Verified past items reproduced and recomputed on the page: GATE CSE 2007 Q15 (doubling loop, answer floor(lg n)+1), GATE CSE 2014 Set 1 (two quicksort inputs, t1 = 10 and t2 = 6, so t1 > t2) and GATE DS&AI 2024 Q11 (insertion cost in open addressing, 1/(1-alpha); named as the DS&AI paper, not the CS paper).",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="exact-counts-across-topics",
+    path="topics/exact-counts-across-topics/index.html",
+    execution="published 2026-10-29 - 10 scenes, 300s, 40 caption cues, 30/30 model checks passed",
+    microtopics=[
+        "work and comparisons are two different counts of the same merge sort: 24 against 17 at n = 8",
+        "a merge costs at most m + n - 1 comparisons, not m + n",
+        "merge sort worst case n ceil(lg n) - 2^ceil(lg n) + 1, verified at every n from 1 to 8",
+        "the number of merges is n - 1, which is the gap between work and comparisons",
+        "a partition costs exactly n - 1 comparisons, one per element other than the pivot",
+        "quicksort worst case n(n-1)/2 is the number of element pairs",
+        "quicksort average 2(n+1)H_n - 4n = 16.92 at n = 8, so the average is not the balanced case (13)",
+        "two inputs can tie in the first partition and differ in the recursion: 10 against 6",
+        "binary search floor(lg n) + 1 counts halvings plus the final test, not halvings alone",
+        "an unsuccessful binary search costs the same as the worst case",
+        "floor(lg n) + 1 and ceil(lg n) + 1 agree exactly at powers of two, so n = 15 separates them",
+        "the exit comparison of a while loop is a counting convention, not an asymptotics fact",
+        "chaining: p probes for a key at position p, and one more probe for the terminating null",
+        "a stated table is simulated; 1 + alpha/2 and alpha are averages over random hash functions",
+        "open addressing: 1/(1-alpha) for an unsuccessful search and for an insertion alike",
+        "the successful-search probe count is smaller than the insertion count",
+        "block transfers are counted per block, so the block size is part of the question",
+        "the same sixteen accesses cost 4 transfers row-major and 16 column-major",
+        "average access time is hit time plus miss rate times miss penalty, not miss count",
+        "matrix chain has n(n-1)/2 cells and n(n^2-1)/6 transitions: 10 and 20 at n = 5",
+        "an LCS table has (m+1)(n+1) cells because the empty prefix is a row and a column",
+        "Karatsuba counts multiplications only; the additions it adds are a different unit",
+        "3^k against 4^k, so the exponent is log2 3 = 1.585 and the ratio grows with n",
+        "one size, four units: at n = 1024 the answers are 11, 10240, 256 and 59049",
+        "the asymptotic class bounds the count; it does not give the count for the n in the question",
     ]))
 
 topics.append(topic(

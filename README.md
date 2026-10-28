@@ -31,7 +31,9 @@ lessons are static files and work from a local clone.
 | Trees, Binary Search Trees and Heaps | Programming And Data Structures | A — explicitly in the syllabus | `topics/trees-bst-and-heaps/index.html` |
 | Asymptotic Complexity and Recurrences | Algorithms | A — explicitly in the syllabus | `topics/asymptotic-complexity/index.html` |
 | Binary Search and Its Variants | Algorithms | A — explicitly in the syllabus | `topics/binary-search-and-variants/index.html` |
+| Divide and Conquer: the Three-Step Pattern, the Recursion Tree and the Recurrence | Algorithms | A — explicitly in the syllabus | `topics/divide-and-conquer/index.html` |
 | Dynamic Programming: Formulation, Tables and Classic Problems | Algorithms | A — explicitly in the syllabus | `topics/dynamic-programming/index.html` |
+| Exact counts: comparisons, probes, transfers and multiplications | Algorithms | B — prerequisite for a syllabus topic | `topics/exact-counts-across-topics/index.html` |
 | Graph Algorithms: Traversals, MSTs and Shortest Paths | Algorithms | A — explicitly in the syllabus | `topics/graph-traversals-mst-shortest-paths/index.html` |
 | Greedy Algorithms: Choice, Exchange and Counterexample | Algorithms | A — explicitly in the syllabus | `topics/greedy-algorithms/index.html` |
 | Hashing: Hash Functions and Collision Resolution | Algorithms | A — explicitly in the syllabus | `topics/hashing/index.html` |
@@ -52,23 +54,29 @@ lessons are static files and work from a local clone.
 | Memory Management and Virtual Memory | Operating Systems | A — explicitly in the syllabus | `topics/memory-management-and-virtual-memory/index.html` |
 | Processes, Threads and IPC | Operating Systems | A — explicitly in the syllabus | `topics/processes-threads-and-ipc/index.html` |
 | Synchronisation and Deadlock | Operating Systems | A — explicitly in the syllabus | `topics/synchronisation-and-deadlock/index.html` |
+| ER Model: Entities, Relationships, Weak Sets and the Mapping to Tables | Databases | A — explicitly in the syllabus | `topics/er-model/index.html` |
 | File Organisation and Indexing (B and B+ Trees) | Databases | A — explicitly in the syllabus | `topics/file-organisation-and-indexing/index.html` |
 | Functional Dependencies, Normal Forms and Decomposition | Databases | A — explicitly in the syllabus | `topics/functional-dependencies-and-normal-forms/index.html` |
 | Relational Algebra, Tuple Calculus and SQL | Databases | A — explicitly in the syllabus | `topics/relational-algebra-and-sql/index.html` |
 | Transactions and Concurrency Control | Databases | A — explicitly in the syllabus | `topics/transactions-and-concurrency-control/index.html` |
-| Context-Free Grammars and Pushdown Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/context-free-grammars-and-pushdown-automata/index.html` |
-| Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
-| Turing Machines and Undecidability | Theory Of Computation | A — explicitly in the syllabus | `topics/turing-machines-and-undecidability/index.html` |
-| Lexical Analysis, Parsing and Syntax-Directed Translation | Compiler Design | A — explicitly in the syllabus | `topics/lexical-analysis-parsing-and-sdt/index.html` |
 | Distance Vector and Link State Routing | Computer Networks | A — explicitly in the syllabus | `topics/distance-vector-and-link-state-routing/index.html` |
+| DNS and HTTP | Computer Networks | A — explicitly in the syllabus | `topics/dns-and-http/index.html` |
 | IP Fragmentation, CIDR and NAT | Computer Networks | A — explicitly in the syllabus | `topics/ip-fragmentation-cidr-and-nat/index.html` |
 | Layering, Switching and Performance Metrics | Computer Networks | A — explicitly in the syllabus | `topics/layering-switching-and-performance-metrics/index.html` |
 | Link Layer: Error Detection, MAC and Ethernet | Computer Networks | A — explicitly in the syllabus | `topics/link-layer-error-detection-mac-and-ethernet/index.html` |
 | TCP Flow Control, Congestion Control and the Socket API | Computer Networks | A — explicitly in the syllabus | `topics/tcp-flow-congestion-control-and-sockets/index.html` |
+| Context-Free Grammars and Pushdown Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/context-free-grammars-and-pushdown-automata/index.html` |
+| Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
+| Turing Machines and Undecidability | Theory Of Computation | A — explicitly in the syllabus | `topics/turing-machines-and-undecidability/index.html` |
+| Lexical Analysis, Parsing and Syntax-Directed Translation | Compiler Design | A — explicitly in the syllabus | `topics/lexical-analysis-parsing-and-sdt/index.html` |
+| Runtime Environments, Intermediate Code and Optimisation | Compiler Design | A — explicitly in the syllabus | `topics/runtime-environments-intermediate-code-and-optimisation/index.html` |
+| Calculus: Limits, Extrema and Integration | Engineering Mathematics | A — explicitly in the syllabus | `topics/calculus-limits-extrema-and-integration/index.html` |
+| Matrices, Systems and Eigenvalues | Engineering Mathematics | A — explicitly in the syllabus | `topics/matrices-systems-and-eigenvalues/index.html` |
 | Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
-| Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
-| Spatial Aptitude: Transformations, Paper Folding and Patterns | General Aptitude | A — explicitly in the syllabus | `topics/spatial-aptitude/index.html` |
 | Analytical Aptitude: Deduction, Induction, Analogy and Numerical Relations | General Aptitude | A — explicitly in the syllabus | `topics/analytical-aptitude/index.html` |
+| Quantitative Aptitude: Ratios, Data, Logarithms, Shapes, Statistics and Probability | General Aptitude | A — explicitly in the syllabus | `topics/quantitative-aptitude/index.html` |
+| Spatial Aptitude: Transformations, Paper Folding and Patterns | General Aptitude | A — explicitly in the syllabus | `topics/spatial-aptitude/index.html` |
+| Verbal Aptitude: Grammar, Vocabulary in Context, Comprehension and Narrative Sequencing | General Aptitude | A — explicitly in the syllabus | `topics/verbal-aptitude/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
