@@ -2322,9 +2322,18 @@ topics.append(topic(
     prereq=["none"],
     related=["counting and combinatorics", "probability and random variables"],
     importance="high",
-    evidence=GA_EVIDENCE + " Section 2 of the General Aptitude syllabus.",
+    evidence=GA_EVIDENCE + " Section 2 of the General Aptitude syllabus. Previous-year items "
+             "worked in the lesson: GATE CSE 2024 Set 1 GA Q4 (coin ratio, official key C), Q5 "
+             "(logarithm, key A), Q7 (sheet and cube, key A), Q8 (diet pie chart, key C) and Q3 "
+             "(median, key A), plus GATE CSE 2023 GA Q3 (recurrence, key A). A community archive "
+             "puts the section at 5 to 8 marks a paper across 2021-2025; that is an observation "
+             "about past papers, not a weightage figure.",
     difficulty="easy-medium",
-    status="READY"))
+    status="PUBLISHED",
+    slug="quantitative-aptitude",
+    path="topics/quantitative-aptitude/index.html",
+    execution="2026-10-28: published by the scheduled run; 68/68 model checks passed, geometry audit clean",
+    microtopics=['a ratio is a count comparison; money needs a unit value per share', 'the base is the total the percentage is a fraction of, not the coin count', 'Rs 1, Rs 5 and Rs 10 coins in 5:3:13 give values 5, 15, 130 and 10 per cent in Rs 5 coins', 'the count-over-count distractor 3/21 = 14 2/7 per cent, and the wrong-part distractor 15/50 = 30 per cent', 'percentage points against per cent change, and why the denominator is the old value', 'successive percentage changes multiply as factors: 1.25 x 0.80 = 1.00', 'data interpretation as a chain: share x total, divided by a rate, with the units cancelled', 'sector angle is 3.6 degrees per per cent, and the sectors must close at 360', '45 per cent of 2,000 kcal is 900 kcal, and 900 over 9 kcal per gram is 100 grams', 'grouping is exact only when every row shares one density; otherwise divide per row', 'log(ab) = log a + log b and log(a^k) = k log a, with no rule for log(a+b)', 'a coefficient is an exponent: 2 log 3 is log 9, not log 6', 'p^2 + q^2 = 9pq gives p/q + q/p = 9, and the square keeps the middle term 2p^2q^2', '(p^4 + q^4)/(p^2 q^2) = 79, against 81 if the middle term is dropped', 'rolling a sheet conserves area but not perimeter or volume', 'joining the two longer edges makes the length the height and the short edge the circumference', 'cube of surface area 216 has side 6 and volume 216; one face equal to the area is the wrong reading', 'tube volume 216/pi against cube 216 gives the ratio 1/pi', 'the other fold reading gives 13.5/pi, and using the circumference as a radius gives 4/pi', 'median is a rank statistic; an even count averages the two central values', 'median 13.5 against mean 18.7 on a sample containing 69', 'removing the outlier drops the mean to 13.11 and leaves the median at 13', 'at most half the values lie above the median, always; the same claim fails for the mean (0, 10, 10)', 'P(at least one) = 1 - P(none), with the two events exhaustive and disjoint', 'three tosses: eight outcomes, one with no head, 7/8', 'five red and three blue without replacement: 28 pairs, 3 both blue, 25/28', 'with replacement the same question gives 55/64, so replacement matters', 'a given recurrence can be run backwards: F5 = 60 - 37 = 23 down to F1 = 4', 'a backwards derivation is checked by one forward pass', 'ten doublings are about three decimal digits: 2^10 = 1024, a 2.4 per cent error', 'doubling time from the rule of 72: 72/5 = 14.4, against 1.05^14 = 1.9799 computed', 'simple against compound growth over fourteen years: 1.70 against 1.98']))
 
 topics.append(topic(
     "General Aptitude", "Aptitude", "Analytical aptitude",
