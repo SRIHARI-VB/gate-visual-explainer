@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runtime Environments, Intermediate Code and Optimisation — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Runtime Environments, Intermediate Code and Optimisation</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Prerequisite: Lexical analysis, parsing and SDT</a>
+      <a href="../c-fundamentals/index.html">Prerequisite: C fundamentals</a>
+      <a href="../memory-management-and-virtual-memory/index.html">Related: memory management</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The compiler back end — runtime environments, intermediate code generation, local optimisation and the data-flow analyses (constant propagation, liveness, common subexpression elimination). Section 7 of the GATE 2027 CS syllabus, Compiler Design.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Name every field of an activation record, size it and offset it, and tell the control link from the access link. Read a call sequence as a preorder and a return sequence as a postorder traversal of the activation tree. Resolve a free name by static or dynamic scoping and get both printed values right. Simulate call by value, by reference and by value-result, and say which one lets a swap work. Write an expression as three-address code, then as quadruples and as triples. Apply the three leader rules to a sequence of statements and partition it into basic blocks. Build the DAG of a basic block by value numbering and count its nodes as leaves plus distinct operators. Write use and def sets, iterate the two liveness equations backwards to a fixed point, and read the register count off the largest live set. Contrast liveness with available expressions on direction, meet operator, boundary and kill.</p>
+          <p class="small muted" style="margin-bottom:0">I read this syllabus clause as <em>four procedures and one idea</em>. The procedures are: size the record, count the leaders, count the nodes, iterate the equations. The idea is that every fact a back end uses is computed from the program's own structure — and the page computes all four rather than quoting them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 7 of the GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, lists: <em>"Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em> All five phrases are taught here, and each has its own scene.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Two community question archives tabulate this topic's previous-year questions and disagree on the totals — one reports seven questions in runtime environments between 2012 and 2023, the other counts a different set. That disagreement is why no count or weightage is claimed here. What can be checked is that each item quoted on the Examples tab exists in the year and set named.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary, not that one is guaranteed. Every previous-year item below carries its year and set, and every numeric answer was recomputed by this page's own model.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Parsing and syntax-directed translation — the back end starts where that lesson stops. <a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis, parsing and syntax-directed translation</a>.</li>
+            <li>C functions, parameters and the difference between a value and an address. <a href="../c-fundamentals/index.html">C fundamentals</a> and <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li>Recursion, as a process with a depth. <a href="../recursion/index.html">Recursion</a>.</li>
+            <li>Sets and set operations, because every data-flow fact here is a set and every meet is a union or an intersection. <a href="../sets-and-set-operations/index.html">Sets and set operations</a>.</li>
+            <li>Graphs — a flow graph and an interference graph are both graphs, and a DAG is one too. <a href="../graphs-connectivity/index.html">Graphs: connectivity and structure</a>.</li>
+            <li>No programming needed. Every number on this page is computed in the page's own model.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A frame is per call, not per procedure.</strong> Its size is the sum of its fields, and its two links point at two different things.</li>
+            <li><strong>Calls are preorder, returns are postorder.</strong> That single sentence answers the activation-tree questions.</li>
+            <li><strong>Three leader rules give the blocks.</strong> First statement, every jump target, every statement after a jump.</li>
+            <li><strong>A DAG node is a value, not a statement.</strong> Count leaves plus distinct operators, and a second definition becomes a label.</li>
+            <li><strong>Liveness is backwards and unions; availability is forwards and intersects.</strong> Get the direction and the meet right and the equations write themselves.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate study time: 75–95 minutes, which is an estimate and not a measurement. Watch the Animation tab once straight through, then use Examples for the eight previous-year items, Edge cases for the boundaries, and Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">Captions are on by default and switch to Detailed, Keyword or Exam trap without restarting. Every number on the canvas is computed by the page's model and re-checked against an identity it must satisfy — a frame's span against the sum of its slots, a DAG's node count against leaves plus operators, a liveness solution against both a fixed-point test and a path search, a colouring against the edges it must respect. The count of passing checks is shown under the canvas.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> One frame drawn as eleven slots with their offsets, and the two links named. <strong>2</strong> The stack for fact of three beside its activation tree, with the preorder and postorder reading. <strong>3</strong> The 2016 program traced twice, once down the access link and once down the control link. <strong>4</strong> A swap call under three mechanisms, with the caller's values afterwards. <strong>5</strong> An expression tree, its four three-address statements, and the same code as quadruples. <strong>6</strong> Seventeen statements with the six leaders marked and the six blocks listed. <strong>7</strong> A nine-statement block reduced to four, with the pass named against each line. <strong>8</strong> The DAG of the 2021 block with its labels, and the count of six nodes. <strong>9</strong> A six-node flow graph with the liveness table computed backwards to a fixed point. <strong>10</strong> The forward dual on a four-block graph, and the four questions that classify any analysis.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Level 1 — Intuition, before any notation</h3>
+          <p class="small">A compiler is a translator with a memory problem. The front end reads your program and writes down what it means; the back end has to run it, and running it means keeping track of which call is in progress, which value lives where, and which of the many possible rewrites of the program are actually safe. This topic is that second half.</p>
+          <p class="small" style="margin-bottom:0">Three pictures carry the whole lesson. A <em>stack of trays</em>: every call puts a tray on top and every return takes one off, so the last call is the first to finish. A <em>shopping list</em>: the intermediate code is a list of very small steps, one operation per line, which is what makes the program easy to rewrite. And a <em>spreadsheet of facts</em>: for every point in the program, the compiler writes down what is true there — which variables still matter, which expressions are already computed — and those facts are what license the rewrites.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2 — The formal definitions</h3>
+          <p class="small"><strong>Activation record.</strong> The block of storage holding one activation of a procedure: actual parameters, the return address, the control link, the access link, the return value, the locals and the temporaries.</p>
+          <p class="small"><strong>Control link.</strong> A pointer to the record of the caller. The chain of control links is the <em>dynamic</em> chain.</p>
+          <p class="small"><strong>Access link.</strong> A pointer to the record of the lexically enclosing procedure. The chain of access links is the <em>static</em> chain.</p>
+          <p class="small"><strong>Three-address code.</strong> A statement form in which the right-hand side has at most one operator, so each statement is a single step.</p>
+          <p class="small"><strong>Basic block.</strong> A maximal straight-line sequence: control enters only at the first statement and leaves only after the last.</p>
+          <p class="small"><strong>DAG of a block.</strong> A directed acyclic graph with one leaf per distinct initial value or constant and one interior node per distinct operator applied to two nodes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Live variable.</strong> A variable is live at a point when some path from that point reaches a use of it with no redefinition of it in between.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Level 3 — What each analysis actually assumes</h3>
+          <p class="small"><strong>Liveness.</strong> A <em>may</em> analysis: one path to a use is enough, so the meet at a join is union, the direction is backwards, and the boundary is the empty set at the exit.</p>
+          <p class="small"><strong>Available expressions.</strong> A <em>must</em> analysis: every path must compute the expression and leave its operands alone, so the meet is intersection, the direction is forwards, and the boundary at the exit is the set of all expressions.</p>
+          <p class="small"><strong>Value numbering.</strong> Assumes the expression's operands have the values their current names denote; a redefinition makes a different expression, which is exactly what the numbering must respect.</p>
+          <p class="small" style="margin-bottom:0"><strong>Strength reduction.</strong> Assumes the arithmetic does not overflow, or that the target's shift and multiply agree on overflow. Without that assumption the rewrite can change the answer.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Level 4 — Four worked examples, one line each</h3>
+          <p class="small"><strong>Record.</strong> Eleven four-byte slots — three parameters, return address, two links, return value, two locals, two temporaries — make a 44-byte frame with eleven distinct offsets.</p>
+          <p class="small"><strong>Recursion.</strong> fact of three leaves five frames on the stack at the deepest point, and the values come back 1, 1, 2, 6.</p>
+          <p class="small"><strong>Blocks.</strong> Seventeen statements with three jump targets and two statements after a jump give six leaders and six blocks of sizes 1, 1, 7, 2, 1, 5.</p>
+          <p class="small" style="margin-bottom:0"><strong>DAG.</strong> Five statements, three leaves (b, c and the constant 1) and three operator nodes, so six nodes, and two statements become labels.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Level 5 — Boundaries and constraints</h3>
+          <p class="small">Every mechanism here has a condition, and the paper builds questions by stepping just outside it. The stack discipline for activation records assumes calls nest properly, which is why a language that lets a function return a function cannot use a pure stack: the returned function outlives the frame that created it, so its environment must be heap-allocated. A DAG assumes the block has no control flow inside it, which is why it is a <em>local</em> analysis and why global common subexpression elimination needs available expressions instead. Value numbering assumes the operators are the ones the machine will actually compute, so a DAG drawn with algebraic identities applied can differ from one drawn without them. Liveness assumes the flow graph is the whole program region under analysis, so a variable read by a callee is live unless the analysis models calls.</p>
+          <p class="small" style="margin-bottom:0">A useful habit: before using any analysis, say its direction, its meet operator and its boundary out loud. Three sentences, and most of the marks in this topic are decided by them.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Level 6 — The counterexample to carry into the exam</h3>
+          <p class="small">Take the flow graph <em>a = 0; b = a + 1; c = c + b; a = b * 2; if a &lt; N goto the second statement; return c</em>. The first block computes nothing that involves the loop, so it is tempting to think a single backward pass settles it. It does not: after one pass the sets at the header are still empty, and the analysis reports that nothing is live there, which is false.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page checks this directly — it re-runs the equations on the result of the first round and shows that they move. A solution that is not a fixed point is not a solution, and that is the single most common way a hand-computed liveness answer goes wrong.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Levels 7 and 8 — How it is tested, and where to practise</h3>
+          <p class="small"><strong>The count.</strong> A numerical answer: the number of basic blocks, the number of DAG nodes, the number of registers, the number of live variables.</p>
+          <p class="small"><strong>The trace.</strong> A short program and a scoping or parameter rule, asking for the printed values.</p>
+          <p class="small"><strong>The statement set.</strong> A multiple-select item on what static allocation permits, or on which analysis drives which optimisation.</p>
+          <p class="small" style="margin-bottom:0"><strong>The table.</strong> A flow graph with a figure, asking for the live sets at the exit of each block. Practice is the Practice tab: twelve items, answers hidden until you ask, each with the reason the wrong options are wrong.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Level 9 — Consolidation</h3>
+          <p class="small" style="margin-bottom:0">Four procedures cover this topic. <strong>Size the record</strong> by adding its fields, and follow the access link for meaning and the control link for history. <strong>Count the leaders</strong> — first, target, after a jump — and the block count follows. <strong>Count the nodes</strong> as leaves plus distinct operators, and a repeated definition becomes a label rather than a node. <strong>Iterate the equations</strong> from the boundary until a round changes nothing, then read the answer off the sets. None of these requires memorising a number, and every one of them is checked on this page.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Every call gets its own record on the stack, pushed on entry and popped on return.</p>
+          </div>
+        </div>
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">An activation record is one call, written down</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A frame is per activation, not per procedure.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running…
+          </div>
+        </aside>
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="ctrl-group scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5×</option>
+              <option value="0.75">0.75×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.25">1.25×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+        <div class="card card--definition span-2">
+          <h3>The activation tree read two ways — GATE CSE 2021, Set 1 (1-mark MCQ)</h3>
+          <p class="small"><span class="badge">PYQ</span> Consider the statements. S<sub>1</sub>: the sequence of procedure calls corresponds to a preorder traversal of the activation tree. S<sub>2</sub>: the sequence of procedure returns corresponds to a postorder traversal of the activation tree. Which option is correct?</p>
+          <p class="small"><strong>Step 1.</strong> An activation tree has one node per activation, and a caller is the parent of its callee. A node is visited when its procedure is entered.</p>
+          <p class="small"><strong>Step 2.</strong> A parent is entered before any child, and every node in the left subtree is entered before the right subtree is reached, so the entry order is exactly a preorder walk. S<sub>1</sub> is true.</p>
+          <p class="small"><strong>Step 3.</strong> A procedure returns only after every call it made has returned, so a node is visited at return after all of its descendants. That is a postorder walk. S<sub>2</sub> is true.</p>
+          <p class="small" style="margin-bottom:0"><strong>Answer: both S<sub>1</sub> and S<sub>2</sub>.</strong> The page builds the tree for fact of three and checks both claims against the tree it actually built: the entry order is main, fact(3), fact(2), fact(1), fact(0), and the return order is exactly its reverse.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Reference parameters under dynamic scoping — GATE CSE 2016, Set 1 (2-mark MCQ)</h3>
+          <p class="small"><span class="badge">PYQ</span> What is printed when parameters are passed by reference and dynamic scoping is assumed? <code>a = 3; void n(x) { x = x * a; print(x); } void m(y) { a = 1; a = y - a; n(a); print(a); } void main() { m(a); }</code></p>
+          <p class="small"><strong>Step 1.</strong> main passes the global a, which is 3, so y aliases it. Inside m, <code>a = 1</code> declares a <em>local</em> a and sets it to 1.</p>
+          <p class="small"><strong>Step 2.</strong> <code>a = y - a</code> is 3 − 1 = 2, in m's local a. Then <code>n(a)</code> passes that local a by reference, so x and m's a are one cell.</p>
+          <p class="small" style="margin-bottom:0"><strong>Step 3.</strong> Under dynamic scoping, n's free a resolves in the newest active frame that has one, which is m, where a is 2. So x = 2 × 2 = 4, printed, and m's a becomes 4, printed. <strong>Answer: 4, 4.</strong> The page runs the same program under both scoping rules: static gives 6, 6 and dynamic gives 4, 4.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What static allocation forbids — GATE CSE 2002 (1 mark)</h3>
+          <p class="small"><span class="badge">PYQ</span> In the C language, which of these is true? (1) at most one activation record exists between the current one and main; (2) the number of activation records between the current one and main depends on the calling sequence; (3) the visibility of global variables depends on the calling sequence; (4) recursion requires the recursive function's record to be saved on a different stack.</p>
+          <p class="small"><strong>(1) False.</strong> Every call adds a record, and C allows nested calls, so many records can sit between the current one and main.</p>
+          <p class="small"><strong>(2) True.</strong> The number of live records is exactly the depth of the current call chain.</p>
+          <p class="small" style="margin-bottom:0"><strong>(3) False</strong> — C is statically scoped, so a global is visible wherever it is not shadowed, whatever the call order. <strong>(4) False</strong> — a recursive call and an ordinary call are identical to the compiler; both use the same stack. <strong>Answer: statement 2 only.</strong></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Which statement about optimisation is false — GATE CSE 2014, Set 1 (1-mark MCQ)</h3>
+          <p class="small"><span class="badge">PYQ</span> Which one is FALSE? (A) a basic block is a sequence of instructions where control enters at the beginning and exits at the end; (B) available expression analysis can be used for common subexpression elimination; (C) live variable analysis can be used for dead code elimination; (D) <code>x = 4 * 5</code> becoming <code>x = 20</code> is an example of common subexpression elimination.</p>
+          <p class="small"><strong>(A)</strong> is the definition of a basic block. <strong>(B)</strong> is the standard use of available expressions: if the expression is available, reuse it. <strong>(C)</strong> is the standard use of liveness: an assignment to a variable not live afterwards is dead.</p>
+          <p class="small" style="margin-bottom:0"><strong>(D) is false.</strong> Evaluating arithmetic on constants at compile time is constant folding. Common subexpression elimination reuses an expression that was already computed elsewhere in the program. <strong>Answer: D.</strong></p>
+        </div>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+        <div class="card card--definition">
+          <h3>Counting the nodes of a DAG — GATE CSE 2021, Set 1 (2-mark NAT)</h3>
+          <p class="small"><span class="badge">PYQ</span> The segment <code>a = b + c; e = a + 1; d = b + c; f = d + 1; g = e + f;</code> is represented internally as a directed acyclic graph. The number of nodes in the DAG is ______.</p>
+          <p class="small"><strong>Step 1.</strong> Leaves are the distinct initial values and constants: b, c and the constant 1. That is three.</p>
+          <p class="small"><strong>Step 2.</strong> Interior nodes are the distinct operators. b + c is one. (b + c) + 1 is two. The last statement adds the second node to itself, which is three.</p>
+          <p class="small" style="margin-bottom:0"><strong>Step 3.</strong> Statements three and four recompute expressions that already exist, so d and f join the labels of nodes one and two instead of creating nodes. <strong>Answer: 6.</strong> The page builds this DAG by value numbering, checks the count is three leaves plus three operators, and checks the DAG computes the same g as the five statements on four inputs.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Two statements in a block — GATE CSE 2021, Set 2 (2-mark MCQ)</h3>
+          <p class="small"><span class="badge">PYQ</span> For a statement S, USE(S) is the set of variables used in S, IN(S) the set live at its entry and OUT(S) the set live at its exit. A basic block consists of S<sub>1</sub> followed by S<sub>2</sub>. Which is correct?</p>
+          <p class="small"><strong>Step 1.</strong> S<sub>2</sub> is the only successor of S<sub>1</sub> inside the block, so everything live at the exit of S<sub>1</sub> is exactly what is live at the entry of S<sub>2</sub>.</p>
+          <p class="small"><strong>Step 2.</strong> That is the definition of OUT at a block boundary: the union of the successors' IN, and here there is one successor.</p>
+          <p class="small" style="margin-bottom:0"><strong>Answer: OUT(S<sub>1</sub>) = IN(S<sub>2</sub>).</strong> The other options mix a variable's own use into its exit set, which is the IN equation, not the OUT one. Confusing the two is what the question is for.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Counting basic blocks — GATE CSE 2025, Set 1 (2-mark NAT)</h3>
+          <p class="small"><span class="badge">PYQ</span> The sequence runs from address 1001 to 1017: initialisations, a loop from 1003 to 1009 jumping back to 1003, an increment and a loop from 1002 jumping back to 1002, then a second loop from 1013 to 1017 jumping back to 1013. The number of basic blocks is ______.</p>
+          <p class="small"><strong>Step 1.</strong> Leaders: 1001 is the first statement. Jump targets are 1003, 1002 and 1013.</p>
+          <p class="small"><strong>Step 2.</strong> Statements after a jump are 1010 (after the jump at 1009) and 1012 (after the jump at 1011).</p>
+          <p class="small" style="margin-bottom:0"><strong>Step 3.</strong> Six leaders, and no two are adjacent, so six blocks, holding 1, 1, 7, 2, 1 and 5 statements, which add to 17. <strong>Answer: 6.</strong> The page computes the leaders from the jump structure and then checks that the partition covers every statement exactly once and that no block is entered in the middle.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Why intermediate code exists at all — GATE CSE 2014, Set 3 (1-mark MCQ)</h3>
+          <p class="small"><span class="badge">PYQ</span> One purpose of using intermediate code in compilers is to: (A) make parsing and semantic analysis simpler; (B) improve error recovery and reporting; (C) increase the chances of reusing the machine-independent code optimiser in other compilers; (D) improve register allocation.</p>
+          <p class="small"><strong>(A) and (B) are wrong</strong> because parsing, semantic analysis and error reporting all happen before intermediate code exists.</p>
+          <p class="small" style="margin-bottom:0"><strong>(D) is wrong</strong> because register allocation is machine-dependent: registers belong to the target, and the intermediate code knows nothing about them. <strong>Answer: C.</strong> Write the optimiser once against the intermediate code and only the back end changes when you retarget.</p>
+        </div>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+        <div class="card card--definition span-2">
+          <h3>One program, four answers — the same 2016 question under the other rules</h3>
+          <p class="small">The 2016 program is worth more than one mark, because changing the scoping rule and the parameter mechanism gives four different pairs, and only two of them are answers to questions the paper has asked.</p>
+          <p class="small"><strong>Static scoping, by reference.</strong> n's a is the global 3, so x = 2 × 3 = 6, and because x aliases m's local a, m prints 6. Pair: 6, 6.</p>
+          <p class="small"><strong>Dynamic scoping, by reference.</strong> n's a is m's 2, so x = 2 × 2 = 4, and m prints 4. Pair: 4, 4. This is the paper's answer.</p>
+          <p class="small"><strong>Static scoping, by value.</strong> x = 6 is printed, but the write never reaches m, so m prints 2. Pair: 6, 2.</p>
+          <p class="small" style="margin-bottom:0"><strong>Dynamic scoping, by value.</strong> x = 4 is printed, m prints 2. Pair: 4, 2. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The two by-value pairs follow from the definitions and are not the paper's question, but they are why 6, 2 and 4, 2 appear as distractors. The page's model runs all four combinations and confirms the two it quotes.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>What these eight items have in common</h3>
+          <p class="small" style="margin-bottom:0">Seven of the eight are decided before any arithmetic happens: name the two traversals, decide which link the scoping rule follows, apply the three leader rules, count leaves plus operators, notice that one successor means OUT equals the next IN. Only the liveness table needs iteration, and even that needs two rounds and a confirmation. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> That is the shape of this section in the paper: the marks are for the decision, and the computation is short once the decision is made.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>An original question in the 2014 shape</h3>
+          <p class="small"><span class="badge badge--orig">Original practice</span> Which of these is NOT a local optimisation of a basic block? (A) constant folding; (B) dead code elimination; (C) loop-invariant code motion; (D) strength reduction.</p>
+          <p class="small" style="margin-bottom:0"><strong>Answer: C.</strong> Loop-invariant code motion moves a computation out of a loop, which crosses basic-block boundaries and therefore needs a global analysis. The other three are local: they rewrite one block using only what is inside it. This question was written for this lesson, not taken from a paper; it exists because the local-against-global distinction is what the syllabus's word "local" is testing.</p>
+        </div>
+      </div>
+      </div>
+
+      <div class="row" style="justify-content:space-between;margin-top:10px">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="small muted" data-pager-count></span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Records: the four boundary cases</h3>
+          <p class="small"><strong>A record with no parameters.</strong> The size is the sum of what remains; a parameter count of zero is not an error and changes nothing else.</p>
+          <p class="small"><strong>A nested procedure.</strong> Now the access link is needed, and it may point several frames back, not to the caller. That is why a display exists: an array of pointers, one per nesting level, so a reference at depth <em>k</em> is one lookup instead of <em>k</em>.</p>
+          <p class="small"><strong>A function returned as a value.</strong> Its frame must outlive the call that created it, so the environment moves to the heap and the pure stack discipline fails.</p>
+          <p class="small" style="margin-bottom:0"><strong>A variable-length local.</strong> A C array whose size is a run-time value makes the frame size dynamic, so the compiler reserves a pointer and adjusts the stack at entry.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Blocks: the cases that change the count</h3>
+          <p class="small"><strong>A jump target immediately after a jump.</strong> One statement is both "after a jump" and "a target". It is one leader, so one block, not two.</p>
+          <p class="small"><strong>A conditional jump.</strong> Two successors, and both the target and the following statement are leaders.</p>
+          <p class="small"><strong>A label with no jump to it.</strong> Not a leader. Only the three rules create leaders; a label by itself does not.</p>
+          <p class="small" style="margin-bottom:0"><strong>The last statement.</strong> Ends its block whether or not it jumps; there is no statement after it to lead.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The analysis that fails when you stop too early</h3>
+          <p class="small">The flow graph <em>a = 0; b = a + 1; c = c + b; a = b * 2; if a &lt; N goto the second statement; return c</em>. One backward pass from the exit gives, at the header, an empty IN set.</p>
+          <p class="small" style="margin-bottom:0">That answer is wrong: <em>a</em> is used at the test and <em>c</em> is used at the return, and the back edge is how both reach the header. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page re-runs the equations on the first round's result and shows that they change, so the first round is not a solution at all. Iterate until a round changes nothing; here that is two rounds, confirmed by a third.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The optimisation that is wrong outside its assumption</h3>
+          <p class="small">Replacing <code>2 * i</code> by <code>i + i</code>, or by a left shift, is safe only while the arithmetic is exact. For a signed integer that overflows, a shift and a multiply are not required to agree, and a compiler that assumes they do is entitled to produce a different answer.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> In C, signed overflow is undefined behaviour, so a compiler may assume it does not happen — which is exactly why the transformation is licensed there and not in a language that specifies wraparound.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>DAG: three counting traps</h3>
+          <p class="small"><strong>The constant written twice.</strong> The constant 1 appears in two statements and is one leaf. Counting it twice gives seven instead of six.</p>
+          <p class="small"><strong>The commutative swap.</strong> Whether <code>a + b</code> and <code>b + a</code> share a node depends on whether the analysis normalises operand order. Questions state it when it matters.</p>
+          <p class="small"><strong>The redefinition.</strong> After <code>a = 5</code>, a later <code>a + b</code> is a <em>different</em> expression, because a means something else. Reusing the old node is the classic wrong answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>The assignment chain.</strong> <code>d = a + b</code> after <code>a = b + c</code> where d was a label on that node adds a label; it does not add a node.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Two pairs that are constantly confused</h3>
+          <p class="small"><strong>Local against global.</strong> A local optimisation rewrites one basic block using only what is inside it: folding, local CSE, local dead-code elimination. A global one crosses blocks and needs data-flow facts: global CSE, loop-invariant motion, register allocation. The syllabus's word "local" is doing real work.</p>
+          <p class="small" style="margin-bottom:0"><strong>Analysis against optimisation.</strong> Liveness is an analysis; register allocation is an optimisation that consumes it. A question asking "which of these uses live variable analysis" wants the consumer, and the answer is register allocation and dead-code elimination, not "liveness".</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>“One activation record per procedure”</h3>
+          <p class="small"><strong>Why it feels right.</strong> We talk about "the activation record of f" as though f owned one, and in a program without recursion that is almost true.</p>
+          <p class="small"><strong>What is actually true.</strong> There is one record per <em>activation</em>. fact of three and fact of two are two different records with two different values of n, and both are live at the same time.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction.</strong> Count activations, not procedures. The 2021 question is about a tree with one node per call, and reading it as one node per procedure destroys the answer.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>“Recursion needs the heap”</h3>
+          <p class="small"><strong>Why it feels right.</strong> The word "dynamic" suggests the heap, and recursion is the dynamic case.</p>
+          <p class="small"><strong>What is actually true.</strong> Recursion needs dynamic allocation of activation records, which a stack supplies exactly, because records are freed in the reverse of the order they were created. A heap is not required; garbage collection is not required.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction.</strong> A heap is needed when a frame must outlive its caller — a returned closure, for instance. That is a different requirement.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>“Static and dynamic scoping differ only in the lookup”</h3>
+          <p class="small"><strong>Why it feels right.</strong> The definitions really are only about where a free name is found.</p>
+          <p class="small"><strong>What is actually true.</strong> The lookup decides <em>which cell</em> is written, and with a reference parameter that cell is shared with the caller. So changing the rule changes both printed values, not one: 6, 6 against 4, 4.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction.</strong> Trace the cells, not the names. Write down which frame each write lands in before computing anything.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>“Constant folding is common subexpression elimination”</h3>
+          <p class="small"><strong>Why it feels right.</strong> Both replace an expression by something simpler, and both are called optimisation.</p>
+          <p class="small"><strong>What is actually true.</strong> Folding evaluates arithmetic on constants. CSE reuses an expression that was computed elsewhere. <code>4 * 5</code> becoming <code>20</code> is folding, and GATE 2014 Set 1 offers it as the false statement for exactly this reason.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction.</strong> Ask what the replacement depends on: only constants means folding; a previous computation means CSE.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>“One backward pass gives the live sets”</h3>
+          <p class="small"><strong>Why it feels right.</strong> For straight-line code it does, and most textbook examples start that way.</p>
+          <p class="small"><strong>What is actually true.</strong> With a back edge, information must travel round the loop, which takes another round. A one-pass answer satisfies no equation at the header.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction.</strong> Iterate until a round changes nothing, and then verify by substituting the result back into the equations. The page does both.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>“Union at a join is always safe”</h3>
+          <p class="small"><strong>Why it feels right.</strong> Being conservative sounds safe: claim more is live, or more is available.</p>
+          <p class="small"><strong>What is actually true.</strong> Union is safe for liveness and unsafe for availability. Claiming an expression is available when one path never computed it, or killed it, licenses a reuse that computes the wrong value.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction.</strong> Match the meet to the question: "some path" means union, "every path" means intersection. Never pick the meet by habit.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>The five question shapes in this section</h3>
+          <p class="small"><strong>1. The count.</strong> Blocks, DAG nodes, registers, live variables. A numerical answer, and the mark turns on one rule applied correctly.</p>
+          <p class="small"><strong>2. The trace.</strong> A short program with a scoping or parameter rule, asking for printed values. Two or three writes and one shared cell.</p>
+          <p class="small"><strong>3. The statement set.</strong> Several claims about what an analysis or an allocation scheme permits; find the false one or the true ones.</p>
+          <p class="small"><strong>4. The table from a figure.</strong> A flow graph drawn in the paper, asking for IN or OUT at each block. The figure is the whole question.</p>
+          <p class="small" style="margin-bottom:0"><strong>5. The traversal.</strong> Activation tree against preorder and postorder, or an access-link chain for a given call sequence.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What each shape demands</h3>
+          <p class="small"><strong>For a count</strong>, write the rule down before counting: leaders, or leaves plus operators, or the largest live set.</p>
+          <p class="small"><strong>For a trace</strong>, draw the frames and mark which cell each write lands in. Then read the printed values off the drawing.</p>
+          <p class="small"><strong>For a statement set</strong>, test each claim against one small counterexample rather than against intuition.</p>
+          <p class="small" style="margin-bottom:0"><strong>For a table</strong>, write use and def for every block first, then iterate in reverse order and check the fixed point.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The four wrong approaches that cost marks</h3>
+          <p class="small"><strong>Counting statements instead of nodes.</strong> Five statements, six nodes, and the numbers coincide only by accident.</p>
+          <p class="small"><strong>Merging adjacent leaders.</strong> A jump target straight after a jump is one block of one statement, not two.</p>
+          <p class="small"><strong>Stopping after one liveness pass.</strong> Gives an answer that is not a fixed point, which the paper's options usually include.</p>
+          <p class="small" style="margin-bottom:0"><strong>Reading "local" as "simple".</strong> Loop-invariant code motion is simple to state and is not local: it needs a global analysis.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The procedure, in five lines</h3>
+          <p class="small"><strong>1.</strong> Read the question's noun: record, block, node, live set, register. That names the procedure.</p>
+          <p class="small"><strong>2.</strong> Write the rule for that noun in one line.</p>
+          <p class="small"><strong>3.</strong> Apply it mechanically to the given code, without skipping a line.</p>
+          <p class="small"><strong>4.</strong> Check the answer against an identity: blocks tile the code, nodes equal leaves plus operators, the sets are a fixed point.</p>
+          <p class="small" style="margin-bottom:0"><strong>5.</strong> Only then read the options. Reading them first is how a plausible wrong number becomes an answer.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>What is not claimed here</h3>
+          <p class="small" style="margin-bottom:0">No marks distribution is claimed for this topic, and no prediction is made about which of these questions will appear in GATE 2027. Community archives tabulate this section's previous-year questions and disagree with each other on the totals, which is exactly why the lesson quotes only items whose year and set can be checked, and recomputes every numeric answer rather than copying a key. Historical frequency is an observation about past papers, not a forecast.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+        <div class="question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ: GATE CSE 2021 Set 1</span></div>
+          <div class="q-body">
+            <p>S<sub>1</sub>: the sequence of procedure calls corresponds to a preorder traversal of the activation tree. S<sub>2</sub>: the sequence of procedure returns corresponds to a postorder traversal. Which is correct?</p>
+            <ol class="choices"><li>S<sub>1</sub> only</li><li>S<sub>2</sub> only</li><li>both S<sub>1</sub> and S<sub>2</sub></li><li>neither</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: C — both</span></p>
+              <p class="small">A parent is entered before its children, so entries are a preorder walk. A parent returns only after its children, so returns are a postorder walk.</p>
+              <p class="small" style="margin-bottom:0">The page builds the tree for fact of three and confirms the entry order is main, fact(3), fact(2), fact(1), fact(0) and the return order is its reverse.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ: GATE CSE 2016 Set 1</span></div>
+          <div class="q-body">
+            <p>With parameters passed by reference and dynamic scoping, what is printed by <code>a=3; void n(x){x=x*a; print(x);} void m(y){a=1; a=y-a; n(a); print(a);} void main(){m(a);}</code></p>
+            <ol class="choices"><li>6, 2</li><li>6, 6</li><li>4, 2</li><li>4, 4</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: D — 4, 4</span></p>
+              <p class="small">m's local a becomes 3 − 1 = 2 and is passed by reference, so x is that cell. Dynamically, n's free a is m's 2, so x = 2 × 2 = 4, and m then holds 4 as well.</p>
+              <p class="small" style="margin-bottom:0"><strong>A</strong> keeps the cells separate; <strong>C</strong> resolves dynamically but forgets the aliasing; <strong>B</strong> is the static-scoping answer. The model runs all four combinations and confirms 6, 6 for static.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ: GATE CSE 2021 Set 1</span></div>
+          <div class="q-body">
+            <p>For <code>a = b + c; e = a + 1; d = b + c; f = d + 1; g = e + f;</code> the number of nodes in the DAG is ______.</p>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: 6</span></p>
+              <p class="small">Leaves: b, c, and the constant 1, so three. Operators: b+c, then plus 1, then the sum added to itself, so three. Six in total.</p>
+              <p class="small" style="margin-bottom:0">The trap is counting the constant 1 twice, which gives seven. The page checks the count as leaves plus distinct operators and evaluates the DAG against the statements.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge">PYQ: GATE CSE 2025 Set 1</span></div>
+          <div class="q-body">
+            <p>A seventeen-statement three-address sequence from 1001 to 1017 has jumps at 1009 to 1003, at 1011 to 1002 and at 1017 to 1013. The number of basic blocks is ______.</p>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: 6</span></p>
+              <p class="small">Leaders: 1001 first; targets 1003, 1002, 1013; statements after a jump 1010 and 1012. Six leaders, none adjacent, so six blocks.</p>
+              <p class="small" style="margin-bottom:0">Sizes 1, 1, 7, 2, 1, 5 add to 17. The page computes the leaders from the jumps and checks the partition covers every statement once.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+        <div class="question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ: GATE CSE 2014 Set 1</span></div>
+          <div class="q-body">
+            <p>Which one is FALSE?</p>
+            <ol class="choices"><li>A basic block has one entry at the beginning and one exit at the end</li><li>Available expression analysis can be used for common subexpression elimination</li><li>Live variable analysis can be used for dead code elimination</li><li><code>x = 4 * 5</code> becoming <code>x = 20</code> is common subexpression elimination</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: D</span></p>
+              <p class="small">Evaluating arithmetic on constants at compile time is constant folding. CSE reuses an expression computed elsewhere in the program.</p>
+              <p class="small" style="margin-bottom:0">A is the definition of a basic block; B and C are the two standard uses of those analyses, and both are true.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Easy</span><span class="badge">PYQ: GATE CSE 2021 Set 2</span></div>
+          <div class="q-body">
+            <p>In a basic block with S<sub>1</sub> followed by S<sub>2</sub>, which relation holds?</p>
+            <ol class="choices"><li>OUT(S<sub>1</sub>) = IN(S<sub>2</sub>)</li><li>OUT(S<sub>1</sub>) = IN(S<sub>1</sub>) ∪ USE(S<sub>1</sub>)</li><li>OUT(S<sub>1</sub>) = IN(S<sub>2</sub>) ∪ OUT(S<sub>2</sub>)</li><li>OUT(S<sub>1</sub>) = USE(S<sub>1</sub>) ∪ IN(S<sub>2</sub>)</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: A</span></p>
+              <p class="small">Inside a block, the only successor of S<sub>1</sub> is S<sub>2</sub>, so what is live at the exit of S<sub>1</sub> is exactly what is live at the entry of S<sub>2</sub>.</p>
+              <p class="small" style="margin-bottom:0">B and D add a variable's own use to its exit set, which belongs to the IN equation. C unions two different points.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge">PYQ: GATE CSE 2002</span></div>
+          <div class="q-body">
+            <p>In C, which statement is true?</p>
+            <ol class="choices"><li>At most one activation record exists between the current one and main</li><li>The number of records between the current one and main depends on the calling sequence</li><li>The visibility of global variables depends on the calling sequence</li><li>Recursion needs the record saved on a different stack</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: B</span></p>
+              <p class="small">The number of live records is the depth of the call chain, which is exactly the calling sequence.</p>
+              <p class="small" style="margin-bottom:0">A is false because nested calls stack records. C is false because C is statically scoped. D is false because a recursive call uses the same stack as any other call.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>For the block <code>t1 = a + b; t2 = a + b; t3 = t1 * t2; t4 = t3 + t1; t5 = t4 - t2;</code> the number of nodes in the DAG is ______.</p>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: 5</span></p>
+              <p class="small">Leaves: a and b, so two. Operators: a+b (labelled t1 and t2), then times, then plus t1, then minus t2 — four. Five nodes in total, and one statement becomes a label.</p>
+              <p class="small" style="margin-bottom:0">This is an original question written for this lesson, not a previous-year item. It is the 2021 shape with one extra layer, and it tests whether you attach the second label rather than creating a second node.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+        <div class="question">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of these are local optimisations of a single basic block? I. constant folding II. loop-invariant code motion III. local common subexpression elimination IV. strength reduction</p>
+            <ol class="choices"><li>I and III only</li><li>I, III and IV only</li><li>I and II only</li><li>all four</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: B — I, III and IV</span></p>
+              <p class="small">Folding, local CSE and strength reduction all rewrite one block using only what is inside it. Loop-invariant code motion moves a computation across block boundaries, so it needs a global analysis.</p>
+              <p class="small" style="margin-bottom:0">Option A drops strength reduction, which needs no analysis at all. Option D is the "local means simple" trap. Original question written for this lesson.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">Hard</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>For the flow graph <code>1: a = 0; 2: b = a + 1; 3: c = c + b; 4: a = b * 2; 5: if a &lt; N goto 2; 6: return c</code>, the largest number of simultaneously live variables is ______.</p>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: 2</span></p>
+              <p class="small">The live sets are {c}, {a,c}, {b,c}, {b,c}, {a,c}, {c} across the six points, so the largest has two members: b and c, or a and c.</p>
+              <p class="small" style="margin-bottom:0">So two registers suffice, and the interference graph has the edges a–c and b–c, which two colours can colour. Note that a and b are never live together. Original question; the page computes these sets and checks them against a path search.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Hard</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Blocks: B1 computes <code>d = a + b</code>; B2 branches on d and has successors B4 and B3; B3 executes <code>a = 5</code> then goes to B4; B4 executes <code>e = a + b</code>. Is <code>a + b</code> available at the entry of B4?</p>
+            <ol class="choices"><li>Yes, because both paths computed it at B1</li><li>No, because one path redefines a before B4</li><li>Yes, because availability is computed by union</li><li>No, because B4 defines e</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: B</span></p>
+              <p class="small">Availability is a must analysis: every path must compute the expression and leave its operands alone. The path through B3 reassigns a, which kills a + b.</p>
+              <p class="small" style="margin-bottom:0"><strong>A</strong> ignores the kill; <strong>C</strong> is the union error, which the page computes and reports as the trap case; <strong>D</strong> confuses the expression being killed with the block's own definition. Original question, built on the syllabus's own example of the analysis.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">Medium</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A language has no global variables, no nested procedures and no recursion, and every variable is local to its procedure. Which allocation scheme is sufficient?</p>
+            <ol class="choices"><li>Static allocation, one area per procedure</li><li>Stack allocation of activation records</li><li>Heap allocation with garbage collection</li><li>No allocation at all is possible</li></ol>
+            <button class="reveal">Show answer</button>
+            <div class="answer" hidden>
+              <p><span class="verdict">Answer: A</span></p>
+              <p class="small">Without recursion, at most one activation of each procedure is live at a time, so one fixed area per procedure is enough. That is the classic static-allocation case.</p>
+              <p class="small" style="margin-bottom:0">B is what you need as soon as recursion is allowed. C is never required for this program shape. D is absurd. Original question; it is the positive half of the 2002 and 2008 statement sets, and it is why "static allocation makes recursion impossible" is true.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="row" style="justify-content:space-between;margin-top:10px">
+        <button class="btn" data-pager-prev>Previous</button>
+        <span class="small muted" data-pager-count></span>
+        <button class="btn" data-pager-next>Next</button>
+      </div>
+
+      </div>
+
+      <div class="card card--recessed" style="margin-top:10px">
+        <div class="row" style="justify-content:space-between">
+          <label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit</label>
+          <span class="small muted">Twelve questions across three pages. Answers stay hidden in mock mode.</span>
+        </div>
+        <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>The six statements to know word for word</h3>
+          <p class="formula small">frame = params + return address + control link + access link + return value + locals + temporaries<span class="gloss">The size is the sum of the fields; here eleven four-byte slots, 44 bytes.</span></p>
+          <p class="formula small">control link → caller; access link → enclosing scope<span class="gloss">Dynamic chain against static chain. C needs no access link.</span></p>
+          <p class="formula small">calls = preorder, returns = postorder<span class="gloss">One node per activation, not per procedure.</span></p>
+          <p class="formula small">leaders = {first} ∪ {targets} ∪ {after a jump}<span class="gloss">Each leader starts a block; no two adjacent leaders means blocks = leaders.</span></p>
+          <p class="formula small">DAG nodes = leaves + distinct operators<span class="gloss">A repeated definition is a second label, not a second node.</span></p>
+          <p class="formula small" style="margin-bottom:0">IN = use ∪ (OUT − def), OUT = ∪ IN(successors)<span class="gloss">Backward, union, boundary empty at the exit. Iterate to a fixed point.</span></p>
+        </div>
+
+        <div class="card">
+          <h3>The four analyses, side by side</h3>
+          <p class="small"><strong>Liveness.</strong> Backward, union, empty at the exit. Drives dead-code elimination and register allocation.</p>
+          <p class="small"><strong>Available expressions.</strong> Forward, intersection, all expressions at the exit. Drives global common subexpression elimination.</p>
+          <p class="small"><strong>Reaching definitions.</strong> Forward, union, empty at the entry. Drives constant propagation and def-use chains.</p>
+          <p class="small" style="margin-bottom:0"><strong>Constant propagation.</strong> Forward, and the meet is "agree, else unknown". The only one of the four whose meet is neither union nor intersection.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The counting rules, which is most of the marks</h3>
+          <ol class="small">
+            <li>Frame size: add the fields. Offsets: place the frame pointer and step.</li>
+            <li>Blocks: three leader rules, then group. Check the sizes add up.</li>
+            <li>DAG nodes: leaves for distinct initial values and constants, plus one node per distinct operator.</li>
+            <li>Registers: the largest live set, which equals the colours of the interference graph when the graph is a clique.</li>
+            <li>Statements eliminated by CSE: one per statement that recomputes an existing expression.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Every one of these five is computed on the Animation tab, and the pass count is printed under the canvas.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Numbers worth remembering</h3>
+          <p class="small">Frame: 11 slots, 44 bytes. fact(3): 5 frames, values 1, 1, 2, 6.</p>
+          <p class="small">2016 question: static 6, 6; dynamic 4, 4; the distractor 6, 2 belongs to no rule.</p>
+          <p class="small">2025 blocks: 6 leaders, sizes 1, 1, 7, 2, 1, 5, total 17. 2021 DAG: 6 nodes, 3 leaves and 3 operators, 2 statements eliminated.</p>
+          <p class="small" style="margin-bottom:0">Liveness example: 2 rounds to a fixed point, largest live set 2, so 2 registers, with edges a–c and b–c.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four-step procedure</h3>
+          <p class="small"><strong>1. Name the noun.</strong> Record, block, node, live set, register — that chooses the procedure.</p>
+          <p class="small"><strong>2. Write the rule</strong> in one line before computing anything.</p>
+          <p class="small"><strong>3. Apply it mechanically</strong>, and iterate if the graph has a back edge.</p>
+          <p class="small" style="margin-bottom:0"><strong>4. Check an identity.</strong> Blocks tile the code, nodes equal leaves plus operators, the sets are a fixed point, the colouring respects its edges.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The two counterexamples to keep</h3>
+          <p class="small"><strong>One backward pass is not a solution.</strong> On the six-node loop graph, the first round leaves the header empty; re-running the equations moves the sets, so the first round fails its own definition.</p>
+          <p class="small" style="margin-bottom:0"><strong>Union is not always safe.</strong> In the four-block graph, union says a + b is available at the join although one path reassigned a, and that would license a reuse that computes the wrong value.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Official syllabus and papers</h3>
+          <ul class="src-list small">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>CS_GATE2027_Syllabus.pdf</code>. Section 7 lists the clause verbatim: runtime environments, intermediate code generation, local optimisation, and the data-flow analyses constant propagation, liveness and common subexpression elimination. <em>Supports: the scope of this lesson and its class-A label.</em></li>
+            <li><strong>GATE 2021 CS papers, both sessions</strong> — the activation-tree item (Set 1, question 4) and the DAG node-count item (Set 1, question 50), and the two-statement liveness item (Set 2, question 38).</li>
+            <li><strong>GATE 2016 Set 1, question 36</strong> — the by-reference, dynamic-scoping trace, quoted verbatim with its four options.</li>
+            <li><strong>GATE 2014 Sets 1 and 3</strong> — the false-statement item on optimisation (Set 1, question 17) and the purpose of intermediate code (Set 3, question 17).</li>
+            <li><strong>GATE 2025 Set 1, question 52</strong> — the seventeen-statement basic-block count.</li>
+            <li><strong>GATE 2002, question 1.17</strong> — the four statements about activation records in C.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbooks and course material</h3>
+          <ul class="src-list small">
+            <li><strong>Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em>.</strong> Activation records, the static and dynamic links, three-address code, quadruples and triples, basic blocks and leaders, the DAG of a basic block, and the iterative data-flow framework used in scenes 1 to 10. <em>Supports: every definition and procedure quoted here.</em></li>
+            <li><strong>Cooper and Torczon, <em>Engineering a Compiler</em>.</strong> The treatment of value numbering and local common subexpression elimination, and the interference-graph view of register allocation.</li>
+            <li><strong>Thiemann, <em>Compiler Construction</em>, liveness lecture notes (University of Freiburg).</strong> The liveness inequations, the least-fixed-point argument, the interference-graph definition and the worked table on the six-node loop graph that scene 9 reproduces. <em>Supports: the fixed-point procedure and the 2-register result.</em></li>
+            <li><strong>Rice University, <em>Principles of Programming Languages</em>, lecture 18.</strong> Static links, dynamic links and the closure case that forces heap allocation, which is the boundary discussed on the Build-up tab.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community sources, as cross-checks only</h3>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> The question text and answer keys for the previous-year items were cross-checked against two independent community solution archives and one coaching solution booklet. Where those sources disagreed — the 2016 item is reproduced by one site with the answer 4, 2 — the year and set are given and the disagreement is recorded rather than hidden.</p>
+          <p class="small" style="margin-bottom:0">Two community archives tabulate the number of questions this section has asked and disagree with each other on the totals, which is why this lesson makes no weightage claim. What is verifiable is that the items quoted exist in the years and sets named, and every numeric answer here was recomputed by this page's model rather than copied.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What this lesson did not verify</h3>
+          <p class="small">No claim is made about how many marks this topic carries in GATE 2027, and none about which sub-topics are "more likely". Historical frequency is an observation about past papers, not a forecast.</p>
+          <p class="small">The page's own checks verify the structure: the frame's size against the sum of its slots, the recursion against its iterative product, both scoping traces, all three parameter mechanisms, the three-address code against the expression tree, the leader set and the partition, the optimisation against nine inputs, the DAG's node count and value, the liveness solution against a fixed point and a path search, the colouring against its edges, and the availability result against both meet operators. They do not verify the exam claims, which rest on the papers listed above.</p>
+          <p class="small" style="margin-bottom:0">Caption timings are estimated from a speaking rate, not measured from recorded audio, because no audio file ships with this lesson. Narration is offered through the browser's own speech synthesis, whose voice availability differs by platform.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+  <script src="timeline.js"></script>
+  <script src="../../assets/painters.js"></script>
+  <script src="../../assets/lesson-kit.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>
