@@ -61,8 +61,12 @@ lessons are static files and work from a local clone.
 | Turing Machines and Undecidability | Theory Of Computation | A — explicitly in the syllabus | `topics/turing-machines-and-undecidability/index.html` |
 | Lexical Analysis, Parsing and Syntax-Directed Translation | Compiler Design | A — explicitly in the syllabus | `topics/lexical-analysis-parsing-and-sdt/index.html` |
 | Distance Vector and Link State Routing | Computer Networks | A — explicitly in the syllabus | `topics/distance-vector-and-link-state-routing/index.html` |
+| IP Fragmentation, CIDR and NAT | Computer Networks | A — explicitly in the syllabus | `topics/ip-fragmentation-cidr-and-nat/index.html` |
 | Layering, Switching and Performance Metrics | Computer Networks | A — explicitly in the syllabus | `topics/layering-switching-and-performance-metrics/index.html` |
 | Link Layer: Error Detection, MAC and Ethernet | Computer Networks | A — explicitly in the syllabus | `topics/link-layer-error-detection-mac-and-ethernet/index.html` |
+| TCP Flow Control, Congestion Control and the Socket API | Computer Networks | A — explicitly in the syllabus | `topics/tcp-flow-congestion-control-and-sockets/index.html` |
+| Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
+| Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
