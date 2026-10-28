@@ -58,6 +58,7 @@ lessons are static files and work from a local clone.
 | Transactions and Concurrency Control | Databases | A — explicitly in the syllabus | `topics/transactions-and-concurrency-control/index.html` |
 | Context-Free Grammars and Pushdown Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/context-free-grammars-and-pushdown-automata/index.html` |
 | Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
+| Turing Machines and Undecidability | Theory Of Computation | A — explicitly in the syllabus | `topics/turing-machines-and-undecidability/index.html` |
 | Distance Vector and Link State Routing | Computer Networks | A — explicitly in the syllabus | `topics/distance-vector-and-link-state-routing/index.html` |
 | Layering, Switching and Performance Metrics | Computer Networks | A — explicitly in the syllabus | `topics/layering-switching-and-performance-metrics/index.html` |
 | Link Layer: Error Detection, MAC and Ethernet | Computer Networks | A — explicitly in the syllabus | `topics/link-layer-error-detection-mac-and-ethernet/index.html` |
