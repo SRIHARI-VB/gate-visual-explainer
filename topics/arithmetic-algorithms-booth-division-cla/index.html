@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arithmetic Algorithms: Booth, Division and Carry-Lookahead — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Arithmetic Algorithms: Booth, Division and Carry-Lookahead</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../number-representation-and-arithmetic/index.html">Number representation</a>
+      <a href="../alu-and-control-unit-design/index.html">ALU and control unit</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Arithmetic algorithms — how a machine that owns only an adder, a shifter and a complementer multiplies, divides and adds fast. Three machines: the shift-and-add multiplier and Booth's recoding of it; restoring and non-restoring division; and the carry-lookahead adder. This is the arithmetic half of Section 2 of the official GATE 2027 CS syllabus, <em>"Number representation and arithmetic (fixed and floating point)"</em>.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Execute each of the four algorithms on registers of a stated width and get the right answer; count the add/subtract operations Booth performs without tracing it; state the two conditions a division result must satisfy and use them to catch a skipped correction; and compute the depth of a lookahead adder from its gate fan-in.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the price list of an operation</em>. A multiplier is not a circuit that multiplies; it is a loop that adds and shifts, and every GATE question here asks for the price — how many additions, how many steps, how many gate levels. So the spine of the lesson is the count, and every trace below is executed by the page rather than quoted from a table.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — named in the syllabus.</strong></p>
+          <p class="small">Section 2 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read on 30 October 2026) reads in full: <em>"Boolean algebra and minimization – algebraic technique, Karnaugh map, tabular method. Design of combinational and sequential circuits. Number representation and arithmetic (fixed and floating point)."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The clause is examined as arithmetic, not only as representation: GATE CSE 2025 Set 2 Q32 asked how many addition and subtraction operations Booth's algorithm performs on two given 16-bit numbers (official answer 13), and GATE CSE 2016 Set 1 Q33 asked for the time to add two $$n$$-bit integers with a carry lookahead adder built from gates of fan-in at most two (official answer $$\Theta(\log n)$$). Both are quoted in full on the Practice tab.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Public question indexes tag multiplication, division and adder-delay items across many years, and an ALU-focused index lists Booth counting and carry-lookahead timing as recurring shapes. That is a catalogue's own tagging, not an official marks distribution, and nothing here forecasts the 2027 paper.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../number-representation-and-arithmetic/index.html">Number representation and arithmetic</a> — two's complement, sign extension, arithmetic versus logical shift, and the carry and overflow flags. This lesson assumes all of them and teaches none of them.</li>
+            <li><a href="../boolean-algebra-and-minimisation/index.html">Boolean algebra and minimisation</a> — the generate and propagate terms are two gates each, and the delay argument is a depth argument over gates.</li>
+            <li>Arithmetic with binary fractions is not needed; every trace here is on integers.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Approximate learning time</h3>
+          <p class="small">About 55–75 minutes with the animation and the worked traces, plus 35 minutes for the practice set. That is an estimate, not a measurement.</p>
+          <p class="small muted" style="margin-bottom:0">The animation runs 5 minutes and carries the whole argument; the written tabs carry it again in words, so the lesson works with the canvas switched off. No audio file exists: the narration is a script plus optional browser speech synthesis.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Five ideas that decide almost every question here</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Widths are part of the algorithm.</strong> The shift-and-add multiplier needs an $$n+1$$-bit accumulator, because step two of $$13 \times 11$$ sums to 19. Booth needs $$n+1$$ bits for a second reason: with $$n$$ bits the textbook version returns $$+16$$ for $$-8 \times 2$$.</li>
+            <li><strong>Booth's operation count is a property of the multiplier alone.</strong> It equals the number of places where two neighbouring bits of $$Q$$ differ, with a $$0$$ prepended. On the 2025 paper's multiplier that count is 13, and the multiplicand is irrelevant to it.</li>
+            <li><strong>Booth is a trade, not a free speed-up.</strong> A run of ones costs one operation; the alternating pattern costs $$n$$ in $$n$$ bits, which is worse than plain shift-and-add's $$n/2$$ additions.</li>
+            <li><strong>A division answer is two conditions, not one.</strong> $$M \cdot Q + A = \text{dividend}$$ and $$0 \le A < M$$. A skipped correction in non-restoring division keeps the first and breaks the second.</li>
+            <li><strong>A lookahead adder's speed depends on the gate library.</strong> With fan-in 2 the depth is $$2\lceil\log_2 n\rceil + 2$$ levels, which is $$\Theta(\log n)$$; only with unbounded fan-in is it constant (4 levels).</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>Intuition first: you already own the algorithm, you have just never written it down</h3>
+          <p>Multiply 13 by 11 on paper. You write 1101, then 1101 shifted left once, then 1101 shifted left three times, and add the three rows. That is <em>already</em> an algorithm: look at one bit of the multiplier, and either copy the multiplicand at the right offset or copy nothing. The machine does the same thing, except that instead of shifting the multiplicand left it shifts the running total right, because a register that shifts one way is cheaper than an adder with a variable offset.</p>
+          <p>Now multiply 13 by 99. The paper method writes seven shifted copies and adds them; you would rather compute $$13 \times 100 - 13$$, which is two operations. Booth noticed that the machine can do this too: a run of ones in the multiplier is a difference, so a long run costs one subtraction at its low end and one addition at its high end.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The paper-multiplication and the 99 image are aids to memory, not definitions. The algorithms below are stated as register operations, and the page executes them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shift-and-add multiplication, stated precisely</h3>
+          <p class="small">Registers: $$M$$ holds the multiplicand ($$n$$ bits), $$Q$$ holds the multiplier ($$n$$ bits), $$A$$ holds the running sum ($$n+1$$ bits). Repeat $$n$$ times:</p>
+          <p class="formula">$$Q_0 = 1 \;\Rightarrow\; A \leftarrow A + M$$</p>
+          <p class="formula">$$(A, Q) \leftarrow (A, Q) \gg 1$$</p>
+          <p class="small" style="margin-bottom:0">The product is the final $$(A, Q)$$ read as $$2n$$ bits. The shift is logical here, because the operands are unsigned.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Booth's recoding, stated precisely</h3>
+          <p class="small">With $$q_{-1} = 0$$, the recoded digit at position $$i$$ is</p>
+          <p class="formula">$$d_i = q_{i-1} - q_i$$</p>
+          <p class="small">and the multiplier is rebuilt as $$\sum_i d_i 2^i$$, with each $$d_i \in \{-1, 0, +1\}$$. In register terms the pair $$(q_i, q_{i-1})$$ decides the operation:</p>
+          <p class="small" style="margin-bottom:0">$$00 \to$$ nothing, $$01 \to$$ add $$M$$, $$10 \to$$ subtract $$M$$, $$11 \to$$ nothing. Then an <em>arithmetic</em> right shift of $$(A, Q, q_{-1})$$.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Restoring division</h3>
+          <p class="small">$$A$$ is $$n+1$$ bits and stays non-negative. Repeat $$n$$ times: shift $$(A,Q)$$ left by one; compute $$T = A - M$$; if $$T < 0$$ then $$A \leftarrow T + M$$ and $$Q_0 \leftarrow 0$$, else $$A \leftarrow T$$ and $$Q_0 \leftarrow 1$$.</p>
+          <p class="small" style="margin-bottom:0">At the end $$Q$$ is the quotient and $$A$$ the remainder, satisfying $$M \cdot Q + A = \text{dividend}$$ with $$0 \le A < M$$.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Non-restoring division</h3>
+          <p class="small">Same registers, no restoring. Repeat $$n$$ times: remember the sign of $$A$$; shift $$(A,Q)$$ left; if the remembered sign was negative then $$A \leftarrow A + M$$, else $$A \leftarrow A - M$$; then $$Q_0 \leftarrow 1$$ if the new $$A \ge 0$$, else $$0$$.</p>
+          <p class="small" style="margin-bottom:0">After the loop, if $$A < 0$$, do <strong>one</strong> correction: $$A \leftarrow A + M$$. The final $$A$$ then lies in $$[0, M)$$.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Carry-lookahead addition</h3>
+          <p class="small">For each bit, $$G_i = a_i \wedge b_i$$ (this column generates a carry) and $$P_i = a_i \oplus b_i$$ (this column propagates one). Then</p>
+          <p class="formula">$$c_{i+1} = G_i \vee \bigvee_{j<i}\left(G_j \wedge P_{j+1} \wedge \cdots \wedge P_i\right)$$</p>
+          <p class="small" style="margin-bottom:0">Every term uses only the input bits, so no carry waits for another carry. With fan-in-2 gates the longest term has $$n$$ literals, so the carry depth is $$2\lceil\log_2 n\rceil$$, plus one level for $$P,G$$ and one for the sum.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What "count" means, precisely</h3>
+          <p class="small">Three different counts appear in questions, and they are not interchangeable:</p>
+          <p class="small">• <strong>Add/subtract operations</strong> — the arithmetic steps only. Booth's is the transition count; plain shift-and-add's is the number of 1s in the multiplier.</p>
+          <p class="small">• <strong>Iterations or clock cycles</strong> — always $$n$$ for an $$n$$-bit multiplier or divider, whatever the operand bits are. A question asking for cycles is not asking for operations.</p>
+          <p class="small" style="margin-bottom:0">• <strong>Gate levels (delay)</strong> — a depth, not a count of gates. A lookahead adder has more gates and fewer levels than a ripple adder.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The nine levels, and where each one is</h3>
+          <p class="small">1 <strong>Intuition</strong> — paper multiplication and the 99 image, above. 2 <strong>Formal definition</strong> — the five register algorithms, above. 3 <strong>Visual understanding</strong> — the Animation tab runs each one; the register tables are the picture. 4 <strong>Worked examples</strong> — Examples tab: $$13\times11$$, $$3\times(-4)$$, the 2025 paper, $$7\div3$$ both ways, $$13+11$$. 5 <strong>Boundaries and constraints</strong> — widths ($$n+1$$ bits), the unsigned-versus-signed shift, and the fan-in assumption, in Edge cases. 6 <strong>Edge cases</strong> — the most negative multiplicand, divisor 1, dividend 0, and a multiplier of all zeros. 7 <strong>GATE application</strong> — the two verified papers and the shapes around them. 8 <strong>Independent practice</strong> — eight questions, answers withheld in mock mode. 9 <strong>Consolidation</strong> — the Revision tab, one page.</p>
+          <p class="small muted" style="margin-bottom:0">Nothing here is a proof of Booth's correctness beyond the exhaustive check over all 256 four-bit signed pairs, which the page runs. That check is evidence over a finite domain, not a proof for all widths; the general argument is the digit identity $$d_i = q_{i-1} - q_i$$, which the page also verifies for widths 4, 6 and 8.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A four-bit adder cannot multiply, cannot divide, and cannot add sixty-four bits in one step.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Three machines, one adder</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The last lesson gave us bit patterns. This one asks what the machine does with them.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card span-2">
+              <h3>Worked example 1 — shift-and-add, 13 × 11 in four bits</h3>
+              <p class="small">$$M = 1101 = 13$$, $$Q = 1011 = 11$$, $$A$$ starts at $$00000$$. The page runs this loop and prints each row; the numbers below are the model's output, not a hand copy.</p>
+              <div class="sheet small">
+                <div class="row"><span>step</span><span>Q<sub>0</sub></span><span>A after the add</span><span>Q after the shift</span></div>
+                <div class="row"><span>1</span><span>1 — add M</span><span>01101</span><span>1101</span></div>
+                <div class="row"><span>2</span><span>1 — add M</span><span>10011</span><span>1110</span></div>
+                <div class="row"><span>3</span><span>0 — shift only</span><span>01001</span><span>1111</span></div>
+                <div class="row"><span>4</span><span>1 — add M</span><span>10001</span><span>1111</span></div>
+              </div>
+              <p class="small">Product $$= 10001111_2 = 143$$. Three additions, and three is the number of 1s in $$1011$$. <strong>Why $$A$$ is five bits:</strong> at step 2, $$00110 + 01101 = 10011$$, which does not fit in four bits. A four-bit $$A$$ would drop that leading 1 and the final product would read $$01101111 = 111$$.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The invariant is $$A \cdot 2^n + Q = M \cdot (\text{the bits of the original } Q \text{ already shifted out})$$; each shift divides the left side by two and multiplies the shifted-out prefix by two, so the equality survives all $$n$$ steps. The page checks the conclusion directly on all 256 four-bit pairs.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 2 — recoding 1011</h3>
+              <p class="small">Pairs from the low end, with $$q_{-1} = 0$$: $$(1,0) \to -1$$, $$(1,1) \to 0$$, $$(0,1) \to +1$$, $$(1,0) \to -1$$.</p>
+              <p class="small">Digits least significant first: $$-1, 0, +1, -1$$.</p>
+              <p class="small">Weighted sum: $$-1 + 0 + 4 - 8 = -5$$. Hmm — that is not 11. Check the arithmetic: $$1011$$ as a <em>four-bit two's complement</em> number is $$-5$$, not 11.</p>
+              <p class="small" style="margin-bottom:0"><strong>This is the point.</strong> The recoding always reconstructs the <em>signed</em> value of the bit pattern. Shift-and-add treats $$1011$$ as unsigned 11; Booth treats it as signed $$-5$$. Both are correct for their own algorithm, and a question that gives you $$1011$$ must tell you which reading it wants.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 3 — Booth on 3 × (−4)</h3>
+              <p class="small">$$M = 0011$$, $$Q = 1100$$, $$A = 00000$$, $$q_{-1} = 0$$.</p>
+              <div class="sheet small">
+                <div class="row"><span>step</span><span>pair</span><span>op</span><span>A</span><span>Q</span></div>
+                <div class="row"><span>1</span><span>00</span><span>none</span><span>00000</span><span>1100</span></div>
+                <div class="row"><span>2</span><span>00</span><span>none</span><span>00000</span><span>0110</span></div>
+                <div class="row"><span>3</span><span>10</span><span>−M</span><span>11101</span><span>0011</span></div>
+                <div class="row"><span>4</span><span>11</span><span>none</span><span>11110</span><span>1001</span></div>
+              </div>
+              <p class="small" style="margin-bottom:0">After the fourth shift the product reads $$11110100_2 = -12$$. One subtraction in four steps, because $$1100$$ is a single run of ones plus a sign bit.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 4 — 7 ÷ 3, both ways</h3>
+              <p class="small"><strong>Restoring.</strong> Step 1: shift, trial $$0000-0011 = -3$$, restore, $$Q_0 = 0$$. Step 2: trial $$0001-0011 = -2$$, restore, $$Q_0 = 0$$. Step 3: trial $$0011-0011 = 0$$, keep, $$Q_0 = 1$$. Step 4: trial $$0001-0011 = -2$$, restore, $$Q_0 = 0$$. Result: $$Q = 0010 = 2$$, $$A = 0001 = 1$$.</p>
+              <p class="small"><strong>Non-restoring.</strong> Step 1: $$A \ge 0$$ so subtract, $$A = -3$$, $$Q_0 = 0$$. Step 2: sign was negative so add, $$A = -2$$, $$Q_0 = 0$$. Step 3: add again, $$A = 0$$, $$Q_0 = 1$$. Step 4: subtract, $$A = -2$$, $$Q_0 = 0$$. Correction: $$-2 + 3 = 1$$.</p>
+              <p class="small" style="margin-bottom:0">Same answer, and the non-restoring version never put a value back mid-loop. Both satisfy $$3 \cdot 2 + 1 = 7$$.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 5 — 13 + 11 with lookahead</h3>
+              <p class="small">$$a = 1101$$, $$b = 1011$$. Generate bits $$G = 1001$$ (bit 0 and bit 3 generate). Propagate bits $$P = 0110$$ (bits 1 and 2 propagate).</p>
+              <p class="small">$$c_0 = 0$$; $$c_1 = G_0 = 1$$; $$c_2 = G_1 \vee P_1G_0 = 0 \vee 1 = 1$$; $$c_3 = G_2 \vee P_2G_1 \vee P_2P_1G_0 = 0 \vee 0 \vee 1 = 1$$; $$c_4 = G_3 \vee P_3G_2 \vee P_3P_2G_1 \vee P_3P_2P_1G_0 = 1$$.</p>
+              <p class="small" style="margin-bottom:0">Carries in: $$0,1,1,1$$ with carry out 1, so the sum is $$11000_2 = 24$$. The page checks these against ripple carry on all 256 four-bit pairs and on 600 eight-bit pairs, and they never disagree.</p>
+            </div>
+
+            <div class="card span-2">
+              <h3>Worked example 6 — the 2025 paper's multiplier, counted rather than traced</h3>
+              <p class="small">$$Q = 1010010010101010$$. Read from the low end with $$q_{-1}=0$$, the bits are $$0,1,0,1,0,1,0,1,0,0,1,0,0,1,0,1$$. Compare each with its left neighbour: they differ at positions 1,2,3,4,5,6,7,8,10,11,13,14,15 — thirteen places. Seven of those are $$1\to0$$ transitions (subtractions) and six are $$0\to1$$ (additions), so thirteen operations, which is the official key.</p>
+              <p class="small" style="margin-bottom:0">The full Booth trace on those 16-bit numbers, which the page also runs, performs the same thirteen operations. The two methods agreeing is the check; the transition count is the one to use in the exam, because it takes fifteen seconds.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+            <div class="card span-2">
+              <h3>Worked example 7 — what the count does when the operands change</h3>
+              <p class="small">Take $$Q$$ over all sixteen four-bit patterns and count Booth's operations. The page computes the whole distribution, and its extremes are the two numbers worth remembering.</p>
+              <div class="sheet small">
+                <div class="row"><span>multiplier Q</span><span>recoded digits</span><span>operations</span></div>
+                <div class="row"><span>0000</span><span>0,0,0,0</span><span>0</span></div>
+                <div class="row"><span>1111</span><span>−1,0,0,0</span><span>1</span></div>
+                <div class="row"><span>0110</span><span>0,−1,0,+1</span><span>2</span></div>
+                <div class="row"><span>1010</span><span>0,−1,+1,−1</span><span>3</span></div>
+                <div class="row"><span>0101</span><span>−1,+1,−1,+1</span><span>4</span></div>
+              </div>
+              <p class="small" style="margin-bottom:0">Plain shift-and-add on the same four multipliers would need 0, 4, 2, 2 and 2 additions. So Booth wins on $$1111$$ by four operations, ties on the middle two, and loses on $$0101$$ by two. Nothing about this is a rounding error: it is the structure of the recoding.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Booth with the most negative multiplicand</h3>
+          <p class="small">In four bits, $$M = 1000 = -8$$. The textbook version stores $$-M$$ in an $$n$$-bit accumulator, and $$+8$$ does not fit in four bits: it wraps to $$1000$$, which is $$-8$$ again. The page computes both versions.</p>
+          <p class="small">$$-8 \times 2$$: the $$n+1$$-bit accumulator returns $$-16$$ (correct); the $$n$$-bit accumulator returns $$+16$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fix:</strong> widen $$A$$, and the multiplicand with it, by one bit. The page's exhaustive check over all 256 signed four-bit pairs passes only with the widened register.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A division whose remainder is zero</h3>
+          <p class="small">$$6 \div 3$$. Non-restoring ends with $$A = 0$$ only after the correction in this trace, because the last operation made $$A$$ negative. The identity $$3 \cdot 2 + 0 = 6$$ holds either way, so the identity alone does not tell you whether a correction is owed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule:</strong> the correction is decided by the sign of the final $$A$$, never by whether the remainder "looks right".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Divisor 1, dividend 0, divisor 0</h3>
+          <p class="small">$$M = 1$$: every trial is non-negative, so every quotient bit is 1, no step restores, and the quotient is the dividend itself — the widest quotient a fixed-width divider can hold. $$M = 0$$: the trial never restores and the result is meaningless; division by zero is not an arithmetic overflow in these algorithms, it is undefined, and no flag in the register set reports it.</p>
+          <p class="small" style="margin-bottom:0">Dividend 0: every step shifts zeros, every quotient bit is 0, and the remainder is 0. That is correct and is worth knowing because a question may ask for the trace.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The shift that must be arithmetic</h3>
+          <p class="small">In Booth, replacing the arithmetic right shift by a logical one fills the top of $$A$$ with zeros. On $$3 \times (-4)$$ the sign is lost at step 3 and the product comes out positive. A wrong option in a Booth question very often contains exactly this substitution.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> the top bit of $$A$$ must equal the top bit before the shift whenever $$A$$ is negative.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Signed division is not these algorithms</h3>
+          <p class="small">Restoring and non-restoring division as stated here divide <em>unsigned</em> numbers. For signed operands the usual hardware divides magnitudes and fixes the sign afterwards, and the remainder takes the sign of the dividend — which is why $$-7 \div 3$$ gives quotient $$-2$$ and remainder $$-1$$ in C, while $$-7 = 3 \cdot (-2) + (-1)$$ still holds.</p>
+          <p class="small" style="margin-bottom:0">A question that says "signed" and then quotes a non-negative remainder is asking about the magnitude algorithm, not about C's definition.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The lookahead adder when the fan-in is unbounded</h3>
+          <p class="small">The same circuit with gates of unlimited fan-in needs four levels: one for $$P$$ and $$G$$, two for the carry sum-of-products, one for the sum bit. That is constant, and it is the reason the 2016 question's wording "gates of fan-in at most two" is load-bearing rather than decorative.</p>
+          <p class="small" style="margin-bottom:0">With fan-in $$k$$ the depth is $$2\lceil\log_k n\rceil + 2$$. Only as $$k \to n$$ does the logarithm collapse.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>A closely confused pair: "operations" against "iterations"</h3>
+          <p class="small">Booth on the 2025 paper's numbers performs <strong>13</strong> add/subtract operations and <strong>16</strong> iterations, because the multiplier is 16 bits. Both numbers are defensible answers to different questions, and the paper asks for the first. Shift-and-add on $$13 \times 11$$ performs <strong>3</strong> additions and <strong>4</strong> iterations.</p>
+          <p class="small" style="margin-bottom:0">The tell is the noun: "additions and subtractions", "add/subtract operations", "arithmetic operations" mean the count that depends on the bits; "cycles", "steps", "iterations", "clock periods" mean $$n$$. A question can ask for both, and then the two answers must be reported separately.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>"Booth's algorithm needs fewer operations than shift-and-add"</h3>
+          <p class="small"><strong>Why it tempts:</strong> every textbook motivates it as a speed-up, and it is one on long runs. <strong>What breaks it:</strong> the multiplier $$0101$$ costs 4 operations in 4 bits, while shift-and-add needs 2.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> Booth's count is the number of transitions of the multiplier. It is smaller than the number of 1s exactly when the 1s come in long runs. On isolated 1s it is larger.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The number of operations depends on both operands"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the product depends on both, so the work feels symmetric. <strong>What breaks it:</strong> the 2025 paper gives a 16-bit $$M$$ and a 16-bit $$Q$$ and the answer, 13, is computed from $$Q$$ alone; changing $$M$$ to any other 16-bit value leaves the count at 13.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the recoding is applied to the multiplier. The multiplicand is added or subtracted, never recoded, so it cannot change how often that happens.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"q<sub>−1</sub> is just a convenience"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is described as an extra bit that starts at zero, which sounds like bookkeeping. <strong>What breaks it:</strong> without it the pair at position 0 is undefined, and the 2025 count drops from 13 to 12.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> $$q_{-1}=0$$ is part of the recoding: it is what makes the digit at position 0 equal to $$-q_0$$, so a multiplier ending in 1 starts with a subtraction.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Non-restoring division always saves a step"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it removes the restoring addition. <strong>What breaks it:</strong> it adds a correction after the loop, and that correction is needed in roughly half the cases — $$7\div3$$ needs it, $$7\div4$$ does not.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> count both: $$n$$ operations plus 0 or 1 correction. The saving is real in hardware (no restore path in the loop) and not always in operation count.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A quotient and remainder are correct if M·Q + A = dividend"</h3>
+          <p class="small"><strong>Why it tempts:</strong> that is the identity division is defined by. <strong>What breaks it:</strong> it is not unique — $$7 = 3\cdot3 + (-2)$$ also holds, and that is exactly the uncorrected non-restoring answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the identity plus the range $$0 \le A < M$$. Both conditions, always. The range is what a correction step repairs.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A carry-lookahead adder adds in constant time"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the carries are computed in parallel, and "in parallel" sounds like one step. <strong>What breaks it:</strong> with fan-in 2, computing an AND of $$n$$ literals takes $$\lceil\log_2 n\rceil$$ levels; 16 bits need 10 levels, and 64 need 14.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the depth is $$2\lceil\log_2 n\rceil + 2$$ for fan-in 2, $$\Theta(\log n)$$. It is $$\Theta(1)$$ only when the fan-in grows with $$n$$.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The accumulator is n bits, like the operands"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both operands are $$n$$ bits and the answer often is too. <strong>What breaks it:</strong> in shift-and-add the intermediate sum $$00110 + 01101 = 10011$$ needs five bits; in Booth the negation of $$-2^{n-1}$$ needs one more bit than $$n$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> $$A$$ is $$n+1$$ bits in both algorithms. The product is still $$2n$$ bits, read from the low $$n$$ bits of $$A$$ and all of $$Q$$.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Recoding is the same as converting to sign-magnitude"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both change how the number is written, and both produce negative terms. <strong>What breaks it:</strong> the digits of $$1010$$ are $$0,-1,+1,-1$$ and sum to $$-6$$, the two's complement value. A sign-magnitude reading would give $$-2$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> Booth's recoding is an identity in two's complement arithmetic, $$\sum d_i 2^i = Q$$ as a signed value. It never changes the value; it changes only the number of non-zero terms.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card span-2">
+          <h3>Six shapes this clause takes</h3>
+          <p class="small" style="margin-bottom:0">Every verified item below is quoted on the Examples or Practice tab with its paper. The list describes question <em>shapes</em>, not how many will appear in 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>1. Count the operations of Booth on given numbers</h3>
+          <p class="small"><strong>Shape:</strong> two signed 2's complement numbers are multiplied by Booth's algorithm and you must give the total number of addition and subtraction operations. GATE CSE 2025 Set 2 Q32 is this, with a 16-bit multiplier and answer 13.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> know that the count is the number of transitions of $$Q$$ with a leading 0, and that $$M$$ is irrelevant.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> tracing all sixteen register states, which takes minutes, or omitting $$q_{-1}$$ and answering 12.</p>
+        </div>
+
+        <div class="card">
+          <h3>2. Delay of an adder, given a gate library</h3>
+          <p class="small"><strong>Shape:</strong> "a carry lookahead adder for two $$n$$-bit integers built using gates of fan-in at most two" and four asymptotics. GATE CSE 2016 Set 1 Q33 is this, with answer $$\Theta(\log n)$$.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> translate fan-in into a tree depth: $$\lceil\log_2 n\rceil$$ levels for each of the AND and OR trees.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> answering $$\Theta(1)$$ because the carries are "computed in parallel".</p>
+        </div>
+
+        <div class="card">
+          <h3>3. A register trace with one row missing</h3>
+          <p class="small"><strong>Shape:</strong> a partially filled table of $$A$$, $$Q$$ and $$q_{-1}$$ and you must supply a row, or say which operation the next step performs.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> read the pair, apply the table, and shift arithmetically. One row is one addition and one shift.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> reading the pair as (bit to the right, current bit), which swaps add and subtract.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. Division: quotient and remainder as a numerical answer</h3>
+          <p class="small"><strong>Shape:</strong> a dividend and divisor in a stated width, the algorithm named, and a quotient-remainder pair or a single remainder to fill in.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> run $$n$$ steps, apply the correction if the algorithm needs it, and check $$M\cdot Q + A = \text{dividend}$$ with $$0 \le A < M$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> stopping at the loop and reporting a negative remainder, or forgetting that the quotient is read from $$Q$$ and not from $$A$$.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. "Which statement is true" about a multiplier</h3>
+          <p class="small"><strong>Shape:</strong> an MSQ offering statements about the number of additions, the width of the product, whether the algorithm handles signed numbers, and the worst case.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> one check per statement: count, width $$2n$$, signed-by-construction, worst case $$n$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> accepting "Booth is always faster", which the $$0101$$ case refutes.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. A trace inside a larger datapath question</h3>
+          <p class="small"><strong>Shape:</strong> the arithmetic unit appears as one block in a data-path diagram, and the question asks which control signals are needed for a multiply step or how many cycles a sequence takes.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> the signals are exactly "add or subtract", "shift", and "count down"; the cycles are $$n$$ plus the load and store.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> treating the multiplier as a single combinational block with one cycle, when the syllabus algorithm is sequential.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>What to do in the first fifteen seconds of any question on this clause</h3>
+          <p class="small" style="margin-bottom:0">Write down three things before computing: the <strong>width</strong> (and therefore whether the accumulator is $$n$$ or $$n+1$$ bits), the <strong>algorithm</strong> named in the wording, and the <strong>quantity</strong> asked for — operations, cycles or levels. On the 2025 question that is enough to answer without a trace. On a trace question it is enough to check your own answer: the product's width, the shift's arithmeticness, and the remainder's range.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Questions 1 and 2 are verified previous-year items with their papers named. Questions 3 to 8 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless its paper is given.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card span-2">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2025 Set 2, Q32, 1 mark</span></div>
+              <div class="q-body">
+                <p>The following two signed 2's complement numbers (multiplicand $$M$$ and multiplier $$Q$$) are being multiplied using Booth's algorithm:</p>
+                <p><code>M : 1100110111101101</code> &nbsp; <code>Q : 1010010010101010</code></p>
+                <p>The total number of addition and subtraction operations to be performed is ______. (Answer in integer)</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 13</p>
+                <p>Booth inspects the pair $$(q_i, q_{i-1})$$ at each of the 16 steps, with $$q_{-1} = 0$$. Because $$q_{-1}$$ at step $$k$$ is the original bit $$q_{k-1}$$, an addition or a subtraction happens exactly where two neighbouring bits of $$Q$$ differ, plus the comparison of $$q_0$$ against the prepended 0. Reading $$Q$$ from the low end: $$0,1,0,1,0,1,0,1,0,0,1,0,0,1,0,1$$ with a 0 before it, the differing positions are 1,2,3,4,5,6,7,8,10,11,13,14,15 — thirteen. Seven are subtractions ($$1\to0$$) and six are additions ($$0\to1$$).</p>
+                <p><strong>Why the multiplicand is not used:</strong> recoding is applied to $$Q$$ only; $$M$$ is added or subtracted but never recoded, so it cannot change how often that happens. The page runs the full 16-bit Booth trace and counts the same 13.</p>
+                <p><strong>Trap:</strong> omitting the prepended $$q_{-1}=0$$ gives 12, which is the most common wrong answer. A second trap is answering 16, the number of iterations.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2016 Set 1, Q33, 2 marks</span></div>
+              <div class="q-body">
+                <p>Consider a carry lookahead adder for adding two $$n$$-bit integers, built using gates of fan-in at most two. The time to perform addition using this adder is</p>
+                <ol class="choices">
+                  <li>$$\Theta(1)$$</li>
+                  <li>$$\Theta(\log n)$$</li>
+                  <li>$$\Theta(\sqrt{n})$$</li>
+                  <li>$$\Theta(n)$$</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B — $$\Theta(\log n)$$</p>
+                <p>The longest carry, $$c_n$$, is an OR of terms each of which is an AND of at most $$n$$ literals: $$G_0P_1\cdots P_{n-1}$$ is the longest. With two-input gates an AND of $$n$$ literals takes $$\lceil\log_2 n\rceil$$ levels and the OR over $$n$$ terms takes the same, so the carry needs $$2\lceil\log_2 n\rceil$$ levels; one more level for $$P$$ and $$G$$ and one for the sum bit gives $$2\lceil\log_2 n\rceil + 2$$.</p>
+                <p><strong>Why the others are wrong:</strong> A is the unbounded-fan-in answer, which the phrase "fan-in at most two" rules out; D is the ripple adder, which the lookahead replaces; C is not a depth that any adder here achieves. <strong>On the page's table:</strong> 16 bits is 10 levels and 64 bits is 14, so doubling $$n$$ adds exactly 2.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--orig">Original practice</span><span class="badge badge--nat">NAT</span></div>
+              <div class="q-body">
+                <p>A four-bit multiplier uses the plain shift-and-add algorithm with $$M = 0101$$ and $$Q = 1111$$. How many times is the multiplicand added into the accumulator?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 4</p>
+                <p>Shift-and-add adds $$M$$ once for every 1 in the multiplier, so the count is the popcount of $$1111$$, which is 4. The product is $$0101 \times 1111 = 75$$, and the page's model checks the identity "additions = popcount(Q)" on all 256 four-bit pairs.</p>
+                <p><strong>Contrast:</strong> the same multiplier under Booth needs one operation, because $$1111$$ is a single run of ones. Same numbers, different algorithm, different price.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--orig">Original practice</span><span class="badge badge--mcq">MCQ</span></div>
+              <div class="q-body">
+                <p>In non-restoring division of unsigned numbers with $$M = 0011$$ and dividend $$7$$ in four bits, the partial remainder immediately after the loop ends (before any correction) is</p>
+                <ol class="choices">
+                  <li>$$0001$$</li>
+                  <li>$$1110$$</li>
+                  <li>$$0000$$</li>
+                  <li>$$1101$$</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B — $$1110$$, which is $$-2$$</p>
+                <p>The page's trace gives, after four steps, $$A = 1110$$ and $$Q = 0010$$. Since $$A < 0$$, one correction adds $$M$$: $$1110 + 0011 = 0001$$, so the remainder is 1 and the quotient is 2.</p>
+                <p><strong>Why the others are wrong:</strong> A is the corrected remainder, which the question explicitly excludes; C would be the answer only if the last operation had left a non-negative remainder; D is the value of $$A$$ after step 1.</p>
+                <p><strong>Check that catches it:</strong> $$3 \cdot 2 + (-2) = 4 \ne 7$$, so the identity alone fails here — but in general the identity can hold with a negative remainder, which is why the range condition $$0 \le A < M$$ is the one to state.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--orig">Original practice</span><span class="badge badge--msq">MSQ</span></div>
+              <div class="q-body">
+                <p>For Booth's multiplication of two $$n$$-bit two's complement numbers, which statements are TRUE?</p>
+                <ol class="choices">
+                  <li>The number of add/subtract operations is at most $$n$$.</li>
+                  <li>A multiplier of the form $$0101\ldots01$$ needs more operations than plain shift-and-add needs additions.</li>
+                  <li>The accumulator must hold $$n+1$$ bits if the multiplicand is the most negative $$n$$-bit number.</li>
+                  <li>The number of iterations depends on the multiplier's bit pattern.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A, B, C</p>
+                <p><strong>A</strong> holds because there are $$n$$ steps and each step performs at most one operation. <strong>B</strong> holds: the alternating pattern has a transition at every position, so about $$n$$ operations, while shift-and-add needs $$n/2$$ additions — on four bits that is 4 against 2, which the page computes. <strong>C</strong> holds: negating $$-2^{n-1}$$ needs $$n+1$$ bits, and the page's narrow version returns $$+16$$ instead of $$-16$$ for $$-8 \times 2$$.</p>
+                <p><strong>D is false:</strong> there are always exactly $$n$$ iterations, one per bit of the multiplier. The bit pattern changes the operations, never the iterations. This is the operations-against-iterations distinction.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--orig">Original practice</span><span class="badge badge--nat">NAT</span></div>
+              <div class="q-body">
+                <p>A carry lookahead adder adds two 32-bit integers using gates of fan-in at most 4. Counting one gate delay per level, how many levels does the carry path take? (Give the carry-chain depth only, excluding the $$P,G$$ level and the sum level.)</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 6</p>
+                <p>The longest carry term is an AND of 32 literals, which with fan-in 4 takes $$\lceil\log_4 32\rceil = 3$$ levels; the OR over the 32 terms takes another 3. So the carry chain is 6 levels, and the full addition is $$1 + 6 + 1 = 8$$.</p>
+                <p><strong>General rule:</strong> $$2\lceil\log_k n\rceil + 2$$ for fan-in $$k$$. Sanity check: with $$k=2$$ and $$n=32$$ this gives $$2\cdot5+2 = 12$$, which is the page's table value for 32 bits.</p>
+                <p><strong>Trap:</strong> answering 5 by using $$\log_2$$ when the fan-in is 4, or forgetting that the OR tree has depth too.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--orig">Original practice</span><span class="badge badge--mcq">MCQ</span></div>
+              <div class="q-body">
+                <p>A four-bit Booth multiplier receives multiplicand $$M = 1000$$ and multiplier $$Q = 0010$$. Using an $$n$$-bit accumulator (the textbook version, without widening), the eight-bit product register holds</p>
+                <ol class="choices">
+                  <li>$$11110000$$, which is $$-16$$</li>
+                  <li>$$00010000$$, which is $$+16$$</li>
+                  <li>$$11100000$$, which is $$-32$$</li>
+                  <li>$$10000000$$, which is $$-128$$</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B — $$00010000$$, which is $$+16$$, and it is wrong</p>
+                <p>$$M = 1000$$ is $$-8$$, the most negative four-bit number. Computing $$-M$$ in four bits gives $$1000$$ again, so the subtract operation adds $$-8$$ where it should add $$+8$$, and the sign of the product flips. The page computes exactly this: the narrow version returns $$+16$$ and the widened version returns $$-16$$.</p>
+                <p><strong>Why this is a legitimate exam answer:</strong> the question asks what the register holds, not what the product is. The correct product, $$-16$$, is option A and is what a widened accumulator produces. Reading the option list for a plausible value is not enough — the width is the whole question.</p>
+                <p><strong>Counterexample to "Booth always works":</strong> this is the single input class where the textbook $$n$$-bit version fails, and it is why the algorithm is specified with $$n+1$$ bits in hardware.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--orig">Original practice</span><span class="badge badge--mcq">MCQ</span></div>
+              <div class="q-body">
+                <p>Which of the following is a correct statement about the two division algorithms in this lesson?</p>
+                <ol class="choices">
+                  <li>Restoring division performs more additions than non-restoring division for every dividend.</li>
+                  <li>Non-restoring division performs exactly $$n$$ add/subtract operations in the loop, plus at most one correction.</li>
+                  <li>Both algorithms require the dividend to fit in $$n$$ bits and the quotient in $$n-1$$ bits.</li>
+                  <li>In non-restoring division the quotient bit is 1 exactly when the partial remainder is negative.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The non-restoring loop always executes $$n$$ operations, each of which is one add or one subtract, and then 0 or 1 correction. <strong>A</strong> is false in general — for $$15\div1$$ the restoring divider restores no step at all, so it performs the same number of add/subtracts as the non-restoring one; the comparison is dividend-dependent. <strong>C</strong> is false: both take an $$n$$-bit dividend and produce an $$n$$-bit quotient with an $$n+1$$-bit intermediate remainder. <strong>D</strong> inverts the rule: the quotient bit is 1 when the new remainder is non-negative.</p>
+              </div>
+            </div>
+
+            <div class="question card span-2">
+              <div class="q-head"><span class="badge badge--orig">Original practice</span><span class="badge badge--nat">NAT</span></div>
+              <div class="q-body">
+                <p>An eight-bit Booth multiplier is given the multiplier $$Q = 01111110$$. How many addition and subtraction operations does the algorithm perform?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 2</p>
+                <p>Read from the low end with $$q_{-1}=0$$: the bits are $$0,1,1,1,1,1,1,0$$ and the prepended 0 makes $$0,0,1,1,1,1,1,1,0$$ in scan order. Transitions occur where the 0 meets the first 1 (an addition) and where the last 1 meets the 0 (a subtraction): two operations.</p>
+                <p><strong>The shape:</strong> one run of six ones costs one subtraction and one addition, which is Booth's whole point. Plain shift-and-add would need six additions for the same multiplier — the page's contrast table for four bits shows the same effect at a smaller scale.</p>
+                <p><strong>Trap:</strong> counting the run length (6) instead of the transitions (2).</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>The four algorithms in one line each</h3>
+          <p class="small"><strong>Shift-and-add:</strong> if $$Q_0=1$$ add $$M$$ to $$A$$; shift $$(A,Q)$$ right; repeat $$n$$ times. Additions = number of 1s in $$Q$$.</p>
+          <p class="small"><strong>Booth:</strong> pair $$(q_i,q_{i-1})$$: $$01$$ add, $$10$$ subtract, else nothing; arithmetic right shift; $$q_{-1}$$ starts at 0. Operations = transitions of $$Q$$.</p>
+          <p class="small"><strong>Restoring:</strong> shift, try $$A-M$$, restore if negative, quotient bit from the sign.</p>
+          <p class="small" style="margin-bottom:0"><strong>Non-restoring:</strong> shift, add if the old $$A$$ was negative else subtract, quotient bit from the new sign, one correction at the end if $$A<0$$.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Carry-lookahead, the formulas</h3>
+          <p class="small">$$G_i = a_i b_i$$, $$P_i = a_i \oplus b_i$$.</p>
+          <p class="small">$$c_{i+1} = G_i \vee \bigvee_{j<i}\left(G_j P_{j+1}\cdots P_i\right)$$</p>
+          <p class="small">Depth with fan-in $$k$$: $$2\lceil\log_k n\rceil + 2$$.</p>
+          <p class="small" style="margin-bottom:0">Levels on this page's table: 4 bits 6, 8 bits 8, 16 bits 10, 32 bits 12, 64 bits 14. Unbounded fan-in: 4 levels.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Widths and counts worth memorising</h3>
+          <p class="small">Accumulator $$A$$: $$n+1$$ bits in shift-and-add and in Booth. Product: $$2n$$ bits. Iterations: always $$n$$.</p>
+          <p class="small">Booth extremes on four bits: best 0 operations ($$0000$$), worst 4 ($$0101$$).</p>
+          <p class="small" style="margin-bottom:0">Division: quotient in $$Q$$, remainder in $$A$$, both checked by $$M\cdot Q + A = \text{dividend}$$ and $$0 \le A < M$$.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, in one line each</h3>
+          <p class="small">Prepend $$q_{-1}=0$$ or lose one operation. $$M$$ never affects Booth's count. $$n$$ bits in $$A$$ breaks on the most negative multiplicand. The shift must be arithmetic. Skip the correction and the remainder goes negative. The identity alone does not pin the answer down — the range does. Fan-in 2 means $$\log n$$, not constant. Operations are not iterations.</p>
+          <p class="small" style="margin-bottom:0">Two numbers from the papers: 2025 Set 2 Q32 → 13 operations; 2016 Set 1 Q33 → $$\Theta(\log n)$$.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The four numbers this page computes and checks</h3>
+          <p class="small">$$13 \times 11$$ shift-and-add: 3 additions, product $$10001111 = 143$$. $$3 \times (-4)$$ Booth: 1 subtraction, product $$11110100 = -12$$. $$7 \div 3$$ both ways: quotient 2, remainder 1, one correction in the non-restoring run. $$13+11$$ lookahead: carries $$0,1,1,1$$, carry out 1, sum 24.</p>
+          <p class="small muted" style="margin-bottom:0">Every one of these is produced by the model in <code>lesson.js</code> and re-verified against its defining property: the product against the arithmetic product, the quotient and remainder against $$M\cdot Q + A$$ and the range, the carries against ripple carry, and the operation counts against the transition count and the non-zero digit count.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>One sentence to carry into the exam</h3>
+          <p class="small" style="margin-bottom:0">Fix the width and the quantity before you compute: the same algorithm gives a different number when $$A$$ is $$n$$ bits instead of $$n+1$$, and when the question asks for cycles instead of operations.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras — <code>CS_GATE2027_Syllabus.pdf</code>, read 30 October 2026. Supports the Section 2 wording quoted in the Overview, including "Number representation and arithmetic (fixed and floating point)".</li>
+            <li><strong>GATE CSE 2025 Set 2</strong>, Q32 (1 mark, NAT). The Booth operation-count item on two 16-bit numbers; official answer 13, key published by IIT Roorkee.</li>
+            <li><strong>GATE CSE 2016 Set 1</strong>, Q33 (2 marks). The carry lookahead adder with fan-in at most two; official answer $$\Theta(\log n)$$.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Teaching sources for the algorithms</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Patterson and Hennessy, <em>Computer Organization and Design</em></strong>, "In More Depth: Booth's Algorithm" — the four-pair table, the arithmetic right shift, and the recoding identity $$(a_{i-1} - a_i)$$. Supports the recoding table and the shift rule.</li>
+            <li><strong>UC San Diego CSE 140, <em>Multiplication and Division</em> notes</strong> — the restoring/non-restoring recurrence and the statement that non-restoring needs a correction only when the last partial remainder is negative. Supports the correction rule.</li>
+            <li><strong>IIT Kharagpur virtual lab, Booth multiplier</strong> — the $$A$$, $$Q$$, $$q_{-1}$$ register datapath and the control signals, used for the datapath language in GATE patterns shape 6.</li>
+            <li><strong>Wikipedia, <em>Booth's algorithm</em></strong> — the worked $$3 \times (-4)$$ example reproduced in Examples, and the note that the technique is inadequate when the multiplicand is the most negative representable number. Cross-checked against this page's own trace.</li>
+          </ul>
+        </div>
+
+        <div class="card span-2">
+          <h3>What the research covered, and where it stopped</h3>
+          <p class="small">The syllabus PDF was downloaded and read in full. Both previous-year items were confirmed against more than one independent copy of the paper and its key, including a solution that quotes the official key and the organising institute. The algorithms were implemented from their register definitions in the page's own model and verified by exhaustive enumeration over all four-bit cases, so the traces do not depend on any secondary source agreeing with them.</p>
+          <p class="small" style="margin-bottom:0">Not covered: radix-4 and radix-8 Booth encoding beyond a mention, Wallace and Dadda trees, SRT division, and floating-point addition as an algorithm. The 2027 clause names arithmetic, and these are optimisations of it rather than separate syllabus items; no verified 2027 item depends on them. Nothing here was checked against a printed textbook edition, and no claim is made about marks weightage for 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
