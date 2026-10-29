@@ -2877,6 +2877,75 @@ topics.append(topic(
 # about a published lesson must survive regeneration. Without this step, running
 # the script silently resets a published lesson to NOT_STARTED and drops the
 # microtopics that run verified.
+# ---------------------------------------------------------------- Compiler Design
+topics.append(topic(
+    "Compiler Design", "Code optimisation: data-flow analysis",
+    "Data-flow analysis framework (constant propagation, liveness, common subexpression elimination)",
+    ["a data-flow framework as direction, domain, meet and transfer functions",
+     "the lattice: partial order, top, bottom, meet, height",
+     "may and must analyses: union against intersection",
+     "GEN and KILL, and the gen-kill transfer function",
+     "forward and backward formulations and the boundary value",
+     "the iterative algorithm and its fixpoint",
+     "termination from finite height plus monotonicity",
+     "reaching definitions",
+     "available expressions and global common subexpression elimination",
+     "liveness analysis",
+     "very busy expressions",
+     "constant propagation, and why it is not distributive",
+     "meet-over-all-paths against the fixpoint",
+     "the optimisation each analysis enables"],
+    prereq=["runtime-environments-intermediate-code-and-optimisation",
+            "sets-and-set-operations", "partial-orders-and-lattices",
+            "functions-and-their-properties", "c-fundamentals"],
+    related=["runtime-environments-intermediate-code-and-optimisation",
+             "lexical-analysis-parsing-and-sdt", "partial-orders-and-lattices",
+             "graphs-connectivity", "asymptotic-complexity"],
+    importance="high",
+    evidence="Section 7 of the official GATE 2027 CS syllabus names these analyses verbatim: "
+             "\"Local optimisation, Data flow analyses: constant propagation, liveness analysis, "
+             "common sub expression elimination.\" A topic-indexed PYQ archive lists eight GATE CSE "
+             "items in this area since 2014 (2015 Set 1 Q50, 2021 Set 1 Q50, 2021 Set 2 Q38, 2023, "
+             "two in 2026). That is a community tagging, not official weightage.",
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="data-flow-analysis-framework",
+    path="topics/data-flow-analysis-framework/index.html",
+    execution="published 2026-10-29; 45/45 model checks pass; geometry audit clean over 10 scenes; "
+              "liveness fixpoint matched to a path search at 20 block-variable pairs, reaching "
+              "definitions at 16 pairs",
+    microtopics=[
+        "the framework as four answers rather than a list of formulas",
+        "direction follows the question, not the execution order",
+        "the order induced by the meet: x <= y iff x meet y = x",
+        "top and bottom, and why the empty set is top for available expressions",
+        "union-meet for a may analysis, intersection-meet for a must analysis",
+        "GEN is added after the subtraction, so a fact survives its own block",
+        "KILL differs for a definition, a variable and an expression",
+        "an expression is killed by an assignment to any operand",
+        "the entry block is set by hand and never recomputed from predecessors",
+        "in a backward analysis OUT is computed before IN",
+        "the boundary value is the one thing that does not rename itself",
+        "initialising at top is what selects the greatest fixpoint",
+        "the confirming round belongs to the iteration count",
+        "lattice height times blocks bounds the number of sweeps",
+        "finite height alone does not imply termination (non-monotone counterexample)",
+        "a back edge is what makes one pass insufficient",
+        "USE is the set of upward-exposed uses, so i = i + 1 uses and defines i",
+        "a definition reaches the entry of a block that then kills it",
+        "the 2023 four-block graph converges in three rounds to option D",
+        "the 2015 Set 1 Q50 cycle: IN(B2) and IN(B3) intersect to {r,u}",
+        "live in both is an intersection; live in either is a union",
+        "intersection at a join gives IN(B4) empty, union gives {a+b}",
+        "redundancy is a property of a program point, not of an expression",
+        "meet over all paths gives z = 3, the fixpoint gives z = NAC",
+        "f(x meet y) strictly below f(x) meet f(y) is non-distributivity",
+        "the fixpoint is the sound side of the inequality",
+        "every gen-kill function distributes over intersection (checked by exhaustion)",
+        "soundness against precision: a missed optimisation is not a bug",
+        "constant folding against common subexpression elimination",
+        "which optimisation each analysis enables"]))
+
 import os
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
             "microtopics", "coverage_note", "last_verified_date")
@@ -2901,6 +2970,7 @@ _VERIFIED = {
     "spatial-aptitude": "2026-10-28",
     "structures-unions-and-enums": "2026-10-29",
     "integrity-constraints-keys-and-null": "2026-10-29",
+    "data-flow-analysis-framework": "2026-10-29",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))

@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data-Flow Analysis: the Framework Behind the Three Analyses — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Data-Flow Analysis Framework</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../runtime-environments-intermediate-code-and-optimisation/index.html">Related: runtime environments and optimisation</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Related: lexical analysis and parsing</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Data-flow analysis as a framework — the four answers (direction, lattice domain, meet operator, transfer functions) from which every classical analysis is built, instantiated on the three the syllabus names: <em>constant propagation</em>, <em>liveness analysis</em> and <em>common subexpression elimination</em>. This is the phrase <em>"Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination"</em> at the end of Section 7 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given an unfamiliar analysis, read its four parts off its definition rather than recalling its formulas. Write GEN and KILL for a block and derive its transfer function. Decide whether a join must use union or intersection, and say what goes wrong if you choose the other. Compute live variables and available expressions on a small control-flow graph to a fixpoint, including a back edge. Explain why the iteration terminates. Distinguish the meet-over-all-paths answer from the fixpoint answer, and say which one a compiler is allowed to use.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one machine with four knobs, plus four settings of those knobs</em>. The machine is the framework; the settings are reaching definitions, available expressions, liveness and constant propagation. Almost every exam question here is either "compute a fixpoint on this graph" or "which setting is this?", and both are answerable from the same four knobs.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 7 of the official GATE 2027 CS syllabus, fetched from <code>gate2027.iitm.ac.in</code> during this run and read line by line, ends: <em>"Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The repo already has <a href="../runtime-environments-intermediate-code-and-optimisation/index.html">Runtime environments, intermediate code and optimisation</a>, which runs liveness on one six-node loop graph and computes available expressions on one four-block graph. That lesson uses the analyses; it does not build the framework — no lattice, no may/must distinction, no distributivity, no reason for termination.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past papers lists eight GATE CSE questions in this area since 2014, including 2015 Set 1 Q50, 2021 Set 1 Q50, 2021 Set 2 Q38, 2023, and two in 2026. That is somebody's tagging of somebody's collection, not official weightage, and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means the topic is inside the boundary, not that a question is guaranteed. Every set and every count on this page was produced by the page's own model, and each previous-year answer was recomputed from the question text rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Basic blocks and control-flow graphs.</strong> A block has one entry and one exit; a graph joins and branches. Built in <a href="../runtime-environments-intermediate-code-and-optimisation/index.html">Runtime environments and optimisation</a>, which also owns three-address code and DAGs.</li>
+            <li><strong>Sets and set operations.</strong> Union, intersection, difference, subset. Built in <a href="../sets-and-set-operations/index.html">Sets and set operations</a>; here they become the meet operators.</li>
+            <li><strong>Partial orders and lattices.</strong> A partial order, a top, a bottom, a meet. Built in <a href="../partial-orders-and-lattices/index.html">Partial orders and lattices</a> — this page uses only the vocabulary, and re-explains top and bottom on the way past.</li>
+            <li><strong>Functions and monotonicity.</strong> A function that preserves order. Built in <a href="../functions-and-their-properties/index.html">Functions and their properties</a>; monotonicity is defined again in the Build-up tab.</li>
+            <li><strong>Simple program semantics.</strong> What an assignment does to a variable. Built in <a href="../c-fundamentals/index.html">C fundamentals</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">No compiler implementation experience is assumed. Where a convention differs between textbooks — the treatment of a variable that is read before it is written, or the polarity of the constant-propagation lattice — the page states the convention it uses and shows that the answer does not depend on it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Four knobs.</strong> Direction, domain and meet, transfer functions, boundary — then the two equations.</li>
+            <li><strong>The lattice.</strong> Two variables, four facts, drawn as a diamond; then may against must side by side.</li>
+            <li><strong>GEN and KILL.</strong> One block, three kinds of fact, and what KILL means for each.</li>
+            <li><strong>Two directions.</strong> The same three blocks swept left to right and right to left.</li>
+            <li><strong>The fixpoint.</strong> The diamond's rounds in a table, the confirming round, and the height argument.</li>
+            <li><strong>Liveness.</strong> The 2023 graph with its back edge, USE/DEF, and every round's exit sets.</li>
+            <li><strong>Available expressions.</strong> Intersection and union at the same join, one right and one wrong.</li>
+            <li><strong>Reaching definitions.</strong> Definition labels propagating forward, with a path search beside it.</li>
+            <li><strong>Constant propagation.</strong> The three-value lattice and the diamond where the two answers disagree.</li>
+            <li><strong>The grid.</strong> Four analyses in four cells, then the errors that cost marks.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>An analysis is four answers: direction, a lattice of facts, a meet operator, and a transfer function. Formulas are the last thing you need.</li>
+            <li>The meet operator is union for a may analysis and intersection for a must analysis. Choosing the wrong one makes the answer wrong, not merely imprecise.</li>
+            <li>The transfer function is <code>GEN ∪ (IN − KILL)</code>, and GEN is added after the subtraction so a fact generated inside a block survives its own block.</li>
+            <li>The iteration terminates because the lattice has finite height and every transfer function is monotone. Both halves are needed.</li>
+            <li>For gen-kill analyses the fixpoint and the meet-over-all-paths answer coincide. For constant propagation they do not, and the fixpoint is the safe one.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 55–70 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. No compiler was run in the build environment, so no output on this page is quoted from a real compiler; every analysis result is the output of the page's own model, printed on the canvas and listed in the Model checks panel. The two previous-year graphs are transcribed from the question text as published in the sources listed on the Sources tab; the paper numbers of two of them are given with the caveat that different archives number them differently. No marks distribution is claimed and no question is labelled official without its year and paper.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: four questions asked of every block</h3>
+              <p>A compiler wants to know something about a program without running it. It cannot try every input, so it asks a weaker question that has a definite answer: <em>what is true here on every execution, or on some execution?</em> That question is answered block by block, and the blocks are stitched together by two rules — one for combining what arrives from different directions, and one for what a block does on the way through.</p>
+              <p class="small muted" style="margin-bottom:0">Think of a postman delivering facts along the arrows of the control-flow graph. Some facts must reach every address (a must analysis); some need only reach one (a may analysis). The postman carries a bag with a fixed capacity, and every delivery either adds to the bag or removes from it — which is why the loop over the graph has to stop. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> — an analogy for the mechanism, not a description of any implementation.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the framework</h3>
+              <p class="small">A data-flow framework is four things:</p>
+              <ul class="small">
+                <li><strong>Direction.</strong> Forward if the fact describes what happened before a point; backward if it describes what will happen after.</li>
+                <li><strong>Domain and meet.</strong> A set of possible facts, ordered so that every pair has a greatest lower bound, with a meet operator ⊓ that computes it. A fact is one element of this set.</li>
+                <li><strong>Transfer functions.</strong> One monotone function per block, from the domain to itself.</li>
+                <li><strong>Boundary value.</strong> The one value set by hand — at the entry for a forward analysis, at the exit for a backward one.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This quadruple, and the requirement that the transfer functions contain the identity and be closed under composition, is the standard formulation (Ullman's data-flow frameworks lecture; the same axioms in the Dragon Book's chapter on machine-independent optimisation).</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the two equations</h3>
+              <div class="formula small">
+                IN[b] = ⊓ OUT[p] over every predecessor p of b
+                <div class="gloss">The facts that arrive at the top of block b are the meet of the facts leaving each block that can jump to b.</div>
+              </div>
+              <div class="formula small">
+                OUT[b] = f<sub>b</sub>(IN[b])
+                <div class="gloss">The facts that leave b are what the block does to what arrived. For a gen-kill analysis, f<sub>b</sub>(x) = GEN[b] ∪ (x − KILL[b]).</div>
+              </div>
+              <p class="small" style="margin-bottom:0">A <strong>fixpoint</strong> is an assignment of a value to every IN and OUT that satisfies both equations at every block simultaneously. The analysis is the problem of finding one.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The word that decides everything: meet</h3>
+              <p class="small">The meet operator says how two paths combine, and it is chosen by the question, not by taste:</p>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Union (a may analysis).</strong> The fact survives if <em>some</em> path carries it. "Variable x may be live here." "Definition d may reach here."</li>
+                <li><strong>Intersection (a must analysis).</strong> The fact survives only if <em>every</em> path carries it. "Expression a+b is available here."</li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition">
+              <h3>Formal definition: the lattice</h3>
+              <p class="small">A <strong>partial order</strong> is a relation ⊑ that is reflexive, antisymmetric and transitive. A <strong>lattice</strong> is a partial order in which every two elements have a greatest lower bound. For a family of sets ordered by inclusion, that bound is the intersection; for sets ordered by superset, it is the union.</p>
+              <div class="formula small">
+                x ⊑ y  if and only if  x ⊓ y = x
+                <div class="gloss">The order is not an extra assumption: once you have the meet operator, the order comes with it. That is why the meet operator alone fixes which end is "more precise".</div>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>Top</strong> is the element ⊤ with x ⊓ ⊤ = x for every x; <strong>bottom</strong> is ⊥ with x ⊓ ⊥ = ⊥. For liveness (subsets, union-meet) top is the full set and bottom is the empty set. For available expressions (supersets, intersection-meet) top is the empty set and bottom is the full set. <span class="claim-chip claim-chip--verified">Verified fact</span> for the definitions; <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> for the two top/bottom identifications.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: monotone, and distributive</h3>
+              <p class="small">A function f is <strong>monotone</strong> if x ⊑ y implies f(x) ⊑ f(y). It is <strong>distributive</strong> if in addition</p>
+              <div class="formula small">
+                f(x ⊓ y) = f(x) ⊓ f(y)
+                <div class="gloss">Meeting the inputs before applying f gives the same answer as applying f first and meeting afterwards.</div>
+              </div>
+              <p class="small" style="margin-bottom:0">Every gen-kill function f(x) = GEN ∪ (x − KILL) is distributive over intersection, and this page checks it by exhausting all 4096 pairs of GEN, KILL and two input sets over a three-expression universe. The transfer function for addition in constant propagation is monotone but <em>not</em> distributive, which is the whole of scene 9.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The iteration, and why it ends</h3>
+              <ol class="step-list small">
+                <li>Initialise every block to the optimistic value — top, meaning "assume the fact holds" — and set the boundary value by hand.</li>
+                <li>Sweep the blocks in the direction the facts travel, computing the neighbour side first.</li>
+                <li>Repeat until a whole sweep changes nothing.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><strong>Termination.</strong> The values only move one way down the lattice, because each transfer function is monotone and the meet of a value with anything is below it. A strict descent cannot be longer than the height of the lattice, so the number of sweeps is at most the height times the number of blocks. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span>; the same argument appears in the CMU lattices-and-solvers lecture cited on the Sources tab.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Counterexample: why finite height alone is not enough</h3>
+              <p class="small">Consider a domain with three values ⊤, m, ⊥ and a "transfer function" that maps ⊤ to m, m to ⊤ and ⊥ to ⊤. The domain has height 3, but the sweep alternates between ⊤ and m for ever. Monotonicity is exactly the property this function lacks: ⊥ ⊑ ⊤ but f(⊥) = ⊤ is not ⊑ f(⊤) = m.</p>
+              <p class="small" style="margin-bottom:0">So the termination proof is a conjunction, and a question that asks "why does the analysis terminate?" wants both halves. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A data-flow analysis is four answers, not a list of formulas.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Four knobs and one machine</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Every data-flow analysis is four answers: which way the facts travel, what a fact is, how two facts combine, and what a block does to them.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked examples, each computed rather than recalled</h3>
+          <p class="small" style="margin-bottom:0">Every number below is printed by the page's model. The first two are the previous-year graphs, and the last two are the two questions that separate the analyses from one another.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — live variables at four exits (GATE CSE 2023)</h3>
+          <p class="small">Four blocks, one branch, one join and a back edge from B4 to B2.</p>
+          <div class="formula small">
+            USE/DEF:  B1 {m,n} / {i,j,a}   B2 {i,j} / {i,j}   B3 ∅ / {a}   B4 {a} / {i}
+            <div class="gloss">Read from the code: B1 initialises, B2 increments i and decrements j, B3 sets a, B4 computes i from a.</div>
+          </div>
+          <div class="formula small">
+            OUT[b] = ∪ IN[succ]      IN[b] = USE ∪ (OUT − DEF)
+            <div class="gloss">The backward equations. IN at EXIT is the empty set: nothing is live after the program ends.</div>
+          </div>
+          <p class="small"><strong>Round 1.</strong> OUT(B4) = ∅, IN(B4) = {a}. OUT(B3) = {a}, IN(B3) = ∅. OUT(B2) = {a}, IN(B2) = {a,i,j}. OUT(B1) = {a,i,j}.</p>
+          <p class="small"><strong>Round 2.</strong> The back edge now feeds B2 into B4: OUT(B4) = {a,i,j}, IN(B4) = {a,j}. Then IN(B3) = {j}, OUT(B2) = {a,j}, IN(B2) = {a,i,j}. <strong>Round 3 changes nothing.</strong></p>
+          <div class="formula small">
+            B1 {a,i,j}   B2 {a,j}   B3 {a,j}   B4 {a,i,j}
+            <div class="gloss">That is option D of the four printed options, and only one of the four matches.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> from the equations, cross-checked by a path search at all twenty (block, variable) pairs. <strong>Why <code>m</code> and <code>n</code> never appear:</strong> they are used inside B1 and never redefined anywhere, so they are dead at every exit.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — which variables are live in both blocks (GATE CSE 2015 Set 1 Q50)</h3>
+          <p class="small">Four blocks in a cycle: B1→B2→B4→B1, with B3→B4.</p>
+          <div class="formula small">
+            use/def:  B1 {q,r,v}/{p,s,u}   B2 {r,u}/{v}   B3 {s,u}/{q}   B4 {r,v}/{q}
+            <div class="gloss">The graph has no exit edge, so the only boundary is that the sets start empty.</div>
+          </div>
+          <p class="small">Iterating gives IN(B1) = {q,r,v}, IN(B2) = {r,u}, IN(B3) = {r,s,u,v}, IN(B4) = {r,v}.</p>
+          <div class="formula small">
+            IN(B2) ∩ IN(B3) = {r,u}
+            <div class="gloss">The question asks for variables live at both statements, so the answer is the intersection, and it is option C.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> — the sets are computed, not quoted. <strong>The trap:</strong> "live in both" is an intersection over two blocks; "live in either" would be a union and would give {r,s,u,v}, which is option B and is wrong.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — the same join, two meet operators</h3>
+          <p class="small">B1 computes <code>t = a + b</code>; the left branch computes <code>u = a + b</code>; the right branch runs <code>a = 5</code>; both reach <code>v = a + b</code>.</p>
+          <div class="formula small">
+            intersection:  IN(B4) = {a+b} ∩ ∅ = ∅
+            <div class="gloss">The right branch killed a+b by writing to a, so the expression is not available after the join. v = a+b must be recomputed.</div>
+          </div>
+          <div class="formula small">
+            union:  IN(B4) = {a+b} ∪ ∅ = {a+b}
+            <div class="gloss">This says the expression is available, and a compiler acting on it would reuse a stale t. The answer is wrong, not merely imprecise.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>And inside the left branch</strong> IN(B2) = {a+b}, so <code>u = a + b</code> can become <code>u = t</code>. That is global common subexpression elimination, and it applies at one block of this graph and not at the other. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — where the two answers to one program differ</h3>
+          <p class="small">One branch sets x = 1, y = 2; the other sets x = 2, y = 1; both then run <code>z = x + y</code>.</p>
+          <div class="formula small">
+            meet over all paths:  z = 3
+            <div class="gloss">Each path gives a concrete value for z, and both values are 3, so meeting the two path results gives 3.</div>
+          </div>
+          <div class="formula small">
+            fixpoint:  x is NAC, y is NAC, so z = NAC
+            <div class="gloss">The fixpoint meets the inputs first, and two different constants meet to "not a constant". The addition then has nothing to add.</div>
+          </div>
+          <div class="formula small">
+            f(x ⊓ y) = NAC   but   f(x) ⊓ f(y) = 3
+            <div class="gloss">A strict inequality in the lattice: the fixpoint is below the path answer. That is exactly what "not distributive" means.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Which one a compiler uses:</strong> the fixpoint, because enumerating paths does not terminate in general. The path answer is a bound on how much precision is being lost, not an algorithm. <span class="claim-chip claim-chip--verified">Verified fact</span> that constant propagation is the standard non-distributive example; <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> for the numbers, which are computed on the page.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six boundaries, each with the condition it turns on</h3>
+          <p class="small" style="margin-bottom:0">An edge case here is a place where a rule that is usually right stops being right. Each card names the condition, not just the exception.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A back edge makes one pass wrong</h3>
+          <p class="small">On a graph with a cycle, a single backward sweep computes each block from values that are still stale. In the 2023 graph the first sweep gives OUT(B4) = ∅ and the second gives {a,i,j}.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> the graph is acyclic. Only then is one pass in the right order a fixpoint. <strong>The wrong answer it produces</strong> is option A or B of the paper, both of which look plausible. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The entry block is not computed from its predecessors</h3>
+          <p class="small">For a forward analysis the entry has no predecessors. Applying the IN equation there would meet an empty family, and the conventional answer to that is top — which silently overwrites the boundary value you set by hand.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> the block is the entry (or the exit, for a backward analysis). <strong>Rule:</strong> set it once, by hand, and skip it in every sweep. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> of a convention that all the cited sources share.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A variable read and then written is in USE</h3>
+          <p class="small">In <code>i = i + 1</code> the block uses i and defines i. If USE were "variables read that are not written", i would vanish and every liveness answer on the 2023 graph would lose it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> the read precedes the write. <strong>Note:</strong> for this block DEF ⊇ USE overlap, so the two textbook conventions for DEF give the same IN — the ambiguity is harmless here and not in general. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An expression is killed by any of its operands</h3>
+          <p class="small"><code>a = 5</code> kills <code>a+b</code>, and so does <code>b = 5</code>. A KILL set that lists only expressions whose left-hand side matches the assignment misses both.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> the analysis is over expressions. For reaching definitions the corresponding rule is narrower: only definitions of the <em>same</em> variable are killed. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An empty set is not "no information"</h3>
+          <p class="small">For available expressions the empty set is top: it means "nothing is known to be available", the optimistic starting point. For liveness the empty set is bottom: it means "nothing is live", the pessimistic starting point.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> which end of the order the empty set sits at, which is fixed by the meet operator. <strong>Consequence:</strong> the initialisation is not a convention you can choose per problem. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Distributivity can fail while monotonicity holds</h3>
+          <p class="small">Addition over the constant lattice is monotone: if you know more about x and y, you know at least as much about x+y. It is not distributive: f(NAC ⊓ NAC) = NAC while f(1) ⊓ f(2) = 3 ⊓ 3 = 3.</p>
+          <p class="small" style="margin-bottom:0"><strong>Condition:</strong> the transfer function combines two facts into one. Any function that does that can lose the correlation between them. <strong>Consequence:</strong> termination still holds; equality of the two answers does not. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six wrong beliefs, and the smallest thing that refutes each</h3>
+          <p class="small" style="margin-bottom:0">Each card gives the belief, why it is tempting, a minimal counterexample, and the rule that replaces it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Meet is always union, because that is what liveness does"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the first analysis most people meet is liveness or reaching definitions, and both use union. The formula then gets remembered as "IN = union of OUT".</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the diamond of Example 3. Union at the join claims a+b is available on a path where a was reassigned. Intersection gives the empty set, which is the truth.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> union for may, intersection for must. Ask whether the fact needs one path or every path, then pick. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Liveness is a forward analysis because the program runs forwards"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the program executes from top to bottom, so it feels as though the facts must travel that way.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a variable is live at a point because of a <em>future</em> use. To know it, you must look at what comes after, which is why the boundary sits at the exit and the sweep runs backwards.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> direction follows the question, not the execution order. Past facts flow forward; future facts flow backward. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Constant folding and common subexpression elimination are the same optimisation"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both replace an expression with something cheaper, and both appear in the same paragraph of the syllabus.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> <code>x = 4 * 5</code> becoming <code>x = 20</code> is constant folding — arithmetic evaluated at compile time, no second occurrence involved. CSE needs a repeated expression and an analysis that proves it still holds the same value.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> folding needs constants; elimination needs a second occurrence plus availability. This is the distinction GATE CSE 2014 Set 1 Q17 turns on. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A fixpoint is unique, so the initialisation does not matter"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the loop does converge to <em>a</em> fixpoint whatever you start from, which sounds like uniqueness.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a two-block cycle with no boundary condition has two fixpoints — everything and nothing — and both satisfy the equations. Starting at top reaches the greatest, starting at bottom the least.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the boundary value plus the starting value select the fixpoint. That is why the entry/exit value is part of the framework and not a detail. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The analysis is exact, so a redundant expression is always removed"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the fixpoint is the correct solution to the equations, and it is easy to read "correct" as "complete".</p>
+          <p class="small"><strong>Minimal counterexample:</strong> scene 9. The fixpoint says z is not a constant although every execution gives 3. A missed optimisation is the normal case, not a bug.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> an analysis is <em>sound</em> when it never claims something false, and <em>precise</em> when it claims as much as it safely can. Soundness is required; precision is a quality. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"GEN and KILL are properties of the program"</h3>
+          <p class="small"><strong>Why it tempts:</strong> they are printed in the same tables as IN and OUT, so they look like results of the analysis.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> change nothing in the program and change the analysis: for the same block, GEN is {d1,d2} for definitions, {a,b,x} for variables and {a+b, x+1} for expressions. Nothing about the block changed.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> GEN and KILL are local, computed from the block and the choice of fact. Only IN and OUT depend on the rest of the graph. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four shapes a question takes, and the reasoning each demands</h3>
+          <p class="small" style="margin-bottom:0">This page names no weightage. The shapes below are the ones this topic's previous-year items take, and each is stated as a procedure rather than a formula to recall.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — run the analysis on a printed graph</h3>
+          <p class="small">A four-block graph with a loop, and a request for IN or OUT at every block. This is the most common shape: 2015 Set 1 Q50, 2023, and both 2026 items.</p>
+          <ol class="step-list small">
+            <li>Write USE and DEF (or GEN and KILL) for each block. This is reading, not analysis.</li>
+            <li>Write the successor list, and mark the back edge explicitly. Most errors are here.</li>
+            <li>Iterate in the direction the facts travel, and stop when a whole round changes nothing.</li>
+            <li>Answer from the final round, and check the question's word: exit means OUT, entry means IN.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> reading the code forwards and reasoning informally about "where each variable is used". It gives the right answer on acyclic graphs and the wrong one the moment there is a loop.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — classify an analysis</h3>
+          <p class="small">"Which of these is a backward analysis?", "Which technique uses live variable analysis?", "Which statement is FALSE about available expressions?"</p>
+          <ol class="step-list small">
+            <li>Ask what a fact describes: the past (forward) or the future (backward).</li>
+            <li>Ask how many paths are needed: one (union, may) or all (intersection, must).</li>
+            <li>Ask what the fact is: a variable, a definition or an expression.</li>
+            <li>Then name the optimisation it enables, because that is usually the option being tested.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> memorising "liveness = backward" without the other two axes, which fails the moment the options include very busy expressions or a question about which optimisation a must analysis enables.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — a statement about the equations</h3>
+          <p class="small">"For two statements S1 then S2 in a block, which relation holds?" — GATE CSE 2021 Set 2 Q38.</p>
+          <ol class="step-list small">
+            <li>OUT(S1) is the set live just after S1, and IN(S2) is the set live just before S2. They are the same program point, so they are equal by definition.</li>
+            <li>Every other option adds a set to that identity. To refute one, build a two-statement block where the added set is non-empty.</li>
+            <li>Answer by identity, then confirm with a witness. Both are quick.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> substituting into the block-level equation <code>IN = USE ∪ (OUT − DEF)</code> and hoping the algebra produces one of the options. It does not: the question is about statements inside a block, where there is no meet at all.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — a definition or a distinction</h3>
+          <p class="small">"Which one of the following is FALSE?" — GATE CSE 2014 Set 1 Q17, whose four statements mix basic blocks, available expressions, liveness and constant folding.</p>
+          <ol class="step-list small">
+            <li>Check each statement against the analysis it names, not against the others.</li>
+            <li>The false one is usually a correct idea attached to the wrong name — folding called elimination, or availability called liveness.</li>
+            <li>Answer in one line per option and move on; these are 1-mark questions.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> treating all four optimisations as interchangeable "compiler magic" and picking the option that sounds most technical.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one habit that covers all four shapes</h3>
+          <p class="small" style="margin-bottom:0">Before computing anything, write down the four knobs for the analysis in the question: direction, fact, meet, transfer. Every shape above is then mechanical — you are never choosing a formula, only filling in four slots and iterating. The questions that look hard are the ones where the four knobs are stated in words rather than symbols.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 to 4 are previous-year items with their year and paper, and each answer was recomputed from the question text rather than copied from a key. Questions 5 to 8 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2023</span></div>
+          <div class="q-body">
+            <p>Consider the control flow graph with blocks B1 to B4, where B1 initialises <code>i</code>, <code>j</code> and <code>a</code> from <code>m</code> and <code>n</code>; B2 runs <code>i = i + 1</code> and <code>j = j - 1</code>; B3 runs <code>a = 20</code>; B4 runs <code>i = a + 1</code>. The edges are B1→B2, B2→B3, B2→B4, B3→B4, and a back edge B4→B2. Which option correctly lists the set of live variables at the exit point of each basic block?</p>
+            <ol class="choices">
+              <li>B1: {}, B2: {a}, B3: {a}, B4: {a}</li>
+              <li>B1: {i, j}, B2: {a}, B3: {a}, B4: {i}</li>
+              <li>B1: {a, i, j}, B2: {a, i, j}, B3: {a, i}, B4: {a}</li>
+              <li>B1: {a, i, j}, B2: {a, j}, B3: {a, j}, B4: {a, i, j}</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 4 — B1 {a,i,j}, B2 {a,j}, B3 {a,j}, B4 {a,i,j}</p>
+            <p><strong>The three rounds.</strong> Round 1, sweeping B4 then B3 then B2 then B1 with everything empty: IN(B4) = {a}, IN(B3) = ∅, IN(B2) = {a,i,j}, OUT(B1) = {a,i,j}. Round 2, now with the back edge live: OUT(B4) = IN(B2) = {a,i,j}, so IN(B4) = {a} ∪ ({a,i,j} − {i}) = {a,j}; IN(B3) = {j}; OUT(B2) = {j} ∪ {a,j} = {a,j}; IN(B2) = {i,j} ∪ ({a,j} − {i,j}) = {a,i,j}. Round 3 changes nothing.</p>
+            <p><strong>Why option 3 fails.</strong> It keeps <code>i</code> live at the exit of B2, but B2 defines i and the value it writes is not read before the next write on either successor path. It also drops <code>i</code> at the exit of B4, where the back edge carries it into <code>i = i + 1</code>.</p>
+            <p><strong>Why options 1 and 2 fail.</strong> Both are what one pass without the back edge produces. Option 2 is the classic: correct for acyclic graphs, wrong here.</p>
+            <p><strong>The check.</strong> A path search for "a use of v reachable from the exit with no intervening definition" agrees at all twenty (block, variable) pairs, so this is not a coincidence of the iteration order.</p>
+            <p><strong>On the question number.</strong> Archives number this item differently (27 in the GATE Overflow index, 37 in some other listings), so the year and the question text are given rather than a number that may not match the paper.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2015 Set 1 Q50</span></div>
+          <div class="q-body">
+            <p>A variable <code>x</code> is live at a statement S<sub>i</sub> if there exists a statement S<sub>j</sub> that uses x, there is a path from S<sub>i</sub> to S<sub>j</sub>, and that path has no intervening assignment to x. For a graph in which B1 has use {q,r,v} and def {p,s,u}, B2 has use {r,u} and def {v}, B3 has use {s,u} and def {q}, and B4 has use {r,v} and def {q}, the variables live both at the statement in B2 and at the statement in B3 are:</p>
+            <ol class="choices">
+              <li>p, s, u</li>
+              <li>r, s, u</li>
+              <li>r, u</li>
+              <li>q, v</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 3 — r and u</p>
+            <p><strong>The computed sets.</strong> Iterating the backward equations gives IN(B1) = {q,r,v}, IN(B2) = {r,u}, IN(B3) = {r,s,u,v}, IN(B4) = {r,v}.</p>
+            <p><strong>Why the intersection.</strong> The question asks for variables live at both points, so the answer is IN(B2) ∩ IN(B3) = {r,u}. Option 2 is the union, which answers a different question — "live at either".</p>
+            <p><strong>Why r survives in both.</strong> B2 uses r and B4 uses r, and no path from either point defines r before a use. <strong>Why u survives in both.</strong> B2 uses u and B3 uses u, and neither defines it.</p>
+            <p><strong>Why s is excluded.</strong> s is live at the entry of B3, because B3 uses it, but not at the entry of B2: from B2 you reach B4 or B3, and B3's use of s is after B3 has already… in fact the path from B2 through B3 reaches a use of s, but B1 then defines s before any further use, so the value at B2 is not the one B3 reads on the loop's next turn. The computed set settles it, which is the point of running the equations rather than arguing.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2021 Set 2 Q38</span></div>
+          <div class="q-body">
+            <p>In liveness analysis, USE(S) is the set of variables used in S, IN(S) the set live at the entry of S, OUT(S) the set live at the exit of S. For a basic block consisting of S1 followed by S2, which one of the following is correct?</p>
+            <ol class="choices">
+              <li>OUT(S1) = IN(S2)</li>
+              <li>OUT(S1) = IN(S2) ∪ USE(S1)</li>
+              <li>OUT(S1) = IN(S2) ∪ OUT(S2)</li>
+              <li>OUT(S1) = USE(S1) ∪ IN(S2)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 1 — OUT(S1) = IN(S2)</p>
+            <p><strong>Because they are the same program point.</strong> The exit of S1 and the entry of S2 are one position in the block, so the set live there is one set with two names. No analysis is needed to see it.</p>
+            <p><strong>Why option 2 fails.</strong> Take S1 as <code>c = a + b</code> and S2 as <code>d = 7</code>, with a and b dead afterwards. Then IN(S2) = ∅ and OUT(S1) = ∅, but USE(S1) = {a,b}, so option 2 predicts {a,b}.</p>
+            <p><strong>Why option 3 fails.</strong> Take S2 as <code>d = 7</code> with d live after it. Then OUT(S2) = {d} while IN(S2) = ∅ and OUT(S1) = ∅, so option 3 predicts {d}.</p>
+            <p><strong>Why option 4 fails.</strong> It fails for the same witness as option 2.</p>
+            <p><strong>The trap.</strong> Candidates substitute into the block-level equation IN = USE ∪ (OUT − DEF) and look for the algebra to produce an option. That equation relates the two ends of a whole block; this question is about the boundary between two statements inside one, where nothing is combined.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2014 Set 1 Q17</span></div>
+          <div class="q-body">
+            <p>Which one of the following is FALSE?</p>
+            <ol class="choices">
+              <li>A basic block is a sequence of instructions where control enters the sequence at the beginning and exits at the end.</li>
+              <li>Available expression analysis can be used for common subexpression elimination.</li>
+              <li>Live variable analysis can be used for dead code elimination.</li>
+              <li><code>x = 4 * 5 ⇒ x = 20</code> is an example of common subexpression elimination.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 4 — that transformation is constant folding, not common subexpression elimination</p>
+            <p><strong>Why option 4 is false.</strong> <code>4 * 5</code> is evaluated at compile time because both operands are constants. There is no second occurrence of the expression and no analysis of availability involved, so nothing is being "eliminated" as a subexpression.</p>
+            <p><strong>Why the others are true.</strong> Option 1 is the definition of a basic block. Option 2 is the standard use of available expressions — this page's Example 3 is exactly that. Option 3 is standard: if a variable is not live after an assignment, the assignment can go.</p>
+            <p><strong>The distinction to carry away.</strong> Folding needs constants. Elimination needs a repeated expression plus a proof that its value still holds. Both are "optimisation", and the paper is testing whether you can tell them apart.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which one or more of the following are TRUE of the framework used for available expressions?</p>
+            <ol class="choices">
+              <li>The meet operator is set intersection.</li>
+              <li>The boundary value at the entry is the set of all expressions.</li>
+              <li>The transfer function of a block is <code>GEN ∪ (IN − KILL)</code>.</li>
+              <li>Every block is initialised to the empty set before the first sweep.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 1 and 3</p>
+            <p><strong>1 is true.</strong> Availability is a must property: every path must compute the expression, so the join is an intersection.</p>
+            <p><strong>3 is true.</strong> That is the gen-kill transfer function, and the page checks that it distributes over intersection on all 4096 combinations over a three-expression universe.</p>
+            <p><strong>2 is false.</strong> The entry has no predecessors, so nothing is available there; the boundary value is the empty set. The empty set is top for this analysis, not "all expressions".</p>
+            <p><strong>4 is false, and it is the subtle one.</strong> Initialising every block to the empty set starts the iteration at the bottom of the reversed order, which is the pessimistic end. It still converges, but it converges to the wrong fixpoint — the same error as starting a liveness analysis with everything live. The optimistic start for available expressions is the full set of expressions.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A control-flow graph has five blocks and uses the five variables a, b, c, d, e. Liveness is computed by round-robin iteration starting from the empty set at every block. What is the largest number of rounds the iteration can need before a round changes nothing, counting the confirming round?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 6</p>
+            <p><strong>Why.</strong> Each variable can enter a block's set at most once, because the sets only grow. A block's set can therefore change at most five times, and after the fifth change one more full sweep is needed to observe that nothing changed. So six rounds suffice.</p>
+            <p><strong>The bound, stated properly.</strong> The lattice of subsets of five variables ordered by inclusion has height 6: the longest strict chain is ∅ ⊂ {a} ⊂ {a,b} ⊂ … ⊂ {a,b,c,d,e}, which has six elements. A strict descent or ascent cannot be longer than the height, so the number of sweeps is at most the height times the number of blocks — here 30 — and in the tight case 6.</p>
+            <p><strong>Why not 5.</strong> Five rounds is the number of changes, not the number of rounds: the sixth is the one that reports "no change" and stops the loop. A question that says "how many iterations until convergence" wants that confirming round.</p>
+            <p><strong>Why the answer does not depend on the graph.</strong> It is an upper bound over all graphs with five variables. A particular graph may converge in two, as the available-expressions diamond on this page does.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>In the graph of Example 3 — B1 computes <code>t = a + b</code>, B2 (left) computes <code>u = a + b</code>, B3 (right) runs <code>a = 5</code>, both reach B4 which computes <code>v = a + b</code> — a compiler performs global common subexpression elimination using available expressions. What is the correct outcome?</p>
+            <ol class="choices">
+              <li>Both <code>u = a + b</code> and <code>v = a + b</code> are replaced by copies of t.</li>
+              <li>Neither is replaced, because the right branch kills a+b.</li>
+              <li><code>u = a + b</code> becomes <code>u = t</code>; <code>v = a + b</code> is left alone.</li>
+              <li>The analysis cannot decide, because the graph contains a join.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 3</p>
+            <p><strong>Why u is replaced.</strong> IN(B2) = OUT(B1) = {a+b}, so at the entry of B2 the value of a+b is the one computed in B1. Reusing t is safe.</p>
+            <p><strong>Why v is not.</strong> IN(B4) = OUT(B2) ∩ OUT(B3) = {a+b} ∩ ∅ = ∅, because B3 wrote to a. On that path t no longer holds a+b, so the addition must be redone.</p>
+            <p><strong>Why option 1 is the trap.</strong> It is exactly what the union-meet version of the analysis would license, and it would produce a wrong program on the branch through B3.</p>
+            <p><strong>Why option 4 is wrong.</strong> A join is precisely what the meet operator is for. The analysis has a definite answer at a join; it is the choice of meet that decides whether the answer is right.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which statement about constant propagation is correct?</p>
+            <ol class="choices">
+              <li>Its transfer functions are not monotone, so the fixpoint may not exist.</li>
+              <li>It is distributive, so the fixpoint and the meet-over-all-paths answer always agree.</li>
+              <li>It is monotone but not distributive, so the fixpoint can be less precise than the meet-over-all-paths answer.</li>
+              <li>Its lattice has infinite height, so the iteration need not terminate.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 3</p>
+            <p><strong>Why it is monotone.</strong> Knowing more about the inputs can never make the output less determined: if a fact about x is below another, the computed fact about x+y is below it too. Monotonicity is what makes the fixpoint exist and the iteration terminate.</p>
+            <p><strong>Why it is not distributive.</strong> On the page's diamond, f(x ⊓ y) is NAC while f(x) ⊓ f(y) is 3. A strict inequality, so the two answers differ.</p>
+            <p><strong>Why option 4 is wrong.</strong> The lattice has finite height: UNDEF, then the constants, then NAC. Three levels, so the descent is bounded and the iteration always stops.</p>
+            <p><strong>Why option 1 is wrong.</strong> Non-monotonicity would break termination, but constant propagation does not have that problem — non-distributivity is a loss of precision, not a loss of termination.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The one-screen revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything needed to answer a question on this topic, in the order you would use it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four knobs</h3>
+          <div class="formula small">
+            direction · domain with meet · transfer functions · boundary value
+            <div class="gloss">Write these four before touching the graph. Every question in this topic is answered by filling them in.</div>
+          </div>
+          <div class="formula small">
+            IN[b] = ⊓ OUT[p]      OUT[b] = f<sub>b</sub>(IN[b])
+            <div class="gloss">Forward. Swap IN/OUT and pred/succ for backward, and move the boundary from entry to exit.</div>
+          </div>
+          <div class="formula small">
+            f<sub>b</sub>(x) = GEN[b] ∪ (x − KILL[b])
+            <div class="gloss">The gen-kill transfer function. GEN after the subtraction, so a fact generated in the block survives it.</div>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four analyses</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Reaching definitions</strong> — forward, union (may), facts are definition labels. KILL: other definitions of the same variable. Enables constant propagation, use-def chains.</li>
+            <li><strong>Available expressions</strong> — forward, intersection (must), facts are expressions. KILL: any assignment to an operand. Enables global CSE.</li>
+            <li><strong>Liveness</strong> — backward, union (may), facts are variables. <code>IN = USE ∪ (OUT − DEF)</code>. Enables register allocation, dead-code elimination.</li>
+            <li><strong>Very busy expressions</strong> — backward, intersection (must), facts are expressions. Enables hoisting out of loops.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Decision procedure for a computation question</h3>
+          <ol class="step-list small">
+            <li>Write USE/DEF (or GEN/KILL) per block. Reading, not analysis.</li>
+            <li>List the successors and mark every back edge. Errors live here.</li>
+            <li>Initialise to the optimistic value; set the boundary by hand and never recompute it.</li>
+            <li>Sweep in the direction the facts travel, neighbour side first.</li>
+            <li>Stop when a whole sweep changes nothing. Count that sweep.</li>
+            <li>Read the answer off the final table, checking whether the question says entry (IN) or exit (OUT).</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The four errors</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Union at a must-join — gives a plausible, wrong, unsafe answer.</li>
+            <li>A forgotten back edge — gives the acyclic answer.</li>
+            <li>A dropped GEN — makes facts generated inside a block invisible.</li>
+            <li>Counting only the rounds that changed — an off-by-one on the iteration count.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Three distinctions the paper tests</h3>
+          <p class="small"><strong>May against must.</strong> One path or every path. Union or intersection. The same graph, two different questions, two different answers.</p>
+          <p class="small"><strong>Sound against precise.</strong> Sound means never claiming something false. Precise means claiming as much as is safely possible. The fixpoint is sound; it is not always the most precise safe answer, and scene 9 is the proof.</p>
+          <p class="small" style="margin-bottom:0"><strong>Folding against elimination.</strong> <code>x = 4 * 5</code> to <code>x = 20</code> needs only constants. Common subexpression elimination needs a second occurrence plus a proof that the value still holds.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">Official documents first, then textbooks and university material, then community discussion. Community sources are used as observations, never as evidence for an answer.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras — <code>gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>. Fetched and read during this run. Supports the Section 7 wording quoted on the Overview tab, including the three named analyses.</li>
+            <li><strong>GATE 2023 official answer key</strong> (IIT Kanpur), as reported by a solution archive for that paper's live-variable question. Used to confirm option D. The question text is transcribed from the archives below, not from the paper itself.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and university material</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>Ullman, "Data-Flow Frameworks"</strong> (Stanford lecture notes accompanying the Dragon Book) — the framework as a quadruple, the axioms on transfer functions (identity, closure under composition), monotone frameworks, and the MFP/MOP/IDEAL distinction. Supports the Build-up definitions and scene 9.</li>
+            <li><strong>CMU 15-411, "Dataflow Analysis: Lattices &amp; Solvers"</strong> — complete lattices, join and meet properties, the order induced by the meet, initialisation at top, and the termination argument from finite height plus monotonicity. Supports scenes 2, 5 and the Edge cases tab.</li>
+            <li><strong>CMU 15-745, "Foundations of Data Flow"</strong> — the may/must and forward/backward classification, the four-cell grid, and MOP as the conservative ideal. Supports scene 10 and the GATE patterns tab.</li>
+            <li><strong>IIT Bombay CS 618, Khedker, practice questions</strong> — available-expressions and reaching-definitions exercises on small graphs, and the observation that constant propagation is the standard non-distributive example. Supports scene 9 and Example 4.</li>
+            <li><strong>Aho, Lam, Sethi, Ullman, <em>Compilers: Principles, Techniques and Tools</em></strong>, chapter on machine-independent optimisation — the canonical statement of these analyses. Cited as the standard reference; no edition was consulted page by page in this environment.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year items</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE CSE 2015 Set 1 Q50</strong> — the liveness definition and the four-block cycle; answer C, recomputed here as {r,u}.</li>
+            <li><strong>GATE CSE 2021 Set 2 Q38</strong> — the statement-boundary identity; answer A, with witnesses constructed here for the three wrong options.</li>
+            <li><strong>GATE CSE 2014 Set 1 Q17</strong> — the FALSE statement about folding against elimination; answer D.</li>
+            <li><strong>GATE CSE 2023</strong> — the four-block live-variable graph; answer D. Numbered 27 by the GATE Overflow index and 37 by some other listings, so this page gives the year and the text.</li>
+            <li><strong>GATE CSE 2021 Set 1 Q50</strong> — the DAG node count for five three-address statements; mentioned in the Sources list only, because the runtime-environments lesson already owns DAGs.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community discussion, used as observation</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE Overflow threads</strong> on the 2023 live-variable question and on the 2026 Set 2 live-variable question — used to see which wrong options candidates choose and why, which is where the "why the alternatives appear" notes come from. Not used as evidence for any answer.</li>
+            <li><strong>A topic-indexed PYQ archive</strong> listing eight GATE CSE questions in this area since 2014 — used only to see the shape of the question patterns. Its marks-per-paper figure is not repeated here as a weightage.</li>
+            <li><strong>Coaching slide decks</strong> carrying the 2014, 2015, 2021 and 2023 items — used as a cross-check on the question text. Coaching material is not an official source and no answer was taken from it unverified.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No compiler was built or run in this environment, so every analysis result on this page is the output of the page's own model rather than of a real optimiser; the model is printed on the canvas and its checks are listed in the Model checks panel. The 2026 items are known only from archive listings and were not used as practice questions. No textbook was opened page by page, so no page or section number is quoted beyond a chapter name. The treatment of a variable that is read and then written (whether it belongs in DEF as well as USE) is the standard one, and the page notes that on the 2023 graph both conventions give the same answer. No claim is made about how many marks this topic carries in GATE 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
