@@ -80,6 +80,7 @@ lessons are static files and work from a local clone.
 | Runtime Environments, Intermediate Code and Optimisation | Compiler Design | A — explicitly in the syllabus | `topics/runtime-environments-intermediate-code-and-optimisation/index.html` |
 | Calculus: Limits, Extrema and Integration | Engineering Mathematics | A — explicitly in the syllabus | `topics/calculus-limits-extrema-and-integration/index.html` |
 | Matrices, Systems and Eigenvalues | Engineering Mathematics | A — explicitly in the syllabus | `topics/matrices-systems-and-eigenvalues/index.html` |
+| Mean, Median, Mode and Standard Deviation: Three Middles, One Spread, and When Each Rule Fails | Engineering Mathematics | A — explicitly in the syllabus | `topics/mean-median-mode-standard-deviation/index.html` |
 | Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
 | Analytical Aptitude: Deduction, Induction, Analogy and Numerical Relations | General Aptitude | A — explicitly in the syllabus | `topics/analytical-aptitude/index.html` |
 | Quantitative Aptitude: Ratios, Data, Logarithms, Shapes, Statistics and Probability | General Aptitude | A — explicitly in the syllabus | `topics/quantitative-aptitude/index.html` |

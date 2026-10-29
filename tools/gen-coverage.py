@@ -501,6 +501,53 @@ topics.append(topic(
         "identifying mean and variance from a normal density",
         "the four-step procedure for a probability question"]))
 
+topics.append(topic(
+    EM, "Probability and statistics", "Mean, median, mode and standard deviation",
+    ["mean of raw data", "mean of grouped data by midpoints",
+     "median of raw data, odd and even n", "median of grouped data by cumulative frequency",
+     "mode of raw data and the modal class", "variance and standard deviation",
+     "population against sample divisor", "shift and scale rules",
+     "mean, median and mode of the five named distributions"],
+    prereq=["probability and random variables"],
+    related=["probability and random variables", "quantitative aptitude",
+             "counting and combinatorics", "asymptotic complexity"],
+    importance="high",
+    evidence="Named verbatim in the GATE 2027 CS syllabus: 'Probability and Statistics: ... Mean, median, mode and standard deviation.' Official GATE 2027 CS syllabus, IIT Madras (Section 1: Engineering Mathematics). Examined directly in GATE CSE 2011 (2 marks, transformation of a sequence) and GATE CSE 2012 General Aptitude (2 marks, adding and doubling).",
+    difficulty="easy-medium",
+    status="PUBLISHED",
+    slug="mean-median-mode-standard-deviation",
+    path="topics/mean-median-mode-standard-deviation/index.html",
+    execution="published 2026-10-30; 64 model checks, ten scenes, 40 caption cues, geometry audit clean",
+    microtopics=[
+        "mean as the balance point and the deviations summing to zero",
+        "mean as the unique minimiser of the sum of squared deviations",
+        "median as the minimiser of the sum of absolute deviations",
+        "sorting as part of the definition of the median",
+        "even n: the median is the average of the two middle values",
+        "an even-n median need not be an observed value",
+        "mode as a set: none, one, or several",
+        "the mode as the only average for unordered categories",
+        "a uniform density has no unique mode",
+        "grouped mean by class midpoints, and its approximation error",
+        "median class by cumulative frequency and the interpolation formula",
+        "modal class and the mode interpolation formula",
+        "equal class widths as the assumption behind both formulas",
+        "variance as the mean squared deviation; sigma as its root",
+        "sigma is not the mean absolute deviation",
+        "population divisor n against sample divisor n-1",
+        "adding a constant moves the mean, median and mode and not sigma",
+        "scaling multiplies all three averages and sigma by the factor, sigma by |a|",
+        "a negative multiplier reverses the median index position",
+        "mean, median and mode of the uniform, normal, exponential, Poisson and binomial",
+        "the exponential median ln2/lambda against the mean 1/lambda and the mode 0",
+        "the binomial standard deviation sqrt(npq)",
+        "the binomial mode floor((n+1)p)",
+        "the median of a variable with an atom at zero",
+        "skewness orderings as descriptions, not theorems",
+        "the counterexample 0,1,2,3,6,6 to the skew ordering rule",
+        "the empirical relation mode = 3 median - 2 mean as an approximation",
+        "reading a frequency table without the raw values"]))
+
 # ---------------------------------------------------------------- Core CS
 topics.append(topic(
     "Digital Logic", "Boolean algebra", "Boolean algebra and minimisation",
@@ -3246,6 +3293,7 @@ _VERIFIED = {
     "dynamic-memory-and-program-layout": "2026-10-29",
     "graph-representations": "2026-10-30",
     "function-pointers": "2026-10-30",
+    "mean-median-mode-standard-deviation": "2026-10-30",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
