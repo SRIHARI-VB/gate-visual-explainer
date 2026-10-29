@@ -1183,6 +1183,7 @@ printf("%d %d %d", a, b, c);</code></pre>
 </div>
 
 <script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
 <script src="timeline.js"></script>
 <script src="../../assets/lesson-kit.js"></script>
 <script>
@@ -1243,7 +1244,7 @@ printf("%d %d %d", a, b, c);</code></pre>
       { lit: '3.0',   type: 'double',       why: 'no suffix: double by default' },
       { lit: '3.0f',  type: 'float',        why: 'the f suffix' },
       { lit: "'a'",   type: 'int',          why: 'character constant is int in C' },
-      { lit: '"a"',   type: 'char[2]',      why: 'the letter plus a terminating zero' }
+      { lit: '"a"',   type: 'char[2]',      why: 'the letter plus a null byte' }
     ];
     M.sizeofFacts = [
       { expr: "sizeof('a')",     value: 4, why: "'a' has type int" },
@@ -1599,215 +1600,18 @@ printf("%d %d %d", a, b, c);</code></pre>
 
   /* ======================================================================
      LAYER 3 — PAINTERS
-     Two backends behind one interface, so the frames still draw when the
-     p5 CDN is unreachable.
+     The drawing vocabulary comes from the shared kit (assets/painters.js):
+     one interface, two backends, so the frames still draw when the p5 CDN is
+     unreachable and every other lesson draws from the same primitives.
      ====================================================================== */
 
-  var PAL = {
-    ink: '#0f1720',
-    dim: '#566573',
-    faint: '#7d8b98',
-    surface: '#ffffff',
-    surface2: '#eef2f4',
-    border: '#c8d2d8',
-    accent: '#0f766e',
-    accentDim: '#d6efeb',
-    valid: '#15803d',
-    invalid: '#b3261e',
-    invalidDim: '#fbe4e2',
-    warn: '#9a5406',
-    warnDim: '#fbeed3'
-  };
+  var PAL = window.Painters.PAL;
 
-  function readPalette() {
-    try {
-      var cs = getComputedStyle(document.documentElement);
-      function g(name, fallback) {
-        var v = cs.getPropertyValue(name).trim();
-        return v || fallback;
-      }
-      PAL.ink = g('--text', PAL.ink);
-      PAL.dim = g('--text-dim', PAL.dim);
-      PAL.faint = g('--text-faint', PAL.faint);
-      PAL.surface = g('--surface', PAL.surface);
-      PAL.surface2 = g('--surface-2', PAL.surface2);
-      PAL.border = g('--border-strong', PAL.border);
-      PAL.accent = g('--accent', PAL.accent);
-      PAL.accentDim = g('--accent-dim', PAL.accentDim);
-      PAL.valid = g('--valid', PAL.valid);
-      PAL.invalid = g('--invalid', PAL.invalid);
-      PAL.invalidDim = g('--invalid-dim', PAL.invalidDim);
-      PAL.warn = g('--warn', PAL.warn);
-      PAL.warnDim = g('--warn-dim', PAL.warnDim);
-    } catch (e) { /* palette keeps its defaults */ }
-  }
+  /* the shared palette reads the CSS tokens once, at load */
+  function readPalette() { /* tokens already applied by assets/painters.js */ }
 
-  function rgba(colour, a) {
-    if (a === undefined || a === null) a = 1;
-    var c = String(colour || '').trim();
-    if (c.charAt(0) === '#') {
-      if (c.length === 4) c = '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
-      var r = parseInt(c.substr(1, 2), 16);
-      var gg = parseInt(c.substr(3, 2), 16);
-      var b = parseInt(c.substr(5, 2), 16);
-      return 'rgba(' + r + ',' + gg + ',' + b + ',' + a + ')';
-    }
-    var m = c.match(/^rgba?\(([^)]+)\)$/i);
-    if (m) {
-      var parts = m[1].split(',').map(parseFloat);
-      var base = parts.length > 3 ? parts[3] : 1;
-      return 'rgba(' + parts[0] + ',' + parts[1] + ',' + parts[2] + ',' + (base * a) + ')';
-    }
-    return c;
-  }
-
-  function headPts(x1, y1, x2, y2, size) {
-    var ang = Math.atan2(y2 - y1, x2 - x1);
-    return [
-      [x2, y2],
-      [x2 + size * Math.cos(ang + Math.PI - 0.42), y2 + size * Math.sin(ang + Math.PI - 0.42)],
-      [x2 + size * Math.cos(ang + Math.PI + 0.42), y2 + size * Math.sin(ang + Math.PI + 0.42)]
-    ];
-  }
-
-  function roundRect(ctx, x, y, w, h, r) {
-    if (!r) { ctx.rect(x, y, w, h); return; }
-    r = Math.min(r, w / 2, h / 2);
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function makePainter2D(ctx) {
-    var P = { a: 1 };
-    P.alpha = function (v) { P.a = v < 0 ? 0 : v > 1 ? 1 : v; };
-    P.clear = function () { ctx.clearRect(0, 0, W, H); };
-    P.rect = function (x, y, w, h, o) {
-      o = o || {};
-      ctx.save();
-      if (o.dash) ctx.setLineDash(o.dash);
-      if (o.fill) { ctx.fillStyle = rgba(o.fill, P.a); ctx.beginPath(); roundRect(ctx, x, y, w, h, o.radius || 0); ctx.fill(); }
-      if (o.stroke) { ctx.strokeStyle = rgba(o.stroke, P.a); ctx.lineWidth = o.sw || 1.5; ctx.beginPath(); roundRect(ctx, x, y, w, h, o.radius || 0); ctx.stroke(); }
-      ctx.restore();
-    };
-    P.line = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      ctx.save();
-      if (o.dash) ctx.setLineDash(o.dash);
-      ctx.strokeStyle = rgba(o.stroke || PAL.border, P.a);
-      ctx.lineWidth = o.sw || 1.5;
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-      ctx.restore();
-    };
-    P.arrow = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      P.line(x1, y1, x2, y2, o);
-      var p = headPts(x1, y1, x2, y2, o.head || 9);
-      ctx.save();
-      ctx.fillStyle = rgba(o.stroke || PAL.border, P.a);
-      ctx.beginPath();
-      ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); ctx.lineTo(p[2][0], p[2][1]);
-      ctx.closePath(); ctx.fill();
-      ctx.restore();
-    };
-    P.circle = function (x, y, r, o) {
-      o = o || {};
-      ctx.save();
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-      if (o.fill) { ctx.fillStyle = rgba(o.fill, P.a); ctx.fill(); }
-      if (o.stroke) { ctx.strokeStyle = rgba(o.stroke, P.a); ctx.lineWidth = o.sw || 1.5; ctx.stroke(); }
-      ctx.restore();
-    };
-    P.tri = function (x1, y1, x2, y2, x3, y3, o) {
-      o = o || {};
-      ctx.save();
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.closePath();
-      if (o.fill) { ctx.fillStyle = rgba(o.fill, P.a); ctx.fill(); }
-      if (o.stroke) { ctx.strokeStyle = rgba(o.stroke, PAL.border); ctx.lineWidth = o.sw || 1.5; ctx.stroke(); }
-      ctx.restore();
-    };
-    P.text = function (x, y, s, o) {
-      o = o || {};
-      var size = o.size || 14;
-      var fam = o.mono ? '"IBM Plex Mono", ui-monospace, Menlo, monospace'
-                       : '"IBM Plex Sans", system-ui, sans-serif';
-      ctx.save();
-      ctx.font = (o.bold ? '600 ' : '400 ') + size + 'px ' + fam;
-      ctx.fillStyle = rgba(o.color || PAL.ink, P.a);
-      ctx.textAlign = o.align === 'center' ? 'center' : o.align === 'right' ? 'right' : 'left';
-      ctx.textBaseline = o.base === 'middle' ? 'middle' : o.base === 'bottom' ? 'bottom' : 'top';
-      ctx.fillText(String(s), x, y);
-      ctx.restore();
-    };
-    return P;
-  }
-
-  function makePainterP5(sk) {
-    var P = { a: 1 };
-    P.alpha = function (v) { P.a = v < 0 ? 0 : v > 1 ? 1 : v; };
-    P.clear = function () { sk.clear(); };
-    P.rect = function (x, y, w, h, o) {
-      o = o || {};
-      sk.push();
-      var dc = sk.drawingContext;
-      dc.setLineDash(o.dash || []);
-      if (o.fill) sk.fill(rgba(o.fill, P.a)); else sk.noFill();
-      if (o.stroke) { sk.stroke(rgba(o.stroke, P.a)); sk.strokeWeight(o.sw || 1.5); } else sk.noStroke();
-      sk.rect(x, y, w, h, o.radius || 0);
-      dc.setLineDash([]);
-      sk.pop();
-    };
-    P.line = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      sk.push();
-      var dc = sk.drawingContext;
-      dc.setLineDash(o.dash || []);
-      sk.stroke(rgba(o.stroke || PAL.border, P.a));
-      sk.strokeWeight(o.sw || 1.5);
-      sk.line(x1, y1, x2, y2);
-      dc.setLineDash([]);
-      sk.pop();
-    };
-    P.arrow = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      P.line(x1, y1, x2, y2, o);
-      var p = headPts(x1, y1, x2, y2, o.head || 9);
-      P.tri(p[0][0], p[0][1], p[1][0], p[1][1], p[2][0], p[2][1], { fill: o.stroke || PAL.border });
-    };
-    P.circle = function (x, y, r, o) {
-      o = o || {};
-      sk.push();
-      if (o.fill) sk.fill(rgba(o.fill, P.a)); else sk.noFill();
-      if (o.stroke) { sk.stroke(rgba(o.stroke, PAL.accent)); sk.strokeWeight(o.sw || 1.5); } else sk.noStroke();
-      sk.circle(x, y, r * 2);
-      sk.pop();
-    };
-    P.tri = function (x1, y1, x2, y2, x3, y3, o) {
-      o = o || {};
-      sk.push();
-      if (o.fill) sk.fill(rgba(o.fill, P.a)); else sk.noFill();
-      if (o.stroke) { sk.stroke(rgba(o.stroke, PAL.border)); sk.strokeWeight(o.sw || 1.5); } else sk.noStroke();
-      sk.triangle(x1, y1, x2, y2, x3, y3);
-      sk.pop();
-    };
-    P.text = function (x, y, s, o) {
-      o = o || {};
-      sk.push();
-      sk.noStroke();
-      sk.fill(rgba(o.color || PAL.ink, P.a));
-      sk.textFont(o.mono ? 'IBM Plex Mono' : 'IBM Plex Sans');
-      sk.textSize(o.size || 14);
-      sk.textStyle(o.bold ? sk.BOLD : sk.NORMAL);
-      sk.textAlign(o.align === 'center' ? sk.CENTER : o.align === 'right' ? sk.RIGHT : sk.LEFT,
-                   o.base === 'middle' ? sk.CENTER : o.base === 'bottom' ? sk.BOTTOM : sk.TOP);
-      sk.text(String(s), x, y);
-      sk.pop();
-    };
-    return P;
-  }
+  function makePainter2D(ctx) { return window.Painters.makePainter2D(ctx, W, H); }
+  function makePainterP5(sk) { return window.Painters.makePainterP5(sk, W, H); }
 
   /* ======================================================================
      LAYER 4 — SCENES
@@ -2067,7 +1871,9 @@ printf("%d %d %d", a, b, c);</code></pre>
     if (s5 > 0.01) {
       P.alpha(s5);
       P.text(300, 322, '-1 < sizeof(int)  is false for the same reason: sizeof has type size_t.', { size: 12.5, color: PAL.dim });
-      P.text(300, 344, 'Nothing here is undefined. The comparison is well defined, and the answer is simply not the arithmetic one.',
+      P.text(300, 344, 'Nothing here is undefined. The comparison is well defined, and the',
+             { size: 12.5, color: PAL.ink });
+      P.text(300, 362, 'answer is simply not the arithmetic one.',
              { size: 12.5, color: PAL.ink });
     }
     footer(P, 'one sentence covers most surprises: at equal rank, unsigned beats signed', 'scene 4 / 10');
@@ -2250,9 +2056,9 @@ printf("%d %d %d", a, b, c);</code></pre>
     var stage = u < 6 ? 0 : u < 12 ? 1 : u < 18 ? 2 : 3;
 
     var lines = [
-      { expr: '2 + [3 * 4] % 5 - 1', note: 'multiplicative level, leftmost pair' },
-      { expr: '2 + [12 % 5] - 1',   note: 'still multiplicative, left to right' },
-      { expr: '2 + 2 - 1',          note: 'additive level now: (2 + 2) - 1' },
+      { expr: '2 + [3 * 4] % 5 - 1', note: 'the x / % level, leftmost pair' },
+      { expr: '2 + [12 % 5] - 1',   note: 'still x / %, left to right' },
+      { expr: '2 + 2 - 1',          note: 'the + - level: (2 + 2) - 1' },
       { expr: '3',                  note: 'the answer' }
     ];
 
@@ -2268,7 +2074,7 @@ printf("%d %d %d", a, b, c);</code></pre>
         sw: hot ? 1.4 : 1, radius: 7
       });
       P.text(44, y + 10, lines[i].expr, { size: 15, mono: true, bold: hot, color: hot ? PAL.accent : PAL.ink });
-      P.text(360, y + 13, lines[i].note, { size: 10.5, color: PAL.dim });
+      P.text(300, y + 13, lines[i].note, { size: 10.5, color: PAL.dim });
     }
 
     /* the ladder, on the right */
@@ -2493,7 +2299,7 @@ printf("%d %d %d", a, b, c);</code></pre>
     if (p1 > 0.01) {
       P.alpha(p1);
       P.arrow(258, 76, 258, 94, { stroke: PAL.accent, sw: 1.8 });
-      P.text(268, 74, 'x = 2 jumps here', { size: 11, mono: true, color: PAL.accent });
+      P.text(286, 72, 'x = 2 jumps here', { size: 11, mono: true, color: PAL.accent });
     }
 
     var p2 = reveal(u, 9, 1);
