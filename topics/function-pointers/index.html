@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Function Pointers in C — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Function Pointers in C</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../pointers-in-c/index.html">Pointers in C</a>
+      <a href="../dynamic-memory-and-program-layout/index.html">Memory layout</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Function pointers in C — the declarator that names one, the call that goes through one, and the rules that make some of those calls undefined. This is the last Programming-in-C microtopic in Section 4 of the official GATE 2027 CS syllabus that had no lesson of its own.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Read any function-pointer declaration into one correct English sentence; write the declaration for a given English sentence; state what <code>f</code>, <code>&amp;f</code> and <code>*f</code> denote; explain why <code>(*p)(3)</code> and <code>*p(3)</code> are different; state the comparator contract a callback must satisfy and name the two ways of breaking it; and say which of these behaviours the C standard calls undefined.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one grammar rule, one decay rule, one contract</em>. The grammar rule gives the reading. The decay rule makes three spellings interchangeable. The contract is what a library like <code>qsort</code> imposes on the function you hand it. Everything else in the topic is a consequence, and every consequence is checked on this page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside the syllabus, though not named by it.</strong></p>
+          <p class="small">Section 4 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read on 30 October 2026) reads: <em>"Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> Function pointers are part of the language, so they sit inside the clause "Programming in C"; they are not a separately named item, and this page says so rather than implying otherwise.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The topic has been examined directly: <strong>GATE CSE 2005</strong> asked what <code>int (*f)(int *)</code> declares, one mark, with four English readings as options. The question text and its four options are quoted on the Examples tab.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Question-indexed archives tag declarator-reading items under "pointer and structure in C" and show them appearing in several years between 1999 and 2020. That is a catalogue's tagging of its own index, not an official count and not a forecast for 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Pointers to objects.</strong> An address stored in a variable, and <code>*</code> meaning "the thing pointed at". Built in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>Declarations and declarators.</strong> That a declaration is a type specifier plus a declarator, and that the declarator carries the identifier. Built in <a href="../c-fundamentals/index.html">C fundamentals</a>.</li>
+            <li><strong>Function definitions and calls.</strong> A parameter list, a return type, and a call expression. Built in <a href="../functions-scope-and-preprocessor/index.html">Functions, scope and the preprocessor</a>.</li>
+            <li><strong>Sorting as a comparison process.</strong> A comparator is called many times; the count matters. Built in <a href="../sorting-algorithms/index.html">Sorting algorithms</a>.</li>
+            <li><strong>The code segment.</strong> That instructions and data live in different segments, which is where <a href="../dynamic-memory-and-program-layout/index.html">program layout</a> ends.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about assembly or calling conventions is assumed. Where a machine detail matters — pointer size, <code>int</code> width — the page states the model it is using and labels every figure that depends on it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument. The picture alternates between three views: a memory diagram (addresses and cells), a parse diagram (tokens and constructor chains), and a table (declarations against readings).</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>An address.</strong> Three functions in the code segment; a pointer cell holding one of those addresses.</li>
+            <li><strong>Reading one declaration.</strong> The GATE CSE 2005 item, in four steps, to option C.</li>
+            <li><strong>Four spellings.</strong> <code>int *f(int)</code> against <code>int (*f)(int)</code> against an array and a pointer-to-pointer.</li>
+            <li><strong>The grammar.</strong> The two constructor chains side by side, so the reading is derived.</li>
+            <li><strong>signal.</strong> The standard library's worst declarator, peeled, then collapsed by one typedef.</li>
+            <li><strong>Calling through.</strong> Three spellings that agree, and one that does not.</li>
+            <li><strong>qsort.</strong> The three-outcome contract, and eleven comparisons on a six-element array.</li>
+            <li><strong>Two broken comparators.</strong> The overflow pair and the boolean return, both computed.</li>
+            <li><strong>The dispatch table.</strong> 1728 programs evaluated two ways, then priced.</li>
+            <li><strong>The rules.</strong> The five clauses that define the sharp edges.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas this page is built on</h3>
+          <p class="small"><strong>1. A declarator is a composition.</strong> <code>pointer?</code> then a direct-declarator; suffixes attach first, prefixes second, base type last.</p>
+          <p class="small"><strong>2. A function designator decays to a pointer.</strong> Except under <code>sizeof</code> and unary <code>&amp;</code>. That single exception list explains three of the four traps here.</p>
+          <p class="small"><strong>3. A call needs a pointer to function.</strong> So <code>f(3)</code> and <code>(*f)(3)</code> are the same call, and <code>*f(3)</code> is not a call at all.</p>
+          <p class="small"><strong>4. A comparator returns a sign, not a truth value.</strong> Three outcomes, and a difference of two large ints is not one of them.</p>
+          <p class="small" style="margin-bottom:0"><strong>5. Converting is legal; calling through the wrong type is not.</strong> The conversion is guaranteed to round-trip; the call is undefined behaviour.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition first: a phone number, not the conversation</h3>
+              <p>A function pointer is a stored phone number. The number tells you whom to call; it is not the conversation, and it is not the person. You can write the number on a card, copy the card, hand the card to someone else, and later dial it. Nothing about the person changes when the card is copied.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is only for the first step: a function pointer is a value you can store, copy, compare and pass, and calling through it reaches code you did not name at the call site. It breaks down on arithmetic — you cannot dial "the next number in the directory" — which is exactly one of the rules in scene ten.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the two objects</h3>
+              <p class="small">A <strong>function</strong> is a piece of code with a type: a return type and a parameter list. A <strong>pointer to function</strong> is an object whose stored value is the address of such code.</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> C11 6.5.2.2p1: <em>"The expression that denotes the called function shall have type pointer to function returning void or returning an object type other than an array type."</em></p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> C11 6.3.2.1p4: <em>"A function designator is an expression that has function type. Except when it is the operand of the sizeof operator or the unary &amp; operator, a function designator with type 'function returning type' is converted to an expression that has type 'pointer to function returning type'."</em></p>
+              <p class="small" style="margin-bottom:0">In words: writing <code>f</code> where a value is expected already gives you a pointer to <code>f</code>. There is no separate "get the address" step, and no cost for one.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The declarator grammar, which is the whole reading rule</h3>
+              <p class="small">From C11 6.7.6, with the notation spelled out in words:</p>
+              <p class="small"><code>declarator := pointer? direct-declarator</code> — a declarator is an optional star group followed by a direct-declarator.</p>
+              <p class="small"><code>direct-declarator := identifier | ( declarator ) | dd [ n ] | dd ( params )</code> — a direct-declarator is an identifier, or a parenthesised declarator, or a direct-declarator with a bracket suffix, or a direct-declarator with a parameter-list suffix.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The suffixes attach to the direct-declarator and the star attaches to the whole declarator. So the <em>order in which constructors are built</em> is: identifier, then suffixes left to right, then the stars from the inside out, then the base type. Reading that order out loud gives the English sentence. This page's parser is that derivation written as code, and its output is checked against sixteen published readings.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Where the two rules meet</h3>
+              <p class="small"><code>int *f(int)</code> — the suffix <code>(int)</code> attaches to <code>f</code>, so a function is built first; the star then wraps the result. Read out: <em>f is a function taking (int) returning pointer to int</em>.</p>
+              <p class="small"><code>int (*f)(int)</code> — the parentheses make the star part of the inner declarator, so a pointer is built first; the suffix then wraps that. Read out: <em>f is a pointer to function taking (int) returning int</em>.</p>
+              <p class="small" style="margin-bottom:0">Both are legal, both compile, and they are different types. Nothing about the base type <code>int</code> changes: it is applied last in both cases.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>What the standard fixes, and what it leaves to the implementation</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Fixed by the standard: the decay rule; the requirement that a called expression have pointer-to-function type; the adjustment of a function-type parameter to a pointer (6.7.6.3p8); the illegality of <code>sizeof</code> on a function type (6.5.3.4); the requirement that pointer arithmetic use a pointer to a complete object type (6.5.6p2); and that calling through an incompatible converted pointer is undefined (6.3.2.3p8).</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Implementation-defined, and therefore not to be quoted as fact in an answer: the size of a function pointer (8 bytes on LP64, 4 on ILP32), and whether a given code address is reachable through an integer. This page uses an LP64 model — 8-byte pointers, 32-bit <code>int</code> — and labels every figure that depends on it.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>The call rule, and the three spellings of one address</h3>
+              <p class="small">A call is written <code>E(args)</code> where <code>E</code> has pointer-to-function type. Because a designator already converts to a pointer, <code>f(3)</code> works with no <code>&amp;</code> and no <code>*</code>. Because <code>*p</code> on a function pointer yields the designator again (6.5.3.2p4), and a designator converts back to a pointer, <code>(*p)(3)</code> is the same call. The model resolves <code>f</code>, <code>&amp;f</code> and <code>*f</code> to the same address, 0x401136, and checks that all three agree.</p>
+              <p class="small" style="margin-bottom:0">What is <em>not</em> the same: <code>&amp;p</code>, which is the address of the pointer cell, with type pointer to pointer to function; and <code>*p(3)</code>, which groups as <code>*(p(3))</code> because the call binds tighter than the star.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The callback contract</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The glibc manual on <code>qsort</code>: the compare function <em>"should return an integer less than, equal to, or greater than zero corresponding to whether its first argument is considered less than, equal to, or greater than its second argument. The function must not alter the array's contents, and must define a total ordering on the array elements... the function's return value must not depend on the element addresses or the relative positions of elements within the array."</em></p>
+              <p class="small" style="margin-bottom:0">Three obligations, not one: a sign, no mutation, no address dependence. And the manual's warning: <em>"If two elements compare equal, their order after sorting is unpredictable."</em></p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Why a table of pointers is a jump table</h3>
+              <p class="small">If the operations are named by small integers — an opcode — then an array of function pointers indexed by the opcode replaces a chain of tests with one subscript. The model evaluates 1728 three-step programs both ways and gets the same answer 1728 times.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> An if-chain over k operators tests on average (k+1)/2 conditions; a table tests once. For k = 4 that is 2.5 against 1, so over 1000 instructions, 2500 against 1000. This is a count of tests in a stated model, not a measurement of compiled code — a compiler is free to build the same table for a dense <code>switch</code>.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>One sentence to carry into the exam</h3>
+              <p class="small" style="margin-bottom:0">Read the declarator from the identifier outward, applying suffixes before prefixes and the base type last; remember that <code>f</code>, <code>&amp;f</code> and <code>*f</code> are one address while <code>*p(3)</code> is a different expression entirely; and remember that a comparator returns a <em>sign</em>, so never subtract two values that might overflow.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Three functions, three addresses in the code segment. The instructions live here, not in the data segment.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A function is code at an address</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with what a function is in memory: a run of instructions at a fixed address.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 — the GATE CSE 2005 item, recomputed</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The question, as archived: <em>"What does the following C-statement declare?"</em> — <code>int (*f)(int *);</code> — with options (A) a function that takes an integer pointer as argument and returns an integer; (B) a function that takes an integer as argument and returns an integer pointer; (C) a pointer to a function that takes an integer pointer as argument and returns an integer; (D) a function that takes an integer pointer as argument and returns a function pointer.</p>
+              <p class="small">Step 1: the identifier is <code>f</code>. Step 2: inside the parentheses the star binds first, so <code>f</code> is a pointer. Step 3: outside them, <code>(int *)</code> is the parameter list of what it points at — a function taking a pointer to int. Step 4: the remaining <code>int</code> is the return type.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer: C.</strong> The page's parser produces exactly this reading and the model checks it. A drops the pointer and calls <code>f</code> a function; B moves the star to the return type; D invents a return type that is itself a function pointer — each wrong option changes one word of the sentence.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Worked example 2 — from English to declaration</h3>
+              <p class="small">"A function taking an <code>int</code> and returning a pointer to a function taking an <code>int</code> and returning an <code>int</code>."</p>
+              <p class="small">Build from the outside in: the outermost thing is the function that takes the <code>int</code>, so start with <code>f(int)</code>. It returns a pointer, so the star goes before <code>f</code> — but the pointer must bind before the parameter list, so it needs parentheses: <code>(*f(int))</code>. That pointer points at a function taking an <code>int</code>, so append the parameter list and put the base type in front: <code>int (*f(int))(int)</code>.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The parser reads <code>int (*f(int))(int)</code> back as <em>f is a function taking (int) returning pointer to function taking (int) returning int</em>, and the model checks that this is the exact round trip. Note the rejected alternative <code>int (*f)(int)(int)</code>: that is a function returning a function, which 6.7.6.2 forbids, and the parser reports it as an error.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Worked example 3 — the signal declaration</h3>
+              <p class="small"><code>void (*signal(int, void (*)(int)))(int)</code></p>
+              <p class="small">Step 1: <code>signal( ... )</code> — signal is a function. Step 2: its parameters are an <code>int</code> and <code>void (*)(int)</code>, an abstract declarator meaning a pointer to a function taking an int and returning void. Step 3: the star before <code>signal( ... )</code> makes the result a pointer. Step 4: the trailing <code>(int)</code> is the parameter list of what that pointer points at.</p>
+              <p class="small" style="margin-bottom:0">Reading, as produced by the page's parser: <em>signal is a function taking (int, void (*)(int)) returning pointer to function taking (int) returning void</em>. The return is the previous handler, which is why <code>signal</code> can be used to restore a handler later.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Worked example 4 — the array of pointers</h3>
+              <p class="small"><code>int (*f[3])(int)</code> and <code>int (*f[3])[4]</code> look alike and are different.</p>
+              <p class="small">First: the brackets bind tighter than the star, so <code>f</code> is an array of 3; each element is a pointer to a function taking an int. Second: the inner declarator is <code>(*f[3])</code> — again an array of 3 pointers — and the trailing <code>[4]</code> applies to what they point at, so each element is a pointer to an array of 4 ints.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The published "C to English Declarations" table lists <code>int (*f11[3])[4]</code> as "an array of 3 pointers to an array of 4 ints" and <code>int *(*f12[3])[4]</code> as "an array of 3 pointers to an array of 4 pointers to int"; both readings are in the parser's sixteen checked cases.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition">
+              <h3>Worked example 5 — the correct comparator, counted</h3>
+              <p class="small">Array <code>[5, 3, 9, 1, 7, 3]</code>, comparator <code>(a &lt; b) ? -1 : (a &gt; b) ? 1 : 0</code>, insertion sort that shifts while <code>cmp(key, prev) &lt; 0</code>.</p>
+              <p class="small">Result <code>[1, 3, 3, 5, 7, 9]</code> in <strong>11 comparisons</strong>, against the bounds of 5 (= n − 1) and 15 (= n(n−1)/2). The model checks the sorted output against the platform's own numeric sort and checks the count against both bounds.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The count is a property of the algorithm, not of the contract: a different sort on the same array with the same comparator makes a different number of comparisons. Only the two bounds follow from the comparator alone.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Worked example 6 — the subtraction comparator</h3>
+              <p class="small"><code>return a - b;</code> with <code>a = 2000000000</code> and <code>b = -2000000000</code>.</p>
+              <p class="small">The true difference is 4000000000, which does not fit in a 32-bit <code>int</code>. On the stated two's-complement model it wraps to <strong>−294967296</strong>, so the comparator reports that the larger value is smaller. The pair <code>[2000000000, -2000000000]</code> therefore stays in the order it arrived — descending — and the model checks that the output is not ascending.</p>
+              <p class="small" style="margin-bottom:0"><strong>Two separate defects.</strong> The wrap is one; the standard's classification is the other. Signed overflow is undefined behaviour in C, so the wrapped value is what the stated model produces, not what the standard promises. Either way the sign is not the sign of the true difference, and that alone breaks the contract.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Worked example 7 — the boolean comparator</h3>
+              <p class="small"><code>return a &gt; b;</code> returns 1 when the first is larger and 0 otherwise — never a negative number.</p>
+              <p class="small">With such a comparator every pair reads as "not less", so no element is ever moved: <code>[3, 1, 2]</code> comes back as <code>[3, 1, 2]</code>. The model checks both that the output equals the input and that the output is not ascending.</p>
+              <p class="small" style="margin-bottom:0"><strong>Why it compiles.</strong> The type is right: <code>int</code>-returning, two <code>const void *</code> parameters. The contract is wrong, and a compiler has nothing to check. This is the difference between a type error and a semantic error, and it is the reason the contract has to be memorised.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Worked example 8 — the dispatch table</h3>
+              <p class="small"><code>int (*ops[4])(int, int) = { add, sub, mul, div };</code> and a program <code>+5, *3, −2</code> applied to an accumulator starting at 0.</p>
+              <p class="small">Table route: <code>ops[0](0,5) = 5</code>, <code>ops[2](5,3) = 15</code>, <code>ops[1](15,2) = 13</code>. Switch route: the same three steps, 13. The model enumerates all 4³ × 3³ = <strong>1728</strong> three-step programs and the two routes agree on all of them.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The two routes compute the same function because the table is a lookup of the same four operations the switch branches to. The agreement is checked exhaustively rather than argued, which is the only honest way to claim "they are the same".</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>A function cannot return a function, and an array cannot hold one</h3>
+          <p class="small"><code>int f(void)(int)</code> — a function returning a function. Rejected: 6.7.6.2 requires the return type of a function to be void or an object type, and a function type is neither.</p>
+          <p class="small" style="margin-bottom:0"><code>int f[3](void)</code> — an array whose elements would be functions. Rejected: an array element must be a complete object type. Both are in the model as negative checks, so the parser is shown rejecting them rather than silently accepting a nonsense declaration.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>sizeof: three different answers to three similar questions</h3>
+          <p class="small"><code>sizeof p</code> where <code>p</code> is a function pointer: the pointer size, 8 on LP64.</p>
+          <p class="small"><code>sizeof f</code> where <code>f</code> is a function: a constraint violation (6.5.3.4). GCC accepts it as an extension and returns 1, which is why the rule is worth knowing.</p>
+          <p class="small" style="margin-bottom:0"><code>sizeof *p</code>: also a violation, because <code>*p</code> is again the designator, and the decay does not happen under <code>sizeof</code>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Pointer arithmetic on a function pointer</h3>
+          <p class="small">6.5.6p2 permits addition when one operand is "a pointer to a complete object type" and the other has integer type. A function type is not an object type, so <code>p + 1</code> on a function pointer is not permitted.</p>
+          <p class="small" style="margin-bottom:0">GCC and Clang accept it as an extension, treating the size of a function as 1; <code>-pedantic</code> and <code>-Wpointer-arith</code> are what surface it. The model checks that the predicate "arithmetic allowed" is false for a function pointer and true for an <code>int</code> pointer.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Parameter adjustment, and the extra level inside the callee</h3>
+          <p class="small">6.7.6.3p8: "A declaration of a parameter as 'function returning type' shall be adjusted to 'pointer to function returning type'." So <code>void g(void cb(int))</code> and <code>void g(void (*cb)(int))</code> declare the same function.</p>
+          <p class="small" style="margin-bottom:0">Consequence: inside <code>g</code>, <code>cb</code> is already a pointer, so <code>&amp;cb</code> is a pointer to pointer to function, and assigning to <code>cb</code> changes only the local copy.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Conversion is legal; the call is not</h3>
+          <p class="small">6.3.2.3p8: a pointer to a function of one type may be converted to a pointer to a function of another type and back, and the result compares equal. But: "If a converted pointer is used to call a function whose type is not compatible with the pointed-to type, the behavior is undefined."</p>
+          <p class="small" style="margin-bottom:0">The qsort cast is exactly this case. The model checks that <code>int (*)(const void *, const void *)</code> is incompatible with <code>int (*)(int *, int *)</code>, and also with the version that drops <code>const</code>.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What a function pointer can and cannot be</h3>
+          <p class="small">It can be: compared with <code>==</code> and <code>!=</code> against another function pointer or against a null pointer constant; assigned; passed; returned; stored in an array; and stored in a struct.</p>
+          <p class="small" style="margin-bottom:0">It cannot be: converted to <code>void *</code> portably (that is not guaranteed by the standard), incremented, subscripted, or used to reach "the next function". A null function pointer that is called is a call through a null pointer — undefined, and usually a crash.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The edge-case test, in one line</h3>
+          <p class="small" style="margin-bottom:0">Before answering any question about a function pointer, ask which of the three things it is: a <em>type</em> question (read the declarator), an <em>address</em> question (<code>f</code>, <code>&amp;f</code>, <code>*f</code> agree; <code>&amp;p</code> does not), or a <em>behaviour</em> question (which clause applies, and does it say undefined).</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>"<code>int (*f)(int)</code> and <code>int *f(int)</code> are the same thing"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The two strings contain the same characters in almost the same order, and both involve a function and a pointer to int.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> <code>int *f(int)</code> can be defined and called as <code>f(3)</code>, returning a pointer. <code>int (*f)(int)</code> cannot be defined at all — it is a variable, and it must be assigned before it is called. One is code, the other is data.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Suffixes bind before prefixes; parentheses change the order. The page's parser returns two different type trees for the two strings and the model checks they differ.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"<code>*p(3)</code> is how you call through a pointer"</h3>
+          <p class="small"><strong>Why it tempts.</strong> <code>*p</code> is the thing pointed at, so <code>*p(3)</code> looks like "the thing pointed at, applied to 3".</p>
+          <p class="small"><strong>Minimal counterexample.</strong> The call operator binds tighter than the star, so <code>*p(3)</code> is <code>*(p(3))</code>: call <code>p</code> with 3, then dereference the result. If <code>p</code> is a pointer to function taking an int and returning a pointer to int, this compiles and dereferences the returned pointer — a different program.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Either write <code>p(3)</code> — the designator rule makes the star unnecessary — or write <code>(*p)(3)</code> with the parentheses that force the star to apply to the pointer.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"<code>return a - b;</code> is the standard comparator"</h3>
+          <p class="small"><strong>Why it tempts.</strong> It is short, it is correct for small integers, and it appears in a great deal of real code.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> <code>a = 2000000000</code>, <code>b = -2000000000</code>: the difference is 4000000000, which wraps to −294967296 on the stated 32-bit model, so the comparator reports the wrong sign and the pair is not sorted.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Return a sign, not a difference: <code>(a &gt; b) - (a &lt; b)</code>. Three outcomes, no overflow, and the model checks it on both test arrays.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A comparator returning 0 or 1 is fine — the sort only needs to know which is bigger"</h3>
+          <p class="small"><strong>Why it tempts.</strong> For a yes/no question, 0 and 1 look sufficient, and the function's type is correct.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> <code>return a &gt; b;</code> never returns a negative value, so every pair reads as "not less" and nothing moves: <code>[3, 1, 2]</code> comes back unchanged, and the model checks that it is not ascending.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Three outcomes are required, not two: less, equal, greater. A two-valued comparator silently declares every pair equal-or-greater.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"<code>&amp;f</code> is the address of the function, and <code>f</code> is not"</h3>
+          <p class="small"><strong>Why it tempts.</strong> For ordinary variables, <code>x</code> and <code>&amp;x</code> are clearly different things, and the same is expected here.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> None exists: 6.3.2.1p4 converts a function designator to a pointer to function except under <code>sizeof</code> and <code>&amp;</code>, so <code>f</code> and <code>&amp;f</code> have the same type and the same value. The model resolves <code>f</code>, <code>&amp;f</code> and <code>*f</code> to 0x401136 and checks all three.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> For a function, the three spellings agree. For the <em>pointer variable</em>, <code>&amp;p</code> is different: it is the address of the cell.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Casting a comparator to the right signature makes it correct"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The cast removes the compiler's complaint, and the program usually appears to work.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> 6.3.2.3p8: calling through a converted pointer whose type is not compatible with the function is undefined behaviour. It "works" because on common platforms every pointer has the same representation — which is a property of the platform, not of the program.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Write the comparator with the exact signature <code>int (const void *, const void *)</code> and cast the <em>elements</em> inside it, not the function.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five question shapes this topic takes</h3>
+          <p class="small muted" style="margin-bottom:0">Each shape is described by the reasoning it demands, not by a claim about how often it appears. One of the five has a verified previous-year instance; the rest are patterns the syllabus's clause makes possible.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>1. Read the declaration</h3>
+          <p class="small"><strong>Shape.</strong> A declaration, four English sentences, one mark. Verified instance: GATE CSE 2005, <code>int (*f)(int *)</code>.</p>
+          <p class="small"><strong>Reasoning demanded.</strong> Locate the identifier, apply the parentheses, then the suffixes, then the base type.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Reading left to right, which makes <code>int (*f)(int)</code> "an int pointer function" — a sentence that is not even well formed. The four options in the 2005 item are built to catch exactly one misplaced word.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Write the declaration</h3>
+          <p class="small"><strong>Shape.</strong> An English description, and four candidate declarations, of which one is legal. Or a fill-in-the-blank declarator.</p>
+          <p class="small"><strong>Reasoning demanded.</strong> Build from the outside in, then check the result against the two illegality rules: no function returning a function, no array of functions.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Producing <code>int (*f)(int)(int)</code> for "function returning a function pointer" — illegal, and a favourite distractor because it looks like the right shape.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>3. Trace a program that calls through a pointer</h3>
+          <p class="small"><strong>Shape.</strong> A short program with an array of function pointers or a callback, asking for the output.</p>
+          <p class="small"><strong>Reasoning demanded.</strong> Track which cell holds which function at the moment of the call, then evaluate the call. Watch for a pointer being reassigned between two calls.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Reading the table's initial contents and ignoring an assignment in between — the same error as ignoring a reassignment of any other pointer.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>4. Judge a comparator or a callback</h3>
+          <p class="small"><strong>Shape.</strong> A comparator is given; the question asks whether the array is sorted, what it becomes, or which comparator is correct.</p>
+          <p class="small"><strong>Reasoning demanded.</strong> Apply the contract: a negative, zero or positive result, and no dependence on addresses. Then simulate on the given array, not on a remembered one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Assuming the sort is stable, or assuming the output for a boolean comparator is the reverse of the input. Neither follows.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>5. Classify the behaviour</h3>
+          <p class="small"><strong>Shape.</strong> "Which of the following is undefined / illegal / implementation-defined?" with function pointers as the subject.</p>
+          <p class="small"><strong>Reasoning demanded.</strong> Name the clause. Conversion between function pointer types: legal. Calling through an incompatible one: undefined. Arithmetic: a constraint violation. <code>sizeof</code> on a function: a constraint violation.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Treating "my compiler accepts it" as evidence. GCC accepts function-pointer arithmetic and <code>sizeof</code> of a function as documented extensions; both remain outside the standard.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one habit that solves shapes 1 and 2</h3>
+          <p class="small" style="margin-bottom:0">Write the constructor chain before writing the sentence. Identifier, suffixes, prefixes, base type. Then the sentence is a transcription, and both directions of the question become the same exercise.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Question 1 is the verified GATE CSE 2005 item. Questions 2 to 7 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless its paper is given.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card span-2">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2005</span></div>
+              <div class="q-body">
+                <p>What does the following C-statement declare? <code>int (*f)(int *);</code></p>
+                <ol class="choices">
+                  <li>A function that takes an integer pointer as argument and returns an integer</li>
+                  <li>A function that takes an integer as argument and returns an integer pointer</li>
+                  <li>A pointer to a function that takes an integer pointer as argument and returns an integer</li>
+                  <li>A function that takes an integer pointer as argument and returns a function pointer</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>The identifier is <code>f</code>; the star inside the parentheses makes it a pointer; <code>(int *)</code> is the parameter list of what it points at; the leading <code>int</code> is the return type. So: a pointer to a function taking a pointer to int and returning an int.</p>
+                <p><strong>Why the others fail.</strong> A deletes "pointer to" and calls <code>f</code> a function — that would be <code>int *f(int *)</code>. B moves the star to the return type — that is <code>int *f(int)</code>, with the parameter also changed. D invents a return type that is itself a function pointer, which no part of the declaration mentions.</p>
+                <p><strong>What is being tested.</strong> Only the precedence of <code>( )</code> over <code>*</code> in a declarator. There is no program to trace and no machine model involved.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>Which declaration matches "a function taking an <code>int</code> and returning a pointer to a function taking an <code>int</code> and returning an <code>int</code>"?</p>
+                <ol class="choices">
+                  <li><code>int (*f)(int)(int);</code></li>
+                  <li><code>int (*f(int))(int);</code></li>
+                  <li><code>int *(*f)(int);</code></li>
+                  <li><code>int (**f)(int);</code></li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>Build it outside in: the outer thing is a function taking an <code>int</code>, so <code>f(int)</code>; it returns a pointer, so <code>(*f(int))</code>; that pointer points at a function taking an <code>int</code>, so append <code>(int)</code> and prefix the base type: <code>int (*f(int))(int)</code>. The page's parser reads it back as <em>f is a function taking (int) returning pointer to function taking (int) returning int</em>.</p>
+                <p><strong>Why the others fail.</strong> A is illegal: a function cannot return a function (6.7.6.2), and the model's parser rejects it. C is a pointer to a function taking an int and returning a pointer to int — the pointer is on the return value of the inner function, not on the function itself. D is a pointer to a pointer to a function; there is no outer function at all.</p>
+                <p><strong>Assumption.</strong> None: this is a declarator question, and the answer does not depend on any machine model.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>On an LP64 machine — 8-byte pointers, 4-byte <code>int</code> — how many bytes does the object declared by <code>int (*f[3])(int);</code> occupy?</p>
+                <p class="small muted">Answer as an integer.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 24</p>
+                <p><code>f</code> is an array of 3 elements, each a pointer to function. A function pointer is 8 bytes on this model, so the array is 3 × 8 = 24 bytes. No function body is stored in the array: only three addresses.</p>
+                <p><strong>Traps.</strong> Answering 8 reads the declaration as a single pointer; answering 12 uses a 4-byte pointer, which is the ILP32 model; answering 0 assumes a function occupies no storage — true of the function, false of the array of pointers to it.</p>
+                <p><strong>Assumption stated.</strong> The 8-byte figure is the model, not a guarantee of the standard: the size of a function pointer is implementation-defined, and the question states the model so the answer is determined.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>A comparator for <code>qsort</code> is written as <code>return a - b;</code> where the elements are 32-bit <code>int</code> and the pair being compared is <code>a = 2000000000</code>, <code>b = -2000000000</code>. Which statement is correct?</p>
+                <ol class="choices">
+                  <li>It returns 4000000000 and the pair is ordered correctly.</li>
+                  <li>It returns a negative value on a two's-complement machine, and the C standard calls the overflow undefined, so the program is not well defined.</li>
+                  <li>It returns a positive value, so the pair is ordered correctly.</li>
+                  <li>It returns 0, so the pair is treated as equal and the sort still produces ascending order.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The true difference is 4000000000, which does not fit in a 32-bit <code>int</code>. On the two's-complement model used on this page it wraps to −294967296, so the comparator reports that the larger value is smaller and the pair stays in descending order. The model computes both the wrap and the resulting order.</p>
+                <p><strong>Why the others fail.</strong> A assumes <code>int</code> is wide enough — that is the whole point of the question. C contradicts the arithmetic: the wrapped value is negative on this model. D would require the difference to be zero, which it plainly is not.</p>
+                <p><strong>Why B is the examinable answer rather than just "it wraps".</strong> Signed overflow is undefined behaviour, so a page that reported only the wrapped value would be describing one implementation. The safe comparator, <code>(a &gt; b) - (a &lt; b)</code>, avoids the question entirely, and the model checks that it returns −1, 0 and 1 exactly.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>Let <code>f</code> be a function with no pointer in its declaration, and <code>p</code> a variable of pointer-to-function type holding <code>f</code>. Which statements are true?</p>
+                <ol class="choices">
+                  <li><code>f</code>, <code>&amp;f</code> and <code>*f</code> all denote the same address.</li>
+                  <li><code>p + 1</code> denotes the next function in memory.</li>
+                  <li><code>sizeof p</code> is the machine's pointer size.</li>
+                  <li>Calling a function through a converted pointer of an incompatible function type is undefined behaviour.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A, C and D</p>
+                <p>(A) 6.3.2.1p4 converts the designator to a pointer except under <code>sizeof</code> and unary <code>&amp;</code>, and 6.5.3.2p4 turns <code>*p</code> on a function pointer back into the designator, which converts again. The model resolves all three to 0x401136. (C) <code>p</code> is an object of pointer type, so it has a size; the model states 8 bytes on LP64. (D) is 6.3.2.3p8 word for word.</p>
+                <p><strong>Why B fails.</strong> Addition requires "a pointer to a complete object type" (6.5.6p2), and a function type is not an object type. GCC allows it as an extension with size 1 — an extension, not the language. There is also no defined "next function": the standard says nothing about the order of functions in memory.</p>
+                <p><strong>The distinction being tested.</strong> "Legal to convert" and "legal to call through" are different permissions, and "my compiler accepts it" is evidence about the compiler, not about C.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>An array of four function pointers is used instead of a switch over four opcodes. Which statement about the two is correct?</p>
+                <ol class="choices">
+                  <li>The table is faster for every input, because it avoids all comparisons.</li>
+                  <li>The table and the switch compute the same function; the table's advantage is a count of tests in a stated model, and it can be rewritten at run time.</li>
+                  <li>The switch cannot express more than four operations, so the table is strictly more general.</li>
+                  <li>The table uses less memory than the switch in every case.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The model evaluates all 1728 three-step programs both ways and they agree on all of them, so the two routes compute the same function. The cost difference is a count of tests: an if-chain over four operators averages 2.5 per instruction against 1 for the table, so 2500 against 1000 over 1000 instructions.</p>
+                <p><strong>Why the others fail.</strong> A overstates it: a compiler may compile a dense <code>switch</code> into a jump table, in which case the comparison disappears anyway. C is false — a switch can have any number of cases. D is false in general: the table costs four pointers plus the functions themselves, and it prevents inlining.</p>
+                <p><strong>The honest version of the claim.</strong> The table buys an O(1) dispatch and the ability to change behaviour at run time, and it pays for both in indirection and in safety: a corrupted entry is a jump into arbitrary code.</p>
+              </div>
+            </div>
+
+            <div class="question card span-2">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+              <div class="q-body">
+                <p>Using insertion sort that shifts while <code>cmp(key, previous) &lt; 0</code>, with the comparator <code>(a &lt; b) ? -1 : (a &gt; b) ? 1 : 0</code>, how many comparisons does the model make on the array <code>[5, 3, 9, 1, 7, 3]</code>?</p>
+                <p class="small muted">Answer as an integer.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 11</p>
+                <p>The model counts 11 comparisons and produces <code>[1, 3, 3, 5, 7, 9]</code>, which it checks against a numeric sort. The bounds from the comparator alone are 5 (= n − 1) and 15 (= n(n−1)/2), and 11 sits inside them.</p>
+                <p><strong>Why the count is not a property of the contract.</strong> A different sorting algorithm on the same array with the same comparator makes a different number of comparisons. Only the two bounds follow from the comparator; the exact figure follows from the algorithm, and the question states the algorithm for that reason.</p>
+                <p><strong>Trap.</strong> Answering 15 assumes the worst case; answering 5 assumes a presorted array. Neither is the given input, and the array is given precisely so the count can be computed rather than bounded.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>The grammar, in four lines</h3>
+          <p class="small"><code>declarator := pointer? direct-declarator</code></p>
+          <p class="small"><code>direct-declarator := ident | ( declarator ) | dd [ n ] | dd ( params )</code></p>
+          <p class="small">Suffixes attach to the direct-declarator; stars attach to the whole declarator; the base type is applied last.</p>
+          <p class="small" style="margin-bottom:0">Reading order = identifier, suffixes left to right, stars inside out, base type.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Six declarations to be able to read on sight</h3>
+          <p class="small"><code>int *f(int)</code> — function taking int, returning pointer to int</p>
+          <p class="small"><code>int (*f)(int)</code> — pointer to function taking int, returning int</p>
+          <p class="small"><code>int (*f[3])(int)</code> — array of 3 pointers to such functions</p>
+          <p class="small"><code>int (**f)(int)</code> — pointer to pointer to such a function</p>
+          <p class="small"><code>int (*f(int))(int)</code> — function taking int, returning pointer to such a function</p>
+          <p class="small" style="margin-bottom:0"><code>void (*signal(int, void (*)(int)))(int)</code> — function taking (int, handler), returning a handler</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Clause numbers worth memorising</h3>
+          <p class="small"><strong>6.3.2.1p4</strong> — a function designator converts to a pointer, except under <code>sizeof</code> and <code>&amp;</code>.</p>
+          <p class="small"><strong>6.5.3.2p4</strong> — <code>*p</code> on a pointer to function yields the designator.</p>
+          <p class="small"><strong>6.5.2.2p1</strong> — the called expression must have pointer-to-function type.</p>
+          <p class="small"><strong>6.3.2.3p8</strong> — conversion is legal; calling through an incompatible converted pointer is undefined.</p>
+          <p class="small"><strong>6.5.6p2</strong> — arithmetic needs a pointer to a complete object type.</p>
+          <p class="small"><strong>6.5.3.4</strong> — no <code>sizeof</code> on a function type.</p>
+          <p class="small" style="margin-bottom:0"><strong>6.7.6.3p8</strong> — a function-type parameter is adjusted to a pointer to function.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Six traps, six answers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Same characters, same type? <strong>No — parentheses change the order.</strong></li>
+            <li><code>*p(3)</code> is a call? <strong>No — it is <code>*(p(3))</code>.</strong></li>
+            <li><code>&amp;f</code> differs from <code>f</code>? <strong>No — same address, same type.</strong></li>
+            <li><code>a - b</code> as a comparator? <strong>Overflows; use <code>(a &gt; b) - (a &lt; b)</code>.</strong></li>
+            <li><code>return a &gt; b;</code>? <strong>Never negative, so nothing moves.</strong></li>
+            <li>Casting a comparator? <strong>Legal; calling through it is undefined.</strong></li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>What to do in the first ten seconds of a function-pointer question</h3>
+          <p class="small" style="margin-bottom:0">Decide which of the three the question is. A <em>type</em> question: write the constructor chain. An <em>address</em> question: remember <code>f</code>, <code>&amp;f</code>, <code>*f</code> agree while <code>&amp;p</code> does not. A <em>behaviour</em> question: name the clause, and be careful that "the compiler accepted it" is not a clause.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official documents are separated from textbooks and from question catalogues. A catalogue is evidence that a question exists and was asked in a given year; it is not evidence about the 2027 paper. Every reading on this page was produced by the page's own parser, and every number by the page's own model.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official and normative</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, fetched and read on 30 October 2026. Supports the Section 4 wording quoted in Overview — "Programming in C" — and therefore the placement of this topic inside that clause.</li>
+            <li><strong>ISO/IEC 9899:2011 (C11), working draft N1570</strong>, clauses 6.3.2.1, 6.3.2.3, 6.5.2.1, 6.5.2.2, 6.5.3.2, 6.5.3.4, 6.5.6, 6.7.6, 6.7.6.2, 6.7.6.3 and 7.14.1.1. The clause text quoted on this page was read from a clause-by-clause transcription of N1570, not from memory.</li>
+            <li><strong>GATE CSE 2005 question paper</strong>, as archived, for the exact text and the four options of the declarator item quoted on the Examples and Practice tabs.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Library and textbook material</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GNU C Library manual, "Array Sort Function"</strong>, for the comparator contract quoted on the Build-up tab: the three-outcome requirement, the ban on altering the array, the total-ordering requirement, the ban on depending on element addresses, and the warning that equal elements may come out in either order.</li>
+            <li><strong>qsort(3), Linux manual page</strong>, for the same three-outcome contract and for the statement that the order of equal members is undefined.</li>
+            <li><strong>"C to English Declarations" (DigiPen CS225 course notes)</strong>, for the published readings of the f11, f12, f27, f28 and f32b declarations that the parser is checked against.</li>
+            <li><strong>The comp.lang.c FAQ, question 1.21</strong>, and the <code>cdecl</code> program's output form, for the inside-out reading rule and the "declaration follows use" phrasing used on the Build-up tab.</li>
+            <li><strong>GCC documentation, "Pointer Arith"</strong>, and the Clang <code>-Wpointer-arith</code> diagnostic reference, for the statement that arithmetic on function pointers and <code>sizeof</code> of a function are GNU extensions that treat the size of a function as 1.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was checked on the build machine</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Every reading is computed.</strong> The page carries a recursive-descent parser for the C declarator grammar, and its output is asserted against sixteen published English readings plus two declarations that must be rejected (a function returning a function, and an array of functions). Forty-six model checks in total, all passing.</li>
+            <li><strong>Every count is computed.</strong> The comparison count (11), the overflow wrap (−294967296), the two wrong sort results, the exhaustive 1728-program agreement between the table and the switch, and the test-count model (2500 against 1000) are all produced by the same functions the animation reads.</li>
+            <li><strong>Limitation stated plainly.</strong> No C compiler was available on the build machine, so no program was compiled and no behaviour was observed. Every claim about behaviour is derived from the clause text, and the arithmetic that depends on a machine — the 32-bit wrap, the 8-byte pointer — is computed on the stated LP64 model and labelled as such.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Question catalogues, used to locate items</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE Overflow</strong> and <strong>ExamSide</strong> threads for the GATE CSE 2005 declarator item, used for the question text and the option list, and cross-checked against a third archived list of C questions from GATE papers. Two of them number it question 1 and one numbers it question 23; the paper and set are named, and the index is not relied on.</li>
+            <li><strong>Community answers</strong> on that item were read to see which distractor catches people; the reading on this page is derived from the grammar and produced by the parser, not from a vote count.</li>
+            <li><strong>What the research did not cover.</strong> No textbook edition was consulted directly, so no page number is quoted. No compiler, disassembler or debugger was run. No 2027 sample paper exists at the time of writing, so nothing here is a forecast of the paper.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
