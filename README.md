@@ -25,6 +25,7 @@ lessons are static files and work from a local clone.
 | Arrays, Stacks and Queues | Programming And Data Structures | A — explicitly in the syllabus | `topics/arrays-stacks-queues/index.html` |
 | C Fundamentals: Types, Operators and Control Flow | Programming And Data Structures | A — explicitly in the syllabus | `topics/c-fundamentals/index.html` |
 | Dynamic Memory and Program Layout: malloc, calloc, realloc, free and Where the Bytes Live | Programming And Data Structures | A — explicitly in the syllabus | `topics/dynamic-memory-and-program-layout/index.html` |
+| Function Pointers in C: Reading the Declarator, Calling Through It, and Where the Rules Say Undefined | Programming And Data Structures | A — explicitly in the syllabus | `topics/function-pointers/index.html` |
 | Functions, Scope, Lifetime and the Preprocessor | Programming And Data Structures | A — explicitly in the syllabus | `topics/functions-scope-and-preprocessor/index.html` |
 | Graphs as a Data Structure: Matrix, List and Incidence | Programming And Data Structures | A — explicitly in the syllabus | `topics/graph-representations/index.html` |
 | Linked Lists | Programming And Data Structures | A — explicitly in the syllabus | `topics/linked-lists/index.html` |

@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-10-29"  # the date this tracker was regenerated
+RUN_DATE = "2026-10-30"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -3168,6 +3168,56 @@ topics.append(topic(
 
 
 import os
+
+# ---------------------------------------------------------------- Function pointers
+topics.append(topic(
+    "Programming and Data Structures", "Programming in C (Section 4)",
+    "Function pointers: declarators, calls through them, callbacks and the undefined cases",
+    ["a function as code at an address", "the declarator grammar and the inside-out reading",
+     "pointers to functions, arrays of them, pointers to pointers to them",
+     "calling through a function pointer", "function designators and the decay rule",
+     "callbacks and the qsort comparator contract", "dispatch tables",
+     "type compatibility, conversion and undefined behaviour"],
+    prereq=["pointers in C", "C fundamentals: types, operators and control flow",
+            "functions, scope and preprocessor", "sorting algorithms", "dynamic memory and program layout"],
+    related=["pointers in C", "structures, unions and enumerations", "dynamic memory and program layout",
+             "sorting algorithms", "hashing", "runtime environments and intermediate code",
+             "system calls and the kernel boundary"],
+    importance="medium",
+    evidence="Section 4 of the official GATE 2027 CS syllabus begins 'Programming and Data Structures: Programming in C.' (IIT Madras, CS_GATE2027_Syllabus.pdf, read 2026-10-30). Function pointers are not named separately, so the topic sits inside that clause rather than being quoted from it. It has been examined directly: GATE CSE 2005 asked what 'int (*f)(int *)' declares, one mark, with four English readings as options, and question-indexed archives tag such items under 'pointer and structure in C'. That tagging is a community observation, not official weightage.",
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="function-pointers",
+    path="topics/function-pointers/index.html",
+    execution="published 2026-10-30",
+    microtopics=[
+        "a function is code at an address; a function pointer is an object holding that address",
+        "declarator := pointer? direct-declarator; suffixes bind before prefixes; base type last",
+        "the inside-out reading derived from the grammar, not memorised",
+        "int *f(int) against int (*f)(int): one pair of parentheses, two types (GATE CSE 2005)",
+        "int (*f[3])(int) is an array of 3 pointers, not a pointer to an array",
+        "int (**f)(int) is a pointer to pointer to function: a repointable handler",
+        "int (*f(void))(int) is a function returning a pointer to function",
+        "int (*f[3])[4] against int *(*f[3])[4]: pointer to array against array of pointers to array",
+        "void (*signal(int, void (*)(int)))(int) read in four steps; it returns a handler",
+        "one typedef collapses the signal declaration",
+        "f, &f and *f name the same address (6.3.2.1p4 and 6.5.3.2p4)",
+        "f(3) and (*f)(3) are the same call; *p(3) is *(p(3))",
+        "&p is the address of the cell, not the code",
+        "a function designator decays except under sizeof and unary &",
+        "sizeof a function is a constraint violation (6.5.3.4); sizeof the pointer is the pointer size",
+        "pointer arithmetic needs a pointer to a complete object type (6.5.6p2)",
+        "the qsort contract: a sign, no mutation, no dependence on element addresses",
+        "qsort is not stable: equal elements may come out in either order",
+        "return a - b overflows: 2000000000 - (-2000000000) wraps to -294967296",
+        "return a > b never returns a negative, so nothing moves",
+        "the repair (a > b) - (a < b) returns -1, 0 and 1 exactly",
+        "a dispatch table against a switch: 1728 programs agree; 2500 tests against 1000",
+        "converting between function pointer types is legal; calling through an incompatible one is undefined (6.3.2.3p8)",
+        "a function-type parameter is adjusted to a pointer to function (6.7.6.3p8), so &cb is one level deeper",
+        "a function cannot return a function, and an array cannot hold one",
+    ]))
+
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
             "microtopics", "coverage_note", "last_verified_date")
 if os.path.exists("syllabus-coverage.json"):
@@ -3195,6 +3245,7 @@ _VERIFIED = {
     "local-optimisation-and-basic-blocks": "2026-10-29",
     "dynamic-memory-and-program-layout": "2026-10-29",
     "graph-representations": "2026-10-30",
+    "function-pointers": "2026-10-30",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
