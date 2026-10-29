@@ -2946,6 +2946,77 @@ topics.append(topic(
         "constant folding against common subexpression elimination",
         "which optimisation each analysis enables"]))
 
+# ---------------------------------------------------------------- Compiler Design (local optimisation)
+topics.append(topic(
+    "Compiler Design",
+    "Code optimisation: local optimisation (Section 7)",
+    "Local optimisation and basic-block construction",
+    ["the basic block as a maximal straight-line run",
+     "the three leader rules and the block partition",
+     "the control-flow graph: one node per block, an edge per jump and fall-through",
+     "the DAG of a block by value numbering",
+     "the six local transformations and their conditions",
+     "dead-code elimination and the side-effect guard",
+     "soundness of a rewrite: same values on every input, no lost effect",
+     "where local stops and data-flow analysis begins"],
+    prereq=["runtime-environments-intermediate-code-and-optimisation",
+            "data-flow-analysis-framework"],
+    related=["data-flow-analysis-framework",
+             "runtime-environments-intermediate-code-and-optimisation",
+             "lexical-analysis-parsing-and-sdt",
+             "graphs-connectivity",
+             "c-fundamentals"],
+    importance="high",
+    evidence="Section 7 of the official GATE 2027 CS syllabus names it verbatim, first in the final "
+             "clause: \"Local optimisation, Data flow analyses: constant propagation, liveness "
+             "analysis, common sub expression elimination.\" The block-counting shape is asked in "
+             "GATE CSE 2025 Set 1 Q52 (answer 6) and GATE CSE 2024 Set 1 Q39 (7 blocks, largest 6); "
+             "the operation-counting shape in GATE CSE 2021 Set 2 Q30. A topic-indexed PYQ archive "
+             "groups four items under local optimisation since 2013; that is a community tagging, "
+             "not official weightage.",
+    difficulty="easy-medium",
+    status="PUBLISHED",
+    slug="local-optimisation-and-basic-blocks",
+    path="topics/local-optimisation-and-basic-blocks/index.html",
+    execution="published 2026-10-29; 49/49 model checks pass; geometry audit clean over 10 scenes; "
+              "the optimiser's output compared with the unoptimised block on 100 inputs",
+    microtopics=[
+        "a basic block is maximal, so the partition has no choices left",
+        "rule 1: the first instruction",
+        "rule 2: the target of any jump, including a backward one",
+        "rule 3: the instruction after any jump, conditional or not",
+        "the number of leaders equals the number of blocks",
+        "block sizes must sum to the instruction count (the free check)",
+        "the instruction after the last jump adds no leader",
+        "a single-instruction block is still a block",
+        "unreachable code is still partitioned",
+        "whether the exit counts as a node changes node and edge counts, not block counts",
+        "a self-loop appears when a loop-back jump targets its own block",
+        "the DAG shares a node between identical operator and operand nodes",
+        "commutativity: b + c and c + b are one node",
+        "a redefined operand prevents sharing even when the text looks identical",
+        "a copy creates no node, only a second label",
+        "node count = leaves + operators, and the convention must be stated",
+        "constant folding and constant propagation are different rewrites",
+        "common subexpression elimination is not constant folding",
+        "copy propagation needs neither name reassigned in between",
+        "algebraic identities must hold for the type (x * 0 fails for floats)",
+        "strength reduction must be identical on every input (x / 2 fails for negatives)",
+        "dead-code elimination needs the live-out set and a side-effect guard",
+        "a store through a pointer, a volatile write and a call are never dead",
+        "floating-point reassociation has a witness at 0.1, 0.2, 0.3",
+        "NaN absorbs multiplication by zero",
+        "folding must wrap in the target width, not widen",
+        "a division by a zero constant must not be folded",
+        "reusing a[i] across a[j] = 5 is unsound when the indices alias",
+        "the pass order matters: one pass exposes another",
+        "local is bounded by the block, not by the size of the code",
+        "the 2025 program gives six blocks, eight edges and two self-loops",
+        "the 2024 program gives seven blocks with a largest of six",
+        "the 2021 count: 303 additions and 2 dereferences",
+        "which optimisation uses which analysis (2025 Set 1 Q13)"]))
+
+
 import os
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
             "microtopics", "coverage_note", "last_verified_date")
@@ -2971,6 +3042,7 @@ _VERIFIED = {
     "structures-unions-and-enums": "2026-10-29",
     "integrity-constraints-keys-and-null": "2026-10-29",
     "data-flow-analysis-framework": "2026-10-29",
+    "local-optimisation-and-basic-blocks": "2026-10-29",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))

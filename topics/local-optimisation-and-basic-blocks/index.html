@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local Optimisation and Basic Blocks — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Local Optimisation and Basic Blocks</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../data-flow-analysis-framework/index.html">Related: the data-flow framework</a>
+      <a href="../runtime-environments-intermediate-code-and-optimisation/index.html">Related: intermediate code and optimisation</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Local optimisation — the rewrites a compiler can justify from a single basic block — built on the basic-block partition itself: the three leader rules, the control-flow graph they induce, the DAG of a block by value numbering, the six local transformations and the condition each one depends on. This is the phrase <em>"Local optimisation"</em> at the start of the final clause of Section 7 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Cut any three-address program into basic blocks with the three leader rules and count them. Build the control-flow graph and say which conventions change the node and edge counts. Turn a block into a DAG and count its nodes and edges. Name each of the six local rewrites and the condition it needs. Decide whether a given rewrite is sound, and produce a witness when it is not. Say exactly where local optimisation stops and why the rest needs data-flow analysis.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one partition, one graph, one DAG and six rewrites</em>. The partition and the graph are mechanical and appear in every block-counting question; the six rewrites are the conceptual half. The page keeps them apart, because a question that asks for a count never needs a rewrite and a question about a rewrite never needs the edges.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 7 of the official GATE 2027 CS syllabus, fetched from <code>gate2027.iitm.ac.in</code> during this run and read line by line, ends: <em>"Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The repo already has <a href="../runtime-environments-intermediate-code-and-optimisation/index.html">Runtime environments, intermediate code and optimisation</a>, which lists the local transformations inside a section on optimisation, and <a href="../data-flow-analysis-framework/index.html">Data-Flow Analysis Framework</a>, which builds the global half. Neither builds the basic-block partition, the leader algorithm or the DAG as a subject of their own, and neither checks a rewrite against an interpreter.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed PYQ archive groups four GATE CSE items under "local optimisation" since 2013, and the two block-counting questions used here are 2025 Set 1 Q52 and 2024 Set 1 Q39. That is somebody's tagging of somebody's collection, not official weightage, and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means the topic is inside the boundary, not that a question is guaranteed. Every count on this page was produced by the page's own code and is listed in the Model checks panel on the Animation tab.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <p class="small"><strong>Needed now:</strong> three-address code and what an intermediate representation is (<a href="../runtime-environments-intermediate-code-and-optimisation/index.html">intermediate code and optimisation</a>); what a variable assignment means; integer arithmetic including what a left shift does.</p>
+          <p class="small"><strong>Helpful:</strong> the idea of a directed graph and a path (<a href="../graphs-connectivity/index.html">graphs: connectivity and structure</a>); the notion of a partial order if you continue to the global half.</p>
+          <p class="small" style="margin-bottom:0"><strong>Approximate learning time:</strong> 70 to 90 minutes for the whole page, 25 for the animation and the examples.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas worth carrying away</h3>
+          <p class="small">1. A basic block is a <em>maximal</em> straight-line run with one entry and one exit; the three leader rules produce exactly that partition, so the number of leaders is the number of blocks.</p>
+          <p class="small">2. The control-flow graph has one node per block; every jump and every fall-through is an edge. Whether the exit counts as a node is a convention, and questions differ.</p>
+          <p class="small">3. A block's DAG shares a node between two computations of the same operator on the same operand nodes — that sharing <em>is</em> common subexpression elimination, seen rather than performed.</p>
+          <p class="small">4. Each of the six local rewrites is sound only while its condition holds, and the conditions are about the type and the machine, not only the arithmetic.</p>
+          <p class="small" style="margin-bottom:0">5. Everything a block cannot justify is a question about other blocks. That boundary, not difficulty, is what separates local from global.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a paragraph you may rewrite</h3>
+          <p>Think of a basic block as one sentence of a recipe with no "if" in it. Because nothing branches inside it, you can edit it in place: replace "two times eight" by "sixteen", notice that the same quantity was already measured two lines earlier and reuse it, or cross out a line whose result nobody ever picks up. You never have to ask what happened in the previous sentence, and you never have to wonder which of two paths you arrived on.</p>
+          <p class="small muted" style="margin-bottom:0">The moment the recipe says "if the oven is hot, do this, otherwise do that", the editing becomes a question about both branches at once. That is the whole difference between this lesson and the next one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition: basic block</h3>
+          <p class="small">A <strong>basic block</strong> is a <em>maximal</em> sequence of consecutive three-address instructions such that control enters the sequence only at the first instruction and leaves only after the last.</p>
+          <p class="small"><em>Maximal</em> means you cannot extend it by one instruction at either end and keep the property. <em>Consecutive</em> means in the printed order of the intermediate code, not in the order the machine happens to run.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This is the standard definition, stated the same way in the Dragon Book (Aho, Lam, Sethi, Ullman, <em>Compilers: Principles, Techniques and Tools</em>, 2nd edition, §8.4) and in the IIT Madras compiler course notes linked on the Sources tab.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition: leader</h3>
+          <p class="small">A <strong>leader</strong> is any instruction that satisfies at least one of:</p>
+          <p class="small"><strong>R1.</strong> it is the first instruction of the program;<br>
+          <strong>R2.</strong> it is the target of a conditional or unconditional jump;<br>
+          <strong>R3.</strong> it is printed immediately after a conditional or unconditional jump.</p>
+          <p class="small">The blocks are then: for each leader, the run from that leader up to, but not including, the next leader in printed order.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The three rules produce a partition with one entry and one exit, and it is maximal: any instruction that is not a leader can be entered only from the instruction above it, so it cannot start a block, and any instruction that is a leader cannot sit inside a block because control can reach it without passing the block's first line. So the two definitions agree, and the number of blocks equals the number of leaders.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition: control-flow graph</h3>
+          <p class="small">A <strong>control-flow graph</strong> (CFG) has one node per basic block. There is an edge from block <em>P</em> to block <em>Q</em> when control can pass from the end of <em>P</em> to the start of <em>Q</em>, which happens in exactly two ways: the last instruction of <em>P</em> is a jump to the leader of <em>Q</em>, or the last instruction of <em>P</em> is not an unconditional jump and <em>Q</em> is the next block in printed order (a <em>fall-through</em>).</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> Whether an extra <code>ENTRY</code> and <code>EXIT</code> node is added is a drawing convention, not part of the definition. It changes node and edge counts by one or two and changes the block count not at all — which is why block-counting questions are safer than node-and-edge questions.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition: the DAG of a block</h3>
+          <p class="small">Process the block top to bottom. A variable's <strong>current node</strong> is the node that holds its value. For an instruction <code>x = y op z</code>: take the current node of <em>y</em> and of <em>z</em>, creating a <em>leaf</em> for either if it has none; if a node labelled <em>op</em> with exactly those two children already exists, reuse it; otherwise create one. Then attach the label <em>x</em> to that node and detach <em>x</em> from any other node.</p>
+          <p class="small" style="margin-bottom:0">An instruction <code>x = y</code> creates no node: it attaches the label <em>x</em> to the node that currently holds <em>y</em>. For a commutative operator, <code>y + z</code> and <code>z + y</code> are the same node.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The six rewrites and the condition each one needs</h3>
+          <p class="small"><strong>Constant folding</strong> — <code>x = 2 * 8</code> becomes <code>x = 16</code>. Needs: both operands constant, and the machine is allowed to perform the operation (no trap, no trap-on-overflow flag).</p>
+          <p class="small"><strong>Constant propagation</strong> — <code>x = 3; y = x + 1</code> becomes <code>y = 4</code>. Needs: <em>x</em> is not reassigned between the two lines.</p>
+          <p class="small"><strong>Copy propagation</strong> — <code>x = y; z = x + 1</code> becomes <code>z = y + 1</code>. Needs: neither <em>x</em> nor <em>y</em> is reassigned in between.</p>
+          <p class="small"><strong>Common subexpression elimination</strong> — <code>u = b + c; v = b + c</code> becomes <code>v = u</code>. Needs: no operand was redefined in between.</p>
+          <p class="small"><strong>Algebraic simplification</strong> — <code>x + 0</code>, <code>x * 1</code>, <code>x - 0</code> become <code>x</code>. Needs: the identity holds for the type, which is why <code>x * 0 → 0</code> fails for floating point.</p>
+          <p class="small" style="margin-bottom:0"><strong>Strength reduction</strong> — <code>x * 4</code> becomes <code>x &lt;&lt; 2</code>. Needs: the cheaper form gives the identical result for every input, which is why <code>x / 2 → x &gt;&gt; 1</code> fails for signed negatives.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one principle behind all six</h3>
+          <p class="small" style="margin-bottom:0">A rewrite is allowed only if, for every input the program can supply, it produces the same observable behaviour — the same values in the variables that are live afterwards, and no lost side effect. Where the mathematics and the target machine disagree, the machine decides: 32-bit addition wraps, a double addition rounds, a signed shift rounds down, and NaN absorbs a multiplication by zero. Every counterexample on the Edge cases tab is a case where that sentence is the whole answer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed by the same model the drawing uses.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Local optimisation is the part of a compiler that improves code one basic block at a time, with no branch inside the block it is looking at.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Where local optimisation sits</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Local optimisation is the part of a compiler that improves code one basic block at a time.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked examples, each computed rather than recalled</h3>
+          <p class="small" style="margin-bottom:0">Every number below is printed by the page's model. The first two are the previous-year programs; the third is a DAG; the fourth is the optimiser run, checked by executing the block before and after on a hundred inputs.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — the 2025 program, cut into blocks</h3>
+          <p class="small">The program is seventeen numbered instructions with jumps at 1009 (to 1003), 1011 (to 1002) and 1017 (to 1013).</p>
+          <div class="step-list">
+            <div><strong>1.</strong> Rule 1 marks 1001. <em>Justification:</em> it is the first instruction.</div>
+            <div><strong>2.</strong> Rule 2 marks 1003, 1002, 1013. <em>Justification:</em> each is a jump target.</div>
+            <div><strong>3.</strong> Rule 3 marks 1010 and 1012. <em>Justification:</em> they follow the jumps at 1009 and 1011. Nothing follows 1017, so rule 3 adds nothing there.</div>
+            <div><strong>4.</strong> Cut at each leader: B1 = 1001, B2 = 1002, B3 = 1003–1009, B4 = 1010–1011, B5 = 1012, B6 = 1013–1017.</div>
+            <div><strong>5.</strong> Sizes 1, 1, 7, 2, 1, 5 sum to 17. <em>Justification:</em> the partition covers the program exactly once, so no leader was missed.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Answer: 6 basic blocks.</strong> Edges: B1→B2, B2→B3, B3→B3, B3→B4, B4→B2, B4→B5, B5→B6, B6→B6, and B6→EXIT. The two self-loops exist because each loop-back jump targets its own block's first instruction.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — the 2024 program, and the largest block</h3>
+          <p class="small">Fifteen labelled instructions; jumps at L9 (to L11), L12 (to L4) and L14 (to L3).</p>
+          <div class="step-list">
+            <div><strong>1.</strong> Leaders by the three rules: L1, L3, L4, L10, L11, L13, L15 — seven.</div>
+            <div><strong>2.</strong> Blocks and sizes: B1 = L1–L2 (2), B2 = L3 (1), B3 = L4–L9 (6), B4 = L10 (1), B5 = L11–L12 (2), B6 = L13–L14 (2), B7 = L15 (1).</div>
+            <div><strong>3.</strong> The sizes sum to 15, which is every instruction once.</div>
+            <div><strong>4.</strong> The largest is B3 with six instructions.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Answer: 7 blocks, largest 6 — option D.</strong> L3 is a <em>backward</em> jump target, so L1 and L2 form a block of two; missing it gives six blocks and the wrong option.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — the DAG of a five-statement block</h3>
+          <p class="small"><code>u = b + c</code> · <code>v = b + c</code> · <code>w = u * 2</code> · <code>x = u * 2</code> · <code>y = v + 2</code></p>
+          <div class="step-list">
+            <div><strong>1.</strong> Leaves: <em>b</em>, <em>c</em> and the constant 2 — three nodes.</div>
+            <div><strong>2.</strong> <code>u = b + c</code> creates a <code>+</code> node; <code>v = b + c</code> finds it and attaches a second label. One node labelled <em>u, v</em>.</div>
+            <div><strong>3.</strong> <code>w = u * 2</code> creates a <code>*</code> node; <code>x = u * 2</code> finds it. One node labelled <em>w, x</em>.</div>
+            <div><strong>4.</strong> <code>y = v + 2</code> is an addition, not a multiplication, so it needs a new node labelled <em>y</em>.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Count: 6 nodes (3 leaves + 3 operators), 6 edges.</strong> Five statements became three computations. If a question does not count leaves, the same structure is 3 nodes — say which convention you used.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — nine statements to four</h3>
+          <p class="small">The block <code>t1 = b + c; t2 = b + c; t3 = b * 4; t4 = 2 * 8; t5 = t1 + 0; t6 = t5; x = t4 + t6; y = b * 4; z = 7</code> with <em>x</em> and <em>y</em> live out.</p>
+          <div class="step-list">
+            <div><strong>1. Fold.</strong> <code>t4 = 2 * 8</code> becomes <code>t4 = 16</code>.</div>
+            <div><strong>2. Simplify.</strong> <code>t5 = t1 + 0</code> becomes <code>t5 = t1</code>.</div>
+            <div><strong>3. Propagate copies.</strong> <em>t5</em> is <em>t1</em>, so <em>t6</em> is <em>t1</em>, so <code>x = t4 + t6</code> becomes <code>x = t4 + t1</code>.</div>
+            <div><strong>4. Value-number.</strong> <code>t2 = b + c</code> is the value already in <em>t1</em>; <code>y = b * 4</code> is the value already in <em>t3</em>.</div>
+            <div><strong>5. Delete dead.</strong> <em>z</em> is not live out, and <em>t2</em>, <em>t5</em>, <em>t6</em> have no remaining uses. A second fold round turns <code>t4</code> into the constant 16 inside the addition and makes <em>t4</em> dead too.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Result: <code>t1 = b + c; t3 = b * 4; x = 16 + t1; y = t3</code> — four statements.</strong> The page then executes both versions on a hundred inputs and compares <em>x</em> and <em>y</em>: they agree on all hundred.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries, conventions and the cases that break a shortcut</h3>
+          <p class="small" style="margin-bottom:0">Each card names the boundary and the condition that fails there. The first four are about the partition, the rest about the rewrites.</p>
+        </div>
+
+        <div class="card">
+          <h3>A block of one instruction is still a block</h3>
+          <p class="small">In the 2024 program, L3, L10 and L15 are single-instruction blocks, and in the 2025 program B1, B2 and B5 are. Loop code produces them constantly, because a jump target immediately followed by another jump target leaves one instruction between them.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> A leader is a leader by rule, not by size. Since every leader starts a block and the next instruction is also a leader, the block holds exactly that one instruction.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Unreachable code is still partitioned</h3>
+          <p class="small">If an unconditional jump is followed by instructions that nothing jumps to, rule 3 makes the instruction after the jump a leader, so the unreachable run becomes a block — a block with no predecessor in the CFG.</p>
+          <p class="small" style="margin-bottom:0">The partition algorithm does not know or care about reachability. A question that asks for the number of blocks counts it; a question that asks for <em>reachable</em> blocks does not. Read which one is asked.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Whether the exit is a node changes the counts</h3>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A well-known archive discussion of GATE CSE 2015 Set 2 Q29 — the same shape of question, asking for nodes and edges of the CFG — records answers of 5 and 7, and 6 and 7, and 7 and 8, differing only in whether explicit <code>START</code> and <code>END</code> nodes are added. Contributors point at an IIT Madras course definition that adds them and at textbooks that do not.</p>
+          <p class="small" style="margin-bottom:0">I am not asserting a key for that question. The lesson is the one thing that is certain: the <em>block</em> count is unaffected, and a node-and-edge question must state its convention. This page reports both numbers for the 2025 program — eight edges between blocks, plus one to the exit.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A backward jump target is the leader people miss</h3>
+          <p class="small">L3 in the 2024 program and 1002 in the 2025 program are targets of <em>backward</em> jumps, so they are leaders even though they sit in the middle of what looks like a prologue.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Rule 2 says "target of a jump". It does not say "forward jump". A loop's header is a leader precisely because the loop's back edge targets it, and a loop with no leader at its header would be a block entered in its middle, which the definition forbids.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: reassociating a double</h3>
+          <p class="small">With <em>a</em> = 0.1, <em>b</em> = 0.2, <em>c</em> = 0.3: <code>(a + b) + c</code> gives 0.6000000000000001 and <code>a + (b + c)</code> gives 0.6. The rewrite <code>(a+b)+c → a+(b+c)</code> is therefore unsound for <code>double</code>, although it is sound for <code>int</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition violated:</strong> floating-point addition is not associative, because each intermediate result is rounded to the nearest representable value. The page finds this witness by searching a grid of candidate values, so it is a demonstration rather than a quotation.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: <code>x / 2</code> is not <code>x &gt;&gt; 1</code></h3>
+          <p class="small">For <em>x</em> = −3, <code>x / 2</code> gives −1, because C truncates toward zero, while <code>x &gt;&gt; 1</code> gives −2, because an arithmetic right shift rounds toward minus infinity.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition violated:</strong> the two forms agree for every non-negative value and disagree on negatives. The rewrite is valid for <code>unsigned</code> and invalid for signed types — which is exactly the sort of "it works on my test data" reasoning the exam tests.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: <code>x * 0 → 0</code>, and folding <code>1 / 0</code></h3>
+          <p class="small">If <em>x</em> is NaN, <code>x * 0</code> is NaN, not 0. If <em>x</em> is −1.0, <code>x * 0</code> is −0.0, which compares equal to 0 but is distinguishable through <code>1/x</code>.</p>
+          <p class="small" style="margin-bottom:0">And an integer <code>1 / 0</code> is a fault at run time: folding it away deletes a fault the program was going to have, which changes observable behaviour. The page's folding guard refuses any division by a zero constant, and the check confirms the refusal.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: reusing <code>a[i]</code> across a store</h3>
+          <p class="small">Take <code>t = a[i]; a[j] = 5; u = a[i]</code> with <em>i</em> = <em>j</em> = 1 and the array starting 10, 20, 30. Then <em>t</em> is 20 and <em>u</em> is 5, so reusing <em>t</em> for <em>u</em> gives 20 instead of 5.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition violated:</strong> common subexpression elimination is sound only when nothing between the two occurrences writes a value the expression reads. A store through a possibly-aliasing index is exactly such a write.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: deleting a store because "nobody reads it"</h3>
+          <p class="small"><code>*p = 5</code>, <code>a[i] = 0</code>, <code>volatile flag = 1</code> and <code>t = f()</code> all define something no later instruction in the block reads.</p>
+          <p class="small" style="margin-bottom:0">None of them is dead: the store or the call is the observable effect. The page marks such statements with a side-effect flag and the dead-code pass keeps them; a check confirms that a pointer store survives a sweep that removes its neighbouring arithmetic.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that cost marks, and the smallest fact that refutes each</h3>
+          <p class="small" style="margin-bottom:0">Each card gives the wrong belief, why it is tempting, the smallest counterexample, and the rule that replaces it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "Local optimisation means optimising small pieces of code"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the word <em>local</em> suggests size. <strong>Refuted by:</strong> a block of three hundred straight-line instructions — still one block, still local.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> local means <em>decided from one block</em>, not <em>small</em>. Loop-invariant code motion on a four-line loop is global; constant folding on a three-hundred-line block is local.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Only the target of a jump starts a new block"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the target is the instruction you think of as the loop header, so it feels like the only interesting one. <strong>Refuted by:</strong> GATE CSE 2025 Set 1 Q52, where rule 3 alone supplies two of the six leaders (1010 and 1012).</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> three rules, and a leader is anything satisfying <em>any</em> of them. Forgetting rule 3 gives five blocks instead of six.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "Constant folding and common subexpression elimination are the same"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both remove work, and both appear in the same list of optimisations. <strong>Refuted by:</strong> <code>x = 2 * 8 → x = 16</code> is folding, and no value was computed earlier; <code>v = b + c → v = u</code> is elimination, and nothing is evaluated at compile time.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> folding evaluates arithmetic on constants; elimination reuses a value the program already computed. A rewrite that does both is two rewrites.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Any assignment nobody reads can be deleted"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the liveness definition — a variable is dead if no later use reads it — is exactly that sentence, applied to variables. <strong>Refuted by:</strong> <code>*p = 5</code> with <em>p</em> never read again: the store is the effect.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> delete an assignment only when the target is dead <em>and</em> the statement has no side effect. Stores through pointers, volatile writes and calls always have one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Strength reduction is always safe because it is cheaper"</h3>
+          <p class="small"><strong>Why it tempts:</strong> multiplication really is slower than a shift, so the rewrite feels like pure gain. <strong>Refuted by:</strong> <em>x</em> = −3, where <code>x / 2</code> is −1 and <code>x &gt;&gt; 1</code> is −2.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the cheaper form must give the identical result for <em>every</em> input in the type's range, including negatives and the extremes. Otherwise it is a different program.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "A DAG node count is a fixed number for a block"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the DAG itself is unique up to isomorphism, so the structure feels canonical — and it is. <strong>Refuted by:</strong> the same five-statement block is 6 nodes if leaves count and 3 if they do not; adding a constant leaf changes the count again.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the structure is determined; the <em>count</em> depends on the stated convention. Answer the convention in front of you and say which one you used.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six question shapes, and the reasoning each one demands</h3>
+          <p class="small" style="margin-bottom:0">The shapes are ordered by how often the leader algorithm alone settles them. Only the last two need an optimisation at all.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 1 — count the basic blocks (NAT)</h3>
+          <p class="small">You are given a numbered three-address listing and asked for an integer. GATE CSE 2025 Set 1 Q52 is this shape.</p>
+          <p class="small"><strong>Procedure:</strong> mark leaders with the three rules, count them, and check that the resulting block sizes sum to the number of instructions.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> counting jump targets only, or treating the instruction after a jump as part of the previous block. Both lose exactly one block here.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 2 — blocks plus a second number (MCQ)</h3>
+          <p class="small">GATE CSE 2024 Set 1 Q39 asks for the block count <em>and</em> the size of the largest block. The distractors are the four combinations of getting one right and one wrong.</p>
+          <p class="small"><strong>Procedure:</strong> compute both before reading the options, then check that the sizes sum to the instruction count.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> answering one number and inferring the other from the options. The options are built so that this works half the time.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 3 — nodes and edges of the CFG</h3>
+          <p class="small">Same partition, then a count of edges: one per jump plus one per fall-through. The <code>EXIT</code> convention changes the answer by one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> list the edges explicitly, then count. On the 2025 program that list is B1→B2, B2→B3, B3→B3, B3→B4, B4→B2, B4→B5, B5→B6, B6→B6, plus B6→EXIT. Note the self-loops: two of them, because each loop-back jump targets its own block's first instruction.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 4 — nodes and edges of a block's DAG</h3>
+          <p class="small">Build the DAG by value numbering and count. The traps are a redefined operand (which prevents sharing) and a swapped commutative pair (which permits it).</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> write each statement's node in a table, note which statements reused an existing node, then count leaves and operators separately and add. State the convention.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 5 — which optimisation uses which analysis</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2025 Set 1 Q13 asks which technique uses live variable analysis, and the answer is register assignment; strength reduction and constant folding do not need it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure:</strong> ask what fact the technique must know. Register allocation needs "is this value still needed"; dead-code elimination needs the same; CSE needs "was this value computed on every path". A technique that only rearranges one statement needs no analysis at all.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 6 — count the operations after a rewrite</h3>
+          <p class="small">GATE CSE 2021 Set 2 Q30 is this shape: apply CSE and hoisting to a loop, then count additions and dereferences dynamically, over all iterations.</p>
+          <p class="small"><strong>Procedure:</strong> compute the iteration count first; count operations per iteration including the loop increment; add the operations before the loop; multiply and add. Here: 100 iterations × 3 + 3 = 303 additions, and 2 dereferences.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> counting from the source text rather than the transformed code, or forgetting <code>i = i + 2</code>. Both change the answer by exactly 100.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The single most useful habit here</h3>
+          <p class="small" style="margin-bottom:0">After any count, check it against a property it must satisfy: block sizes sum to the instruction count; the DAG's node count is leaves plus operators; the edges are one per jump plus one per fall-through. Each check takes ten seconds and catches the error that the options are designed to reward.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 to 4 are previous-year items with their year and paper, and each answer was recomputed from the question text rather than copied from a key. Questions 5 to 8 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2025 Set 1 Q52</span></div>
+          <div class="q-body">
+            <p>Refer to the given 3-address code sequence. This code sequence is split into basic blocks. The number of basic blocks is ________. (Answer in integer)</p>
+            <pre class="small">1001: i = 1        1002: j = 1        1003: t1 = 10*i
+1004: t2 = t1+j    1005: t3 = 8*t2    1006: t4 = t3-88
+1007: a[t4] = 0.0  1008: j = j+1      1009: if j &lt;= 10 goto 1003
+1010: i = i+1      1011: if i &lt;= 10 goto 1002
+1012: i = 1        1013: t5 = i-1     1014: t6 = 88*t5
+1015: a[t6] = 1.0  1016: i = i+1      1017: if i &lt;= 10 goto 1013</pre>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 6</p>
+            <p><strong>The leaders.</strong> Rule 1: 1001. Rule 2, the three jump targets: 1003, 1002, 1013. Rule 3, the lines after the jumps: 1010 follows 1009, and 1012 follows 1011. Nothing follows 1017. That is {1001, 1002, 1003, 1010, 1012, 1013}, six leaders.</p>
+            <p><strong>The blocks.</strong> B1 = 1001, B2 = 1002, B3 = 1003–1009, B4 = 1010–1011, B5 = 1012, B6 = 1013–1017. Sizes 1, 1, 7, 2, 1, 5 sum to 17, so the partition is exact.</p>
+            <p><strong>Why five is the popular wrong answer.</strong> A candidate who marks only jump targets gets {1001, 1002, 1003, 1013} and then merges 1010–1011 into B3 and 1012 into the same run, producing five. Rule 3 is what supplies the other two.</p>
+            <p><strong>The check.</strong> The page runs this program through its own leader algorithm; the six leaders, six blocks, eight inter-block edges and the two self-loops (B3→B3 and B6→B6) are all computed and listed in the Model checks panel.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2024 Set 1 Q39</span></div>
+          <div class="q-body">
+            <p>Consider the following pseudo-code.</p>
+            <pre class="small">L1:  t1 = -1        L2:  t2 = 0         L3:  t3 = 0
+L4:  t4 = 4 * t3    L5:  t5 = 4 * t2     L6:  t6 = t5 * M
+L7:  t7 = t4 + t6   L8:  t8 = a[t7]      L9:  if t8 &lt;= max goto L11
+L10: t1 = t8        L11: t3 = t3 + 1     L12: if t3 &lt; M goto L4
+L13: t2 = t2 + 1    L14: if t2 &lt; N goto L3   L15: max = t1</pre>
+            <p>Which one of the following options correctly specifies the number of basic blocks and the number of instructions in the largest basic block, respectively?</p>
+            <ol class="choices">
+              <li>6 and 6</li>
+              <li>6 and 7</li>
+              <li>7 and 7</li>
+              <li>7 and 6</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 4 — 7 basic blocks, and the largest holds 6 instructions</p>
+            <p><strong>The leaders.</strong> Rule 1: L1. Rule 2: L11 (from L9), L4 (from L12), L3 (from L14). Rule 3: L10, L13, L15. Seven leaders, so seven blocks.</p>
+            <p><strong>The blocks.</strong> B1 = L1–L2 (2), B2 = L3 (1), B3 = L4–L9 (6), B4 = L10 (1), B5 = L11–L12 (2), B6 = L13–L14 (2), B7 = L15 (1). The sizes sum to 15, the instruction count.</p>
+            <p><strong>Why option 1 fails.</strong> Six blocks means L3 was not counted, which merges L1–L3 into one block of three and leaves the largest at six. The backward target from the outer loop at L14 is the leader that was missed.</p>
+            <p><strong>Why options 2 and 3 fail.</strong> Option 3 keeps the largest at seven, which happens if L10 is merged into the block above it — that is, if the instruction after the conditional jump at L9 is not treated as a leader.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2021 Set 2 Q30</span></div>
+          <div class="q-body">
+            <p>Consider the following ANSI C code segment:</p>
+            <pre class="small">z = x + 3 + y-&gt;f1 + y-&gt;f2;
+for (i = 0; i &lt; 200; i = i + 2) {
+  if (z &gt; i) { p = p + x + 3;  q = q + y-&gt;f1; }
+  else        { p = p + y-&gt;f2; q = q + x + 3; }
+}</pre>
+            <p>Assume that <code>y</code> points to a struct on the heap with fields <code>f1</code> and <code>f2</code>, and that <code>x</code>, <code>y</code>, <code>z</code>, <code>p</code>, <code>q</code> and <code>i</code> are in registers. Common sub-expression elimination is applied. The number of addition and dereference operations in the optimised code, respectively, are:</p>
+            <ol class="choices">
+              <li>300 and 2</li>
+              <li>303 and 3</li>
+              <li>300 and 3</li>
+              <li>303 and 2</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 4 — 303 additions and 2 dereferences</p>
+            <p><strong>Additions.</strong> The loop runs for i = 0, 2, …, 198: that is 100 iterations. Each iteration performs two additions in its branch, plus one in <code>i = i + 2</code>, so 300. Before the loop, <code>x + 3</code>, then adding <code>y-&gt;f1</code>, then adding <code>y-&gt;f2</code> is three more. Total 303.</p>
+            <p><strong>Dereferences.</strong> <code>y-&gt;f1</code> and <code>y-&gt;f2</code> are each computed once, before the loop, because nothing in the loop changes <code>y</code> or either field. Two.</p>
+            <p><strong>Why option 1 fails.</strong> It forgets the three additions before the loop, or forgets the loop increment; either omission is a multiple of 100.</p>
+            <p><strong>Why options 2 and 3 fail.</strong> Three dereferences would mean one of the field loads was not hoisted. Both are loop-invariant, so both are.</p>
+            <p><strong>Why this is not a local optimisation.</strong> The hoisting needs the fact that every block of the loop leaves <code>x</code>, <code>y</code>, <code>y-&gt;f1</code> and <code>y-&gt;f2</code> unchanged. No single block can establish that; a data-flow analysis over the loop can.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2025 Set 1 Q13</span></div>
+          <div class="q-body">
+            <p>Which ONE of the following techniques used in compiler code optimization uses live variable analysis?</p>
+            <ol class="choices">
+              <li>Run-time function call management</li>
+              <li>Register assignment to variables</li>
+              <li>Strength reduction</li>
+              <li>Constant folding</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 2 — register assignment to variables</p>
+            <p><strong>Why.</strong> Live variable analysis says, at each point, which values will still be needed. Two variables that are live at the same point interfere and cannot share a register, so liveness is exactly the input to register allocation.</p>
+            <p><strong>Why the others fail.</strong> Call management is a calling-convention question. Strength reduction replaces an operation by a cheaper one and needs nothing about liveness. Constant folding evaluates known operands and likewise needs nothing.</p>
+            <p><strong>The distinction this question tests.</strong> A transformation that rearranges one statement is local and analysis-free; a transformation that must know what happens later needs a backward analysis. Dead-code elimination is the other member of the second group, and it uses the same live sets.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>In the basic block <code>t = a[i]; a[j] = 5; u = a[i];</code> which one of the following is true?</p>
+            <ol class="choices">
+              <li><code>u</code> may be replaced by <code>t</code>, because the two expressions are identical</li>
+              <li><code>u</code> may not be replaced by <code>t</code>, because <code>i</code> and <code>j</code> may be equal</li>
+              <li><code>u</code> may be replaced by <code>t</code> only if <code>i</code> is not equal to <code>j</code> at run time, which the compiler cannot know</li>
+              <li>Neither may be replaced, because <code>a</code> is an array</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 2 — the replacement is unsound, because the indices may alias</p>
+            <p><strong>The witness.</strong> Take <code>a</code> starting as 10, 20, 30 with <code>i = j = 1</code>. Then <code>t</code> is 20, the store writes 5 over the same location, and <code>u</code> is 5. Reusing <code>t</code> would give 20. The page runs this and reports 20 against 5.</p>
+            <p><strong>Why option 3 is the same answer wearing a disguise.</strong> "Only if i ≠ j" is a condition the compiler cannot establish at compile time, so a compiler must assume they may be equal — which is exactly why the replacement is refused. The two options differ in wording, not in what a compiler may do.</p>
+            <p><strong>Why option 4 fails.</strong> Arrays are not the problem. <code>t = a[3]; a[5] = 5; u = a[3]</code> is perfectly safe, because the two indices are different constants. Aliasing, not array-ness, is what blocks the rewrite.</p>
+            <p><strong>The condition.</strong> Common subexpression elimination requires that nothing between the two occurrences writes a location the expression reads. A store through a possibly-equal index violates it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following rewrites preserve the value of the result for <em>every</em> input of the stated type?</p>
+            <ol class="choices">
+              <li><code>x * 2 → x &lt;&lt; 1</code>, for <code>unsigned int</code></li>
+              <li><code>x / 2 → x &gt;&gt; 1</code>, for <code>int</code></li>
+              <li><code>x + 0 → x</code>, for <code>int</code></li>
+              <li><code>x * 0 → 0</code>, for <code>double</code></li>
+              <li><code>(a + b) + c → a + (b + c)</code>, for <code>double</code></li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: options 1 and 3 only</p>
+            <p><strong>1 holds.</strong> For an unsigned type, a left shift by one is multiplication by two modulo the width, and the value is well defined even when it wraps.</p>
+            <p><strong>3 holds.</strong> Adding the integer 0 to an integer is exact and has no overflow of its own.</p>
+            <p><strong>2 fails.</strong> <em>x</em> = −3 gives −1 by division and −2 by the shift. C truncates toward zero; an arithmetic shift rounds down.</p>
+            <p><strong>4 fails.</strong> NaN × 0 is NaN, and −1.0 × 0 is −0.0, which is distinguishable from 0 through <code>1/x</code>.</p>
+            <p><strong>5 fails.</strong> With 0.1, 0.2 and 0.3 the two groupings give 0.6000000000000001 and 0.6. Floating-point addition is not associative.</p>
+            <p><strong>The habit.</strong> For each candidate, ask what the type's extremes do: negatives, zero, the largest value, NaN, and a value whose rounding is visible.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>The basic block below has <code>x</code> and <code>y</code> live at its exit and nothing else. Apply constant folding, algebraic simplification, copy propagation, common subexpression elimination and dead-code elimination, repeating until nothing changes. How many instructions remain?</p>
+            <pre class="small">t1 = b + c
+t2 = b + c
+t3 = b * 4
+t4 = 2 * 8
+t5 = t1 + 0
+t6 = t5
+x  = t4 + t6
+y  = b * 4
+z  = 7</pre>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 4</p>
+            <p><strong>What each pass removes.</strong> Folding turns <code>t4 = 2 * 8</code> into 16. Simplification turns <code>t5 = t1 + 0</code> into a copy of <em>t1</em>. Copy propagation makes <em>t6</em> a copy of <em>t1</em> and rewrites <code>x = t4 + t6</code> to <code>x = t4 + t1</code>. Value numbering sees that <code>t2 = b + c</code> is the value already in <em>t1</em> and that <code>y = b * 4</code> is the value already in <em>t3</em>. Dead-code elimination removes <em>z</em>, which is not live out, and the copies <em>t2</em>, <em>t5</em>, <em>t6</em>, which no longer have uses.</p>
+            <p><strong>The second round.</strong> With <em>t4</em> known to be 16, the fold substitutes it into the addition, giving <code>x = 16 + t1</code>, and then <em>t4</em> has no uses either.</p>
+            <p><strong>What remains.</strong> <code>t1 = b + c</code>, <code>t3 = b * 4</code>, <code>x = 16 + t1</code>, <code>y = t3</code> — four instructions.</p>
+            <p><strong>The check.</strong> The page executes the original and the optimised block on all hundred pairs (<em>b</em>, <em>c</em>) with each from −3 to 6 and compares <em>x</em> and <em>y</em>. They agree on all hundred, so the count is four <em>and</em> the rewrite is sound.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which one of the following can <em>not</em> be decided from a single basic block together with its live-out set?</p>
+            <ol class="choices">
+              <li>Whether a constant expression can be evaluated at compile time</li>
+              <li>Whether two computations in the block produce the same value</li>
+              <li>Whether a variable used in the block was defined on every path reaching the block</li>
+              <li>Whether an assignment in the block is read by any later instruction in the block</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 3 — that is a statement about the paths into the block</p>
+            <p><strong>Why 1, 2 and 4 are decidable.</strong> Folding reads the block only. Value numbering reads the block only. Dead-code elimination reads the block plus the live-out set, which is given.</p>
+            <p><strong>Why 3 is not.</strong> "Defined on every path reaching here" is a question about predecessors, and their predecessors, which is the whole control-flow graph. This is the <em>must</em> analysis of the data-flow lesson, not a block-local question.</p>
+            <p><strong>The distinction.</strong> Local means "decided from this block plus the one fact the caller supplies". It does not mean "decided from this block alone", which is why the live-out set is part of the statement of every local pass.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the three rules, the six rewrites, the guards and the traps. Everything on this tab fits on one screen and is worth re-reading the night before.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions to reproduce exactly</h3>
+          <p class="small"><strong>Basic block:</strong> a <em>maximal</em> run of consecutive instructions with a single entry at the first and a single exit after the last.</p>
+          <p class="small"><strong>Leader:</strong> the first instruction; any jump target; the instruction after any jump.</p>
+          <p class="small"><strong>CFG:</strong> one node per block; an edge per jump and per fall-through.</p>
+          <p class="small" style="margin-bottom:0"><strong>Local optimisation:</strong> a rewrite justified by one block plus its live-out set.</p>
+        </div>
+
+        <div class="card">
+          <h3>The numbers that matter</h3>
+          <p class="small">Blocks = leaders. Block sizes sum to the instruction count.</p>
+          <p class="small">Edges = jumps + fall-throughs. A block ending in a conditional jump has two successors; one ending in an unconditional jump has one; the last block has the exit.</p>
+          <p class="small" style="margin-bottom:0">DAG nodes = leaves + operators. DAG edges = one per operand position.</p>
+        </div>
+
+        <div class="card">
+          <h3>The six rewrites, one line each</h3>
+          <p class="small">Fold: both operands constant, and the machine may perform it.</p>
+          <p class="small">Propagate a constant: the name is not reassigned in between.</p>
+          <p class="small">Propagate a copy: neither name is reassigned in between.</p>
+          <p class="small">Eliminate a common subexpression: no operand redefined in between.</p>
+          <p class="small">Apply an identity: it holds for the type.</p>
+          <p class="small" style="margin-bottom:0">Reduce strength: the cheap form is identical on every input.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps</h3>
+          <p class="small">1. Marking jump targets but not the lines after jumps.</p>
+          <p class="small">2. Missing a <em>backward</em> jump target, which is every loop header.</p>
+          <p class="small">3. Deleting a store or a call because "nothing reads it".</p>
+          <p class="small">4. Reducing strength across a sign or a type where the cheap form rounds differently.</p>
+          <p class="small" style="margin-bottom:0">5. Answering a node-count question without stating whether leaves and the exit count.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Two sentences to remember</h3>
+          <p class="small">A block is what one scan can see, and the three leader rules are the scan's first step.</p>
+          <p class="small" style="margin-bottom:0">A rewrite is sound only if every input gives the same observable behaviour — and the machine, not the mathematics, decides what "same" means.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">Official documents are separated from textbooks and from community archives. No source is listed that was not read during this build, and a community archive is never used as the authority for a definition.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras.</strong> <code>gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>, fetched during this run. Supports: Section 7 ends "Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination", so this topic is Class A.</p>
+          <p class="small" style="margin-bottom:0"><strong>Question papers.</strong> The two programs on this page are transcribed from the question text as published in the archives below, not from scanned papers. The 2025 answer of 6 is reported by the archives as the official key of GATE 2025 CS1 (IIT Roorkee); the 2024 answer of 7 and 6 is reported as the official key of GATE 2024 CS1 (IISc Bengaluru). Both were recomputed here from the leader rules before being used.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and course material</h3>
+          <p class="small"><strong>Aho, Lam, Sethi, Ullman,</strong> <em>Compilers: Principles, Techniques and Tools</em>, 2nd edition — §8.4 (basic blocks and flow graphs), §8.5 (the local transformations: folding, CSE via the DAG, copy propagation, dead-code elimination, algebraic simplification, strength reduction). Supports the definitions and the six rewrites. Only the chapter structure was used; no page was copied.</p>
+          <p class="small" style="margin-bottom:0"><strong>IIT Madras compiler course notes</strong> (<code>cse.iitm.ac.in/~krishna/cs3300/</code>), cited in the archive discussion of the 2015 node-and-edge question, because that definition adds explicit START and END nodes — the convention this page flags rather than assumes.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community archives — observations, not authority</h3>
+          <p class="small"><strong>GATE Overflow</strong> — the 2025 Set 1 Q52 thread and the 2015 Set 2 Q29 thread. The first supports the six-block answer and shows the leader rules in use; the second is the source of the START/END-node disagreement quoted on the Edge cases tab.</p>
+          <p class="small"><strong>ExamSIDE</strong> — the GATE CSE 2024 Set 1 Q39 item and its option list, and the compiler-design code-generation question index.</p>
+          <p class="small" style="margin-bottom:0"><strong>IAE Academy and trygateai</strong> — worked solutions for 2024 Set 1 Q39, 2025 Set 1 Q52 and 2021 Set 2 Q30, each citing the official key. Used to cross-check the question text and the arithmetic; every answer on this page was then recomputed independently by the model.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What this page does not claim</h3>
+          <p class="small">No compiler was run: every optimised block on this page is the output of the page's own pass pipeline, and its soundness is checked by an interpreter written here, not by gcc or LLVM.</p>
+          <p class="small">No marks distribution is claimed. The archive tagging quoted on the Overview tab is a community classification and is not a forecast.</p>
+          <p class="small" style="margin-bottom:0">The DAG node and edge counts follow the convention stated in the text (leaves counted, constants are leaves, commutativity allowed). A question using another convention will give a different number for the same structure, and the page says so rather than hiding it.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
