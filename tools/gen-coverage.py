@@ -652,6 +652,65 @@ topics.append(topic(
         "the five-step procedure and the four traps",
     ]))
 
+# Section 2 names "arithmetic" as well as "representation". The representation
+# lesson deferred the arithmetic algorithms explicitly, so they are tracked here
+# as their own entry.
+topics.append(topic(
+    "Digital Logic", "Arithmetic algorithms",
+    "Arithmetic algorithms: Booth multiplication, restoring and non-restoring division, carry-lookahead addition",
+    ["shift-and-add multiplication", "Booth recoding and the Booth multiplier",
+     "restoring division", "non-restoring division and the correction step",
+     "carry-lookahead addition and its gate-level depth",
+     "counting operations against counting iterations"],
+    prereq=["number representation and arithmetic", "boolean algebra and minimisation"],
+    related=["ALU and control unit design", "instruction set and addressing modes",
+             "combinational circuits", "asymptotic complexity"],
+    importance="high",
+    evidence="Section 2 of the official GATE 2027 CS syllabus, IIT Madras, names "
+             "'Number representation and arithmetic (fixed and floating point)'. Examined directly: "
+             "GATE CSE 2025 Set 2 Q32 (Booth, count of addition and subtraction operations, official answer 13) "
+             "and GATE CSE 2016 Set 1 Q33 (carry lookahead adder, fan-in at most two, official answer Theta(log n)). "
+             "No marks distribution is claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="arithmetic-algorithms-booth-division-cla",
+    path="topics/arithmetic-algorithms-booth-division-cla/index.html",
+    execution="published 2026-10-30; 37 model checks, ten scenes, 40 caption cues, geometry audit clean",
+    microtopics=[
+        "why representation is not arithmetic: the operation has to be built",
+        "shift-and-add: add when Q0 = 1, then shift (A,Q) right",
+        "additions equal the number of 1s in the multiplier",
+        "A must be n+1 bits or the carry at a middle step is lost",
+        "a four-bit A turns 13 x 11 into 111 instead of 143",
+        "a run of 1s is a difference: 0111 = 1000 - 0001",
+        "Booth pair table 00, 01, 10, 11 against nothing, add, subtract, nothing",
+        "the recoded digit is q(i-1) - q(i), with q(-1) = 0",
+        "recoding reconstructs the signed value of the multiplier, not its unsigned value",
+        "1011 recodes to -1,0,+1,-1 and sums to -5",
+        "the shift inside Booth must be arithmetic",
+        "Booth accumulator n+1 bits: the most negative multiplicand negates out of range",
+        "the n-bit Booth accumulator returns +16 for -8 x 2",
+        "operation count equals the transition count of the multiplier",
+        "the multiplicand never affects the operation count",
+        "best case 0 operations, worst case n, against n/2 for plain shift-and-add",
+        "operations against iterations as two different questions",
+        "restoring division: shift, trial subtract, restore when negative",
+        "the quotient bit is 1 exactly when the trial was non-negative",
+        "restoring division at divisor 1 restores nothing",
+        "non-restoring division: the sign before the shift chooses +M or -M",
+        "the partial remainder may be negative for several steps",
+        "the single correction after the loop, and when it is not needed",
+        "the two conditions on a division answer: M*Q + A = dividend and 0 <= A < M",
+        "the identity alone does not rule out a negative remainder",
+        "signed division divides magnitudes and fixes the sign afterwards",
+        "generate and propagate: G = a and b, P = a xor b",
+        "carry as a sum of products of G and P, computed not waited for",
+        "lookahead carries match ripple carries on every four-bit and eight-bit pair checked",
+        "depth 2 ceil(log2 n) + 2 with fan-in 2",
+        "Theta(log n) with bounded fan-in against Theta(1) with unbounded fan-in",
+        "the 2016 answer depends on the phrase 'gates of fan-in at most two'",
+    ]))
+
 # The syllabus line "Design of combinational and sequential circuits" is two
 # designs, so it is tracked as two entries. The first is published; the second
 # is the next Digital Logic lesson.
@@ -3294,6 +3353,7 @@ _VERIFIED = {
     "graph-representations": "2026-10-30",
     "function-pointers": "2026-10-30",
     "mean-median-mode-standard-deviation": "2026-10-30",
+    "arithmetic-algorithms-booth-division-cla": "2026-10-30",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))

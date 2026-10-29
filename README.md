@@ -42,6 +42,7 @@ lessons are static files and work from a local clone.
 | Greedy Algorithms: Choice, Exchange and Counterexample | Algorithms | A — explicitly in the syllabus | `topics/greedy-algorithms/index.html` |
 | Hashing: Hash Functions and Collision Resolution | Algorithms | A — explicitly in the syllabus | `topics/hashing/index.html` |
 | Sorting Algorithms and the Comparison Lower Bound | Algorithms | A — explicitly in the syllabus | `topics/sorting-algorithms/index.html` |
+| Arithmetic Algorithms: Booth, Division and Carry-Lookahead | Digital Logic | A — explicitly in the syllabus | `topics/arithmetic-algorithms-booth-division-cla/index.html` |
 | Boolean Algebra and Minimisation | Digital Logic | A — explicitly in the syllabus | `topics/boolean-algebra-and-minimisation/index.html` |
 | Combinational Circuits: Adders, Multiplexers and Decoders | Digital Logic | A — explicitly in the syllabus | `topics/combinational-circuits/index.html` |
 | Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
