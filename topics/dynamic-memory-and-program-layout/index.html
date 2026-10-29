@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynamic Memory and Program Layout — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Dynamic Memory and Program Layout</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../structures-unions-and-enums/index.html">Previous: Structures, unions and enums</a>
+      <a href="../linked-lists/index.html">Next: Linked lists</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Dynamic memory in C — <code>malloc</code>, <code>calloc</code>, <code>realloc</code> and <code>free</code> — together with the layout of a running program that gives those bytes a home. This is part of <em>Programming in C</em>, Section 4 of GATE 2027.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Say where an object lives and how long it lives, for every object in a C program. Read a heap allocation as a chunk with a header rather than as a bare run of bytes, and compute what an allocator actually gives you for a given request. State exactly what <code>malloc</code>, <code>calloc</code> and <code>realloc</code> put in the bytes they return, and what <code>free</code> does and does not do. Trace the three outcomes of <code>realloc</code> and name the one rule that survives all three. Count the copies made by a doubling growth policy and prove the total is below 2n. Recognise the four classic heap faults, and separate what the C standard guarantees from what one implementation happens to do.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one question asked in four costumes</em>: who owns these bytes, how long do they live, what is in them, and what happens when the owner lets go. Almost every exam question here is one of those four, and almost every lost mark comes from treating a pointer as if it were the block.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside the declared boundary.</strong></p>
+          <p class="small">Section 4 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: <em>"Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> The clause this lesson belongs to is the first sentence, <em>Programming in C</em>. Allocation functions are not named separately, so they are taught here as part of that clause.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The same syllabus names <em>linked lists</em>, <em>trees</em> and <em>binary heaps</em> in the same section, and none of those can be built without allocating nodes at run time. The Operating Systems section names <em>memory management and virtual memory</em>, which is the other end of the same subject.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past CS papers lists the 2000 and 2001 items quoted below under "pointer and structure in C", and a linked-list item in the 2021 paper that turns on an uninitialised <code>next</code> pointer. That is somebody's tagging of somebody's collection. It shows the topic has been examined; it is not official weightage and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means the topic is inside the boundary, not that a question is guaranteed. Every previous-year item below carries its year and question number, and every answer was recomputed from the question text rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Objects, bytes and addresses.</strong> A pointer holds an address; <code>*</code> follows it to the object. Built in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>sizeof and size_t.</strong> <code>sizeof</code> yields an unsigned <code>size_t</code> and does not evaluate its operand, which is why <code>sizeof *p</code> is safe even when <code>p</code> is uninitialised. Also in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>Integer widths and unsigned arithmetic.</strong> Why a product can wrap, and why unsigned wraps are defined while signed overflow is not. Built in <a href="../c-fundamentals/index.html">C fundamentals</a>.</li>
+            <li><strong>Scope and storage duration.</strong> The difference between a name being visible and an object existing. Built in <a href="../functions-scope-and-preprocessor/index.html">Functions, scope and the preprocessor</a>.</li>
+            <li><strong>Structs and their size.</strong> A list node is a struct, and its size decides the stride of an array of nodes. Built in <a href="../structures-unions-and-enums/index.html">Structures, unions and enums</a>.</li>
+            <li><strong>Binary and hexadecimal.</strong> Reading <code>0x1000</code> and <code>2^30</code> as numbers needs both. Built in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about operating systems is assumed. The one OS idea used — that <code>malloc</code> eventually asks the kernel for pages — is explained in the Animation and linked to <a href="../memory-management-and-virtual-memory/index.html">Memory management and virtual memory</a>.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Four durations, one map.</strong> A process image from text up to stack, with six objects dropped into their segments as they are declared.</li>
+            <li><strong>The chunk.</strong> One 8-byte request drawn at one cell per byte, with the header, the 24 usable bytes and the table of request against chunk against usable.</li>
+            <li><strong>Garbage against zeros.</strong> Eight indeterminate bytes beside eight zeroed bytes, then the all-bits-zero trap and <code>malloc(0)</code>.</li>
+            <li><strong>realloc.</strong> The same 8-int block under three outcomes: grew in place, moved with a copy arrow, and failed with the old block intact.</li>
+            <li><strong>free.</strong> The bytes after <code>free</code> — unchanged — and the pointer still pointing at them, with GATE CSE 2000 Q1.12 matched beside it.</li>
+            <li><strong>Four faults.</strong> Leak, use-after-free, double free, lost pointer, then GATE CSE 2001 Q2.18 as the three-function version.</li>
+            <li><strong>Doubling.</strong> Bars for the copies at each growth, 1, 2, 4, 8, totalling 15 against 120 for growth by one, with the table checked against the simulation.</li>
+            <li><strong>Arithmetic.</strong> 8 bytes allocated against 40 needed, then 2^30 × 4 wrapping to 0 in a 32-bit size_t, and the division check that refuses it.</li>
+            <li><strong>Fragmentation.</strong> Six chunks, three freed, 96 free bytes, and a 48-byte requirement that no 32-byte hole satisfies.</li>
+            <li><strong>Five questions.</strong> The checklist, beside what the standard guarantees and what is only one implementation.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Storage duration is a lifetime, not a place. The place is an implementation's way of implementing the lifetime.</li>
+            <li>An allocation gives you at least the bytes you asked for, uninitialised and suitably aligned. Everything else about it is implementation detail.</li>
+            <li>The pointer is yours; the block is borrowed. Copying a pointer copies nothing, and freeing one copy tells the other copies nothing.</li>
+            <li><code>realloc</code> may move the block, and it invalidates the pointer you passed whatever it does. Only its return value is safe to use.</li>
+            <li>Amortised is not per-operation. Doubling makes a sequence of n appends linear in total, while a single append can still cost O(n).</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 60–80 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Three things are deliberately outside this lesson. <strong>Bit-level heap internals</strong> — bins, consolidation, tcache, the unsafe unlink — are mentioned only where they explain a visible behaviour, because a GATE question does not require them. <strong>Allocator tuning</strong> (<code>mallopt</code>, arenas, <code>M_MMAP_THRESHOLD</code>) is out of scope entirely. <strong>Page tables and virtual memory</strong> belong to the Operating Systems lesson and are linked rather than retaught. Finally, every glibc number on this page is labelled as glibc's, not as C's: a different libc, or a different platform, gives different figures for the same request.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: a warehouse with a counter, and a rule about who owns what</h3>
+              <p>Picture a warehouse. Most of the shelves are already booked: some hold the program's own instructions, some hold the globals that were given a value, some hold the globals that were not and are therefore all zero, and one tall rack at the back is reserved for whatever a function needs while it is running. That rack is the stack, and it is booked and released automatically as functions are entered and left.</p>
+              <p class="small muted" style="margin-bottom:0">Then there is the floor in the middle: the heap. Nobody books it in advance. You walk up to the counter, say "eight bytes, please", and the clerk hands you a numbered slip. The slip is a pointer. Three things are worth noticing. The clerk never gives you exactly eight bytes — there is a label on every crate, and the crate is rounded up so the next one starts on a tidy boundary. The clerk does not clean the crate, so whatever the last tenant left is still inside. And the slip is yours; the crate is the warehouse's. Hand the slip back and the crate returns to the pool, but your slip still has the old number written on it, which is exactly how a dangling pointer is born.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 1 — Intuition, in one sentence each</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Storage duration.</strong> How long an object exists, from one of four kinds: automatic, static, allocated, thread.</li>
+                <li><strong>Segment.</strong> The region of the process image where a duration is implemented.</li>
+                <li><strong>malloc.</strong> Ask for n bytes; get at least n, uninitialised, or NULL.</li>
+                <li><strong>calloc.</strong> Ask for num objects of size bytes; get them zeroed.</li>
+                <li><strong>realloc.</strong> Ask for a different size for a block you own; get a new pointer, or NULL.</li>
+                <li><strong>free.</strong> Give a block back; get nothing, and change nothing you can see.</li>
+                <li><strong>Chunk.</strong> The allocator's real unit: a header plus the bytes you asked for, rounded up.</li>
+                <li><strong>Leak.</strong> A block that is still allocated and no longer reachable.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Level 2 — Formal definitions</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> C17 names four storage durations. <strong>Automatic</strong>: storage is allocated when the block is entered and deallocated when it is left. <strong>Static</strong>: the storage lasts the entire execution, and the value is initialised once, before <code>main</code>. <strong>Allocated</strong>: allocated and deallocated on request by the allocation functions. <strong>Thread</strong>: the lifetime of one thread.</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>void *malloc(size_t size)</code> allocates <code>size</code> bytes of <em>uninitialised</em> storage and returns a pointer suitably aligned for any object type with fundamental alignment, or a null pointer on failure.</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>void *calloc(size_t num, size_t size)</code> allocates <code>num × size</code> bytes and initialises <em>every byte</em> to zero. <code>void *realloc(void *ptr, size_t new_size)</code> reallocates a block, keeping its contents up to the lesser of the old and new sizes. <code>void free(void *ptr)</code> deallocates, and does nothing if <code>ptr</code> is null.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>Level 3 — The structure the animation computes</h3>
+              <p class="small">Two computations carry this whole topic, and both are done in code on the page before anything is drawn.</p>
+              <p class="small"><strong>Chunk arithmetic (glibc, x86-64).</strong> Every allocation is a chunk with one 8-byte size word in front of the bytes you get. Chunks are multiples of 16, and never smaller than 32. So:</p>
+              <p class="small"><code>request2size(req) = max(32, (req + 8 + 15) &amp; ~15)</code> and <code>usable(req) = request2size(req) − 8</code>.</p>
+              <p class="small">The page evaluates that for fourteen requests and checks four properties of the result: every chunk is a multiple of 16, no chunk is below 32, usable is never less than the request, and the chunk never shrinks as the request grows. Ask for 1 byte and you get 32 with 24 usable; ask for 25 and you get 48 with 40 usable; ask for 1000 and you get 1008 with exactly 1000 usable.</p>
+              <p class="small" style="margin-bottom:0"><strong>Growth arithmetic.</strong> Appending to a dynamic array that doubles when full copies the old capacity at each growth: 0, 1, 2, 4, 8, and so on. The page runs that simulation for every n from 1 to 1024 and checks that the total equals <code>2^ceil(log2 n) − 1</code> in every case, and that it is always below 2n.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 4 — Worked example: sixteen appends</h3>
+              <p class="small">Start with capacity 0. Push items one at a time; when the array is full, double the capacity and copy everything across.</p>
+              <p class="small">Growths happen before items 1, 2, 3, 5, 9 and 17 — that is, when the index equals the capacity. The copies made are the old capacities: 0, then 1, then 2, then 4, then 8.</p>
+              <p class="small"><strong>Total for 16 items: 15 copies.</strong> The final capacity is 16, and 1 + 2 + 4 + 8 = 15 = 16 − 1.</p>
+              <p class="small"><strong>For 17 items: 31 copies</strong>, because the seventeenth push triggers one more doubling from 16 and copies all 16.</p>
+              <p class="small" style="margin-bottom:0">Growing by exactly one instead would copy 0 + 1 + 2 + … + 15 = 120 elements for the same 16 items. That is the difference between quadratic and linear, and it is a factor of eight already at n = 16.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 4 — Worked example: the three realloc outcomes</h3>
+              <p class="small">Take <code>p = malloc(8 * sizeof(int))</code>, so 32 bytes of data, then <code>realloc(p, 16 * sizeof(int))</code>.</p>
+              <p class="small"><strong>Grew in place.</strong> The address stays <code>0x1000</code>, nothing is copied, and the 32 new bytes are undefined. The standard still invalidates <code>p</code>: use the returned pointer.</p>
+              <p class="small"><strong>Moved.</strong> A new block at <code>0x2000</code>, a copy of min(32, 64) = 32 bytes, and the old block freed. <code>p</code> now dangles.</p>
+              <p class="small" style="margin-bottom:0"><strong>Failed.</strong> The return value is NULL, the old block is untouched and still yours, and <code>p = realloc(p, n)</code> has just thrown away the only handle to it. Write <code>t = realloc(p, n); if (t) p = t;</code>.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--assumption span-2">
+              <h3>Level 5 — Boundaries: where the standard stops</h3>
+              <p class="small">The C standard fixes the <em>promises</em>, not the machinery. It promises at least n bytes, suitably aligned, uninitialised, and NULL on failure. It says nothing about where the bytes are, how much padding surrounds them, what <code>free</code> leaves in them, or which of two equal-sized holes is reused. Everything in this lesson that is not one of those promises is labelled as one implementation's behaviour, and the animation prints the label next to the number.</p>
+              <p class="small" style="margin-bottom:0">This is why a question that asks "which segment" or "how many bytes does <code>malloc(1)</code> really give you" is asking about an implementation, while a question that asks "what may you read after <code>malloc</code>" is asking about the language. Answer the second kind from the standard and the first kind only after the platform has been stated.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Level 6 — The counterexample that matters</h3>
+              <p class="small">Here is a program that prints a plausible number and is wrong.</p>
+              <p class="small"><code>int *p = malloc(sizeof(p));<br>for (int i = 0; i &lt; 10; i++) p[i] = i;<br>printf("%d\n", p[9]);</code></p>
+              <p class="small"><code>sizeof(p)</code> is the size of a pointer, 8, and ten ints need 40. The loop writes 32 bytes past the end of the block.</p>
+              <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> the belief that a program which prints the right answer is correct. Writing past an allocation is undefined behaviour, and undefined behaviour is allowed to look exactly like success — until the heap metadata it overwrote is used by the next <code>malloc</code> or <code>free</code>.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Level 6 — Closely confused: a leak and a dangling pointer</h3>
+              <p class="small"><strong>Leak:</strong> <code>p = malloc(5); p = NULL;</code> — the block still exists and nothing can reach it. You have lost the block.</p>
+              <p class="small"><strong>Dangling:</strong> <code>q = p; free(p); q-&gt;value = 5;</code> — you still hold an address, and the block behind it is gone. You have lost the block, not the address.</p>
+              <p class="small" style="margin-bottom:0"><strong>Why they get merged:</strong> both start with a valid pointer and end with a bug. The difference is which one is left over. In the first, the address is gone and the memory is not; in the second, the address is present and the memory is not. GATE CSE 2000 Q1.12 is built entirely on that distinction.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 7 — How it is examined</h3>
+              <p class="small">Four shapes recur. A <strong>matching</strong> question asks you to name the fault in each line. A <strong>what is wrong with these functions</strong> question asks you to separate a dead stack address, an uninitialised pointer and a live heap block. A <strong>linked-list</strong> question gives a <code>malloc</code> loop and asks what the traversal does when the last <code>next</code> was never set. A <strong>count</strong> question asks how many bytes or how many copies, which is the doubling arithmetic or the chunk arithmetic.</p>
+              <p class="small" style="margin-bottom:0">None of these needs the bin structure or the page tables. All of them need the four questions in the overview answered precisely.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Every C object has one of four storage durations: automatic, static, allocated, or thread.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Four storage durations, one memory map</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Storage duration is a lifetime, not a location. It says when the object comes into existence and when it stops existing.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Three previous-year items, worked from the text</h3>
+              <p class="small muted" style="margin-bottom:0">Each one is here because it is a real question from a named paper, and each answer was recomputed rather than quoted. The question numbers are the ones the GATE Overflow and ExamSide catalogues use; the 2000 paper is a single section of one-mark items, so its numbering is 1.12 rather than a bare 12.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>GATE CSE 2000 Q1.12 — match the fault</h3>
+              <p class="small">X: <code>m = malloc(5); m = NULL;</code> &nbsp; Y: <code>free(n); n-&gt;value = 5;</code> &nbsp; Z: <code>char *p; *p = 'a';</code><br>
+              1: using dangling pointers &nbsp; 2: using uninitialised pointers &nbsp; 3: lost memory</p>
+              <p class="small"><strong>X is lost memory.</strong> The block exists and no pointer names it. Nothing can free it, so it is lost for the life of the process.</p>
+              <p class="small"><strong>Y is dangling.</strong> <code>free(n)</code> ends the block and leaves <code>n</code> holding the old address, so <code>n-&gt;value</code> writes through a pointer to nothing.</p>
+              <p class="small"><strong>Z is uninitialised.</strong> <code>p</code> was never given an address, so <code>*p = 'a'</code> writes to whatever the indeterminate bytes of <code>p</code> happen to denote.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer: X–3, Y–1, Z–2</strong> (option D). The tempting wrong answer puts X with dangling, which is exactly the confusion this lesson separates.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>GATE CSE 2001 Q2.18 — three functions</h3>
+              <p class="small">P1 returns <code>&amp;x</code> for a local <code>x</code>. P2 writes <code>*px = 10</code> before <code>px</code> is given an address. P3 calls <code>malloc</code>, writes through it, and returns it.</p>
+              <p class="small"><strong>P1 fails on every run.</strong> The stack frame dies at <code>return</code>, so the address it hands back is dead the moment it is handed back.</p>
+              <p class="small"><strong>P2 fails on every run.</strong> The first statement dereferences an indeterminate pointer, which is undefined behaviour before any question of lifetime arises.</p>
+              <p class="small"><strong>P3 is fine.</strong> The block has allocated duration: it survives the return, and its owner is the caller, who must free it.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer: only P1 and P2</strong> (option C). The word "likely" is doing the work: P3 is only wrong if <code>malloc</code> returns NULL, which is rare, while P1 and P2 are wrong always.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>GATE CSE 2021 Set 2 Q35 — the list that walks off its end</h3>
+              <p class="small">The program allocates a head node with <code>value = 0</code>, then in a loop allocates three more nodes and links them, but never sets the <code>next</code> field of the last one. The printing loop then does <code>head = head-&gt;next; printf(... head-&gt;value)</code>.</p>
+              <p class="small"><strong>The list is four nodes long.</strong> <code>boxE-&gt;next = boxN</code> links each new node in, so the structure is 0 → 1 → 2 → 3, and the last node's <code>next</code> holds whatever <code>malloc</code> left there.</p>
+              <p class="small"><strong>The traversal reads past the end.</strong> After printing node 3, <code>head = head-&gt;next</code> loads the uninitialised value and the next <code>head-&gt;value</code> dereferences it.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer: it dereferences an uninitialised pointer that may result in a run-time error</strong> (option D). Note the wording: <em>may</em>. The garbage value might by luck be a readable address, so the standard does not promise a crash — it promises nothing at all.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Three computations, done in full</h3>
+              <p class="small muted" style="margin-bottom:0">These are the arithmetic shapes a count question takes. Every figure below is produced by the same functions the animation uses.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 1 — how many bytes does the allocator really give?</h3>
+              <p class="small">On glibc x86-64, with <code>request2size(req) = max(32, (req + 23) &amp; ~15)</code>:</p>
+              <p class="small"><code>malloc(1)</code> → chunk 32, usable 24.<br>
+              <code>malloc(16)</code> → chunk 32, usable 24.<br>
+              <code>malloc(24)</code> → chunk 32, usable 24.<br>
+              <code>malloc(25)</code> → chunk 48, usable 40.<br>
+              <code>malloc(40)</code> → chunk 48, usable 40.<br>
+              <code>malloc(41)</code> → chunk 64, usable 56.</p>
+              <p class="small" style="margin-bottom:0">So a hundred allocations of 24 bytes consume 3200 bytes, not 2400, and every one of them is 16-aligned. The page checks that usable ≥ request for all fourteen rows it computes, which is the property that makes the formula safe to use.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — copies under a doubling policy</h3>
+              <p class="small">Capacity starts at 0 and doubles when full.</p>
+              <p class="small"><code>n = 1</code> → 0 copies, 1 reallocation<br>
+              <code>n = 4</code> → 3 copies<br>
+              <code>n = 9</code> → 15 copies<br>
+              <code>n = 16</code> → 15 copies<br>
+              <code>n = 17</code> → 31 copies<br>
+              <code>n = 100</code> → 127 copies<br>
+              <code>n = 1024</code> → 1023 copies</p>
+              <p class="small" style="margin-bottom:0">The pattern is <code>2^ceil(log2 n) − 1</code>: at 1024 the total is 1023, which is n − 1, and the ratio copies/n falls towards 1 as n grows. Growth by one would need 1024 × 1023 / 2 = 523,776 copies for the same result.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>Example 3 — 96 free bytes and a request that still fails</h3>
+              <p class="small">Six chunks of 32 bytes occupy 192 contiguous bytes. Free the second, fourth and sixth: three holes of 32, and 96 bytes free in total. Now ask for 40 bytes.</p>
+              <p class="small"><code>request2size(40) = 48</code>, so the allocator needs a 48-byte chunk. Total free 96 ≥ 48, so by the total it should fit. Largest hole 32 &lt; 48, so in one piece it does not.</p>
+              <p class="small" style="margin-bottom:0">The allocator takes fresh memory from the top of the heap and 96 bytes sit unused. This is <strong>external fragmentation</strong>, and the lesson is that an allocation consults the largest hole, never the sum of the holes. C cannot fix it by compaction, because it hands out real addresses that the program is allowed to keep.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries, and what each one breaks</h3>
+          <p class="small muted" style="margin-bottom:0">Each card names a condition the rules above assume, then shows the smallest case where the condition fails and what the answer becomes. Several of these are questions in their own right, because the edge case <em>is</em> the exam item.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>malloc(0) is not an error and not a guarantee</h3>
+          <p class="small">If the size is zero the behaviour is implementation-defined: a null pointer may come back, or a non-null pointer that must not be dereferenced and must still be passed to <code>free</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> <code>if (!p) error();</code> as a test for "zero bytes requested". A zero-size request that returns a pointer is not a failure, and a zero-size request that returns NULL is not a failure either. Neither tells you anything about the machine's memory.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>malloc can fail, and the check is not optional</h3>
+          <p class="small">On failure it returns a null pointer. A program that writes through the result without testing it is correct only as long as the allocation succeeds.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> every one-liner of the form <code>p = malloc(n); p[0] = 0;</code>. On a machine where <code>n</code> is large or the address space is exhausted, the second statement dereferences NULL. On Linux this usually terminates the process; on other systems it may not.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>realloc(p, 0) is implementation-defined</h3>
+          <p class="small">Before C23 the behaviour of a zero new size was implementation-defined — a null pointer may be returned, in which case the old block may or may not have been freed — and C23 made it undefined.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> using <code>realloc(p, 0)</code> as "free and null out". Use <code>free(p); p = NULL;</code>, which has one meaning on every implementation and every version of the standard.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>free(NULL) is defined; everything else is not</h3>
+          <p class="small"><code>free(NULL)</code> does nothing at all. But <code>free</code> of a pointer that was not returned by an allocation function, of a pointer into the middle of a block, or of a block already freed, is undefined behaviour.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> <code>free(p + 1)</code> as a way to release "from here on", and <code>free</code> on the address of a local variable or of a static array. The allocator needs the exact value it returned, because that is where its header sits.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>realloc invalidates the old pointer even when nothing moved</h3>
+          <p class="small">The standard says the original pointer is invalidated and any access to it is undefined behaviour, <em>even if the reallocation was in place</em>.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> keeping <code>p</code> and using it after <code>q = realloc(p, n)</code> because "the address looked the same". The address is not the contract; the returned pointer is.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Static objects are zeroed; automatic and allocated ones are not</h3>
+          <p class="small">A file-scope <code>int z;</code> and a block-scope <code>static int s;</code> are both zero-initialised before <code>main</code>, once. A block-scope <code>int x;</code> and a fresh <code>malloc</code> block are indeterminate.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> generalising from "globals start at zero" to "memory starts at zero". The zeroing is a property of static storage duration, not of memory. It is also why a <code>static</code> local is the cheapest place to put a flag that must survive between calls.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The multiplication can wrap before malloc is even called</h3>
+          <p class="small">On a 32-bit <code>size_t</code>, <code>n = 2^30</code> and <code>sizeof(int) = 4</code> give a product of exactly 2^32, which is 0 modulo 2^32. <code>malloc</code> receives 0.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> the belief that <code>malloc(n * sizeof *p)</code> is the safe idiom. It is the safe <em>spelling</em>, not a safe <em>computation</em>. Test <code>n &gt; SIZE_MAX / sizeof *p</code> first — a division, which cannot overflow — or use <code>calloc</code>, which is required to return NULL when the product cannot be represented.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A string needs one more byte than its length</h3>
+          <p class="small"><code>strlen("hello")</code> is 5. The array holding it needs 6, because the terminator is a byte too, and <code>strcpy</code> writes all six.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> <code>malloc(strlen(s))</code>, which is one byte short on every input. The idiom is <code>malloc(strlen(s) + 1)</code>, and the <code>+ 1</code> is not defensive style — it is the terminator.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that produce the wrong option</h3>
+          <p class="small muted" style="margin-bottom:0">Each card states the wrong belief, why it is tempting, the smallest case that refutes it, and the rule that replaces it. The refutations are computed on this page, not asserted.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "malloc(n) gives me n bytes"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is how every textbook introduces the function, and it is true of the guarantee.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> glibc gives 24 usable bytes for <code>malloc(1)</code> and a 32-byte chunk for <code>malloc(24)</code>. The number you asked for and the number you got are different numbers.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> at least n bytes are yours by the standard; the allocator rounds up, and the rounding is implementation detail. Write code that needs only n.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "malloc zeroes the memory"</h3>
+          <p class="small"><strong>Why it tempts:</strong> a fresh block from the operating system often is zero, because the kernel zeroes new pages, so the first few allocations look clean.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> allocate, write 1..8, free, allocate the same size again. The second block frequently still holds 1..8.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> <code>malloc</code> leaves storage uninitialised; <code>calloc</code> zeroes every byte. If you need zeros, ask for them.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "free sets the pointer to NULL"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it would be a lovely design, and some languages do exactly that.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> <code>free(p); printf("%p", (void*)p);</code> prints the old address. <code>free</code> receives a copy of the value and cannot change your variable.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> <code>free(p); p = NULL;</code> is a discipline you write. It protects <code>p</code> and does nothing for any other pointer to the same block.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "realloc returns the same pointer, so I can keep using p"</h3>
+          <p class="small"><strong>Why it tempts:</strong> growing in place is the common case for small growth, and the address really does come back unchanged.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a block with a live neighbour cannot grow, so <code>realloc</code> moves it. Now <code>p</code> is dangling and <code>q</code> is the block.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the standard invalidates the old pointer in every outcome. Only the returned value may be used, and it must be tested for NULL.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "A leak and a dangling pointer are the same bug"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both end with a pointer that is no longer useful, and both appear in the same 2000 question.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> <code>p = NULL</code> after <code>malloc</code> loses the block and keeps no address; <code>free(p)</code> and then <code>*q</code> keeps an address and loses the block.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> a leak loses the handle; a dangling pointer loses the object. Name which one is missing before you name the fault.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Doubling means every append is O(1)"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the word amortised gets dropped, and the conclusion survives without it.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the push that takes the count from 1024 to 1025 copies 1024 elements. That single operation is linear.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> n appends cost O(n) in total, so O(1) on average; one append can cost O(n). A question about the worst case of one operation has a different answer from a question about the sequence.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. "The heap is one contiguous block after the stack"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the textbook picture draws five tidy bands, and the picture is a reasonable first approximation.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the five bands are a linker and loader convention, not a C rule; a large <code>malloc</code> may be served by a separate <code>mmap</code> region far from the heap's start.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the segment order is an implementation fact to be cited as such. What the standard fixes is the storage duration, not the address.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How the topic is asked, and the procedure that answers it</h3>
+          <p class="small muted" style="margin-bottom:0">Four question shapes cover every item this lesson has seen. The procedure below is ordered so that each step can be done on the rough sheet in under a minute.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The procedure, in five steps</h3>
+          <div class="step-list small">
+            <p><strong>1. Name the duration of every object</strong> mentioned: automatic, static, allocated. That alone answers most segment questions.</p>
+            <p><strong>2. For each pointer, ask where it came from</strong> and whether the block behind it still exists at the point of use.</p>
+            <p><strong>3. For each allocation, ask what was initialised</strong> — nothing for <code>malloc</code>, all bytes for <code>calloc</code>.</p>
+            <p><strong>4. For each realloc, keep only its return value</strong> and test it for NULL before overwriting the old pointer.</p>
+            <p><strong>5. For each count, decide which arithmetic applies</strong>: chunk rounding for bytes, the doubling series for copies, the largest hole for fragmentation.</p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four question shapes</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <tr><td><strong>Matching</strong></td><td>name the fault in each line</td></tr>
+            <tr><td><strong>Diagnosis</strong></td><td>which of these functions is wrong, and why</td></tr>
+            <tr><td><strong>Trace</strong></td><td>what does the list traversal do, or what does the loop print</td></tr>
+            <tr><td><strong>Count</strong></td><td>bytes, copies, allocations, or free holes</td></tr>
+          </table>
+          <p class="small" style="margin-bottom:0">A matching question is answered by the definitions of the faults. A diagnosis question is answered by the four questions in the overview. A trace question is answered by drawing the blocks and their pointers. A count question is answered by the two formulas on this page.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps in the wording</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>"likely to cause problems"</strong> — the word likely excludes the fault that needs <code>malloc</code> to fail. GATE 2001 Q2.18 turns on it.</li>
+            <li><strong>"may result in a run-time error"</strong> — correct for undefined behaviour, because a crash is not promised. GATE 2021 Set 2 Q35 uses it.</li>
+            <li><strong>"uninitialized pointer"</strong> — an uninitialised <em>pointer</em> is not an uninitialised <em>block</em>. One is a bad address, the other is bad contents.</li>
+            <li><strong>"ignoring alignment"</strong> or a missing platform — the size question has no single answer until the ABI is fixed.</li>
+            <li><strong>"amortised"</strong> against "worst case" — the same structure, two different answers.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Where this connects</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../pointers-in-c/index.html">Pointers in C</a> — the address model this lesson allocates addresses in.</li>
+            <li><a href="../structures-unions-and-enums/index.html">Structures, unions and enums</a> — the node whose size decides how many nodes a block holds.</li>
+            <li><a href="../linked-lists/index.html">Linked lists</a> — the first structure that cannot exist without allocation, and the source of the 2021 item.</li>
+            <li><a href="../arrays-stacks-queues/index.html">Arrays, stacks and queues</a> — the dynamic array whose doubling is counted here.</li>
+            <li><a href="../trees-bst-and-heaps/index.html">Trees, BSTs and heaps</a> — a heap is an array that grows, and a tree is a set of allocated nodes.</li>
+            <li><a href="../memory-management-and-virtual-memory/index.html">Memory management and virtual memory</a> — what <code>sbrk</code> and <code>mmap</code> actually ask the kernel for.</li>
+            <li><a href="../system-calls-and-the-kernel-boundary/index.html">System calls</a> — why <code>malloc</code> does not always cross into the kernel, while <code>exit</code> always does.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Questions 1 to 4 are previous-year items with their year and question number, and each answer was recomputed from the question text. Questions 5 to 9 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless the paper and question number are given.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2000 Q1.12</span></div>
+              <div class="q-body">
+                <p>The most appropriate matching for the following pairs is:</p>
+                <p><code>X: m = malloc(5); m = NULL;      1: using dangling pointers<br>
+                Y: free(n); n -&gt; value = 5;      2: using uninitialized pointers<br>
+                Z: char *p; *p = 'a';             3: lost memory</code></p>
+                <ol class="choices">
+                  <li>X–1, Y–3, Z–2</li>
+                  <li>X–2, Y–1, Z–3</li>
+                  <li>X–3, Y–2, Z–1</li>
+                  <li>X–3, Y–1, Z–2</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: D — X–3, Y–1, Z–2</p>
+                <p>X loses the only pointer to a live block, so the block is lost memory. Y frees the block and then writes through the pointer that used to name it, which is a dangling pointer. Z writes through a pointer that was never given an address, which is an uninitialised pointer.</p>
+                <p><strong>Why the others fail.</strong> Option A calls X dangling; the block was never freed, so nothing dangles — the address is simply gone. Option C swaps the last two, which requires reading <code>n-&gt;value</code> as uninitialised rather than dangling. Option B starts from the same misreading of X.</p>
+                <p><strong>The distinction being tested.</strong> Dangling means the object is gone and the pointer remains. Lost memory means the pointer is gone and the object remains. Both are faults; they are not the same fault.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2001 Q2.18</span></div>
+              <div class="q-body">
+                <p>Consider three functions. [P1] declares a local <code>int x = 10</code> and returns <code>&amp;x</code>. [P2] declares <code>int *px</code>, executes <code>*px = 10</code>, and returns <code>px</code>. [P3] declares <code>int *px</code>, executes <code>px = (int *) malloc(sizeof(int))</code>, then <code>*px = 10</code>, and returns <code>px</code>.</p>
+                <p>Which of the above are likely to cause problems with pointers?</p>
+                <ol class="choices">
+                  <li>Only P3</li>
+                  <li>Only P1 and P3</li>
+                  <li>Only P1 and P2</li>
+                  <li>P1, P2 and P3</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C — only P1 and P2</p>
+                <p>P1 returns the address of an automatic object, whose storage ends when the function returns. P2 dereferences a pointer whose value is indeterminate, which is undefined behaviour before lifetime even matters. P3 returns a block of allocated storage, which survives the return and belongs to the caller.</p>
+                <p><strong>Why D is tempting.</strong> If <code>malloc</code> returns NULL, P3 does dereference a null pointer. The question asks what is <em>likely</em>, and that failure needs the allocator to run out of memory, which is rare — while P1 and P2 fail on every run. D is the answer a careful reader might prefer in real code, and C is the answer the paper intends.</p>
+                <p><strong>What P3 still owes you.</strong> The caller must free the block, and production code must test the NULL return. Neither makes P3 a fault in the sense the question asks about.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2021 Set 2 Q35</span></div>
+              <div class="q-body">
+                <p>An ANSI C program allocates a head node with <code>value = 0</code>, then in a loop for <code>index = 1..3</code> allocates another node, sets <code>boxE-&gt;next = boxN</code>, sets <code>boxN-&gt;value = index</code> and advances <code>boxE = boxN</code>. A second loop for <code>index = 0..3</code> prints <code>head-&gt;value</code>, advances <code>head = head-&gt;next</code>, and prints again.</p>
+                <p>Which statement about the program is correct?</p>
+                <ol class="choices">
+                  <li>Upon execution, the program creates a linked list of five nodes</li>
+                  <li>Upon execution, the program goes into an infinite loop</li>
+                  <li>It has a missing <code>return</code> which will be reported as an error by the compiler</li>
+                  <li>It dereferences an uninitialized pointer that may result in a run-time error</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: D — it dereferences an uninitialised pointer that may result in a run-time error</p>
+                <p>Four nodes are created, not five, and the last node's <code>next</code> is never assigned, so it holds whatever <code>malloc</code> left in those bytes. The traversal reaches that node, prints its value, loads the uninitialised <code>next</code>, and dereferences it.</p>
+                <p><strong>Why the others fail.</strong> A miscounts the nodes: one before the loop plus three inside it. B describes a cycle, which would need the last <code>next</code> to point back into the list; an indeterminate value does not do that. C is wrong twice over — <code>main</code> without a <code>return</code> is legal in C99 and later and returns 0.</p>
+                <p><strong>The wording to notice.</strong> "May result in" is exact. The garbage value might be a readable address, so the standard does not promise a crash; it promises that nothing is guaranteed.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2021 Set 1</span></div>
+              <div class="q-body">
+                <p>Which of the following standard C library functions will <em>always</em> invoke a system call when executed from a single-threaded process in a UNIX/Linux operating system?</p>
+                <ol class="choices">
+                  <li><code>strlen</code></li>
+                  <li><code>malloc</code></li>
+                  <li><code>exit</code></li>
+                  <li><code>sleep</code></li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C and D — <code>exit</code> and <code>sleep</code></p>
+                <p><code>strlen</code> walks bytes in user space and never enters the kernel. <code>malloc</code> usually serves the request from memory it already holds and calls <code>sbrk</code> or <code>mmap</code> only when its region is exhausted, so it does not <em>always</em> make a system call. <code>exit</code> must terminate the process and <code>sleep</code> must block it, and both need the kernel to do that.</p>
+                <p><strong>Why B is the interesting wrong answer.</strong> The first allocation in a process often does cause a system call, which makes the pattern look universal. The question says always, and one allocation served from the free list breaks it.</p>
+                <p><strong>Cross-topic note.</strong> This is the bridge between this lesson and <a href="../system-calls-and-the-kernel-boundary/index.html">System calls</a>: the allocator is a library that sometimes acts as a client of the kernel.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Original practice questions</h3>
+              <p class="small muted" style="margin-bottom:0">Written for this page, in GATE style, with the arithmetic taken from the same model the animation uses. They are not previous-year questions and are not labelled as such.</p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A dynamic array starts empty and doubles its capacity whenever it is full, copying all existing elements to the new block. How many element copies are performed in total while appending <strong>20</strong> elements, one at a time?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 31</p>
+                <p>The growths happen before items 1, 2, 3, 5, 9 and 17. The copies made are the old capacities: 0 + 1 + 2 + 4 + 8 + 16 = 31. Equivalently, 2^ceil(log2 20) − 1 = 32 − 1 = 31.</p>
+                <p><strong>Common wrong answers.</strong> 20 comes from assuming each append copies one element. 32 comes from using the final capacity instead of the sum. 36 comes from counting the copies after the twentieth push as well, but no doubling happens there because the capacity is already 32.</p>
+                <p><strong>Edge case.</strong> At exactly 16 elements the total is 15, not 31, because the capacity of 16 is reached without a further copy. Powers of two are where the total is exactly n − 1.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>On glibc for x86-64, chunks are rounded up to a multiple of 16 bytes and are never smaller than 32 bytes, and the allocator keeps one 8-byte size word in front of the bytes it returns. How many bytes may a program safely use after <code>malloc(20)</code> under this allocator?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 24</p>
+                <p>request2size(20) = max(32, (20 + 8 + 15) rounded down to a multiple of 16) = max(32, 32) = 32. Usable is the chunk minus the 8-byte header, so 24.</p>
+                <p><strong>Common wrong answers.</strong> 20 is what was requested, not what the chunk provides. 32 is the chunk including the header. 40 is the next chunk size up and belongs to a request of 25 to 40.</p>
+                <p><strong>What the question is really testing.</strong> That the answer depends on the allocator being named. Without "on glibc for x86-64" the question has no answer, and a paper that asks it without that clause is asking about a specific implementation.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Consider <code>t = realloc(p, bigger);</code> where <code>p</code> was returned by an earlier <code>malloc</code> and <code>bigger</code> exceeds the current block. Which statement is true?</p>
+                <ol class="choices">
+                  <li>If the call succeeds, <code>p</code> and <code>t</code> are interchangeable</li>
+                  <li>If the call fails, <code>p</code> has been freed and must not be used</li>
+                  <li>If the call fails, <code>t</code> is NULL and <code>p</code> is still a valid block</li>
+                  <li>The bytes beyond the old size are zero-filled when the block grows</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>On failure the function returns NULL and does not free the old block, so <code>p</code> remains valid and must still be freed by you. On success, the old pointer is invalidated even when the block grew in place, which rules out A.</p>
+                <p><strong>Why B is the trap.</strong> It is the behaviour of the <code>p = realloc(p, n)</code> one-liner, not of <code>realloc</code>. The leak comes from overwriting <code>p</code>, not from the function freeing anything.</p>
+                <p><strong>Why D is wrong.</strong> Only <code>calloc</code> zeroes. A grown tail is undefined, whether the block moved or not.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following statements are true of a conforming C implementation?</p>
+                <ol class="choices">
+                  <li><code>free(NULL)</code> has no effect</li>
+                  <li>Every byte returned by <code>calloc</code> is zero</li>
+                  <li>Every byte returned by <code>malloc</code> is zero</li>
+                  <li><code>malloc(0)</code> always returns NULL</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and B</p>
+                <p><code>free</code> accepts the null pointer and does nothing with it, which is specified. <code>calloc</code> initialises every byte of the storage it returns to zero, which is also specified.</p>
+                <p><strong>Why C fails.</strong> <code>malloc</code> allocates uninitialised storage. The bytes may happen to be zero and nothing promises it.</p>
+                <p><strong>Why D fails.</strong> A zero size is implementation-defined: a null pointer may be returned, or a non-null pointer that must not be dereferenced and must still be freed.</p>
+                <p><strong>Related distinction.</strong> <code>calloc</code> zeroes <em>bytes</em>. The standard does not promise that all-bits-zero is <code>0.0</code> or a null pointer, though it is on every common platform.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A heap region holds six 32-byte chunks. The chunks at positions 2, 4 and 6 are freed. A request then arrives for 40 bytes of data. Assuming no other free memory, what happens and why?</p>
+                <ol class="choices">
+                  <li>The request is served from the free space, because 96 ≥ 40</li>
+                  <li>The request fails, because no chunk is free</li>
+                  <li>The request takes new memory, because the largest free chunk is 32 and 48 are needed</li>
+                  <li>The request is served after the allocator compacts the region</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>96 bytes are free in three separate 32-byte holes. request2size(40) is 48, and no single hole is 48, so the allocation cannot be satisfied in place and the region grows. That is external fragmentation.</p>
+                <p><strong>Why A is the trap.</strong> It uses the total instead of the largest hole. An allocation needs one contiguous run.</p>
+                <p><strong>Why D is impossible in C.</strong> Compaction moves objects, and C hands out real addresses that the program may store anywhere — in a pointer, in an integer, in a file. A collector that moves objects cannot be added to C without changing the language.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Everything on this page, compressed to what you would write on the rough sheet in the first minute of the paper. Say which allocator and which platform before you quote a byte count.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four functions, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>malloc(n):</strong> at least n bytes, uninitialised, aligned, or NULL.</li>
+            <li><strong>calloc(k, s):</strong> k × s bytes, every byte zero, or NULL.</li>
+            <li><strong>realloc(p, n):</strong> a new block keeping min(old, new); old pointer invalid; NULL on failure with the old block intact.</li>
+            <li><strong>free(p):</strong> returns the chunk; nothing if p is NULL; undefined if p is not a returned value or was already freed.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Numbers worth knowing (glibc, x86-64)</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <tr><td><code>malloc(1)</code></td><td style="text-align:right">chunk 32, usable 24</td></tr>
+            <tr><td><code>malloc(24)</code></td><td style="text-align:right">chunk 32, usable 24</td></tr>
+            <tr><td><code>malloc(25)</code></td><td style="text-align:right">chunk 48, usable 40</td></tr>
+            <tr><td><code>malloc(1000)</code></td><td style="text-align:right">chunk 1008, usable 1000</td></tr>
+            <tr><td>alignment, minimum</td><td style="text-align:right">16, 32</td></tr>
+            <tr><td>header word</td><td style="text-align:right">8</td></tr>
+            <tr><td>16 appends, doubling</td><td style="text-align:right">15 copies</td></tr>
+            <tr><td>17 appends, doubling</td><td style="text-align:right">31 copies</td></tr>
+          </table>
+          <p class="small" style="margin-bottom:0">Every figure was computed on this page and checked against its defining property.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Two formulas</h3>
+          <p class="small"><strong>Chunk:</strong> <code>request2size(req) = max(32, (req + 23) &amp; ~15)</code>, and <code>usable = chunk − 8</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>Copies under doubling:</strong> <code>2^ceil(log2 n) − 1</code>, always below <code>2n</code>, equal to <code>n − 1</code> when n is a power of two.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Six traps, six answers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Reading a fresh block? <strong>It is uninitialised; only calloc zeroes.</strong></li>
+            <li>Freeing and then using? <strong>Undefined, and allowed to look like it worked.</strong></li>
+            <li><code>p = realloc(p, n)</code>? <strong>Leaks on failure; use a temporary.</strong></li>
+            <li>Growing in place? <strong>The old pointer is still invalid.</strong></li>
+            <li>Totalling free bytes? <strong>The largest hole is what an allocation needs.</strong></li>
+            <li>Multiplying before allocating? <strong>Test <code>n &gt; SIZE_MAX / sizeof *p</code> first.</strong></li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Two sentences to carry into the next topic</h3>
+          <p class="small" style="margin-bottom:0">A list node is allocated, linked and freed, so <a href="../linked-lists/index.html">Linked lists</a> is this lesson applied once per node — and the 2021 item shows what happens when the last <code>next</code> is left uninitialised. And the heap is the only region whose size the program decides at run time, which is why the operating system's memory-management lesson begins exactly where this one stops: with a request for pages.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official documents are separated from question catalogues, and the C standard is separated from one implementation of it. A catalogue is evidence that a question exists and was asked in a given year; it is not evidence about the 2027 paper. Every numeric answer on this page was recomputed from the question text, so the catalogues were used to find questions, not to settle answers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official and normative</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, fetched and read on 29 October 2026. Supports the Section 4 wording quoted in Overview, and the observation that allocation functions are not named separately.</li>
+            <li><strong>ISO/IEC 9899:2018 (C17)</strong> as documented on cppreference — <code>malloc</code> §7.22.3.4, <code>calloc</code> §7.22.3.2, <code>realloc</code> §7.22.3.5, <code>free</code> §7.22.3.3, and the storage-duration clause. Supports every "the standard guarantees" statement: uninitialised storage, alignment for any object type with fundamental alignment, NULL on failure, every calloc byte zero, preserved prefix under realloc, free of a null pointer doing nothing, and the four undefined-behaviour cases for <code>free</code>.</li>
+            <li><strong>glibc <code>malloc/malloc.c</code></strong> — the <code>request2size</code> macro, <code>SIZE_SZ</code>, <code>MALLOC_ALIGNMENT</code>, <code>MINSIZE</code>, and the file's own documentation of <code>malloc</code>, <code>realloc</code> and <code>malloc_usable_size</code>. Supports the 16-byte rounding, the 32-byte minimum chunk, the 8-byte size word, and the statement that realloc does not free the old block on failure.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was checked on the build machine</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>The chunk table and the doubling series were computed here</strong>, in the same functions the animation reads, and asserted against their own definitions: every chunk a multiple of 16, none below 32, usable never less than the request, the chunk never shrinking as the request grows; and total copies equal to <code>2^ceil(log2 n) − 1</code> for every n from 1 to 1024, always below 2n.</li>
+            <li><strong>Limitation stated plainly.</strong> No C compiler was available in the build environment, so no program on this page was compiled or run, and no address or usable size is quoted as a measurement. The glibc figures are derived from the published <code>request2size</code> macro; the process-image order is a linker and loader convention and is drawn as a schematic, with the canvas saying so.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Question catalogues, used to locate items</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE Overflow</strong> threads for GATE CSE 2000 Q1.12, GATE CSE 2001 Q2.18 and GATE CSE 2021 Set 2 Q35, used for the question text and for the discussion of the intended answer.</li>
+            <li><strong>ExamSide and GeeksforGeeks</strong> topic indexes for "pointer and structure in C" and "dynamic memory allocation", used to confirm that the 2000 and 2001 items exist in those papers and to read their option lists.</li>
+            <li><strong>The GATE 2001 CS paper</strong> itself, as archived, used to confirm that the three-function question is numbered 2.18 and that its option list runs (a) to (d) as quoted.</li>
+            <li><strong>A Stack Overflow discussion</strong> of the 2001 item is cited nowhere on this page as authority; it was read to see why careful readers prefer option D, which the answer card now states as the tempting alternative.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No textbook edition was consulted, so no page or section number is quoted. Heap exploitation material — bins, tcache, safe-linking — was deliberately not consulted, because a GATE question does not depend on it and a lesson that taught it would be teaching a different subject. No search was made for 2027-specific sample papers, because none exists at the time of writing. Finally, every implementation claim is scoped to glibc on x86-64 Linux: musl, the Windows heap and a 32-bit target all give different chunk sizes for the same request, and the model on this page is written so that only its three constants would need changing.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

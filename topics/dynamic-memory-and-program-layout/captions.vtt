@@ -1,0 +1,164 @@
+WEBVTT
+TITLE Dynamic Memory and Program Layout: malloc, calloc, realloc, free and Where the Bytes Live — GATE Visual Explainer
+NOTE Timings are estimated from the lesson timeline (speaking-rate based), not measured from recorded audio.
+
+1
+00:00:00.000 --> 00:00:08.000
+Every C object has one of four storage durations: automatic, static, allocated, or thread.
+
+2
+00:00:08.000 --> 00:00:16.000
+Each duration is implemented in a region of the process image: text, data, bss, heap and stack.
+
+3
+00:00:16.000 --> 00:00:23.000
+A local int lives on the stack; a global int lives in data or bss; a malloc block lives on the heap.
+
+4
+00:00:23.000 --> 00:00:30.000
+Static objects are zeroed before main; automatic and allocated objects start with whatever bytes were there.
+
+5
+00:00:30.000 --> 00:00:38.000
+The allocator does not hand you n bytes; it hands you a chunk that contains n bytes plus a header.
+
+6
+00:00:38.000 --> 00:00:45.000
+Chunks are rounded up to a multiple of 16 and never smaller than 32 bytes.
+
+7
+00:00:45.000 --> 00:00:52.000
+Ask for 1 byte and you get a 32-byte chunk with 24 usable bytes; ask for 25 and you get 48 with 40 usable.
+
+8
+00:00:52.000 --> 00:01:00.000
+Using the spare usable bytes is legal on glibc and is not portable C; only n bytes are yours by the standard.
+
+9
+00:01:00.000 --> 00:01:08.000
+malloc returns uninitialised bytes. Whatever was in that memory before is what you will read.
+
+10
+00:01:08.000 --> 00:01:16.000
+calloc takes two arguments and zeroes every byte it returns.
+
+11
+00:01:16.000 --> 00:01:23.000
+All-bits-zero is zero for integers, but the standard does not promise it means 0.0 or a null pointer.
+
+12
+00:01:23.000 --> 00:01:30.000
+malloc(0) may return NULL or a unique pointer you must not dereference. The behaviour is implementation-defined.
+
+13
+00:01:30.000 --> 00:01:38.000
+realloc asks for a new size for a block you already own.
+
+14
+00:01:38.000 --> 00:01:45.000
+If the block can grow in place, the address does not change and nothing is copied.
+
+15
+00:01:45.000 --> 00:01:52.000
+If it cannot grow in place, realloc allocates elsewhere, copies the smaller of the two sizes, and frees the old block.
+
+16
+00:01:52.000 --> 00:02:00.000
+If it fails, realloc returns NULL and does not free the old block, so p = realloc(p, n) leaks on failure.
+
+17
+00:02:00.000 --> 00:02:08.000
+free returns the chunk to the allocator. It does not zero the bytes and it does not change your pointer.
+
+18
+00:02:08.000 --> 00:02:16.000
+The released chunk goes on a free list, so the next allocation of that size may get the same address.
+
+19
+00:02:16.000 --> 00:02:23.000
+After free, the pointer still holds the old address: it dangles, and reading through it is undefined behaviour.
+
+20
+00:02:23.000 --> 00:02:30.000
+GATE CSE 2000 Q1.12 asks exactly this: m = malloc(5); m = NULL is lost memory, free(n) then n->value is dangling.
+
+21
+00:02:30.000 --> 00:02:38.000
+Leak: the block is still allocated but no pointer to it survives.
+
+22
+00:02:38.000 --> 00:02:45.000
+Use after free: the block is gone but the pointer is used. The result is undefined, not necessarily a crash.
+
+23
+00:02:45.000 --> 00:02:53.000
+Double free and freeing a pointer you did not get from the allocator are both undefined behaviour.
+
+24
+00:02:53.000 --> 00:03:00.000
+GATE CSE 2001 Q2.18: returning the address of a local, or writing through an uninitialised pointer, are the faults; the malloc version is fine.
+
+25
+00:03:00.000 --> 00:03:08.000
+Growing an array by one each time costs 1 + 2 + 3 + ... copies, which is quadratic.
+
+26
+00:03:08.000 --> 00:03:15.000
+Doubling the capacity makes the copies 1, 2, 4, 8, ..., whose total is below 2n.
+
+27
+00:03:15.000 --> 00:03:23.000
+Appending 16 items from empty copies 15 elements in total, and 17 items copy 31.
+
+28
+00:03:23.000 --> 00:03:30.000
+So the average cost per append is a constant, even though one append can cost O(n).
+
+29
+00:03:30.000 --> 00:03:38.000
+malloc(sizeof(p)) allocates the size of a pointer, not of the object it points at.
+
+30
+00:03:38.000 --> 00:03:45.000
+n * sizeof(int) is computed in size_t. If n is 2^30 on a 32-bit size_t, the product is 2^32, which wraps to 0.
+
+31
+00:03:45.000 --> 00:03:53.000
+The fix is a division check before the multiplication, or calloc, which performs the check itself.
+
+32
+00:03:53.000 --> 00:04:00.000
+A string of length L needs L + 1 bytes: the terminator is a byte too.
+
+33
+00:04:00.000 --> 00:04:08.000
+Six chunks of 32 bytes, all allocated, fill a 192-byte region.
+
+34
+00:04:08.000 --> 00:04:15.000
+Freeing the second, fourth and sixth leaves three holes of 32 bytes: 96 free bytes in total.
+
+35
+00:04:15.000 --> 00:04:23.000
+A request for 40 bytes needs a 48-byte chunk, and no hole is that big, so the allocator takes new memory.
+
+36
+00:04:23.000 --> 00:04:30.000
+So the number that matters is the largest free hole, not the total free bytes.
+
+37
+00:04:30.000 --> 00:04:38.000
+Five questions decide almost every heap question: who owns it, when is it freed, is it initialised, is the result checked, does anything outlive the block.
+
+38
+00:04:38.000 --> 00:04:45.000
+The standard guarantees n bytes, alignment for any type, NULL on failure, and nothing about where they are.
+
+39
+00:04:45.000 --> 00:04:53.000
+The heap is also an operating-system object: malloc asks the kernel for pages with sbrk or mmap when its own region runs out.
+
+40
+00:04:53.000 --> 00:05:00.000
+A block is a lifetime, not a variable: the pointer is yours, the bytes are borrowed, and the address is never guaranteed.
+
