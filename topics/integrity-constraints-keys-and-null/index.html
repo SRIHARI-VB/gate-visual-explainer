@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integrity Constraints, Keys and NULL — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Integrity Constraints, Keys and NULL</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../functional-dependencies-and-normal-forms/index.html">Previous: Functional dependencies and normal forms</a>
+      <a href="../file-organisation-and-indexing/index.html">Next: File organisation and indexing</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Integrity constraints in the relational model — the key constraints, the foreign key and its referential actions, and what each one does when the value involved is NULL. This is the item <em>"Integrity constraints"</em> in Section 9 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a schema and one write, decide whether the engine accepts it, without running it. Count which candidate rows NOT NULL, UNIQUE, PRIMARY KEY and CHECK accept when NULL is one of the candidates. Read a foreign key as a promise in one direction only, and say what MATCH SIMPLE, MATCH FULL and MATCH PARTIAL do to a composite key that contains a null. Trace an ON DELETE action to its full closure, in rounds, including a cascade that stops because the referencing action was SET NULL. Separate what a declaration enforces from what a functional-dependency proof shows, and say which constraints may be deferred to COMMIT.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one question in four costumes</em>: does this write keep every declared predicate non-FALSE? A key answers it for a column set, a CHECK answers it for a row, a foreign key answers it across two tables, and an action answers it for the rows that the write touches indirectly. The whole lesson is that one predicate, and the reason NULL keeps deciding the answer is that UNKNOWN is not FALSE.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 9 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: <em>"Databases: ER-model. Relational model: relational algebra, tuple calculus, SQL. Integrity constraints, normal forms. File organization, indexing (e.g., B and B+ trees). Transactions and concurrency control."</em> "Integrity constraints" is a named item in that sentence, so this lesson is inside the declared boundary.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The repo already teaches relational algebra and SQL, functional dependencies and normal forms, and B and B+ trees. None of those lessons defines a key constraint, a foreign key's referential action, or the NULL behaviour of a constraint, which is why this lesson exists as a separate page rather than a section inside another one.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past papers lists five GATE CSE questions tagged "Referential Integrity" between 1997 and 2021, two of them after 2015. That is somebody's tagging of somebody's collection, not official weightage, and not a forecast for 2027. The four previous-year items used on this page were each checked against a question-paper catalogue, and each is quoted with its year and paper.</p>
+          <p class="small" style="margin-bottom:0">Class A means the topic is inside the boundary, not that a question is guaranteed. Every answer on this page was recomputed by the page's own model rather than copied from a key, and the two that are numeric are checked by running the same delete engine the animation draws.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Relations, tuples and attributes.</strong> A relation is a set of tuples over a schema; a constraint is a predicate on an instance. Built in <a href="../relational-algebra-and-sql/index.html">Relational algebra, tuple calculus and SQL</a>.</li>
+            <li><strong>Relational algebra.</strong> Projection and set difference, because referential integrity is one subtraction. Also in that lesson.</li>
+            <li><strong>Functional dependencies and candidate keys.</strong> A candidate key is a minimal superkey, which is what a key constraint declares. Built in <a href="../functional-dependencies-and-normal-forms/index.html">Functional dependencies and normal forms</a>.</li>
+            <li><strong>Three-valued logic and NULL.</strong> NULL means "no value", comparisons with it yield UNKNOWN, and a WHERE clause keeps only TRUE. Built in <a href="../relational-algebra-and-sql/index.html">the SQL lesson</a>; this page uses it but does not re-teach it, and re-derives only the parts a constraint needs.</li>
+            <li><strong>Sets and subsets.</strong> Counting superkeys means counting subsets that are closed upward. Built in <a href="../sets-and-set-operations/index.html">Sets and set operations</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">No prior knowledge of triggers, assertions or of any particular DBMS product is assumed. PostgreSQL is named only where the standard leaves a choice to the implementation, and that naming is labelled as a product fact each time.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>The gate.</strong> A write entering a check, and two exits: applied, refused. The four families of constraint beside it.</li>
+            <li><strong>The key ladder.</strong> One three-row relation with five superkeys, two candidate keys and one primary key, drawn as nested claims.</li>
+            <li><strong>Three verdicts on one NULL.</strong> A 3 × 3 table of NOT NULL, UNIQUE and PRIMARY KEY against the candidates NULL, 1, 2, with the counts printed.</li>
+            <li><strong>Three-valued CHECK.</strong> The same three candidates through <code>a &gt; 5</code>, then through <code>NOT (a &gt; 5)</code>, with the single surviving row identified.</li>
+            <li><strong>Match types.</strong> Nine composite candidates against a one-row parent, with SIMPLE, FULL and PARTIAL verdicts counted side by side.</li>
+            <li><strong>Five actions.</strong> NO ACTION, RESTRICT, CASCADE, SET NULL, SET DEFAULT, each with what happens to the child and when it is checked.</li>
+            <li><strong>Closure in rounds.</strong> The 2005 table, deleted row by deleted row, until the closure is three tuples.</li>
+            <li><strong>SET NULL stops the chain.</strong> The 2017 Set 2 tables, the one updated row, and the zero that follows.</li>
+            <li><strong>Four operations.</strong> Insert and delete, on parent and child, with the enumeration count behind each verdict.</li>
+            <li><strong>Declared against provable.</strong> What a key enforces, what needs a trigger, and where a deferred check fires.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A constraint is satisfied when its predicate is not FALSE. UNKNOWN satisfies it, and that single sentence decides every NULL question in this topic.</li>
+            <li>PRIMARY KEY = UNIQUE + NOT NULL. UNIQUE alone accepts many NULLs, because two nulls are never equal; the standard leaves that choice to the implementation.</li>
+            <li>A foreign key is a one-directional promise: every non-null child key must exist in the parent. The parent need not be referenced by anything.</li>
+            <li>The action, not the data, decides a cascade question. CASCADE and SET NULL differ in whether a child row dies or merely changes, and a SET NULL stops the chain that a CASCADE would continue.</li>
+            <li>Only child-insert and parent-delete can orphan a row. Parent-insert and child-delete cannot, and that asymmetry is the whole content of the "which operation violates" question.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 60–75 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. No database engine was executed in the build environment, so nothing here is quoted as the output of a running server; where a behaviour is a product behaviour it is cited to that product's documentation, and where it is the SQL standard it is labelled as the standard. The <code>MATCH PARTIAL</code> definition is the standard's, taken from a secondary source that quotes it, and it is marked as such because PostgreSQL does not implement it. Finally, the counts in scenes 3 to 5 are counts over a stated finite set of candidates; change the instance and every number changes, which is exactly why each one is printed with the instance it belongs to.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: a doorman with a written list of rules</h3>
+              <p>Picture a club with one door and a doorman holding a short list. The list says: every member needs a number nobody else has; every member needs a name; the sponsor you name must already be inside. Those rules are written once, at the door, and the doorman applies them to everybody who arrives — he does not care which travel agent sent them. That is what a schema-level constraint is: a rule attached to the table, not to the program that writes to it.</p>
+              <p class="small muted" style="margin-bottom:0">Now the part that makes the topic interesting. A blank line on the form is not the same as a wrong answer. The doorman has a third response to a blank: "I cannot tell whether this breaks a rule, so I will let it through." That third response is UNKNOWN, and it is why a rule like "the number must be positive" never stops a missing number, and why a rule like "numbers must be distinct" never stops two blanks. The whole lesson is about which of the doorman's rules treat a blank as a failure and which treat it as none of their business.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 1 — Intuition, in one sentence each</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Constraint.</strong> A predicate written in the schema that every write must leave not-FALSE.</li>
+                <li><strong>Superkey.</strong> A set of columns whose values never repeat in the table.</li>
+                <li><strong>Candidate key.</strong> A superkey with nothing to spare.</li>
+                <li><strong>Primary key.</strong> The candidate key the schema picks, and the only one that also forbids NULL.</li>
+                <li><strong>Foreign key.</strong> A set of child columns whose non-null values must appear as a key in the parent.</li>
+                <li><strong>Referential action.</strong> What happens to the child when the parent's key is deleted or changed.</li>
+                <li><strong>Deferred check.</strong> A constraint whose test is postponed to the end of the transaction.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Level 2 — Formal definitions</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> An <strong>integrity constraint</strong> is a Boolean condition that the database must satisfy at all times; the DBMS rejects any statement that would leave it unsatisfied. SQL states constraints as part of the schema, in <code>CREATE TABLE</code> or <code>ALTER TABLE</code>.</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> A <strong>superkey</strong> of a relation schema is a set of attributes such that no two tuples agree on all of them. A <strong>candidate key</strong> is a superkey no proper subset of which is a superkey. The <strong>primary key</strong> is one chosen candidate key; the others are alternate keys.</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> A <strong>foreign key</strong> is a set of attributes in the referencing (child) relation whose values must either be null or match the values of a declared key in the referenced (parent) relation. The referenced columns must carry a PRIMARY KEY or UNIQUE constraint.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The definition of PRIMARY KEY as a constraint follows from those two: uniqueness gives "no two tuples agree", and the not-null requirement removes the tuple that would agree with nothing. Formally, <code>PRIMARY KEY = UNIQUE ∧ NOT NULL</code>, and the page checks this inequality in code: the number of candidates a primary key accepts is never larger than the number a unique constraint accepts.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Level 5 — the boundary conditions, stated up front</h3>
+              <p class="small" style="margin-bottom:0">Three boundaries decide most of the marks. <strong>First</strong>, the satisfaction rule is "not FALSE", not "TRUE": a CHECK whose expression is UNKNOWN passes, so a CHECK cannot be used to forbid NULL. <strong>Second</strong>, the treatment of nulls in a UNIQUE constraint is left by the SQL standard to the implementation; PostgreSQL's default is that nulls are distinct, SQL Server's documented behaviour is that multiple nulls are duplicates, so a question that does not name an engine is answered under the default its source states. <strong>Third</strong>, a referential action is not a constraint: it is a repair the engine performs when a constraint would otherwise be violated, and it runs as part of the data-changing statement even when the constraint itself is deferred.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 3 and 4 — why the foreign key target has to be unique</h3>
+              <p>A foreign key is a promise about existence, so the promise needs a unique referent. Suppose <code>course.dept</code> referenced <code>department.name</code> and <code>department</code> allowed two rows named "CSE". A course row saying "CSE" would then point at two departments at once, and "which department owns this course" would have no answer — the reference would not identify anything.</p>
+              <p class="small muted" style="margin-bottom:0">That is the argument, and it is a derivation rather than a rule to memorise: a reference resolves a value to a row, and a value that names two rows resolves to neither. It also explains a fact that surprises people: the target does not have to be the <em>primary</em> key. Any UNIQUE constraint will do, because uniqueness is the only property the reference needs. A table may therefore have several columns that other tables point at, and a table may point at itself — a manager column referring to the employee key in the same row set.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Why a CHECK cannot forbid NULL</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> PostgreSQL's manual, on <code>CREATE TABLE</code>, states the rule directly: a CHECK "specifies an expression producing a Boolean result which new or updated rows must satisfy ... Expressions evaluating to TRUE or UNKNOWN succeed. Should any row ... produce a FALSE result, an error exception is raised."</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A comparison with NULL yields UNKNOWN. So for a row where the column is NULL, <code>x &gt; 0</code> is UNKNOWN, and UNKNOWN is not FALSE, so the row is accepted. The same holds for the negated test, so declaring both <code>CHECK (x &gt; 0)</code> and <code>CHECK (NOT (x &gt; 0))</code> still admits the null row: the two constraints are a contradiction only over TRUE and FALSE, and UNKNOWN sits outside both. The page evaluates all three candidates through both checks and finds exactly one survivor, the NULL row.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Why UNIQUE lets a second NULL in</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> PostgreSQL's manual: "In general, a unique constraint is violated if there is more than one row in the table where the values of all of the columns included in the constraint are equal. By default, two null values are not considered equal in this comparison. That means even in the presence of a unique constraint it is possible to store duplicate rows that contain a null value in at least one of the constrained columns."</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The same page adds that the default null treatment "is implementation-defined according to the SQL standard", and that PostgreSQL 15 added the clause <code>NULLS NOT DISTINCT</code> to reverse it.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The constraint tests equality, and <code>NULL = NULL</code> is UNKNOWN rather than TRUE, so the test never fires between two nulls. That is the whole mechanism: UNIQUE is not "the column has no repeated value", it is "no two rows are equal on this column set", and two nulls are not equal.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The counting discipline this page uses</h3>
+              <p class="small">Every count in the animation is a count over an explicitly listed candidate set. Scene 3 uses existing rows <code>{1, NULL}</code> and candidates <code>{NULL, 1, 2}</code>, so there are three questions and three answers. Scene 5 uses the nine ordered pairs from <code>{NULL, 1, 2}²</code> against a parent holding <code>(1, 1)</code>, so there are nine candidates and three match rules.</p>
+              <p class="small" style="margin-bottom:0">A count without its instance is meaningless, and a count that was not computed is a guess. Both are avoided here: the animation prints the instance on the canvas beside the number, and the number comes from the same function that the model checks re-verify by enumeration.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 6 and 7 — where the exam actually bites</h3>
+              <p>Two of the four previous-year items on this page are closure counts: a delete is performed and the question asks how many further rows must go. The other two are definitional: which statement about foreign keys is true, and which algebra expression must be empty when referential integrity holds. The closure questions are the ones that separate a careful candidate, because a cascade is transitive and a set-null is not.</p>
+              <p class="small muted" style="margin-bottom:0">The procedure that always works is a round-based fixpoint. Round one: take the key values that the statement removed. Round two: find every child row that references one of those values, and apply the declared action. A CASCADE adds new key values to the set, so the process repeats. A SET NULL changes a child row without removing its key, so it adds nothing. Stop when a round adds nothing. The 2005 question needs three rounds and the 2017 question needs one, and the difference between the answers 3 and 0 is entirely that difference.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The referential actions, precisely</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> PostgreSQL's <code>CREATE TABLE</code> page defines five actions. <strong>NO ACTION</strong>: "Produce an error if the deletion or update would create a foreign key constraint violation. If the constraint is deferred, this error will be produced at constraint check time if there still exist any referencing rows. This is the default action." <strong>RESTRICT</strong>: "Produce an error if a row to be deleted or updated matches a row in the referencing table. This prevents the action even if the state after the action would not violate the foreign key constraint."</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>CASCADE</strong> deletes the referencing rows, or writes the new key values into them. <strong>SET NULL</strong> sets the referencing columns to null. <strong>SET DEFAULT</strong> sets them to their defaults, and "there must be a row in the referenced table matching the default values, if they are not null, or the operation will fail."</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> On deferral the same page says: "Only UNIQUE, PRIMARY KEY, EXCLUDE, and REFERENCES (foreign key) constraints accept this clause. NOT NULL and CHECK constraints are not deferrable", and "Referential actions are executed as part of the data changing command, even if the constraint is deferred."</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The match types, precisely</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> From the same page: "There are three match types: MATCH FULL, MATCH PARTIAL, and MATCH SIMPLE (which is the default). MATCH FULL will not allow one column of a multicolumn foreign key to be null unless all foreign key columns are null; if they are all null, the row is not required to have a match in the referenced table. MATCH SIMPLE allows any of the foreign key columns to be null; if any of them are null, the row is not required to have a match in the referenced table. MATCH PARTIAL is not yet implemented."</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> A database Stack Exchange answer quotes the standard's definitions, which add the third case: under MATCH PARTIAL, if at least one referencing column is non-null, the row passes only if a referenced row matches every non-null referencing column. This page models that definition so the three counts can be compared, and labels it as the standard's rule, not as PostgreSQL behaviour.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>What a constraint is not</h3>
+              <p class="small" style="margin-bottom:0">A constraint is not a query: it cannot return rows, and a CHECK may not read another row of the same table, let alone another table. It is not a trigger: it has no body and no ordering. It is not a type: a domain check on a type applies everywhere that type is used, while a CHECK applies to one column or one table. And it is not a proof: a schema can enforce every key it declares and still permit an instance that violates a functional dependency nobody declared. That last distinction is the one that links this topic to normalisation, and it is why a BCNF schema is not automatically a checked one.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A constraint is a predicate written once in the schema and re-checked on every write that touches the table.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A constraint is a predicate the engine re-checks</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A constraint is a rule the database re-checks on every write. You state it once, and the engine enforces it forever.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples — every decision written down</h3>
+              <p class="small muted" style="margin-bottom:0">Each example states the schema, the instance and the write, then shows the check that decides it. The numbers are the ones the page computed; the animation draws the same values from the same model.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 1 — GATE CSE 2005, the cascade closure</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The question gives one table with attributes A and C, "A is the primary key and C is the foreign key referencing A with on-delete cascade", holding (2,4), (3,4), (4,3), (5,2), (7,2), (9,5), (6,4). The tuple (2,4) is deleted and the question asks for the set of tuples that must <em>additionally</em> be deleted.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Delete (2,4). The key value 2 has gone.</p>
+                <p><strong>2.</strong> Round 1: rows whose C is 2 — (5,2) and (7,2). Keys 5 and 7 have now gone.</p>
+                <p><strong>3.</strong> Round 2: rows whose C is 5 — (9,5). Rows whose C is 7 — none.</p>
+                <p><strong>4.</strong> Round 3: rows whose C is 9 — none. The closure is closed.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> (5,2), (7,2) and (9,5) — three tuples, option C. Option B is the answer after one round only, which is the trap: a cascade is transitive.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — GATE CSE 2017 Set 2 Q19, the cascade that never fires</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> T1(P,Q) holds (2,2), (3,8), (7,3), (5,8), (6,9), (8,5), (9,8); T2(R,S) holds (2,2), (8,3), (3,2), (9,7), (5,7), (7,2). In T1, P is the key and Q references T2.R with on-delete cascade. In T2, R is the key and S references T1.P with on-delete set NULL. Delete (3,8) from T1; how many additional records must be deleted from T1?</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> T1's key value 3 has gone. T2's row (8,3) references it through S.</p>
+                <p><strong>2.</strong> The action on T2.S is SET NULL, so that row becomes (8, NULL). It is updated, not deleted.</p>
+                <p><strong>3.</strong> No row of T2 was deleted, so the cascade from T1.Q to T2.R has nothing to fire on.</p>
+                <p><strong>4.</strong> Nothing propagates back into T1.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> 0, which is the official key. The whole question is the difference between a delete and an update: had T2.S been declared CASCADE, the chain would have continued.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — the three verdicts on one NULL</h3>
+              <p class="small">Table holds <code>a = 1</code> and <code>a = NULL</code>. Candidates are <code>NULL</code>, <code>1</code> and <code>2</code>.</p>
+              <p class="small"><code>NOT NULL</code>: NULL refused, 1 accepted, 2 accepted — 2 of 3.</p>
+              <p class="small"><code>UNIQUE</code>: NULL accepted (it is not equal to the existing NULL), 1 refused (it equals the existing 1), 2 accepted — 2 of 3.</p>
+              <p class="small"><code>PRIMARY KEY</code>: NULL refused (not-null half), 1 refused (unique half), 2 accepted — 1 of 3.</p>
+              <p class="small" style="margin-bottom:0"><strong>Reading:</strong> the primary key accepts strictly fewer rows than either half, which is the inequality the page checks in code. With <code>UNIQUE NULLS NOT DISTINCT</code> the unique constraint would also accept only 1 of 3.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 4 — a CHECK that does not do what it says</h3>
+              <p class="small">A column is declared <code>price numeric CHECK (price &gt; 0)</code>, and the insert supplies <code>price = NULL</code>.</p>
+              <p class="small"><code>NULL &gt; 0</code> is UNKNOWN. The constraint is satisfied when the expression is TRUE or UNKNOWN, so the row is accepted. The table now holds a product with no price, and the check that was supposed to prevent that did nothing.</p>
+              <p class="small" style="margin-bottom:0"><strong>Fix:</strong> <code>price numeric NOT NULL CHECK (price &gt; 0)</code>. Two constraints, because they forbid two different things: one forbids a missing value and the other forbids a bad value. Adding <code>CHECK (NOT (price &gt; 0))</code> instead would not help — it is UNKNOWN on the same row.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition">
+              <h3>Example 5 — nine candidates, three match rules</h3>
+              <p class="small">Parent <code>P(x, y)</code> holds one row, (1,1). The child's key is the pair <code>(x, y)</code>. Candidates are the nine ordered pairs from <code>{NULL, 1, 2}²</code>.</p>
+              <p class="small"><code>MATCH SIMPLE</code> accepts 6: every pair with at least one null (five of them), plus (1,1). The three non-null pairs that are not (1,1) fail.</p>
+              <p class="small"><code>MATCH FULL</code> accepts 2: (NULL, NULL) and (1,1). A mixed pair such as (1, NULL) fails, because FULL allows only all-null or all-match.</p>
+              <p class="small" style="margin-bottom:0"><code>MATCH PARTIAL</code> accepts 4: the all-null pair, (1,1), and the two pairs that match on their non-null column — (1, NULL) matches on x, (NULL, 1) matches on y. (NULL, 2) fails because no parent row has y = 2. The page checks that both FULL and PARTIAL are subsets of SIMPLE, which is the sanity condition these definitions must satisfy.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — GATE CSE 2004 Q13, referential integrity as a subtraction</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Let <code>R1(A, B, C)</code> and <code>R2(D, E)</code> have primary keys A and D, and let C be a foreign key in R1 referring to R2. Suppose the instances <code>r1</code> and <code>r2</code> satisfy that constraint. Which expression must be empty?</p>
+              <p class="small">The promise is: every value of C either is null or appears in D. Relational algebra has no nulls, so under that reading every value of C appears in D, and therefore the projection of C onto r1 minus the projection of D onto r2 is empty.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> <code>Π_C(r1) − Π_D(r2)</code>, which is option 2 (B). The reverse subtraction is not empty in general: a parent key need not be referenced by anything, so <code>Π_D(r2) − Π_C(r1)</code> can be non-empty. Option 3 is not empty either, since it pairs a row with unrelated rows; option 4 is a join that returns matched rows, not an empty relation.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 7 — a circular pair, and why deferral exists</h3>
+              <p class="small">Two tables reference each other: <code>dept(head int REFERENCES emp)</code> and <code>emp(dept int REFERENCES dept)</code>. Inserting the first row of either table violates the other's key, whichever order you choose, because the row it needs does not exist yet.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Declare both foreign keys <code>DEFERRABLE INITIALLY DEFERRED</code>.</p>
+                <p><strong>2.</strong> Insert the department with a null head, insert the employee with the department, then update the department's head.</p>
+                <p><strong>3.</strong> Both checks run at COMMIT, when both rows exist, and both pass.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>Reading:</strong> deferral changes <em>when</em> the error appears, not whether it appears. Leave the employee's department pointing at nothing and the COMMIT fails. Note also that the referential actions themselves are not deferred: they run with the statement.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 8 — a composite key, a composite reference, and one null</h3>
+              <p class="small">Enrolment is keyed by <code>(sid, cid)</code>, and both columns are foreign keys. Suppose instead that a single foreign key references <code>course(dept, number)</code> as a pair, and a row is inserted with <code>dept = 'CSE'</code> and <code>number = NULL</code>.</p>
+              <p class="small">Under MATCH SIMPLE, the null in one column excuses the whole reference: the row is accepted even though the pair ('CSE', NULL) matches nothing. Under MATCH FULL the same row is refused, because one column is null and the other is not.</p>
+              <p class="small" style="margin-bottom:0"><strong>Reading:</strong> this is the case where the default is the dangerous choice. If both columns are required, declare them <code>NOT NULL</code>; that forbids the mixed row outright and makes the match type irrelevant.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries, and what each one changes</h3>
+          <p class="small muted" style="margin-bottom:0">Each card names a condition the rule assumes, then shows the smallest case where the condition fails and what the answer becomes. None of these is a curiosity: the first is why a UNIQUE question must name its engine, and the last is why a CHECK cannot express a rule that spans rows.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>An empty parent table</h3>
+          <p class="small">With no rows in the parent, the only child values that can be inserted are nulls. Under MATCH SIMPLE a null child key passes, so the child table can be filled entirely with nulls while the parent is empty.</p>
+          <p class="small" style="margin-bottom:0">That is not a bug in the constraint; it is the definition of a reference that only applies to non-null values. A schema that needs a mandatory reference must say <code>NOT NULL</code>, and then the empty parent blocks every insert.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A foreign key that points at UNIQUE, not at the primary key</h3>
+          <p class="small">The target of a foreign key may be any column set carrying a PRIMARY KEY or UNIQUE constraint. On the relation used in this lesson, <code>{A}</code> and <code>{B, C}</code> are both candidate keys, so a child may reference either.</p>
+          <p class="small" style="margin-bottom:0">What is not allowed is a reference to a column set that is only indexed. A unique index also satisfies the requirement in PostgreSQL, but the guarantee is the same one: the reference must resolve to at most one row.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A self-referencing foreign key</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2021 Set 2 Q6 offers "a foreign key in a relation scheme R cannot be used to refer to tuples of R", and the key is that this is false: <code>employee(eid, mid)</code> with <code>mid</code> referencing <code>eid</code> is the standard example.</p>
+          <p class="small" style="margin-bottom:0">The same question's first statement, that a scheme can have at most one foreign key, is also false. A table may carry as many foreign keys as it has references to make, and a self-reference is one of them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>SET DEFAULT with no matching default row</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> PostgreSQL: for SET DEFAULT, "there must be a row in the referenced table matching the default values, if they are not null, or the operation will fail."</p>
+          <p class="small" style="margin-bottom:0">So a delete that was expected to succeed can fail because a repair it triggered was impossible. This is the one action whose failure is caused by a value nobody wrote in the statement being deleted.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Deferral does not defer the repair</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> "Referential actions are executed as part of the data changing command, even if the constraint is deferred."</p>
+          <p class="small" style="margin-bottom:0">So deferring a foreign key postpones the <em>error</em> for a still-dangling reference; it does not postpone the cascade, the set-null or the set-default. A question that mixes the two is testing exactly this sentence.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A CHECK that tries to read another row</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> PostgreSQL states plainly that it does not support CHECK constraints that reference table data other than the new or updated row, and warns that such a constraint "may appear to work in simple tests" without being guaranteed.</p>
+          <p class="small" style="margin-bottom:0">A rule such as "a student's total credits equals the sum of the courses passed" is therefore not a CHECK. The standard's tool is an assertion; where the engine lacks assertions, a trigger is the route, and the rule is then no longer declarative.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that cost marks, each with its counterexample</h3>
+          <p class="small muted" style="margin-bottom:0">Each card states the belief as a candidate would hold it, gives the smallest instance that refutes it, and names what to say instead.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. "A CHECK prevents NULL"</h3>
+          <p class="small"><strong>Belief:</strong> <code>CHECK (price &gt; 0)</code> means every price is positive, so a missing price cannot be stored.</p>
+          <p class="small"><strong>Counterexample:</strong> insert <code>price = NULL</code>. The expression is UNKNOWN, and a CHECK is satisfied by TRUE or UNKNOWN, so the row is accepted.</p>
+          <p class="small" style="margin-bottom:0"><strong>Say instead:</strong> a CHECK forbids values for which it is FALSE. It forbids a missing value only if you also declare <code>NOT NULL</code>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. "UNIQUE means at most one NULL"</h3>
+          <p class="small"><strong>Belief:</strong> a unique column can hold one null, because two nulls would be duplicates.</p>
+          <p class="small"><strong>Counterexample:</strong> PostgreSQL's default treats two nulls as distinct, so any number of rows may hold NULL in a UNIQUE column. SQL Server's documented behaviour is the opposite, which is why the standard leaves it to the implementation.</p>
+          <p class="small" style="margin-bottom:0"><strong>Say instead:</strong> UNIQUE tests equality; two nulls are not equal; the default null treatment is implementation-defined and PostgreSQL 15 added <code>NULLS NOT DISTINCT</code> to reverse it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. "A composite primary key may contain a null in one column"</h3>
+          <p class="small"><strong>Belief:</strong> only the whole key has to be unique, so one column of a two-column primary key may be null as long as the other differs.</p>
+          <p class="small"><strong>Counterexample:</strong> a primary key is UNIQUE plus NOT NULL applied to every column of the key. A row with a null in any key column is refused, and in PostgreSQL a primary key column is declared <code>NOT NULL</code> implicitly.</p>
+          <p class="small" style="margin-bottom:0"><strong>Say instead:</strong> uniqueness is about the tuple of key values; non-nullness is about each column. The second half is the one that catches people.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. "CASCADE and SET NULL both remove rows"</h3>
+          <p class="small"><strong>Belief:</strong> any referential action that fires on a delete removes the child rows, so a chain continues either way.</p>
+          <p class="small"><strong>Counterexample:</strong> GATE CSE 2017 Set 2 Q19. The referencing action is SET NULL, so the child row survives with a null key, no deletion happens in the second table, and the cascade back into the first table never fires. The answer is 0.</p>
+          <p class="small" style="margin-bottom:0"><strong>Say instead:</strong> CASCADE deletes; SET NULL and SET DEFAULT update. Only a deletion can continue a cascade.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. "A foreign key must reference the primary key"</h3>
+          <p class="small"><strong>Belief:</strong> <code>REFERENCES</code> only accepts the target table's primary key.</p>
+          <p class="small"><strong>Counterexample:</strong> any UNIQUE constraint works, and omitting the target column list is what defaults to the primary key. A table with two candidate keys can be referenced through either.</p>
+          <p class="small" style="margin-bottom:0"><strong>Say instead:</strong> the target must be unique, and the primary key is only the default choice. The reference needs uniqueness, not primacy.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. "Referential integrity means every parent is referenced"</h3>
+          <p class="small"><strong>Belief:</strong> the constraint is a two-way correspondence, so a department with no employees violates it.</p>
+          <p class="small"><strong>Counterexample:</strong> the promise runs from child to parent only. GATE CSE 2004 Q13 turns on exactly this asymmetry: <code>Π_C(r1) − Π_D(r2)</code> must be empty, while <code>Π_D(r2) − Π_C(r1)</code> need not be.</p>
+          <p class="small" style="margin-bottom:0"><strong>Say instead:</strong> every non-null child value must exist in the parent; a parent value need not be used. That is why the subtraction goes one way.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five question shapes, and the procedure that answers all of them</h3>
+          <p class="small muted" style="margin-bottom:0">Each pattern names what the paper gives, what it asks, and the one decision that resolves it. The previous-year items are listed with year and paper; nothing here is presented as an official question without them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern A — closure counting</h3>
+          <p class="small"><strong>Given:</strong> a table or two, the keys, and the referential action on each foreign key. <strong>Asked:</strong> how many further rows are deleted.</p>
+          <p class="small"><strong>Decision:</strong> run rounds. Take the keys the statement removed; find child rows referencing them; apply the action; a CASCADE adds keys and the process repeats, while SET NULL and SET DEFAULT add nothing.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2005 (answer 3) and GATE CSE 2017 Set 2 Q19 (answer 0).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern B — which operation can violate</h3>
+          <p class="small"><strong>Given:</strong> two relations, a foreign key from one to the other, and four operations. <strong>Asked:</strong> which can violate referential integrity.</p>
+          <p class="small"><strong>Decision:</strong> only child-insert and parent-delete can orphan a row. Parent-insert adds a key; child-delete removes a reference. The page verifies this by enumerating every legal instance over a two-value domain and applying each operation.</p>
+          <p class="small" style="margin-bottom:0"><strong>Note:</strong> this shape appears in several papers and in ISRO and other recruitment tests. Where the year and paper cannot be confirmed for a GATE item, this page does not label one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern C — the algebra of a promise</h3>
+          <p class="small"><strong>Given:</strong> two schemas with a foreign key, and the statement that the instances satisfy it. <strong>Asked:</strong> which relational-algebra expression must be empty.</p>
+          <p class="small"><strong>Decision:</strong> translate the promise into a subtraction and keep the direction: child keys minus parent keys. Then check the other options for the reverse direction, a theta-join that pairs unrelated rows, or a join that returns matches.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2004 Q13 (option 2).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern D — statement pairs about keys</h3>
+          <p class="small"><strong>Given:</strong> two statements about the relational model. <strong>Asked:</strong> which combination is correct.</p>
+          <p class="small"><strong>Decision:</strong> try to build a schema that makes each statement false. "At most one foreign key" fails on an enrolment table with two; "cannot refer to itself" fails on a manager column.</p>
+          <p class="small" style="margin-bottom:0"><strong>Seen in:</strong> GATE CSE 2021 Set 2 Q6 (both false).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern E — NULL against a constraint</h3>
+          <p class="small"><strong>Given:</strong> a constraint and a row containing NULL. <strong>Asked:</strong> whether the row is accepted, or which pairs of queries agree.</p>
+          <p class="small"><strong>Decision:</strong> evaluate the predicate to TRUE, FALSE or UNKNOWN, then apply the acceptance rule of that constraint: CHECK wants not-FALSE, NOT NULL wants non-null, UNIQUE wants no equality, PRIMARY KEY wants both.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where:</strong> the three-valued logic itself is built in <a href="../relational-algebra-and-sql/index.html">Relational algebra, tuple calculus and SQL</a>; this page applies it to constraints.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five-step procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Name the constraint kind</strong> in the question: key, reference, row check, or general.</li>
+            <li><strong>Write its acceptance rule</strong> before looking at the data: not-FALSE, non-null, no-equality, or existence.</li>
+            <li><strong>Fix the instance</strong> and, if NULL is involved, evaluate to three values rather than two.</li>
+            <li><strong>Apply the write</strong> and, for a reference, follow the action in rounds until nothing changes.</li>
+            <li><strong>Check the result</strong> against the constraint itself: does the surviving instance satisfy it? The page runs that check on both of its closure answers.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Stopping a cascade after one round: 2005 becomes 2 instead of 3.</li>
+            <li>Counting a SET NULL as a deletion: 2017 becomes non-zero.</li>
+            <li>Reading UNKNOWN as FALSE, which turns an accepted null row into a refused one.</li>
+            <li>Reversing the subtraction in the algebra pattern, which makes a parent-only key look like a violation.</li>
+            <li>Answering what a well-designed schema would do instead of what the stated constraint does.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 to 4 are previous-year items with their year and paper, and each answer was recomputed from the question text rather than copied from a key. Questions 5 to 8 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2021 Set 2 Q6</span></div>
+          <div class="q-body">
+            <p>Consider the following statements S1 and S2 about the relational data model:</p>
+            <p>S1: A relation scheme can have at most one foreign key.<br>
+            S2: A foreign key in a relation scheme R cannot be used to refer to tuples of R.</p>
+            <p>Which one of the following choices is correct?</p>
+            <ol class="choices">
+              <li>Both S1 and S2 are true</li>
+              <li>S1 is true and S2 is false</li>
+              <li>S1 is false and S2 is true</li>
+              <li>Both S1 and S2 are false</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: D — both S1 and S2 are false</p>
+            <p><strong>S1 is false.</strong> An enrolment scheme <code>(sid, cid, marks)</code> has <code>sid</code> referencing student and <code>cid</code> referencing course: two foreign keys in one scheme. Nothing in the model limits the count.</p>
+            <p><strong>S2 is false.</strong> <code>employee(eid, mid)</code> with <code>mid</code> referencing <code>eid</code> of the same relation is a self-reference, and it is a standard design.</p>
+            <p><strong>What it tests.</strong> That "foreign key" is a reference, not a role reserved for other tables. Both statements are the kind of plausible-sounding restriction that a candidate invents under time pressure.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2004 Q13</span></div>
+          <div class="q-body">
+            <p>Let <code>R1(A, B, C)</code> and <code>R2(D, E)</code> be two relation schemas, with primary keys A and D respectively, and let C be a foreign key in R1 referring to R2. Suppose there is no violation of the referential integrity constraint in the instances r1 and r2. Which of the following relational algebra expressions would necessarily produce an empty relation?</p>
+            <ol class="choices">
+              <li>&Pi;<sub>D</sub>(r2) &minus; &Pi;<sub>C</sub>(r1)</li>
+              <li>&Pi;<sub>C</sub>(r1) &minus; &Pi;<sub>D</sub>(r2)</li>
+              <li>&Pi;<sub>D</sub>(r1 &#8904;<sub>C&nbsp;&ne;&nbsp;D</sub> r2)</li>
+              <li>&Pi;<sub>C</sub>(r1 &#8904;<sub>C&nbsp;=&nbsp;D</sub> r2)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 2 — &Pi;<sub>C</sub>(r1) &minus; &Pi;<sub>D</sub>(r2) is empty</p>
+            <p>Referential integrity says every value of C appears in D. Relational algebra has no nulls, so every value of C is in the projection of D, and the subtraction leaves nothing.</p>
+            <p><strong>Why the others are not necessarily empty.</strong> Option 1 reverses the subtraction: a parent key need not be referenced, so D can contain values no child uses. Option 3 pairs rows of r1 with rows of r2 whose C and D differ, which normally returns rows. Option 4 is a join and returns matched rows, which is the opposite of empty unless the child table is empty.</p>
+            <p><strong>Trap.</strong> Option 3 looks like a violation test, and a candidate who reasons "C &ne; D cannot hold when C is a foreign key" forgets that the comparison is between a child row and every unrelated parent row.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2005 (2-mark)</span></div>
+          <div class="q-body">
+            <p>A table has two attributes A and C, where A is the primary key and C is the foreign key referencing A with on-delete cascade. Its rows are (2,4), (3,4), (4,3), (5,2), (7,2), (9,5), (6,4).</p>
+            <p>The number of tuples that must be <em>additionally</em> deleted to preserve referential integrity when the tuple (2,4) is deleted is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>Round 1: C = 2 gives (5,2) and (7,2). Round 2: C = 5 gives (9,5); C = 7 gives nothing. Round 3: C = 9 gives nothing. The closure is three tuples: (5,2), (7,2), (9,5).</p>
+            <p><strong>Why 2 appears.</strong> Stopping after one round gives (5,2) and (7,2) only, which is option B of the original question. The cascade is transitive, so the second round is compulsory.</p>
+            <p><strong>Edge case.</strong> If C had been declared on-delete set NULL, the answer would be 0: the two rows would have C set to null instead of being removed. The action decides the number.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2017 Set 2 Q19</span></div>
+          <div class="q-body">
+            <p>T1(P,Q) holds (2,2), (3,8), (7,3), (5,8), (6,9), (8,5), (9,8). T2(R,S) holds (2,2), (8,3), (3,2), (9,7), (5,7), (7,2). In T1, P is the primary key and Q is the foreign key referencing R in T2 with on-delete cascade and on-update cascade. In T2, R is the primary key and S is the foreign key referencing P in T1 with on-delete set NULL and on-update cascade.</p>
+            <p>In order to delete record &lang;3, 8&rang; from table T1, the number of additional records that need to be deleted from table T1 is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 0</p>
+            <p>Deleting &lang;3, 8&rang; removes P = 3. The only T2 row referencing it is &lang;8, 3&rang;, and the action on T2.S is SET NULL, so that row becomes &lang;8, NULL&rang;. It is updated, not deleted.</p>
+            <p>Because no T2 row is deleted, the cascade from T1.Q to T2.R never fires, and no further T1 row is removed. The official key is 0.</p>
+            <p><strong>Why 2 appears.</strong> A candidate who treats SET NULL as a delete deletes &lang;8, 3&rang; from T2, then cascades to the T1 rows with Q = 8 — &lang;3, 8&rang; and &lang;5, 8&rang; — and reports one additional row.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A column is declared <code>q int CHECK (q &gt; 5)</code>, with no other constraint. Which of the following statements are TRUE?</p>
+            <ol class="choices">
+              <li>A row with q = NULL is accepted</li>
+              <li>A row with q = 5 is refused</li>
+              <li>Adding <code>CHECK (NOT (q &gt; 5))</code> as well would make q = NULL refused</li>
+              <li>A row with q = 9 is accepted</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and D</p>
+            <p>A CHECK is satisfied when the expression is TRUE or UNKNOWN. For q = NULL the comparison is UNKNOWN, so the row is accepted (A). For q = 5 the comparison is FALSE, so the row is refused (B). For q = 9 it is TRUE, so accepted (D).</p>
+            <p><strong>Why C fails.</strong> <code>NOT (q &gt; 5)</code> is also UNKNOWN when q is NULL, so the second constraint is satisfied as well. Both checks accept the null row, so the pair still does not exclude it. The page computes this: exactly one candidate survives both checks, and it is the null.</p>
+            <p><strong>What it tests.</strong> That "satisfied" means "not FALSE", and that a contradiction in two-valued logic is not a contradiction over three values.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A table already holds the rows <code>a = 1</code> and <code>a = NULL</code>. Under the default null treatment, how many of the three candidate values <code>NULL</code>, <code>1</code>, <code>2</code> are accepted by a UNIQUE constraint on a?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>NULL is accepted, because two nulls are not equal and so never collide. 1 is refused, because it equals the existing 1. 2 is accepted. That is 2 of 3.</p>
+            <p><strong>Why 1 appears.</strong> A candidate who believes a unique column may hold only one null refuses the NULL candidate and counts 1.</p>
+            <p><strong>Edge case.</strong> With <code>UNIQUE NULLS NOT DISTINCT</code> the null would collide with the existing null and the answer would be 1. The clause, not the data, changes the count.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A child table has a two-column foreign key <code>(x, y)</code> referencing a parent whose only row is (1, 1). A row is inserted with <code>x = 1</code> and <code>y = NULL</code>. Which statement is correct?</p>
+            <ol class="choices">
+              <li>It is refused under both MATCH SIMPLE and MATCH FULL</li>
+              <li>It is accepted under MATCH SIMPLE and refused under MATCH FULL</li>
+              <li>It is accepted under both</li>
+              <li>It is refused under MATCH SIMPLE and accepted under MATCH FULL</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>MATCH SIMPLE, the default, excuses the row as soon as any referencing column is null, so the reference is not checked at all. MATCH FULL allows only all-null or all-match, and this row is mixed, so it is refused.</p>
+            <p><strong>Why D is the popular wrong answer.</strong> The names suggest that SIMPLE is the stricter of the two. The page's model checks the opposite: every pair accepted under FULL is also accepted under SIMPLE, and the counts are 2 against 6 out of 9.</p>
+            <p><strong>Edge case.</strong> Declaring <code>x</code> and <code>y</code> NOT NULL refuses this row under either match type, which is usually the intent.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Relations R(a) and S(d) satisfy the foreign key S.d &rarr; R.a. Which of the following operations can introduce a violation of that constraint?</p>
+            <ol class="choices">
+              <li>Insert a tuple into R</li>
+              <li>Insert a tuple into S</li>
+              <li>Delete a tuple from R</li>
+              <li>Delete a tuple from S</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B and C</p>
+            <p>Inserting into the child can supply a value the parent does not have. Deleting from the parent can remove a value the child is using.</p>
+            <p><strong>Why A and D cannot.</strong> Inserting into the parent only adds a key, so it can only make more references legal. Deleting from the child only removes a reference, so it can only make fewer references exist. The page confirms this by enumeration: over every legal instance on a two-value domain, parent-insert and child-delete introduce zero violations, while the other two do.</p>
+            <p><strong>Edge case.</strong> Deleting from the child is safe for this constraint but may break a constraint on a table that references S — the safety is local to one foreign key.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One screen to revise from</h3>
+          <p class="small muted" style="margin-bottom:0">The acceptance rule of each constraint, its behaviour on NULL, whether it can be deferred, and the one fact that decides a question about it.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The constraint table</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <tr>
+              <th style="text-align:left">constraint</th>
+              <th style="text-align:left">acceptance rule</th>
+              <th style="text-align:left">a NULL row</th>
+              <th style="text-align:left">deferrable</th>
+            </tr>
+            <tr><td><code>NOT NULL</code></td><td>the value is present</td><td>refused</td><td>no</td></tr>
+            <tr><td><code>UNIQUE</code></td><td>no two rows equal on the columns</td><td>accepted; two nulls are not equal</td><td>yes</td></tr>
+            <tr><td><code>PRIMARY KEY</code></td><td>UNIQUE and NOT NULL</td><td>refused</td><td>yes</td></tr>
+            <tr><td><code>CHECK</code></td><td>the expression is not FALSE</td><td>accepted when UNKNOWN</td><td>no</td></tr>
+            <tr><td><code>FOREIGN KEY</code></td><td>non-null child key exists in the parent</td><td>accepted under MATCH SIMPLE</td><td>yes</td></tr>
+          </table>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The closure procedure, in four lines</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Collect the key values the statement removed.</li>
+            <li>Find every child row referencing one of them.</li>
+            <li>Apply the action: CASCADE adds keys and repeats; SET NULL and SET DEFAULT stop; NO ACTION and RESTRICT raise an error.</li>
+            <li>Stop when a round adds nothing. Count the rows, not the rounds.</li>
+          </ol>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four operations</h3>
+          <p class="small" style="margin-bottom:0">Insert into parent: cannot orphan. Insert into child: can orphan. Delete from parent: can orphan. Delete from child: cannot orphan. Updates follow the same split — a child key set to a missing value, or a parent key changed to a new value, can orphan.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Numbers this page computed</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Superkeys of the three-row relation: 5 of 7 non-empty subsets; candidate keys: 2.</li>
+            <li>Accepted of three candidates: NOT NULL 2, UNIQUE 2, PRIMARY KEY 1, CHECK (a &gt; 5) 1.</li>
+            <li>Composite match counts out of 9: SIMPLE 6, FULL 2, PARTIAL 4.</li>
+            <li>GATE CSE 2005 closure: 3 additional tuples, in 3 rounds.</li>
+            <li>GATE CSE 2017 Set 2: 0 additional T1 rows, 1 T2 row updated to NULL.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The four sentences worth memorising</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Satisfied means not FALSE, so UNKNOWN passes.</li>
+            <li>PRIMARY KEY is UNIQUE plus NOT NULL, and one per table.</li>
+            <li>A cascade fires on a deletion; SET NULL is an update and stops the chain.</li>
+            <li>Only child-insert and parent-delete can orphan a row.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what it supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official documents and product documentation first, then question catalogues, then community discussion. Each entry says what it was used for. Where a claim could not be checked, the lesson says so instead of filling the gap.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official syllabus</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> — used for Section 9, which names "Integrity constraints" and fixes the wording quoted on the Overview tab. Read on 2026-10-29.</li>
+            <li><strong>GATE 2027 information brochure</strong>, IIT Madras — used only to confirm that GATE 2027 is a CBT with MCQ, MSQ and NAT item types, which is why the practice set uses all three.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Product documentation</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>PostgreSQL 18 manual, 5.5 Constraints</strong> — the acceptance rule for CHECK ("TRUE or the null value"), and the unique-constraint paragraph on nulls and on the standard leaving the choice to the implementation.</li>
+            <li><strong>PostgreSQL 18 manual, CREATE TABLE</strong> — the five referential actions and their definitions, the three match types with MATCH SIMPLE as default and MATCH PARTIAL unimplemented, the DEFERRABLE rules (only UNIQUE, PRIMARY KEY, EXCLUDE and REFERENCES), and the statement that referential actions run with the statement even when the constraint is deferred.</li>
+            <li><strong>PostgreSQL 18 manual, CHECK constraints</strong> — the note that a CHECK may not reference other rows' data.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Previous-year questions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE CSE 2004 Q13</strong> — question text and option list, from the GATE Overflow thread for that item and the ExamSIDE year listing. Answer recomputed here.</li>
+            <li><strong>GATE CSE 2005, 2-mark cascade question</strong> — table, options and answer, from the GATE Overflow thread for it and the ExamSIDE year listing. The catalogues number it differently (one as Q76, one as question 14 of its topic), so this page cites the year and the marks rather than a disputed number.</li>
+            <li><strong>GATE CSE 2017 Set 2 Q19</strong> — tables and wording, cross-checked against the GATE Overflow thread, an ExamSIDE listing and a coaching institute's copy of the paper, which all give the answer 0.</li>
+            <li><strong>GATE CSE 2021 Set 2 Q6</strong> — statements and answer, from the GATE Overflow thread and an ExamSIDE listing. Both statements are false.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Community discussion, used as observation</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A Database Administrators Stack Exchange answer</strong> quoting the SQL standard's three match-type definitions — the only source consulted for the exact MATCH PARTIAL rule, which PostgreSQL does not implement. Labelled as the standard's rule wherever it appears.</li>
+            <li><strong>A GATE-topic frequency page</strong> counting five referential-integrity questions between 1997 and 2021. Reported as a community count, not as weightage.</li>
+            <li><strong>GATE Overflow comment threads</strong> on the 2004 and 2005 items, used to see which wrong options candidates actually choose, which is where the "why the alternatives appear" notes in the practice set come from.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No database engine was run in the build environment, so no output on this page is quoted from a live server; every semantic claim is either the SQL standard's (via the sources above) or PostgreSQL's documented behaviour, and each is labelled. No textbook edition was consulted, so no page or section number is quoted. The SQL standard itself was not read directly: the CHECK rule, the match types and the referential actions are taken from PostgreSQL's documentation of them, which is why the two places where the standard leaves a choice to the implementation are called out rather than glossed. No search was made for GATE 2027 sample papers, because none exists at the time of writing. Finally, the MATCH PARTIAL counts on this page model the standard's definition so that the three rules can be compared; they are not a claim about what PostgreSQL will do, since it does not implement that rule.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

@@ -1107,6 +1107,66 @@ topics.append(topic(
     ]))
 
 topics.append(topic(
+    'Programming and Data Structures', 'Programming in C', 'Structures, unions and enumerations: layout and padding',
+    [
+        'structure declaration, members and declaration order',
+        'member offsets, alignment and padding',
+        'sizeof of a struct and the trailing round-up',
+        'field order and its effect on size',
+        'nested structures',
+        'arrays of structures and their stride',
+        'unions, overlapping members and union size',
+        'byte reinterpretation and byte order',
+        'enumerations: values, underlying type and duplicates',
+        'self-referential structures and pointer-to-struct declarations',
+    ],
+    prereq=['c-fundamentals', 'pointers-in-c', 'functions-scope-and-preprocessor', 'number-representation-and-arithmetic', 'arrays-stacks-queues'],
+    related=['linked lists', 'trees and binary search trees', 'memory management and virtual memory', 'memory hierarchy and cache', 'number representation and arithmetic'],
+    importance='medium-high',
+    evidence="Named as part of 'Programming in C', the first sentence of Section 4 of the GATE 2027 CS syllabus (IIT Madras, CS_GATE2027_Syllabus.pdf). A topic-indexed archive lists 36 items tagged 'pointer and structure in C' across 22 CS papers from 2000 to 2026, including GATE CSE 2000 Q1.17, GATE CSE 2000 Q1.31 and GATE CSE 2018 Q2, all recomputed on the lesson page. Catalogue counts are a community observation, not official weightage.",
+    difficulty='medium',
+    status="PUBLISHED",
+    slug='structures-unions-and-enums',
+    path='topics/structures-unions-and-enums/index.html',
+    execution='published 2026-10-29: 41/41 model checks pass, 1201 frames drawn across 10 scenes without error, scenes tile the 300s timeline, captions cover the full duration',
+    microtopics=[
+        'a struct declaration creates a type; only an object owns bytes',
+        'offset is measured from the start of the object, not from the previous member',
+        'alignment is a divisibility constraint on the starting address, not on the value',
+        'x86-64 System V sizes and alignments: char 1, short 2, int and float 4, long, double and pointers 8',
+        'each of those types is self-aligned, so alignment equals size on this ABI',
+        'offset = ceil(running / align) * align, then running = offset + size',
+        'sizeof = ceil(end / largest align) * largest align',
+        'char, int, char is 12 with offsets 0, 4, 8 and 6 bytes of padding',
+        'int, char, char is 8 with 2 bytes of padding; the same members, a different size',
+        'all six permutations give only 8 and 12: two give 12 and four give 8',
+        'widest-alignment-first reaches the smallest size, as a heuristic and not a theorem',
+        'the trailing round-up exists so that arrays of the struct stay aligned',
+        'padding bytes have unspecified values, so memcmp on a struct compares them',
+        "a nested struct's alignment is the maximum alignment among its own members",
+        'struct Inner {char; int} is 8 bytes with alignment 4; after a char in an outer struct it sits at offset 4 and the outer is 12',
+        "the inner struct's own trailing padding is counted once, not twice",
+        "an array's stride is sizeof, so struct P {char; int} gives 80 bytes for ten elements and holds 50",
+        'element k starts at base + k * stride, aligned whenever the base is',
+        "a union's members all start at offset 0 and overlap",
+        "a union's size is its largest member rounded up to its largest alignment",
+        'union {char[5]; int} is 8, not 5',
+        'GATE CSE 2000 Q1.17: short[5] plus a union of float and long is 18 ignoring alignment, and 24 aligned',
+        'writing one union member and reading another reinterprets bytes, not values',
+        '0x12345678 as four chars is 78 56 34 12 little-endian and 12 34 56 78 big-endian',
+        'character access is always permitted (C11 6.5p7); other reinterpretation may yield a trap representation',
+        'an enum names integer constants and stores one integer',
+        'an unwritten first enumerator is 0 and each next is one more',
+        'an explicit value resets the counter; duplicates are legal',
+        'sizeof(enum) is the size of the underlying integer, not the number of enumerators',
+        'a struct may hold a pointer to its own type and not an object of its own type',
+        'struct node {int; node*} is 16 bytes with the pointer at 8 on x86-64',
+        'struct node *s[10] is an array of ten pointers (80 bytes), not ten nodes',
+        'a packed struct of the same three members is 6 bytes, so layout is an ABI fact',
+        'on a 32-bit ABI the same node is 8 bytes, because the pointer is 4',
+    ]))
+
+topics.append(topic(
     "Programming and Data Structures", "Data structures", "Arrays, stacks and queues",
     ["array storage and indexing", "two-dimensional arrays: row-major and column-major",
      "bounds, decay and sizeof in C",
@@ -2251,6 +2311,67 @@ topics.append(topic(
     ]))
 
 topics.append(topic(
+    "Databases", "Relational model", "Integrity constraints: keys, foreign keys and NULL",
+    ["superkeys, candidate keys and the primary key as a constraint",
+     "NOT NULL, UNIQUE, PRIMARY KEY and CHECK on one relation",
+     "the foreign key and its referential actions",
+     "NULL against each constraint kind",
+     "deferred checking, assertions and triggers"],
+    prereq=["relational algebra, tuple calculus and SQL",
+            "functional dependencies, normal forms and decomposition",
+            "sets and set operations"],
+    related=["relational algebra, tuple calculus and SQL",
+             "functional dependencies, normal forms and decomposition",
+             "ER model and the mapping to relations",
+             "file organisation and indexing (B and B+ trees)",
+             "transactions and concurrency control"],
+    importance="high",
+    evidence="GATE 2027 Section 9 names 'Integrity constraints' between SQL and normal forms. "
+             "Four previous-year items were checked for this lesson: GATE CSE 2004 Q13, GATE CSE 2005 (2-mark cascade), "
+             "GATE CSE 2017 Set 2 Q19 and GATE CSE 2021 Set 2 Q6.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="integrity-constraints-keys-and-null",
+    path="topics/integrity-constraints-keys-and-null/index.html",
+    execution="published 2026-10-29; 27 of 27 model checks pass, geometry audit clean, 10 scenes, 40 captions",
+    microtopics=[
+        "a constraint is a predicate in the schema, re-checked on every write",
+        "a refused statement changes nothing: no partial repair",
+        "DEFAULT is not a constraint: it supplies a value and forbids nothing",
+        "four families: keys, references, single-row checks, the general assertion",
+        "superkey = a column set that never repeats; 5 of the 7 non-empty subsets on the page's three-row relation",
+        "candidate key = minimal superkey; 2 here, {A} and {B,C}",
+        "every superkey contains a candidate key, so superkeys are counted upward-closed",
+        "one primary key per table, however many columns it spans",
+        "PRIMARY KEY = UNIQUE + NOT NULL, verified as an inequality on accepted counts (1 <= 2)",
+        "UNIQUE tests equality, and two nulls are never equal: a second NULL is accepted",
+        "the SQL standard leaves UNIQUE's null treatment to the implementation; PostgreSQL 15 added NULLS NOT DISTINCT",
+        "CHECK is satisfied by TRUE or UNKNOWN, so CHECK (price > 0) does not stop a NULL price",
+        "CHECK (a>5) and CHECK (NOT (a>5)) both accept the same NULL row: excluded middle fails for UNKNOWN",
+        "a foreign key is one-directional: the parent need not be referenced",
+        "the reference target must be a PRIMARY KEY or a UNIQUE constraint, never merely an index",
+        "MATCH SIMPLE (default): any null referencing column and the row is not checked at all",
+        "MATCH FULL: all-null or all-match, never mixed",
+        "MATCH PARTIAL is in the standard and not implemented in PostgreSQL",
+        "nine composite candidates against a one-row parent: SIMPLE 6, FULL 2, PARTIAL 4",
+        "FULL and PARTIAL are both subsets of SIMPLE, which is the sanity condition on the definitions",
+        "five referential actions: NO ACTION (default), RESTRICT, CASCADE, SET NULL, SET DEFAULT",
+        "NO ACTION may be deferred; RESTRICT may not, and refuses even a legal end state",
+        "SET DEFAULT fails when the default value has no matching parent row",
+        "only UNIQUE, PRIMARY KEY and FOREIGN KEY are DEFERRABLE; CHECK and NOT NULL never are",
+        "referential actions run with the statement even when the constraint is deferred",
+        "GATE CSE 2005: closure of a self-referencing ON DELETE CASCADE is three tuples, in three rounds",
+        "stopping after one round gives two tuples, which is the printed option B",
+        "GATE CSE 2017 Set 2 Q19: SET NULL is an update, so no T2 deletion, so the cascade never fires, so 0",
+        "only child-insert and parent-delete can orphan a row; verified over 28 legal instances by enumeration",
+        "updates split the same way: child key to a missing value, parent key to a new value",
+        "GATE CSE 2004 Q13: child keys minus parent keys is empty; the reverse subtraction is not",
+        "GATE CSE 2021 Set 2 Q6: a scheme may hold several foreign keys and a foreign key may be self-referencing",
+        "a foreign key across a decomposition gives referential integrity, not losslessness",
+        "a CHECK may not read another row, so a cross-row rule needs an assertion or a trigger",
+    ]))
+
+topics.append(topic(
     "Databases", "Storage", "File organisation and indexing (B and B+ trees)",
     ["file organisation", "B-tree and B+ tree structure", "insertion and deletion",
      "indexing and query cost"],
@@ -2701,9 +2822,6 @@ topics.append(topic(
 
 # the four General Aptitude lessons were split from one tracker entry on 2026-10-28,
 # so the published one carries the date it was verified rather than the syllabus date.
-for _t in topics:
-    if _t.get("lesson_slug") == "spatial-aptitude":
-        _t["last_verified_date"] = "2026-10-28"
 
 # ---------------------------------------------------------------- preservation
 # The tracker is regenerated from this file, so anything an earlier run recorded
@@ -2728,6 +2846,17 @@ if os.path.exists("syllabus-coverage.json"):
                         _t[_k] = _o[_k]
     except Exception as _e:
         print("warning: could not merge the existing tracker:", _e)
+
+# Lessons whose last verification date is later than the syllabus fetch date.
+_VERIFIED = {
+    "spatial-aptitude": "2026-10-28",
+    "structures-unions-and-enums": "2026-10-29",
+    "integrity-constraints-keys-and-null": "2026-10-29",
+}
+for _t in topics:
+    _d = _VERIFIED.get(_t.get("lesson_slug"))
+    if _d:
+        _t["last_verified_date"] = _d
 
 doc = {
     "repo": "gate-visual-explainer",
