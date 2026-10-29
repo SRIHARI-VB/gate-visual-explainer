@@ -16,6 +16,7 @@ lessons are static files and work from a local clone.
 | Generating Functions | Discrete Mathematics | A — explicitly in the syllabus | `topics/generating-functions/index.html` |
 | Graphs: Connectivity and Structure | Discrete Mathematics | A — explicitly in the syllabus | `topics/graphs-connectivity/index.html` |
 | Graphs: Matching and Colouring | Discrete Mathematics | A — explicitly in the syllabus | `topics/matching-and-colouring/index.html` |
+| Mathematical Induction and Well-Ordering | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/mathematical-induction/index.html` |
 | Monoids and Groups | Discrete Mathematics | A — explicitly in the syllabus | `topics/monoids-and-groups/index.html` |
 | Partial Orders, Hasse Diagrams and Lattices | Discrete Mathematics | A — explicitly in the syllabus | `topics/partial-orders-and-lattices/index.html` |
 | Propositional Logic | Discrete Mathematics | A — explicitly in the syllabus | `topics/propositional-logic/index.html` |

@@ -388,6 +388,67 @@ topics.append(topic(
         "rewriting a correct answer into the shape the options use (2022 Q26)",
         "verify by expanding four terms"]))
 
+
+# ------------------------------------------------ Discrete Mathematics: proof technique
+topics.append(topic(
+    DM, "Proof techniques", "Mathematical induction and well-ordering",
+    ["the induction rule", "strong induction", "the well-ordering principle",
+     "structural induction", "induction on recurrences",
+     "loop invariants as induction", "where an induction argument fails"],
+    prereq=["propositional logic", "sets and set operations"],
+    related=["recurrence relations", "counting and combinatorics", "asymptotic complexity",
+             "trees, binary search trees and heaps",
+             "context-free grammars and pushdown automata", "analytical aptitude"],
+    importance="high",
+    evidence=("Prerequisite, not a named clause: the word 'induction' does not appear in the GATE 2027 CS syllabus, "
+              "which I downloaded and read in full (CS_GATE2027_Syllabus.pdf, IIT Madras, 30 October 2026). The "
+              "syllabus does name the results induction establishes - Section 1 'Combinatorics: counting, recurrence "
+              "relations, generating functions' and Section 5 'Asymptotic worst case time and space complexity'. "
+              "GATE General Aptitude names 'Logic: deduction and induction', which is empirical generalisation and a "
+              "different thing; the lesson keeps the two apart. No GATE CSE item examining induction directly could be "
+              "verified, so the lesson carries no previous-year question."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="mathematical-induction",
+    path="topics/mathematical-induction/index.html",
+    execution="published 2026-10-30",
+    microtopics=[
+        "the domino picture, and the one respect in which it misleads (a finite chain has a last domino)",
+        "the rule as two premises and a conclusion: P(k), and for all n >= k P(n) -> P(n+1)",
+        "the universally quantified step as one proof, not a family of proofs",
+        "the hypothesis is not circular: what is proved is the implication",
+        "the five parts of a written proof, and the omitted predicate as the commonest defect",
+        "the sum of cubes identity: base n = 1, hypothesis, and the (k+1)^3 growth of both sides",
+        "T(k+1) - T(k) = k+1 and T(k+1) + T(k) = (k+1)^2 as the algebra behind the step",
+        "2^n > n^2: true at n = 1, false at 2, 3 and 4 with equality at 2 and 4, true from 5",
+        "the step condition (n+1)^2 < 2n^2 and its solution n >= 3",
+        "base outside the step domain: the chain from 1 reaches {1}, from 5 reaches 5 to 20",
+        "strong induction: the hypothesis widened to every value from the base to n",
+        "3 and 5 rupee coins: bases 8, 9 and 10, the step n -> n+3, and the bound n >= 10",
+        "the ordinary step P(n) -> P(n+1) fails at n = 3 and n = 6, so no such implication exists",
+        "unpayable amounts 1, 2, 4 and 7, and payability of every amount from 8 to 120",
+        "prime factorisation by strong induction: both factors are below n",
+        "strong induction is not stronger: put the quantifier inside the predicate",
+        "well-ordering: every non-empty set of naturals has a least element; false for the rationals",
+        "the least-counterexample proof of the coin claim, and why the least one is at least 11",
+        "induction, strong induction and well-ordering as three formats for one argument",
+        "structural induction: the recursive definition supplies the base and the step",
+        "full binary tree: leaves = internal + 1, nodes = 2i + 1, edges = 2i",
+        "Catalan(i) full binary trees with i internal nodes: 1, 1, 2, 5, 14, 42, 132, 197 in total",
+        "the same recursion for derivation trees in a grammar and for lists",
+        "T(n) = 2T(n/2) + n with T(1) = 0 gives T(n) = n log2 n, verified by substitution",
+        "T(16) = 64, T(1024) = 10240, and the base T(1) = 1 variant giving n log n + n",
+        "a proof for n = 2^m is not a proof for every n; state the range or weaken to Theta",
+        "loop invariant: initialization, maintenance, termination as base, step, conclusion",
+        "insertion sort's two-part invariant: sorted prefix, and the same values as the input prefix",
+        "the exit condition i = n as the step that turns a prefix claim into an array claim",
+        "the horse argument: the shared middle has n - 1 horses, empty exactly at n = 1",
+        "the needed base is P(2), which is the false case; the step is valid from n = 2",
+        "Fermat numbers 2^(2^k) + 1 prime for k = 0..4 and 641 x 6700417 at k = 5",
+        "a finite check is evidence, not proof; five confirmations and a sixth counterexample",
+        "inductive reasoning against mathematical induction: generalisation against deduction",
+        "a predicate that is a sentence, against a predicate that is a slogan"]))
+
 # ---------------------------------------------------------------- Engineering Mathematics
 topics.append(topic(
     EM, "Linear algebra", "Matrices, determinants and systems of linear equations",
@@ -3354,6 +3415,7 @@ _VERIFIED = {
     "function-pointers": "2026-10-30",
     "mean-median-mode-standard-deviation": "2026-10-30",
     "arithmetic-algorithms-booth-division-cla": "2026-10-30",
+    "mathematical-induction": "2026-10-30",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
