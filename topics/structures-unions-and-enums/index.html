@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Structures, Unions and Enumerations — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Structures, Unions and Enumerations</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../functions-scope-and-preprocessor/index.html">Previous: Functions, scope and preprocessor</a>
+      <a href="../linked-lists/index.html">Next: Linked lists</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Structures, unions and enumerations in C — their memory layout, the padding between their members, and what happens when one member is written and another is read. This is part of <em>Programming in C</em>, Section 4 of GATE 2027.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Compute the offset of every member of a struct and its total size from the alignment rule, rather than from the sum of the member sizes. Show that the same members in a different order give a different size, and explain why the language permits that. Size a nested struct, an array of structs and a union. Trace a write to one union member and a read of another through the machine's byte order, and say exactly what the C standard guarantees and what it leaves to the implementation. Read an enumeration as a list of integer constants with a chosen underlying type. Finally, explain why a struct may hold a pointer to its own type but not an object of its own type, and size a list node.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one question asked in three costumes</em>: where does each thing start, how many bytes does the block take, and what do those bytes mean. A struct answers the first two by stacking, a union answers them by overlapping, and an enumeration answers the third by naming integers. Almost every exam question in this topic is the same subtraction — the offset of the next member minus the end of the current one — and almost every lost mark is a bytes-versus-members confusion.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 4 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: <em>"Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> The first sentence is the clause this lesson belongs to. Structures are named nowhere else in the 2027 wording, so they are taught here as part of <em>Programming in C</em> rather than as a separate listed item.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The 2027 syllabus is narrower than earlier ones: the phrase "structures, unions, enums" that some older coaching lists quote does not appear in the 2027 PDF. The topic still matters, because a linked list, a tree node and a heap all require a struct declaration, and because Section 4's <em>linked lists</em> and <em>trees</em> cannot be written without a self-referential struct.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past CS papers lists 36 items tagged "pointer and structure in C" across 22 papers from 2000 to 2026, including two in 2026. That is somebody's tagging of somebody's collection. It is evidence that the topic is examined; it is not official weightage and it is not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means the topic is inside the declared boundary, not that a question is guaranteed. Every previous-year item quoted below carries its year and question number, and every answer was recomputed by this page rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Objects, bytes and addresses.</strong> An object owns a range of bytes, and an address is a number. Built in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>sizeof and its type.</strong> <code>sizeof</code> yields a <code>size_t</code>, counts bytes, and does not evaluate its operand. Also in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>Integer widths and the conversion ranks.</strong> Why <code>int</code> is four bytes here and why that is a platform fact rather than a C fact. Built in <a href="../c-fundamentals/index.html">C fundamentals</a>.</li>
+            <li><strong>Binary and hexadecimal place values.</strong> Reading <code>0x12345678</code> as four bytes needs both. Built in <a href="../number-representation-and-arithmetic/index.html">Number Representation and Arithmetic</a>.</li>
+            <li><strong>Pointers to incomplete types.</strong> A declaration may name a struct before it is defined, which is what makes the self-referential node legal. Built in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>Arrays and their stride.</strong> Element <code>k</code> of an array starts at <code>base + k * sizeof(element)</code>. Built in <a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">No knowledge of <code>malloc</code>, of bit-fields or of compiler pragmas is assumed; the first two appear only in Edge cases, and the third appears as a counterexample.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>One block, named slots.</strong> Three char cells at offsets 0, 1, 2 — the GATE 2018 shape — then the same block with an int in the middle.</li>
+            <li><strong>Alignment.</strong> A byte ruler with an int drawn at address 4 and again at address 3, one accepted and one refused, beside the size-and-alignment table.</li>
+            <li><strong>Three rules.</strong> <code>char, int, char</code> built cell by cell, with the running offset printed at each step and every padding byte labelled.</li>
+            <li><strong>Reordering.</strong> The three distinct arrangements as bars of proportional width, 12 against 8 against 8, with the permutation counts.</li>
+            <li><strong>Nesting.</strong> The inner struct drawn alone, then placed inside the outer one with the three-byte gap made visible.</li>
+            <li><strong>Array stride.</strong> Three elements of an eight-byte struct side by side, labelled base + 0, base + 8, base + 16, and the count for ten.</li>
+            <li><strong>Union.</strong> Overlapping bars for <code>char[5]</code> and <code>int</code> at offset 0, the trailing padding, then the GATE 2000 arithmetic beside it.</li>
+            <li><strong>Byte order.</strong> Four cells showing <code>0x12345678</code> little-endian, then the same four cells big-endian.</li>
+            <li><strong>Enumeration.</strong> Three enumerators with their values, the four-byte object that stores one, and the duplicate-value example.</li>
+            <li><strong>Self-reference.</strong> Two nodes with a pointer arrow between them, the 16-byte layout of one, and the array of ten pointers.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>An offset is rounded <em>up</em> to the member's alignment; the total is rounded up to the largest alignment in the struct. Padding is whatever that costs.</li>
+            <li>sizeof is a property of the declaration. The same members in another order may give a different size, and that is legal C.</li>
+            <li>A struct stacks, a union overlaps. A union's size is its largest member rounded up to its largest alignment.</li>
+            <li>Writing one union member and reading another reinterprets bytes, not values. The result depends on the machine's byte order, so a program that does it has no single portable output.</li>
+            <li>Alignment and sizes are ABI facts. Only <code>sizeof(char) == 1</code> is fixed by the C standard, so a size question without a stated platform has no single answer.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 60–80 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Three things are deliberately outside this lesson. <strong>Dynamic allocation</strong> (<code>malloc</code>, <code>free</code>, the heap) is mentioned only where a linked list needs it, because it belongs to its own topic. <strong>Bit-fields</strong> appear in Edge cases as a warning about unspecified layout, not as a taught mechanism. <strong>Bit-field packing, <code>#pragma pack</code> and attribute extensions</strong> are shown as counterexamples to the claim that layout is fixed; no question is asked about their exact behaviour, because the standard does not fix it. Finally, every size on this page is the x86-64 System V ABI's, stated as such wherever it is used.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: a locker wall, and the rule about which lockers may be used</h3>
+              <p>Picture a wall of numbered lockers, one byte each. A struct is a booking: "locker 0 is yours, lockers 1 to 3 stay empty, lockers 4 to 7 are yours, locker 8 is yours." The booking is a type. Making a booking reserves nothing; only renting one — declaring an object — takes the lockers.</p>
+              <p class="small muted" style="margin-bottom:0">Now the rule that creates the empty lockers. A four-locker booking must <em>start</em> at a locker number divisible by four. That is all alignment is: a constraint on the starting number, not on the contents. The receptionist cannot move your booking to locker 1, so lockers 1 to 3 are wasted. And because the next person's booking must also start on a legal number, the whole booking is rounded up to a multiple of the largest demand in it. A union is a different booking: everybody is told to use locker 0, and the booking is as big as the largest person needs. An enumeration is not a booking at all — it is a list of nicknames for the numbers 0, 1, 2.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 1 — Intuition, in one sentence each</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Struct.</strong> One block of bytes, members stacked in declaration order, gaps allowed between them.</li>
+                <li><strong>Offset.</strong> How many bytes from the start of the object a member begins.</li>
+                <li><strong>Alignment.</strong> The divisor that a member's starting offset must be a multiple of.</li>
+                <li><strong>Padding.</strong> Bytes inside the object that belong to no member.</li>
+                <li><strong>sizeof.</strong> The whole block, padding included, rounded so that arrays of it stay aligned.</li>
+                <li><strong>Union.</strong> One block, members overlapping at offset 0, sized by the largest.</li>
+                <li><strong>Enumeration.</strong> Named integer constants, stored as one integer.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Level 2 — Formal definitions</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> A <strong>structure type</strong> is a type consisting of a sequence of members whose storage is allocated in an ordered sequence. C11 §6.7.2.1 requires the members to be laid out in the order declared, and adds that there may be <em>unnamed padding</em> between members and at the end, but not at the beginning.</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Alignment</strong> is a requirement that objects of a given type be stored at addresses that are multiples of a value. C11 §6.2.8 makes the alignment of every type except <code>char</code> implementation-defined. <code>char</code> has alignment 1, which is why a character can go anywhere.</p>
+              <p class="small"><strong>The layout rule, as this page applies it.</strong> For members in declaration order, with running offset <code>o</code>:</p>
+              <p class="small"><code>offset(m) = ceil(o / align(m)) * align(m)</code>, then <code>o = offset(m) + size(m)</code>.</p>
+              <p class="small">At the end, <code>sizeof = ceil(o / A) * A</code> where <code>A</code> is the largest alignment among the members.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> A <strong>union type</strong> is a type whose members all begin at offset 0 and overlap; its size is at least the size of its largest member (C11 §6.7.2.1, §6.5.2.3). An <strong>enumeration</strong> declares a set of named integer constants; the type of each enumerator is <code>int</code>, and the implementation chooses an integer type that can represent every value of the enumeration (C11 §6.7.2.2).</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Level 5 — the boundary conditions, stated up front</h3>
+              <p class="small" style="margin-bottom:0">The layout rule above is not a law of C. It is the rule of one ABI, the x86-64 System V ABI that Linux and macOS compilers follow for these types. The standard fixes only two things: members appear in declaration order, and the object has no padding before its first member. Everything else — the alignment of each type, the size of the gaps, the rounding of the total — is the implementation's choice. So: a struct may legally be 6 bytes where this page says 12, and a question that does not state the platform is not a well-posed question. Two further boundaries matter. A struct may not contain an object of its own type by value, only a pointer to it, because a value member would need the size being computed. And <code>sizeof</code> counts padding, so two structs with equal members can compare unequal byte for byte.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 3 and 4 — why the third rule exists</h3>
+              <p>The first two rules are forced by the alignment requirement: a member cannot start anywhere it likes. The third rule — round the whole block up — is not forced by anything inside the object. It is forced by what comes <em>after</em> the object.</p>
+              <p class="small muted" style="margin-bottom:0">An array of structs is a contiguous run of objects, so element <code>k</code> begins at <code>base + k * sizeof</code>. If the size were 9 for a struct whose alignment is 4, element 1 would begin at an address that is 1 modulo 4 — misaligned — and the guarantee that every element is properly aligned would fail for every element after the first. Rounding the size up to a multiple of the alignment is the smallest change that keeps the guarantee. That is why <code>char, int, char</code> is 12 and not 9, and it is the one step that candidates forget under time pressure.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The size-and-alignment table this page uses</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> On x86-64 with the System V ABI, and confirmed independently for this lesson by <code>ctypes.Structure</code> on the build machine:</p>
+              <table class="small" style="width:100%;border-collapse:collapse">
+                <tr><th style="text-align:left">type</th><th style="text-align:right">size</th><th style="text-align:right">alignment</th></tr>
+                <tr><td><code>char</code></td><td style="text-align:right">1</td><td style="text-align:right">1</td></tr>
+                <tr><td><code>short</code></td><td style="text-align:right">2</td><td style="text-align:right">2</td></tr>
+                <tr><td><code>int</code>, <code>float</code></td><td style="text-align:right">4</td><td style="text-align:right">4</td></tr>
+                <tr><td><code>long</code>, <code>double</code>, pointer</td><td style="text-align:right">8</td><td style="text-align:right">8</td></tr>
+              </table>
+              <p class="small" style="margin-bottom:0">Every type in this table is <em>self-aligned</em>: its alignment equals its size. That is a coincidence of this ABI, not a rule of C, and it is why the arithmetic in the exam is so often "round up to the size".</p>
+            </div>
+
+            <div class="card">
+              <h3>Why padding bytes are a hazard, not just a waste</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> C11 §6.2.6.1 says that when a value is stored in a member of a structure or union object, the bytes of the padding take unspecified values. Nothing in the standard says they are zero.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Two structs with identical members can therefore have identical member bytes and different padding bytes. Comparing them with <code>memcmp</code> compares the padding too, so a correct program can be told the objects differ. The safe comparison is member by member, and the safe copy is assignment — which the compiler is allowed to implement field by field precisely because padding carries no value.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Why a union is the useful shape for a protocol</h3>
+              <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> A union says "these are alternative readings of one object". That is exactly what a wire format is: the same four bytes are an integer to one part of the code and a length-prefixed field to another. The type records the overlap instead of hiding it behind a cast.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The cost is that a union carries no tag. Nothing in the object says which member was last written, so the program must track it separately — a struct holding the union plus an enum saying which member is live. That combination is the standard way to write a tagged variant in C, and it is the only reason the enum in this lesson earns its place next to the union.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 6 and 7 — where the exam actually bites</h3>
+              <p>Two shapes account for nearly every question. The first hands you a declaration and a platform, and asks for <code>sizeof</code>, an offset, or the value printed by reading one member through another. The second hands you a program and asks what it prints, where the answer turns on byte order or on a member that was never written.</p>
+              <p class="small muted" style="margin-bottom:0">Both are decided by writing the offsets down. A candidate who writes <code>c:0, i:4, c2:8, size 12</code> on the paper cannot then choose 9, and a candidate who writes the four bytes out cannot then choose the value that belongs to the other endianness. The GATE patterns tab lists the shapes with the reasoning each demands.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>What breaks each step</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Offset rounding</strong> assumes you know the member's alignment. If the member is an array, the alignment is that of the element type, not of the array's length.</li>
+                <li><strong>Total rounding</strong> assumes the largest alignment is among the <em>members</em>. For a nested struct it is the nested struct's own alignment, which is the maximum inside it.</li>
+                <li><strong>Union size</strong> assumes the largest member is also the strictest. When it is not — <code>char[5]</code> with <code>int</code> — the size is the larger of "largest member" and "rounded to the largest alignment".</li>
+                <li><strong>Array stride</strong> assumes the elements are contiguous. A pointer array is contiguous pointers, not nodes.</li>
+                <li><strong>Byte reading</strong> assumes a byte order. Without one stated, the answer is "undefined or machine-dependent", and that is often the correct option.</li>
+              </ul>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Level 9 — consolidation before the animation</h3>
+              <ol class="small" style="margin-bottom:0">
+                <li>Write the offsets, not the sizes. The size falls out of the last offset plus the rounding.</li>
+                <li>Round up, place, round up again. Three lines, every time, and the third line is the one that scores.</li>
+                <li>A union is one block with every member at zero. Its size is the largest member, rounded.</li>
+                <li>Reading another member reinterprets bytes. State the byte order before you state an output.</li>
+                <li>Name the platform. Every number in this topic is an ABI fact.</li>
+              </ol>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Declaring a struct creates a type, not an object. The type fixes one offset for every member.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A struct is one block with named slots</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A struct declaration creates a type. It decides where each member sits inside one block of bytes.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples — every offset written down</h3>
+              <p class="small muted" style="margin-bottom:0">Each example states the declaration, the platform, and the running offset after every step. The numbers are the ones the page computed; the animation draws the same values from the same model.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 1 — <code>char, int, char</code> is 12</h3>
+              <div class="step-list small">
+                <p><strong>1.</strong> <code>c</code> is a char: align 1, so offset 0. Running offset becomes 1. <em>Justification: offset 0 is divisible by every alignment.</em></p>
+                <p><strong>2.</strong> <code>i</code> is an int: align 4. Round 1 up to 4. Offset 4, three padding bytes. Running offset becomes 8.</p>
+                <p><strong>3.</strong> <code>c2</code> is a char: align 1. Offset 8, no padding. Running offset becomes 9.</p>
+                <p><strong>4.</strong> Largest alignment is 4. Round 9 up to 12. Three trailing padding bytes.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> offsets 0, 4, 8; <code>sizeof</code> 12; padding 6 — three bytes between <code>c</code> and <code>i</code>, three at the end.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — the same members as <code>int, char, char</code> is 8</h3>
+              <div class="step-list small">
+                <p><strong>1.</strong> <code>i</code> at 0, running offset 4.</p>
+                <p><strong>2.</strong> <code>c</code> at 4, running offset 5.</p>
+                <p><strong>3.</strong> <code>c2</code> at 5, running offset 6.</p>
+                <p><strong>4.</strong> Largest alignment 4, round 6 up to 8. Two trailing bytes.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> 8 bytes. Four bytes fewer than Example 1, for exactly the same data. Nothing was removed; the gaps moved.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — <code>double, char</code> is 16, and 7 of them are waste</h3>
+              <p class="small"><code>d</code> at 0 (align 8), running offset 8. <code>c</code> at 8, running offset 9. Largest alignment 8, round 9 up to 16.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> 16 bytes holding 9 bytes of data. The 7 trailing bytes exist only so that the next element of an array would start on a multiple of 8.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 4 — nesting: <code>Inner</code> inside <code>Outer</code> is 12</h3>
+              <p class="small"><code>struct Inner { char a; int b; }</code>: <code>a</code> at 0, <code>b</code> at 4, running offset 8, largest alignment 4, so size 8 and alignment 4.</p>
+              <p class="small"><code>struct Outer { char c; struct Inner in; }</code>: <code>c</code> at 0, running offset 1. <code>in</code> has alignment 4, so round 1 up to 4. <code>in</code> spans offsets 4 to 11. Running offset 12, largest alignment 4, so size 12.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> 12 bytes. The inner struct's own trailing padding is already inside its 8 bytes and is counted once, not twice.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition">
+              <h3>Example 5 — <code>union { char s[5]; int i; }</code> is 8</h3>
+              <p class="small">Both members start at offset 0. The largest member is <code>s</code>, five bytes. The largest alignment is 4, from <code>i</code>. Round 5 up to 8.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> 8 bytes, of which bytes 5 to 7 are trailing padding. Saying 5 is the standard slip: the trailing bytes keep an <em>array</em> of the union aligned, exactly as rule three does for a struct.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — GATE CSE 2000 Q1.17, both readings</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The question gives <code>struct { short s[5]; union { float y; long z; } u; } t;</code> with short 2, float 4 and long 8 bytes, and asks for the requirement <em>ignoring alignment considerations</em>. Its key is 18.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> <code>s[5]</code> is five shorts: 10 bytes.</p>
+                <p><strong>2.</strong> The union is the larger of float (4) and long (8): 8 bytes.</p>
+                <p><strong>3.</strong> Ignoring alignment, the members simply add: 10 + 8 = 18.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>With alignment on x86-64</strong> the same object is 24: <code>s</code> ends at 10, the union needs alignment 8 so it starts at 16, ends at 24, and 24 is already a multiple of 8. The question says to ignore alignment, so 18 is the answer, and 24 is the number you would get by answering a question that was not asked.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 7 — GATE CSE 2018 Q2 prints <code>0, c</code></h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>struct Ournode { char x, y, z; } p = {'1','0','a'+2};</code> then <code>printf("%c, %c", *((char*)q+1), *((char*)q+2))</code> with <code>q = &amp;p</code>. The official key is option A, <code>0, c</code>.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Three chars, all alignment 1: offsets 0, 1, 2. No padding anywhere, size 3.</p>
+                <p><strong>2.</strong> <code>'a' + 2</code> is evaluated as an int expression and stored in a char, giving <code>'c'</code>.</p>
+                <p><strong>3.</strong> <code>(char*)q + 1</code> is byte 1, holding <code>'0'</code>; <code>+2</code> is byte 2, holding <code>'c'</code>.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> <code>0, c</code>. The quotes in options C and D are not printed by <code>%c</code>, and option B treats <code>'a'+2</code> as a string of three characters, which it is not.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 8 — ten elements of <code>{ char; int; }</code> are 80 bytes</h3>
+              <p class="small">One element: <code>c</code> at 0, <code>i</code> at 4, running offset 8, largest alignment 4, size 8. Stride 8.</p>
+              <p class="small" style="margin-bottom:0"><strong>Answer:</strong> 10 × 8 = 80 bytes, of which the members hold 10 × 5 = 50. Element <code>k</code> begins at <code>base + 8k</code>, and every one of those addresses is a multiple of 4, so every element is aligned. This is the premise a question states when it says the array starts at an address divisible by 8.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous page</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries, and what each one breaks</h3>
+          <p class="small muted" style="margin-bottom:0">Each card names a condition that the rule in Build-up assumes, then shows the smallest case where the condition fails and what the answer becomes. None of these is a curiosity: the first is the reason a size question must state its platform, and the last is the reason a "what does this print" question must state its byte order.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample — the same declaration, a smaller size</h3>
+          <p class="small">With <code>#pragma pack(1)</code>, or the equivalent attribute, the compiler is told to ignore alignment. <code>char, int, char</code> then occupies <strong>6</strong> bytes, not 12, with offsets 0, 1, 5.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> nothing in the C standard. The standard never promised 12. It promised declaration order and no leading padding, and a packed struct keeps both. A packed struct can fault on a machine that refuses misaligned access, which is why the pragma is a request, not a guarantee of correct behaviour.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample — 32-bit against 64-bit</h3>
+          <p class="small"><code>struct node { int elt; struct node *next; }</code> is <strong>16</strong> bytes on x86-64 (int at 0, four padding, pointer at 8) and <strong>8</strong> bytes on a 32-bit ABI (int at 0, pointer at 4).</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> any claim that sizeof is a property of the source text. It is a property of the source text <em>plus</em> the ABI, and the pointer size is the part that changes.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample — padding is not zero</h3>
+          <p class="small">Two objects of <code>struct A</code> with identical member values may differ in their three padding bytes, because C11 §6.2.6.1 leaves those bytes unspecified when a member is stored.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> <code>memcmp(&amp;x, &amp;y, sizeof x) == 0</code> as a test of equality. Compare members, or use <code>==</code> on a struct that has been assigned, which the compiler is allowed to do member by member precisely because padding carries no value.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample — a union whose largest member is not the strictest</h3>
+          <p class="small"><code>union { char s[5]; int i; }</code>: the largest member is 5, but the alignment is 4, so the size is 8, not 5.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> the shorthand "a union is the size of its largest member". The correct statement has two clauses: the largest member, <em>rounded up to the largest alignment</em>. The rounding matters exactly when the two disagree.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample — an array of pointers is not an array of nodes</h3>
+          <p class="small"><code>struct node *s[10]</code> is ten pointers: 80 bytes on x86-64, and <strong>zero</strong> nodes. <code>struct node s[10]</code> is ten nodes: 160 bytes.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> the reading that the star belongs to the array. It belongs to the name: <code>s</code> is an array whose elements are pointers. Each element still has to be pointed at something before it can be used, and none of them is initialised.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A struct with no members, and a flexible array member</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> C does not permit an empty struct; a compiler that accepts one is offering an extension, and the size is then its own choice (GCC gives 0, C++ gives 1). A struct whose last member is an incomplete array type — <code>char data[];</code> — is a <em>flexible array member</em>, permitted since C99, and it contributes no bytes to <code>sizeof</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it matters here:</strong> both are cases where "the sum of the members" and <code>sizeof</code> disagree in a way the three rules do not predict. The rules describe ordinary objects, and a question about an empty struct is testing whether you know the rules have an edge.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Bit-fields: declared in bits, laid out by nobody in particular</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>struct { unsigned a : 3; unsigned b : 5; }</code> declares bit-fields. C11 §6.7.2.1 says the allocation order within a unit is implementation-defined, that padding bits may be inserted, and that a bit-field may not straddle a storage unit unless the implementation allows it.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> the whole offset model. There are no byte offsets to compute, and two compilers may give different sizes for the same declaration. A question that asks for the size of a bit-field struct without naming the compiler has no defensible answer.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Byte order, and the question that has no answer</h3>
+          <p class="small">On a little-endian machine <code>0x12345678</code> read as four chars gives <code>78 56 34 12</code>. On a big-endian machine the same program gives <code>12 34 56 78</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it breaks:</strong> any single printed answer. If a question does not state the byte order, either the options include "implementation-dependent", or the question is testing whether you notice that it is. GATE has used the little-endian premise explicitly when it wanted a number.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce the wrong option</h3>
+          <p class="small muted" style="margin-bottom:0">Each card states the wrong belief, why it is tempting, the smallest case that refutes it, and the rule that replaces it. The refutations are computed, not asserted.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "sizeof of a struct is the sum of its members"</h3>
+          <p class="small"><strong>Why it tempts:</strong> for an array it is true, and for a struct of all chars it is true too.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> <code>char, int, char</code> sums to 6 and occupies 12.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> sum plus padding, and the padding is decided by alignment, not by the members.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Offsets follow declaration order one after another"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the 2018 question works exactly that way, because all three members are chars.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> put one int second and the third member moves from offset 2 to offset 8.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> offsets follow declaration order, but each is rounded up to its own alignment first.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "A union is as big as its largest member"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is the sentence in most notes, and it is right most of the time.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> <code>union { char s[5]; int i; }</code> is 8, not 5.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the largest member, rounded up to the largest alignment. Two clauses, and the second one is the question.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Reordering the members is not allowed"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the compiler does not reorder, so it looks as though order is fixed.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> <code>int, char, char</code> is 8 while <code>char, int, char</code> is 12 — the same three members, and the programmer chose the order.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the compiler must keep the order you wrote. You are free to write a different one, and it may be smaller.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Reading the other union member converts the value"</h3>
+          <p class="small"><strong>Why it tempts:</strong> <code>u.i</code> and <code>u.b</code> look like two variables, so a read looks like a read of a converted value.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> write <code>u.i = 0x12345678</code> and read <code>u.b[0]</code>; you get <code>0x78</code>, not a converted number.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> no conversion happens. The bytes are reinterpreted under the new type, so the result depends on the machine's byte order and may be a trap representation.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "sizeof(enum) is the number of enumerators"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the enumeration lists three things and <code>sizeof</code> asks how big it is, so counting feels natural.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> <code>enum colour {RED, GREEN, BLUE}</code> holds one value at a time, and its size is 4 — the size of an int — whether it has two enumerators or twenty.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> an enumeration object is one integer. The number of enumerators changes nothing, and the longest name changes nothing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The question shapes, and the reasoning each demands</h3>
+          <p class="small muted" style="margin-bottom:0">These are categories of question, not predictions. Where a previous-year item is quoted it carries its year and question number, and its answer was recomputed here. Where a shape has no verified item behind it, the card says so and labels the example as original practice.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — compute sizeof, or one offset</h3>
+          <p class="small">Given a declaration and a platform, produce a number.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> write the running offset for each member, round up before placing, round the total at the end. State the platform's sizes first, on the paper.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> adding the member sizes, or rounding only at the end and not between members. Both produce numbers that look plausible and are not among the options only sometimes — which is why writing the offsets is safer than trusting the arithmetic.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — what does this program print</h3>
+          <p class="small">Given a program that reads a struct or union through a different type, produce the output.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> fix the offsets first, then decide whether padding sits between the two members you are reading. Then fix the byte order if an integer is being read as bytes.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> assuming byte <code>k</code> of the object is member <code>k</code>. That is true only when every member before it is one byte wide — which is exactly the 2018 case, and exactly why that question is easy and the padded version is not.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — a statement set about unions and structs</h3>
+          <p class="small">MSQ: which statements are true. Typical candidates are "the members overlap", "only one member is meaningful at a time", "the size is the largest member", "writing one member invalidates the others".</p>
+          <p class="small" style="margin-bottom:0"><strong>Reasoning demanded:</strong> test each statement against a concrete two-member union. "Invalidates" is the usual false one: the bytes of the others are still there; what changed is which of them the program last wrote.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 — declaration reading: what is <code>s</code>?</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2000 Q1.31 gives <code>struct node { int i; float j; }; struct node *s[10];</code> and asks what <code>s</code> is declared to be. The answer is an array, each of whose elements is a pointer to a structure of type node.</p>
+          <p class="small" style="margin-bottom:0"><strong>Reasoning demanded:</strong> read the declarator from the name outward: <code>s</code> is an array of 10 of pointer to struct node. <strong>The common wrong approach:</strong> attaching the star to the array, which would be <code>struct node (*s)[10]</code> — a pointer to an array of ten nodes, and a different declaration.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 5 — the union inside a struct, with alignment to ignore</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2000 Q1.17 gives a struct holding an array and a union and asks for the memory requirement "ignoring alignment considerations". Its key is 18.</p>
+          <p class="small" style="margin-bottom:0"><strong>Reasoning demanded:</strong> size the union as its largest member, then add. <strong>The trap:</strong> computing the aligned size (24) and finding it among the options. When the question says to ignore alignment, it is asking a question about sizes, and adding the numbers is the intended act.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What is not a pattern</h3>
+          <p class="small" style="margin-bottom:0">No verified GATE item in the papers consulted asks for the size of a bit-field struct, or for the effect of <code>#pragma pack</code>. Those appear here as Edge cases because they are the honest counterexamples to "layout is fixed", not because they are a question shape. Treating an unverified coaching question as a PYQ is how a learner ends up memorising a number that belongs to a compiler the paper never named. Every PYQ on this page was checked against the paper or a question-numbered catalogue, and the one item whose year could not be confirmed — an ISRO 2020 array-of-structs question that circulates with a GATE label on some sites — is deliberately not used.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1, 2 and 4 are previous-year items with their year and question number, and each answer was recomputed from the question text. Questions 3 and 5 to 8 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2018 Q2</span></div>
+          <div class="q-body">
+            <p>Consider the following C program.</p>
+            <p><code>struct Ournode { char x, y, z; };<br>
+            int main() {<br>
+            &nbsp;&nbsp;struct Ournode p = {'1', '0', 'a'+2};<br>
+            &nbsp;&nbsp;struct Ournode *q = &amp;p;<br>
+            &nbsp;&nbsp;printf("%c, %c", *((char*)q+1), *((char*)q+2));<br>
+            &nbsp;&nbsp;return 0;<br>
+            }</code></p>
+            <p>The output of this program is:</p>
+            <ol class="choices">
+              <li>0, c</li>
+              <li>0, a+2</li>
+              <li>'0', 'a+2'</li>
+              <li>'0', 'c'</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A — <code>0, c</code></p>
+            <p>Three chars have alignments 1, so the offsets are 0, 1, 2 and there is no padding. <code>'a' + 2</code> is computed as an int and stored in a char, giving <code>'c'</code>. Byte 1 holds <code>'0'</code>, byte 2 holds <code>'c'</code>, and <code>%c</code> prints the characters without quotes.</p>
+            <p><strong>Why the others fail.</strong> B treats <code>'a'+2</code> as the three-character text <code>a+2</code>; the expression was evaluated, not stored as text. C and D keep the single quotes, which are part of the C source and not of the value printed by <code>%c</code>.</p>
+            <p><strong>What it tests.</strong> That a struct of same-sized members has no padding, so byte <code>k</code> is member <code>k</code>. Put one int in the same struct and this shortcut stops working.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2000 Q1.17</span></div>
+          <div class="q-body">
+            <p>Consider the following C declaration:</p>
+            <p><code>struct { short s[5]; union { float y; long z; } u; } t;</code></p>
+            <p>Assume that objects of type short, float and long occupy 2 bytes, 4 bytes and 8 bytes respectively. The memory requirement for variable <code>t</code>, <strong>ignoring alignment considerations</strong>, is ______ bytes.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 18</p>
+            <p><code>s[5]</code> is 5 × 2 = 10 bytes. The union is the larger of float (4) and long (8), so 8 bytes. Ignoring alignment, 10 + 8 = 18.</p>
+            <p><strong>Why the alternatives appear.</strong> 22 comes from adding both union members (4 + 8) instead of taking the larger. 14 comes from taking float as the union. 10 comes from treating the union as free.</p>
+            <p><strong>Edge case.</strong> With x86-64 alignment the same object is 24 bytes: <code>s</code> ends at 10, the union needs an 8-aligned address so it starts at 16, and the total rounds to 24. The question explicitly excludes alignment, so 18 is the answer being asked for — but knowing both numbers is what stops you choosing 24 when a later paper does not say "ignoring alignment".</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>On x86-64, with char 1 byte (align 1), short 2 (align 2), int 4 (align 4) and double 8 (align 8), what is <code>sizeof</code> of the following?</p>
+            <p><code>struct S { char a; short b; char c; double d; char e; };</code></p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 24</p>
+            <p><code>a</code> at 0, running offset 1. <code>b</code> needs 2, so 1 padding byte and <code>b</code> at 2, running offset 4. <code>c</code> at 4, running offset 5. <code>d</code> needs 8, so 3 padding bytes and <code>d</code> at 8, running offset 16. <code>e</code> at 16, running offset 17. Largest alignment 8, round 17 up to 24.</p>
+            <p><strong>Trap.</strong> Stopping at 17, or rounding to 20 because the largest alignment seen so far was 4. The largest alignment is a property of the whole struct, not of the members placed so far.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2000 Q1.31</span></div>
+          <div class="q-body">
+            <p>The following C declarations</p>
+            <p><code>struct node { int i; float j; };<br>struct node *s[10];</code></p>
+            <p>define <code>s</code> to be:</p>
+            <ol class="choices">
+              <li>An array, each element of which is a pointer to a structure of type node</li>
+              <li>A structure of 2 fields, each field being a pointer to an array of 10 elements</li>
+              <li>A structure of 3 fields: an integer, a float, and an array of 10 elements</li>
+              <li>An array, each element of which is a structure of type node</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p>Read the declarator from the name outward: <code>s</code> is an array of 10 of pointer to struct node. On x86-64 the whole declaration occupies 10 × 8 = 80 bytes and contains no node at all.</p>
+            <p><strong>Why the others fail.</strong> B and C read the declaration as if it were a struct definition. D is the same text without the star — <code>struct node s[10]</code> — which would be ten nodes, 160 bytes with this ABI.</p>
+            <p><strong>The closely confused pair.</strong> <code>struct node *s[10]</code> is an array of pointers; <code>struct node (*s)[10]</code> is a pointer to an array. The brackets bind first, so the star attaches to the name in the first form and to the whole array in the second.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>On a <strong>little-endian</strong> machine, <code>union V { int i; char b[4]; } v; v.i = 0x12345678;</code> is executed. What is <code>v.b[0]</code>?</p>
+            <ol class="choices">
+              <li>0x12</li>
+              <li>0x78</li>
+              <li>0x34</li>
+              <li>Unspecified, because reading a member other than the one last written has no defined result</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — <code>0x78</code></p>
+            <p>All members of the union start at offset 0, so <code>v.b[0]</code> is the lowest-addressed byte of the integer. Little-endian stores the least significant byte first, and the least significant byte of <code>0x12345678</code> is <code>0x78</code>. The four bytes are <code>78 56 34 12</code>.</p>
+            <p><strong>Why D is wrong here.</strong> Option D is a fair instinct — reinterpreting one member as another is not a conversion — but reading through a <em>character</em> type is the one reinterpretation C always permits (C11 §6.5p7), and the byte order is stated. The answer is determinate.</p>
+            <p><strong>Where D would be right.</strong> Read <code>v.i</code> after writing a different non-character member, or read the bytes on a machine whose order is not given, and the result is no longer determinate.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>On x86-64, what is <code>sizeof</code> of the following, and what is the offset of <code>next</code>? Give the size.</p>
+            <p><code>struct node { char tag; int elt; struct node *next; };</code></p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 16 bytes, with <code>next</code> at offset 8</p>
+            <p><code>tag</code> at 0, running offset 1. <code>elt</code> needs 4, so 3 padding bytes and <code>elt</code> at 4, running offset 8. <code>next</code> is a pointer with alignment 8, so offset 8, running offset 16. Largest alignment 8, and 16 is already a multiple of 8.</p>
+            <p><strong>Trap.</strong> Answering 13 by adding 1 + 4 + 8 and forgetting both gaps, or answering 12 by rounding to 4 instead of 8. The pointer is what raises the largest alignment.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following is <strong>true</strong> of the C standard, as opposed to one particular compiler?</p>
+            <ol class="choices">
+              <li>A struct's members are stored in the order declared, and there may be padding between them.</li>
+              <li>A struct's members are stored with no padding, so sizeof equals the sum of the member sizes.</li>
+              <li>The alignment of an int is 4 bytes on every implementation.</li>
+              <li>A union's size equals the sum of its members' sizes.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p>C11 §6.7.2.1 requires declaration order and permits unnamed padding between members and at the end, while forbidding it before the first member. Everything else in the options is a claim about one ABI.</p>
+            <p><strong>Why B, C and D fail.</strong> B is false whenever alignment forces a gap — <code>char, int, char</code> is 12, not 6. C is false because the standard leaves every alignment except <code>char</code>'s to the implementation. D is false because a union overlaps its members; its size is the largest member rounded up.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p><code>enum size { S = 3, M, L = 3, XL };</code></p>
+            <p>What is the value of <code>XL</code>, and how many <em>distinct</em> values do the four enumerators take?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: <code>XL</code> is 4, and the four enumerators take 2 distinct values</p>
+            <p><code>S</code> is written as 3. <code>M</code> follows it, so <code>M = 4</code>. <code>L</code> is written as 3 again. <code>XL</code> follows <code>L</code>, so <code>XL = 4</code>. The values are 3, 4, 3, 4, which is <strong>two</strong> distinct values.</p>
+            <p><strong>The trap.</strong> Writing a value explicitly resets the counter to it, and duplicates are legal, so <code>S</code> and <code>L</code> share 3 while <code>M</code> and <code>XL</code> share 4. Answering "4 distinct" counts the names; answering "XL = 5" assumes the counter continues from the largest value seen rather than from the previous enumerator.</p>
+            <p><strong>What it tests.</strong> That an unwritten enumerator continues from the previous one, and that two names may denote one value. A <code>switch</code> on this enum cannot have separate cases for <code>S</code> and <code>L</code>.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Everything on this page, compressed to what you would write on the rough sheet in the first minute of the paper. Sizes are x86-64 System V; write the platform down before you start.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The procedure, in four lines</h3>
+          <div class="step-list small">
+            <p><strong>1.</strong> Write the member, its size, its alignment. For an array, the alignment is the element type's.</p>
+            <p><strong>2.</strong> Offset = current rounded up to that alignment. Then current = offset + size.</p>
+            <p><strong>3.</strong> At the end, size = current rounded up to the largest alignment.</p>
+            <p><strong>4.</strong> Padding = size − sum of member sizes. Check it is non-negative and that size is a multiple of the largest alignment.</p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Numbers worth knowing</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <tr><td><code>char, char, char</code></td><td style="text-align:right">3</td></tr>
+            <tr><td><code>char, int, char</code></td><td style="text-align:right">12</td></tr>
+            <tr><td><code>int, char, char</code></td><td style="text-align:right">8</td></tr>
+            <tr><td><code>double, char</code></td><td style="text-align:right">16</td></tr>
+            <tr><td><code>union { char[5]; int }</code></td><td style="text-align:right">8</td></tr>
+            <tr><td><code>struct { int; node* }</code></td><td style="text-align:right">16</td></tr>
+            <tr><td><code>node *s[10]</code></td><td style="text-align:right">80</td></tr>
+            <tr><td><code>enum</code> (small)</td><td style="text-align:right">4</td></tr>
+          </table>
+          <p class="small" style="margin-bottom:0">Every one of these was computed by this page and re-checked against its defining property.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Struct:</strong> stacked members in declaration order, gaps permitted.</li>
+            <li><strong>Union:</strong> overlapping members, all at offset 0, sized by the largest rounded up.</li>
+            <li><strong>Enum:</strong> named integer constants; the object is one integer.</li>
+            <li><strong>Padding:</strong> bytes belonging to no member, of unspecified value.</li>
+            <li><strong>Alignment:</strong> a divisibility constraint on the starting address.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps, five answers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Summed the members? <strong>Add the padding and round the total.</strong></li>
+            <li>Forgot the last rounding? <strong>Size must be a multiple of the largest alignment.</strong></li>
+            <li>Union = largest member? <strong>Largest, then rounded to the largest alignment.</strong></li>
+            <li>Read another member and got a number? <strong>State the byte order, or say implementation-dependent.</strong></li>
+            <li>No platform given? <strong>Only <code>sizeof(char) == 1</code> is guaranteed.</strong></li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Two sentences to carry into the next topic</h3>
+          <p class="small" style="margin-bottom:0">A list node is a struct with a pointer to its own type, and its size on this ABI is 16 bytes because the pointer needs an 8-aligned address — which is why the next topic, <a href="../linked-lists/index.html">Linked Lists</a>, can talk about nodes without ever asking what one weighs. And the tag-and-union pair — a struct holding an enum saying which member is live — is the C idiom for a value that may be one of several shapes, which is the same idea a tagged union in a type system formalises.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Official documents are separated from question catalogues. A catalogue is evidence that a question exists and was asked in a given year; it is not evidence about the 2027 paper. Every numeric answer on this page was recomputed from the question text, so the catalogues were used to find questions, not to settle answers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read on 29 October 2026. Supports the Section 4 wording quoted in Overview, and the observation that the 2027 wording does not name structures, unions or enums separately.</li>
+            <li><strong>ISO/IEC 9899:2011 (C11)</strong> — §6.7.2.1 for structure and union layout and padding, §6.2.8 for alignment, §6.5.2.3 for union member access and its footnote on type punning, §6.5p7 for access through a character type, §6.2.6.1 for the unspecified value of padding bytes, §6.7.2.2 for enumeration constants and the underlying type.</li>
+            <li><strong>x86-64 System V ABI</strong> — the sizes and alignments in the table in Build-up, and the reason each type is self-aligned.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Independent check on the build machine</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong><code>ctypes.Structure</code> and <code>ctypes.Union</code></strong>, from the Python standard library, were used to lay out the reference structs on the x86-64 platform this lesson was built on. It reported <code>char,int,char</code> as size 12 with offsets 0, 4, 8; <code>int,char,char</code> as 8; <code>double,char</code> as 16; <code>union{char[5],int}</code> as 8; and a <code>short</code> followed by the 12-byte struct as 16 with offsets 0, 4. Those five results are asserted as model checks, so the layout function on this page is not merely self-consistent — it reproduces an independent implementation of the same ABI.</li>
+            <li><strong>Limitation stated plainly.</strong> No C compiler was available in the build environment, so no <code>gcc</code> output is quoted anywhere on this page. Where a claim is about the C standard it cites the clause; where it is about a size it cites the ABI and the ctypes check.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Question catalogues, used to locate items</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE Overflow</strong> threads for GATE CSE 2000 Q1.17 and GATE CSE 2018 Q2, used for question text and for the community's discussion of the aligned reading of the 2000 item.</li>
+            <li><strong>ExamSide</strong> topic index for "Pointer and Structure in C", used to confirm that the 2000 items exist in the 2000 paper and to see their option lists.</li>
+            <li><strong>The GATE 2018 CS question paper</strong> itself, used to confirm the wording of Q2 and its official key (A).</li>
+            <li><strong>An ISRO Scientist CS 2020 item</strong> on an array of structs was found during the search and is <em>not</em> used as a PYQ, because it is not a GATE question. Its cancelled status on one catalogue is exactly the kind of detail that a learner quoting it as a GATE item would lose.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No textbook edition was consulted, so no page or section number is quoted. No search was made for 2027-specific sample papers, because none exists at the time of writing. The claim that two 2026 CS papers contain an item on this topic comes from a topic-indexed archive, not from the papers themselves, and is labelled a community observation wherever it appears. Finally, the ABI statement is scoped to x86-64 System V: a reader on Windows or on a 32-bit target will meet different numbers, and the layout function in this lesson is written so that only its type table would need changing.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
