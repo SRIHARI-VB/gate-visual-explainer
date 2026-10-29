@@ -1,0 +1,164 @@
+WEBVTT
+TITLE System Calls: the User–Kernel Boundary, fork/exec/wait and File Descriptor Inheritance — GATE Visual Explainer
+NOTE Timings are estimated from the lesson timeline (speaking-rate based), not measured from recorded audio.
+
+1
+00:00:00.000 --> 00:00:08.000
+The processor runs in two modes. A single bit in the status register decides which one, and only the kernel can change it.
+
+2
+00:00:08.000 --> 00:00:16.000
+An ordinary function call pushes a return address and jumps. Both caller and callee stay in user mode, in the same address space.
+
+3
+00:00:16.000 --> 00:00:23.000
+A system call executes a trap instruction. The hardware switches mode, jumps to a fixed handler, and later returns to the next instruction.
+
+4
+00:00:23.000 --> 00:00:30.000
+So: same address space, same process, different privilege. That is the difference between a call and a system call.
+
+5
+00:00:30.000 --> 00:00:38.000
+One read of eight bytes from descriptor 3: the number 0 goes in %rax, the descriptor in %rdi, the buffer in %rsi, the count in %rdx.
+
+6
+00:00:38.000 --> 00:00:45.000
+The trap instruction hands control to the kernel, which indexes its own table with the number and calls the handler for entry 0.
+
+7
+00:00:45.000 --> 00:00:53.000
+The result comes back in %rax. Success returns the count read; failure returns a negative code that the C library converts to -1 and errno.
+
+8
+00:00:53.000 --> 00:01:00.000
+The trap instruction itself is not privileged — that is why user code may execute it. What it stands in for, reading a disk, is.
+
+9
+00:01:00.000 --> 00:01:08.000
+Three doors lead in: a trap the program executes on purpose, a fault it causes by accident, and an interrupt a device raises.
+
+10
+00:01:08.000 --> 00:01:16.000
+GATE CSE 2023 Q13 asks which options guarantee a move from user mode to kernel mode: function call, malloc, page fault, system call.
+
+11
+00:01:16.000 --> 00:01:23.000
+A function call stays in user mode. malloc may be served from the heap without any call. A page fault and a system call always enter the kernel.
+
+12
+00:01:23.000 --> 00:01:30.000
+Answer key: C and D. The rule behind it is that only an event the hardware must hand to the kernel counts.
+
+13
+00:01:30.000 --> 00:01:38.000
+A mode switch saves the program counter and status word, flips the mode bit, jumps to the handler, and returns. Four steps.
+
+14
+00:01:38.000 --> 00:01:46.000
+A process switch does all four of those and four more: run the scheduler, save everything, change the page table base, disturb the TLB.
+
+15
+00:01:46.000 --> 00:01:53.000
+GATE CSE 2011 Q6: T1 is the mode switch and T2 the process switch, and the answer is T1 < T2.
+
+16
+00:01:53.000 --> 00:02:00.000
+The consequence: a program that makes many system calls is slow for a reason that has nothing to do with process switching.
+
+17
+00:02:00.000 --> 00:02:08.000
+printf is a library function. It formats into a buffer the process owns, and only write, the system call, reaches the kernel.
+
+18
+00:02:08.000 --> 00:02:16.000
+Three rules: stderr is unbuffered, stdout is line buffered on a terminal, and stdout is fully buffered when it is a file or a pipe.
+
+19
+00:02:16.000 --> 00:02:23.000
+Five lines of six bytes: five write calls on a terminal, one when redirected, because all 30 bytes fit in the buffer until exit.
+
+20
+00:02:23.000 --> 00:02:30.000
+Two thousand prints of ten bytes: 2000 calls at a terminal against 5 redirected, because 20000 bytes need five full buffers.
+
+21
+00:02:30.000 --> 00:02:38.000
+printf with no newline, redirected to a file: the five bytes are in the process buffer, and nothing has been written yet.
+
+22
+00:02:38.000 --> 00:02:46.000
+fork duplicates the process, and the buffer is part of the process. The child gets its own copy of those unflushed bytes.
+
+23
+00:02:46.000 --> 00:02:53.000
+Three forks give eight processes, so the five bytes are written eight times. Line buffered, the same program writes them once.
+
+24
+00:02:53.000 --> 00:03:00.000
+The fix is to flush before forking: end the line, or call fflush. A newline alone is enough only when the stream is line buffered.
+
+25
+00:03:00.000 --> 00:03:08.000
+A shell runs a program in four calls: fork to make a process, exec to put the program in it, exit when it ends, wait to collect it.
+
+26
+00:03:08.000 --> 00:03:16.000
+execve replaces the memory image with a new program and does not return on success. The process identifier is unchanged.
+
+27
+00:03:16.000 --> 00:03:23.000
+A child that exits but is not waited for stays a zombie. wait collects the status and frees the slot; the status keeps its low eight bits.
+
+28
+00:03:23.000 --> 00:03:30.000
+GATE CSE 2024 Set 1: the loop with fork, printf and wait prints 14 times. wait changes the order, never the count.
+
+29
+00:03:30.000 --> 00:03:38.000
+exec throws away the program: text, data, heap and stack are replaced, and the caught signal handlers go back to their defaults.
+
+30
+00:03:38.000 --> 00:03:46.000
+What survives: the identifier, the parent identifier, the open descriptors, the working directory, the umask, the limits and the identity.
+
+31
+00:03:46.000 --> 00:03:53.000
+The sharp edge: ignored signals stay ignored, caught signals are reset. That asymmetry is a favourite question.
+
+32
+00:03:53.000 --> 00:04:00.000
+And the descriptor table survives, which is how a redirection set up before exec still works after it. That is the next scene.
+
+33
+00:04:00.000 --> 00:04:08.000
+Two levels: the descriptor table belongs to the process, the open file description belongs to the kernel and holds the offset.
+
+34
+00:04:08.000 --> 00:04:16.000
+fork copies the table but not the descriptions. Both processes read through the same description, so the offsets go 4 then 8.
+
+35
+00:04:16.000 --> 00:04:23.000
+Two separate open calls make two descriptions, and then each has its own offset from zero. Same file, different question.
+
+36
+00:04:23.000 --> 00:04:30.000
+exec keeps every descriptor unless it was marked close-on-exec, and dup2 is how a shell makes descriptor 1 point at a file.
+
+37
+00:04:30.000 --> 00:04:38.000
+Run the 2024 program as a model: three iterations, populations of 2, 4 and 8, every one printing once, for 14 executions in 8 processes.
+
+38
+00:04:38.000 --> 00:04:45.000
+Four traps: printf is not a system call, the trap instruction is not privileged, wait changes order not count, and a shared description shares its offset.
+
+39
+00:04:45.000 --> 00:04:53.000
+The procedure for any question here: name the call, name its mode, then ask what the call changes and what it leaves alone.
+
+40
+00:04:53.000 --> 00:05:00.000
+One boundary, four calls and two tables explain the whole topic. Everything else on this page is a consequence.
+

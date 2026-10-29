@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Calls: the User–Kernel Boundary — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">System Calls and the Kernel Boundary</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../processes-threads-and-ipc/index.html">Previous: Processes, threads and IPC</a>
+      <a href="../synchronisation-and-deadlock/index.html">Next: Synchronisation and deadlock</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> System calls — the boundary between user mode and kernel mode, the trap that crosses it, and the four calls (<code>fork</code>, <code>execve</code>, <code>exit</code>, <code>wait4</code>) that run a program. This is the item <em>"System calls"</em>, the first phrase of Section 8 of the official GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a call, say whether it crosses the privilege boundary and what it changes when it does. Follow one <code>read</code> from the call number in a register to the handler the kernel selects and back to the return value. Decide which of a list of events guarantees a transition to kernel mode. Count the system calls a buffered print run actually makes, and count the copies of an unflushed buffer that <code>fork</code> leaves behind. Sort the attributes <code>execve</code> preserves from the ones it replaces. Read a descriptor table and an open file description as two different objects, and answer a shared-offset question exactly.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one boundary plus two tables</em>. The boundary is the mode bit and the trap instruction; the first table is the kernel's system-call table, indexed by a number; the second is the process's descriptor table, whose entries point at open file descriptions the kernel owns. Almost every exam question here is a question about which of those three things a call touches.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 8 of the official GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: <em>"Operating System: System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em> "System calls" is the first named item of that sentence.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The repo already teaches processes, threads and IPC, and that lesson counts processes created by <code>fork</code>. It does not define the mode bit, the trap mechanism, <code>execve</code>, the exit status or the descriptor table, which is why this is a separate page rather than a section inside that one.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> A topic-indexed archive of past papers lists three GATE CSE questions in this area that this page uses — 2011 Q6, 2023 Q13 and 2024 Set 1 Q47 — and many more on <code>fork</code> counting alone. That is somebody's tagging of somebody's collection, not official weightage, and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means the topic is inside the boundary, not that a question is guaranteed. Every count on this page was produced by the page's own model rather than copied from a key, and the two previous-year numbers (14 prints, 31 children) are recomputed here from the question text.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>What a process is.</strong> A program in execution with its own address space and a kernel record. Built in <a href="../processes-threads-and-ipc/index.html">Processes, threads and IPC</a>; that lesson also owns the five process states and the <code>fork</code> return values, which this page uses without re-deriving.</li>
+            <li><strong>Counting processes after fork.</strong> The <code>2<sup>n</sup></code> rule and the <code>2<sup>n</sup> − 1</code> children rule are taught there. Here they are only a subroutine: scene 10 adds <code>wait</code> to the same program.</li>
+            <li><strong>Stack frames and the program counter.</strong> A call pushes a return address; a trap saves the program counter and status word. Built in <a href="../functions-scope-and-preprocessor/index.html">Functions, scope and lifetime</a>.</li>
+            <li><strong>stdio and the C library.</strong> That <code>printf</code> is a library function and <code>write</code> is a call into the kernel. Built in <a href="../c-fundamentals/index.html">C fundamentals</a>; the buffering rules are derived here.</li>
+            <li><strong>Arrays, pointers and descriptors as small integers.</strong> A descriptor is an index into a per-process table. Built in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">No knowledge of any particular kernel source is assumed. Where a fact is Linux-specific (the call numbers, the <code>syscall</code> instruction, the close-on-exec flag) it is labelled as Linux-specific every time it appears.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Two bands.</strong> A call that stays in user mode, and a trap that crosses the dashed privilege boundary.</li>
+            <li><strong>Registers.</strong> The call number, three arguments, the trap instruction, the kernel table with entry 0 highlighted, and the return value.</li>
+            <li><strong>Three doors.</strong> Trap, fault and interrupt side by side, then the four options of 2023 Q13 marked.</li>
+            <li><strong>Two switches.</strong> Four steps against eight, with the first four shared — containment, not timing.</li>
+            <li><strong>The buffer.</strong> <code>printf</code> to buffer to <code>write</code>, then two columns of system-call counts.</li>
+            <li><strong>Doubling.</strong> One buffer becoming eight copies across three forks.</li>
+            <li><strong>Two lanes.</strong> Parent and child, with <code>execve</code>, <code>exit</code> and a zombie.</li>
+            <li><strong>Two lists.</strong> What <code>execve</code> replaces against what it preserves, and the signal asymmetry.</li>
+            <li><strong>Two tables.</strong> Descriptor table and open file description, with the offsets going 4 then 8.</li>
+            <li><strong>The count.</strong> The 2024 loop as a table of populations, then the four traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A system call is a mode switch, not a process switch: the same process keeps running, in kernel code, on its own behalf.</li>
+            <li>The trap instruction itself is not privileged. That is the design, and it is why a user program can enter the kernel at all.</li>
+            <li><code>printf</code> is a library function with a buffer the process owns; only <code>write</code> crosses the boundary. Buffering is why five lines can cost one system call, and why <code>fork</code> can duplicate output.</li>
+            <li><code>execve</code> replaces the program and keeps the process: the identifier, the descriptors and the identity survive; the memory image and the caught signal handlers do not.</li>
+            <li><code>fork</code> copies the descriptor table but shares the open file description, so the offset is shared. Two separate <code>open</code> calls share nothing.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 55–70 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. No kernel was executed in the build environment, so no output on this page is quoted from a running system; every behavioural claim is either the documented behaviour of a call (cited on the Sources tab) or the output of the page's own model. The call numbers are x86-64 Linux numbers and are labelled as such — they are not universal constants, and a 32-bit x86 machine numbers <code>fork</code> as 2. The buffer size 4096 is the value used for the arithmetic, not a standard constant. No question is labelled an official previous-year question without its year and paper.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: the building with two floors</h3>
+              <p>A bank has a public floor and a vault floor. On the public floor you may walk anywhere, fill in any form, and use the pens. You may not open the vault. If you need something from the vault, you do not break in — you fill in a numbered slip at a window, hand it over, and a clerk goes down for you. You get the result back at the same window, in the same place you were standing.</p>
+              <p class="small muted" style="margin-bottom:0">That is the whole design. The numbered slip is the system-call number, the window is the trap instruction, the clerk is the handler, and the fact that you are still standing at the same window afterwards is why a system call is a mode switch and not a process switch. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> — an analogy for the mechanism, not a description of any particular hardware.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the two modes</h3>
+              <p class="small">The processor runs with a privilege level held in its status register. Two levels matter:</p>
+              <ul class="small">
+                <li><strong>User mode.</strong> Privileged instructions are refused. I/O instructions, loading the page-table base, disabling interrupts, halting the CPU and writing the mode bit are all unavailable.</li>
+                <li><strong>Kernel mode.</strong> Every instruction is available.</li>
+              </ul>
+              <p class="small">The <strong>mode bit</strong> is the field that holds the level. Textbooks write it as 1 for user and 0 for kernel; some processors use the opposite polarity, so the rule is what matters, not the digit. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> for the polarity note.</p>
+              <p class="small" style="margin-bottom:0">Changing the mode is itself a privileged operation. If a user program could write the mode bit, the two-mode design would protect nothing.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: the trap</h3>
+              <p class="small">A <strong>trap</strong> is an instruction that deliberately raises an exception. Executing it makes the hardware:</p>
+              <ol class="step-list small">
+                <li>save the program counter and status word, <em>because the kernel must be able to return to the next instruction</em>;</li>
+                <li>switch to kernel mode, <em>because the handler needs privilege</em>;</li>
+                <li>jump to a handler chosen from a fixed vector, <em>so that the entry point is not chosen by the user program</em>.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">The trap instruction is <strong>not privileged</strong>. That is not an oversight: if entering the kernel required privilege, no unprivileged program could ever ask for anything. The checks happen inside, on the call number and the arguments. <span class="claim-chip claim-chip--verified">Verified fact</span> — the mechanism, and the range-check on the number with <code>ENOSYS</code> for an unimplemented one, are documented in <code>syscall(2)</code>.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>One boundary, three doors</h3>
+              <p class="small">All entries to the kernel end in the same place, but they are raised by different things:</p>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Trap (system call)</strong> — raised by the program on purpose, synchronous. <code>read</code>, <code>write</code>, <code>fork</code>.</li>
+                <li><strong>Fault (exception)</strong> — raised by the instruction that is running, accidentally, synchronous. A page fault, a divide by zero, an illegal instruction.</li>
+                <li><strong>Interrupt</strong> — raised by a device or the timer, asynchronously. A disk completion, a timer tick.</li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition">
+              <h3>The four calls, as one protocol</h3>
+              <p class="small">A shell running <code>ls</code> uses four calls in sequence. Each answers a different question:</p>
+              <ol class="step-list small">
+                <li><code>fork</code> — <em>make a second process.</em> Returns the child's identifier in the parent and 0 in the child.</li>
+                <li><code>execve</code> — <em>put this program into the process.</em> Replaces the memory image; does not return on success.</li>
+                <li><code>exit</code> — <em>end this process and keep a status.</em> Never returns.</li>
+                <li><code>wait4</code> — <em>block until a child ends, then collect its status.</em> Returns the child's identifier.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The return values and the no-return-on-success rule are from <code>fork(2)</code> and <code>execve(2)</code>.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Descriptor and open file description</h3>
+              <p class="small">Two objects, and keeping them apart answers most of the questions:</p>
+              <ul class="small">
+                <li><strong>The descriptor table</strong> belongs to the process. A descriptor is a small integer indexing it. On startup, 0, 1 and 2 are the standard input, output and error.</li>
+                <li><strong>The open file description</strong> belongs to the kernel and holds the <em>file offset</em>, the status flags and the access mode.</li>
+              </ul>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>fork</code> gives the child copies of the descriptor table, and <em>"each file descriptor in the child refers to the same open file description … they share open file status flags, file offset, and signal-driven I/O attributes"</em> (<code>fork(2)</code>). A descriptor created by <code>open</code> stays open across <code>execve</code> unless the close-on-exec flag is set (<code>open(2)</code>).</p>
+              <p class="small" style="margin-bottom:0">So <code>fork</code> shares the offset and <code>execve</code> keeps the descriptor — two independent facts that are easy to merge into one wrong rule.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Where the buffer sits</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>stderr</code> is unbuffered; <code>stdout</code> is line buffered when it points at a terminal, and partial lines do not appear until <code>fflush</code>, <code>exit</code>, or a newline is printed (<code>stdout(3)</code>). When it points at a file or a pipe, it is fully buffered instead.</p>
+              <p class="small">Two consequences that this lesson uses:</p>
+              <ul class="small" style="margin-bottom:0">
+                <li>The number of <code>write</code> calls is not the number of <code>printf</code> calls. It is a function of the buffering mode, the byte count and the buffer size.</li>
+                <li>An unflushed buffer is part of the process's memory, so <code>fork</code> copies it. Each copy is flushed by its own process at exit.</li>
+              </ul>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>What "kept across execve" means</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>execve(2)</code> states that <em>"all process attributes are preserved during an execve(), except"</em> a list: caught signal dispositions are reset to default, the alternate signal stack is not preserved, memory mappings are not preserved, and so on.</p>
+              <p class="small" style="margin-bottom:0">Read the sentence in that direction — <em>preserved except</em> — and the exam question answers itself. The exceptions are the program's own furniture; what survives is the process's identity and its open files.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The processor runs in two modes. A single bit in the status register decides which one, and only the kernel can change it.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A system call is not a function call</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The processor has two modes, and one bit decides which. In user mode privileged instructions are refused; in kernel mode they are allowed.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked examples, each computed rather than recalled</h3>
+          <p class="small" style="margin-bottom:0">Every number below is printed by the page's model. The first two are the previous-year counts, and the last two are the two-table questions that a paper can ask without any code at all.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — the 2024 loop, counted two ways</h3>
+          <p class="small"><code>int x = 3; while (x &gt; 0) { fork(); printf("hello"); wait(NULL); x--; }</code></p>
+          <div class="formula small">
+            route 1: population of each iteration = 2, 4, 8, each printing once
+            <div class="gloss">2 + 4 + 8 = 14 executions of printf, in 8 processes.</div>
+          </div>
+          <div class="formula small">
+            route 2: sum over processes of the iterations each still had to run
+            <div class="gloss">3 (parent) + 3 + 2 + 2 + 1 + 1 + 1 + 1 = 14. The two routes agree, and so does the closed form 2<sup>k+1</sup> − 2.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Why <code>wait</code> does not change it.</strong> <code>wait</code> stops a parent from running ahead of its own child; it does not stop any process from printing. The order changes, the count does not. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — how many system calls did that print make?</h3>
+          <p class="small">Two runs, same bytes, different destination. Buffer size used here: 4096 bytes.</p>
+          <ul class="small">
+            <li>Five lines of six bytes (30 bytes): <strong>5</strong> writes at a terminal, <strong>1</strong> redirected.</li>
+            <li>Two thousand lines of ten bytes (20000 bytes): <strong>2000</strong> writes at a terminal, <strong>5</strong> redirected.</li>
+          </ul>
+          <div class="formula small">
+            redirected writes = ceil(total bytes / buffer size)
+            <div class="gloss">ceil(20000 / 4096) = 5. The terminal column is one write per newline, because a line-buffered stream flushes on each one.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>The factor is 400 in calls and 1 in bytes.</strong> That ratio is the entire reason buffered output exists. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> from the buffering rules, with the buffer size as a stated parameter.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — the shared offset, byte by byte</h3>
+          <p class="small"><code>fd = open("log.txt", O_RDONLY);</code> then <code>fork()</code>, then each process reads four bytes.</p>
+          <ol class="step-list small">
+            <li>The parent reads: the description's offset is 0, so it gets bytes 0–3, and the offset becomes 4.</li>
+            <li>The child reads through <em>the same description</em>: the offset is 4, so it gets bytes 4–7, and the offset becomes 8.</li>
+            <li>Neither process restarted at byte 0, and neither overwrote the other's progress.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>The counterexample that stops over-application:</strong> if the child instead calls <code>open</code> again on the same file, it gets a <em>second</em> description with its own offset of 0, and then it does read bytes 0–3. Sharing comes from <code>fork</code>, <code>dup</code> or passing a descriptor — not from naming the same file twice. <span class="claim-chip claim-chip--verified">Verified fact</span> for the sharing rule (<code>fork(2)</code>, <code>open(2)</code>); the byte arithmetic is a derivation from it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — what a status of 258 means</h3>
+          <p class="small">A child calls <code>exit(258)</code>. The parent's <code>wait</code> fills an integer, and <code>WEXITSTATUS</code> extracts the low eight bits.</p>
+          <div class="formula small">
+            258 mod 256 = 2
+            <div class="gloss">The parent sees 2. A child calling <code>exit(256)</code> is indistinguishable from <code>exit(0)</code>, and <code>exit(512)</code> is indistinguishable from both.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> <code>WEXITSTATUS</code> <em>"consists of the least significant 8 bits of the status argument"</em> (<code>wait(2)</code>, and the same sentence in POSIX). <strong>Consequence:</strong> a program that wants to report a wide error code through its exit status cannot — it must use the low byte, or report through a file or a pipe.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries, and the condition each one violates</h3>
+          <p class="small" style="margin-bottom:0">Each card names the tempting general rule, the case where it fails, and the condition that has to hold for the rule to be safe.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: read returning 0</h3>
+          <p class="small">A return of 0 from <code>read</code> looks like failure, because every other error is negative or −1.</p>
+          <p class="small"><strong>It is not an error.</strong> It means end of file: zero bytes were available. The error convention is different — the kernel returns a negative code in the window −4095 to −1, and the C wrapper converts that to −1 with <code>errno</code> set.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition:</strong> "negative means error" holds for the raw kernel return; the wrapper's −1 is a separate convention on top.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: the same file twice</h3>
+          <p class="small">"Both processes are reading the same file, so they share an offset" is false when the two descriptors came from two <code>open</code> calls.</p>
+          <p class="small">Sharing is a property of the <strong>open file description</strong>, not of the file. Two opens make two descriptions, and each starts at 0.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition:</strong> a shared offset needs a shared description — which <code>fork</code>, <code>dup</code> and descriptor passing provide, and a second <code>open</code> does not.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: "signals survive exec"</h3>
+          <p class="small">Half true, and the half that is false is the one asked about.</p>
+          <p class="small">A signal set to <code>SIG_IGN</code> stays ignored across <code>execve</code>. A signal with a <em>caught</em> handler is reset to its default disposition, because the handler was code in the old image.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition:</strong> a disposition that needs no code can survive; a disposition that needs code cannot.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: "a newline flushes the buffer"</h3>
+          <p class="small">True at a terminal, false in a pipe or a file. The same program, redirected, keeps the bytes in the buffer.</p>
+          <p class="small">That is exactly why <code>printf("hello"); fork();</code> prints once at a prompt and twice into a file, and why <code>fflush</code> is the portable fix.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition:</strong> newline-flushes requires line buffering, which requires a terminal.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: "wait reduces the number of prints"</h3>
+          <p class="small">It feels as if <code>wait</code> serialises the processes and so prevents some of them from printing.</p>
+          <p class="small">It does not. <code>wait</code> blocks the caller until a child terminates; every process still reaches the <code>printf</code> in its own iteration. The 2024 loop prints 14 times with or without it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition:</strong> <code>wait</code> changes <em>when</em> a parent proceeds, never <em>whether</em> a process prints.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: "the call numbers are constants"</h3>
+          <p class="small">On x86-64 Linux, <code>read</code> is 0, <code>write</code> is 1 and <code>fork</code> is 57. On 32-bit x86, <code>fork</code> is 2.</p>
+          <p class="small">The numbering is a property of the architecture's table, not of the operating system in the abstract.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition:</strong> quote a call number only with its architecture, and never build an argument on the number itself.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five beliefs that produce wrong answers, and the sentence that corrects each</h3>
+          <p class="small" style="margin-bottom:0">Each card states the belief, why it is tempting, a minimal counterexample, and the rule to keep instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"printf is a system call"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it prints, printing needs the screen, and the screen is hardware.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a redirected run of 2000 prints makes 5 system calls, not 2000. If <code>printf</code> were the call, the count could not differ from the print count.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> <code>printf</code> is a library function that formats into a buffer the process owns; <code>write</code> is the system call, and buffering decides how often it happens.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A system call switches the process out"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the words "switch" and "kernel" appear together in both topics.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the same process, with the same page tables and the same identifier, runs the handler. No scheduler decision is needed and none is taken.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> a system call is a <em>mode</em> switch. A <em>process</em> switch contains a mode switch and adds scheduler, register-set and address-space work.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"fork duplicates the output because it duplicates the process"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it sounds like the same statement twice.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the same program with a trailing newline at a terminal prints once. Only the unflushed buffer is duplicated.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> <code>fork</code> copies memory, and the buffer is memory. What was already written to the kernel is not copied; what was still in user space is.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"exec keeps everything because the process is the same"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the identifier really does stay the same, so it feels as though nothing was replaced.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a handler installed with <code>signal</code> before <code>execve</code> is gone afterwards, reset to default. So is the heap.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> the <em>process</em> survives and the <em>program</em> does not. Identity, descriptors and limits belong to the process; the image and the caught handlers belong to the program.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>"The trap instruction must be privileged, or user code could do anything"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it sounds like the safer design, and privilege is the theme of the lesson.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> if the trap instruction were privileged, a user program could never enter the kernel, and no program could ever read a file. The design requires an unprivileged door with checks behind it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule:</strong> entering the kernel is always allowed; what the kernel then does is gated by range-checking the call number and validating the arguments. A privileged instruction executed in user mode raises an exception instead of entering — that is the difference between a mistake and a request.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four question shapes, and the reasoning each one demands</h3>
+          <p class="small" style="margin-bottom:0">This page names no weightage. The shapes below are the ones this topic's previous-year items take, and each is stated as a reasoning task rather than a formula to recall.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — which event crosses the boundary</h3>
+          <p class="small"><strong>The reasoning:</strong> ask whether the processor could complete the operation without the kernel. If it could, the event does not guarantee a transition.</p>
+          <p class="small"><strong>Seen as:</strong> GATE CSE 2023 Q13 — function call, <code>malloc</code>, page fault, system call; answer C and D.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> answering D alone, because "system call" is the obvious one and the page fault looks like an error rather than a door.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — ordering two switch costs</h3>
+          <p class="small"><strong>The reasoning:</strong> containment. List the steps of each switch and show that one list contains the other. Then the ordering follows without any measurement.</p>
+          <p class="small"><strong>Seen as:</strong> GATE CSE 2011 Q6 — <code>T1</code> the mode switch against <code>T2</code> the process switch; answer <code>T1 &lt; T2</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> reasoning from imagined nanosecond figures, or assuming entering the kernel is the expensive part.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — count executions in a fork tree</h3>
+          <p class="small"><strong>The reasoning:</strong> draw the tree and ask how many processes reach each print. With <code>wait</code> present, the tree is serialised but the reachable set is unchanged.</p>
+          <p class="small"><strong>Seen as:</strong> GATE CSE 2012 Q8 (three forks, 7 children), GATE CSE 2019 (five forks, 31 children), GATE CSE 2024 Set 1 Q47 (14 prints).</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> answering the process count when the question asks for print executions, or forgetting that the original parent is one of the printers.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — what a call changes, and what it leaves alone</h3>
+          <p class="small"><strong>The reasoning:</strong> name the call, name its mode, then sort the attributes into process properties and program properties.</p>
+          <p class="small"><strong>Seen as:</strong> statement-style MSQs on <code>exec</code>, descriptor inheritance and signal dispositions. This page's practice set contains two such original items, labelled as original.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> treating the process and the program as one object, so that "the pid is unchanged" is taken to imply "everything is unchanged".</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Two previous-year items used on this page, with their papers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE CSE 2023 Q13</strong> (MSQ, 1 mark) — quoted and answered in scene 3 and practice question 1. The answer key recorded by the archive is C and D.</li>
+            <li><strong>GATE CSE 2011 Q6</strong> (MCQ, 1 mark) — the <code>T1</code> against <code>T2</code> ordering, quoted in scene 4 and practice question 2.</li>
+            <li><strong>GATE CSE 2024 Set 1 Q47</strong> (NAT) — the <code>fork</code>/<code>printf</code>/<code>wait</code> loop, recomputed in scene 10, example 1 and practice question 3.</li>
+            <li><strong>GATE CSE 2012 Q8</strong> (MCQ) — three sequential forks; used only as a check on the model, in practice question 4.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 to 4 are previous-year items with their year and paper, and each answer was recomputed from the question text rather than copied from a key. Questions 5 to 8 are original practice questions written for this page and labelled as such. Nothing here is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2023 Q13</span></div>
+          <div class="q-body">
+            <p>Which one or more of the following options guarantee that a computer system will transition from user mode to kernel mode?</p>
+            <ol class="choices">
+              <li>Function call</li>
+              <li>malloc call</li>
+              <li>Page fault</li>
+              <li>System call</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C and D — page fault and system call</p>
+            <p><strong>D is immediate.</strong> A system call executes a trap instruction; the hardware switches to kernel mode and enters the handler.</p>
+            <p><strong>C is a door too.</strong> A page fault is an exception raised by the running instruction. The fault handler that brings the page in must run with privilege, so the fault vectors into the kernel.</p>
+            <p><strong>Why A and B fail.</strong> A function call is a jump inside user mode. <code>malloc</code> may extend the heap with a <code>brk</code> or <code>mmap</code> call, but when the request is served from memory the process already owns, no system call happens — so <code>malloc</code> guarantees nothing.</p>
+            <p><strong>The word doing the work</strong> is <em>guarantee</em>. "Sometimes" is not an answer in an MSQ of this form.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2011 Q6</span></div>
+          <div class="q-body">
+            <p>Let the time taken to switch from user mode to kernel mode of execution be <code>T1</code>, while the time taken to switch between two user processes be <code>T2</code>. Which of the following is true?</p>
+            <ol class="choices">
+              <li><code>T1 &lt; T2</code></li>
+              <li><code>T1 &gt; T2</code></li>
+              <li><code>T1 = T2</code></li>
+              <li>Nothing can be said about the relation between <code>T1</code> and <code>T2</code></li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 1 — <code>T1 &lt; T2</code></p>
+            <p><strong>Why, without any timing figure.</strong> A mode switch saves the program counter and status word, flips the mode, and enters a handler. A process switch performs all of that and then runs the scheduler, saves the whole register set, loads a new page-table base and disturbs the translation cache. Every step of the first list appears in the second, and the second has more — so it cannot be cheaper.</p>
+            <p><strong>Why option 4 is wrong.</strong> "Nothing can be said" would be right if the two switches were unrelated. They are not: one contains the other, and that containment is what settles the inequality.</p>
+            <p><strong>Trap.</strong> Option 2 comes from imagining that entering the kernel is the expensive part. Entering is cheap; changing process is not.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2024 Set 1 Q47</span></div>
+          <div class="q-body">
+            <p>Consider the following code snippet using the <code>fork()</code> and <code>wait()</code> system calls. Assume that the code compiles and runs correctly, and that the system calls run successfully without any errors.</p>
+            <p><code>int x = 3;<br>while (x &gt; 0) { fork(); printf("hello"); wait(NULL); x--; }</code></p>
+            <p>The total number of times the <code>printf</code> statement is executed is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 14</p>
+            <p><strong>The population doubles once per iteration.</strong> Iteration 1: 1 process forks, 2 processes exist, both print. Iteration 2: those 2 fork, 4 print. Iteration 3: those 4 fork, 8 print. Total 2 + 4 + 8 = 14, in 8 processes.</p>
+            <p><strong>The second route agrees.</strong> Each process prints once for every iteration it still has left: the parent and its first child print 3 times each, the two processes born in iteration 2 print twice each, and the four born in iteration 3 print once each — 3 + 3 + 4 + 4 = 14.</p>
+            <p><strong>Why <code>wait</code> does not change it.</strong> <code>wait(NULL)</code> blocks the parent until one child terminates, which serialises the tree. Serialising does not remove any process from the tree, so no print disappears.</p>
+            <p><strong>Trap.</strong> 8 is the number of processes, not the number of prints. The question names <code>printf</code>.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2012 Q8</span></div>
+          <div class="q-body">
+            <p>A process executes the code</p>
+            <p><code>fork();<br>fork();<br>fork();</code></p>
+            <p>The total number of child processes created is</p>
+            <ol class="choices">
+              <li>3</li>
+              <li>4</li>
+              <li>7</li>
+              <li>8</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 3 — 7</p>
+            <p><strong>Each fork doubles the number of processes:</strong> 1 → 2 → 4 → 8. Of those eight, one is the original parent, so seven are children.</p>
+            <p><strong>Why this question is here.</strong> Not for the formula — the processes lesson owns it — but because it is the same tree that scene 10 uses with a <code>printf</code> and a <code>wait</code> added. The children count and the print count are different questions about one tree.</p>
+            <p><strong>Trap.</strong> Option 4 is the process count. The question asks for children.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A program writes 3000 lines of 20 bytes each with <code>printf</code> and then exits normally. Its standard output is redirected to a file. Assume the stream is fully buffered with a buffer of 4096 bytes and that every line is flushed only when the buffer fills or at exit.</p>
+            <p>The number of <code>write</code> system calls made is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 15</p>
+            <p><strong>The arithmetic.</strong> 3000 × 20 = 60000 bytes. ceil(60000 / 4096) = 15, because 14 full buffers carry 57344 bytes and the remaining 2656 bytes need one more write at exit.</p>
+            <p><strong>Why not 3000.</strong> Redirected output is fully buffered, so a newline flushes nothing. The 3000 is the number of <code>printf</code> calls, not the number of system calls.</p>
+            <p><strong>Why not 14.</strong> 14 buffers hold only 57344 of the 60000 bytes; the tail is flushed separately at exit. Rounding down loses that final write.</p>
+            <p><strong>Assumption stated in the question:</strong> the buffer size. Change it and the answer changes — which is why the question fixes it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A process has descriptor 4 open on a file, with the close-on-exec flag clear. It also has descriptor 5 open with the close-on-exec flag set. It then calls <code>execve</code> successfully. Which of the following are true of the new program?</p>
+            <ol class="choices">
+              <li>Descriptor 4 is still open</li>
+              <li>Descriptor 5 is still open</li>
+              <li>The file offset of descriptor 4 is preserved</li>
+              <li>Signal handlers the old program had installed with a catch function are still installed</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and C</p>
+            <p><strong>A is true.</strong> A descriptor survives <code>execve</code> unless its close-on-exec flag is set (<code>open(2)</code>).</p>
+            <p><strong>B is false.</strong> That flag exists precisely to close the descriptor at <code>execve</code>.</p>
+            <p><strong>C is true, and it is the subtle one.</strong> The descriptor is unchanged, so it still refers to the same open file description, and the offset lives in the description. Nothing about the offset is reset.</p>
+            <p><strong>D is false.</strong> <code>execve(2)</code> resets the dispositions of caught signals to the default, because the handler was code in the replaced image. Ignored signals, by contrast, stay ignored.</p>
+            <p><strong>Distinction to keep:</strong> "kept across exec" is a statement about descriptors and process attributes, not about the program's own state.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A process opens a file, reads 10 bytes, then calls <code>fork()</code>. The parent then reads 5 bytes and the child reads 5 bytes, in that order.</p>
+            <p>The byte offset of the shared open file description after both reads is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 20</p>
+            <p><strong>Three reads, one offset.</strong> The first read moves the offset to 10. The parent's read moves it to 15, and the child's read moves it to 20 — because both descriptors refer to the same open file description, which is where the offset lives.</p>
+            <p><strong>Why not 10.</strong> That is the answer if <code>fork</code> gave the child an independent offset. It does not: <code>fork(2)</code> says the descriptors in the child refer to the same open file description.</p>
+            <p><strong>Why not 15.</strong> That counts only one of the two reads made after the fork.</p>
+            <p><strong>Contrast:</strong> had the child called <code>open</code> again instead of inheriting, its own description would sit at 5 after its read, and the parent's would sit at 15 — two descriptions, two offsets.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A program does <code>printf("hi")</code> — no newline, no flush — and then calls <code>fork()</code> once. Both processes then terminate normally by returning from <code>main</code>. The program is run twice: once at a terminal, once with standard output redirected to a file.</p>
+            <p>How many times does the text <code>hi</code> appear in the output in each run?</p>
+            <ol class="choices">
+              <li>Terminal: 1, file: 1</li>
+              <li>Terminal: 1, file: 2</li>
+              <li>Terminal: 2, file: 2</li>
+              <li>Terminal: 2, file: 1</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: option 3 — terminal 2, file 2</p>
+            <p><strong>Nothing was flushed, in either run.</strong> The line-buffering rule flushes <em>on a newline</em>, and there is no newline. So at the terminal the two bytes are still in the buffer when <code>fork</code> runs, exactly as they are in the redirected run.</p>
+            <p><strong>Two copies, two flushes.</strong> The child gets its own copy of the buffer, and each process flushes its own copy at exit. The text appears twice in both runs.</p>
+            <p><strong>Now change one character.</strong> Write <code>printf("hi\n")</code> instead: at a terminal the newline flushes before the fork, so the terminal run shows it once, while the redirected run still shows it twice. The pair becomes (1, 2) — option 2 — and that is the version most previous-year questions describe.</p>
+            <p><strong>The rule to carry.</strong> The buffering <em>mode</em> decides whether a newline flushes. Without a newline, neither mode flushes, and only <code>fflush</code> changes the answer.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — one screen</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the four calls, the two tables, the arithmetic and the traps. If a fact is not here, it is a consequence of something that is.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Mode bit</strong> — the privilege level in the status register. User mode refuses privileged instructions; kernel mode allows all.</li>
+            <li><strong>Trap</strong> — an instruction that deliberately raises an exception, switching to kernel mode at a fixed vector. The instruction is not privileged.</li>
+            <li><strong>System call</strong> — a request to the kernel made through a trap, identified by a number in a register.</li>
+            <li><strong>Mode switch</strong> — save PC and status, flip mode, enter handler, return. Same process.</li>
+            <li><strong>Process switch</strong> — a mode switch plus scheduler, full context, new address space.</li>
+            <li><strong>Open file description</strong> — the kernel object holding the offset and status flags. Descriptors point at it.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four calls</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><code>fork</code> — makes a process. Returns the child's pid in the parent, 0 in the child, −1 on failure.</li>
+            <li><code>execve</code> — replaces the program image. Never returns on success; returns −1 on failure.</li>
+            <li><code>exit</code> — ends the process, keeps a status. Never returns.</li>
+            <li><code>wait4</code> — blocks until a child changes state, then returns its pid and status.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Numbers worth carrying</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>x86-64 Linux: <code>read</code> 0, <code>write</code> 1, <code>open</code> 2, <code>close</code> 3, <code>fork</code> 57, <code>execve</code> 59, <code>exit</code> 60, <code>wait4</code> 61.</li>
+            <li>Error window from the raw kernel: −1 to −4095; the C wrapper reports −1 and sets <code>errno</code>.</li>
+            <li>Exit status reported = the exit argument mod 256, so 256 reports 0.</li>
+            <li>n forks: 2<sup>n</sup> processes, 2<sup>n</sup> − 1 children.</li>
+            <li>k iterations of the 2024 loop: 2<sup>k+1</sup> − 2 prints, 2<sup>k</sup> processes.</li>
+            <li>Redirected writes = ceil(total bytes / buffer size).</li>
+            <li>Unflushed buffer across n forks: 2<sup>n</sup> copies written if buffered, 1 if line buffered.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The traps, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><code>printf</code> is a library call; <code>write</code> is the system call.</li>
+            <li>The trap instruction is not privileged; the operation behind it is.</li>
+            <li>A system call is a mode switch, not a process switch.</li>
+            <li><code>wait</code> changes order, never the number of prints.</li>
+            <li><code>fork</code> shares the open file description; a second <code>open</code> does not.</li>
+            <li><code>exec</code> keeps the pid, the descriptors and ignored signals; it resets caught handlers.</li>
+            <li>A newline flushes only a line-buffered stream.</li>
+            <li><code>read</code> returning 0 is end of file, not an error.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The procedure</h3>
+          <p class="small" style="margin-bottom:0">Name the call. Name its mode — does it cross the boundary, and does it return? Then ask what it changes and what it leaves alone: the image, the descriptor table, the open file description, or the process itself. Those four objects answer every question on this page, and the arithmetic follows from whichever of them the question names.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read, and what it supports</h3>
+          <p class="small" style="margin-bottom:0">Official documents first, then the manual pages that define the behaviour, then the archives used for previous-year items. Community sources are marked as observations, never as authority.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> (<code>CS_GATE2027_Syllabus.pdf</code>) — the sentence of Section 8 that puts "System calls" inside the boundary. Read on 2026-10-29 from the 2027 syllabus document.</li>
+            <li><strong>The Linux kernel's <code>syscall_64.tbl</code></strong> — the 64-bit call numbers used in scene 2 and the revision sheet.</li>
+            <li><strong>POSIX <code>wait</code> specification</strong> — the low-order-eight-bits rule for <code>WEXITSTATUS</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Manual pages (behaviour)</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong><code>syscall(2)</code></strong> — the call-number convention, the per-architecture calling table, the error window and <code>ENOSYS</code>.</li>
+            <li><strong><code>fork(2)</code></strong> — the return values, and the sentence that the child's descriptors refer to the same open file description and share the offset.</li>
+            <li><strong><code>execve(2)</code></strong> — "all process attributes are preserved … except": caught signals reset, alternate stack and mappings not preserved.</li>
+            <li><strong><code>wait(2)</code></strong> — zombies, reaping, and the eight-bit exit status.</li>
+            <li><strong><code>open(2)</code></strong> — descriptors stay open across <code>execve</code> by default; <code>O_CLOEXEC</code> changes that; duplicated descriptors share a description.</li>
+            <li><strong><code>stdout(3)</code></strong> — stderr unbuffered; stdout line buffered at a terminal; partial lines wait for <code>fflush</code> or <code>exit</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year items</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE CSE 2023 Q13</strong> — question text and the recorded key C and D, from a GATE Overflow thread.</li>
+            <li><strong>GATE CSE 2011 Q6</strong> — the <code>T1</code>/<code>T2</code> wording, from a GATE Overflow thread and an ExamSIDE listing.</li>
+            <li><strong>GATE CSE 2024 Set 1 Q47</strong> — the <code>fork</code>/<code>printf</code>/<code>wait</code> loop and the answer 14, from the GATE Overflow thread.</li>
+            <li><strong>GATE CSE 2012 Q8</strong> — three sequential forks, 7 children, from the GATE Overflow thread.</li>
+            <li><strong>GATE CSE 2019</strong> — <code>for (i = 0; i &lt; 10; i++) if (i % 2 == 0) fork();</code> giving 31 children, from an ExamSIDE listing; used only as a model check.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community discussion, used as observation</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE Overflow comment threads</strong> on 2023 Q13 and 2024 Set 1 Q47 — used to see which wrong options candidates actually choose, which is where the "why the alternatives appear" notes come from. Not used as evidence for any answer.</li>
+            <li><strong>University lecture notes on OS architecture</strong> (an operating-systems course deck) — used only to confirm the trap-vector description and the mode-bit convention, both of which the manual pages also cover.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No kernel was executed in the build environment, so no output on this page is quoted from a running system; every behavioural claim is either a documented behaviour of a call (cited above) or the output of this page's own model, which is printed on the canvas and listed in the Model checks panel. No textbook edition was consulted, so no page or section number is quoted. The buffer size 4096 is the parameter used for the arithmetic, not a value read from any implementation. The mode-bit polarity is given as a textbook convention, with the caveat that some processors invert it. No search was made for GATE 2027 sample papers, because none exists at the time of writing. Finally, the 2019 item is used only to check the model's fork arithmetic; it is not presented as a question this lesson teaches.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
