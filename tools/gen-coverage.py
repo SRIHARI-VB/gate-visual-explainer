@@ -54,7 +54,7 @@ topics.append(topic(
     status="PUBLISHED",
     slug="propositional-logic",
     path="topics/propositional-logic/index.html",
-    execution="published 2026-10-25",
+    execution="published 2026-10-25; reviewed 2026-10-29: the closing caption lifted clear of the legend band; geometry audit clean",
     microtopics=[
         "declarative vs open vs command sentences",
         "negation, conjunction, disjunction (inclusive)",
@@ -117,7 +117,7 @@ topics.append(topic(
     status="PUBLISHED",
     slug="sets-and-set-operations",
     path="topics/sets-and-set-operations/index.html",
-    execution="published 2026-10-26",
+    execution="published 2026-10-26; reviewed 2026-10-29: the empty-set symbol lifted off its caption and the cardinality chip moved out from under the heading; geometry audit clean",
     microtopics=[
         "membership as the primitive relation",
         "roster form vs set-builder form",
@@ -999,7 +999,7 @@ topics.append(topic(
     status="PUBLISHED",
     slug="c-fundamentals",
     path="topics/c-fundamentals/index.html",
-    execution="published 2026-10-26"))
+    execution="published 2026-10-26; reviewed 2026-10-29: moved onto the shared painter kit so the geometry audit can run, then the six overlaps it exposed were fixed; captions regenerated"))
 
 topics.append(topic(
     "Programming and Data Structures", "Programming in C",
@@ -2657,6 +2657,47 @@ topics.append(topic(
         "tiling: area must divide, then the chessboard colours must tie",
         "8x8 minus two opposite corners is 30 and 32; minus two adjacent corners is 31 and 31",
         "both tiling tests prove impossibility only; a construction is needed for possibility"]))
+
+topics.append(topic(
+    "General Aptitude", "Aptitude", "Tenses, adjectives and conjunctions",
+    [
+    "tenses: tense against aspect, the twelve forms, the perfect as a relation to a reference point",
+    "tenses inside subordinate clauses: the future marker in the main clause, the inverted second conditional",
+    "adjectives: comparative against superlative by the count of things, double marking, absolute adjectives",
+    "adjective order as a rank sequence, and the -ed / -ing participle pair",
+    "conjunctions: coordinating against subordinating by the fronting test, correlative pairs, one relation one marker",
+    "the polarity a conjunction imposes on the clause it introduces",
+    "verb-noun agreement inside neither ... nor against as well as, which reverses the head-noun rule",
+],
+    prereq=["verbal aptitude: articles, prepositions, and the head-noun agreement rule"],
+    related=["verbal aptitude", "analytical aptitude", "quantitative aptitude", "propositional logic (the conditional)", "narrative sequencing (order and reference)"],
+    importance="medium",
+    evidence="Tenses, adjectives and conjunctions are named individually in Section 1 of the GATE 2027 General Aptitude syllabus (GA_GATE2027_Syllabus.pdf, IIT Madras), and General Aptitude carries 15 of 100 marks in ten questions in every paper. Five previous-year items were read with their options and published keys: GATE CSE 2017 Set 1 GA Q1 (tense, key wished), GATE CSE 2013 GA Q59 (conditional, key would fly), GATE CSE 2012 GA Q59 (incorrect sentence, key the very less sentence), GATE CSE 2012 GA Q57 (concession, key setbacks) and GATE CSE 2020 GA Q2 (contrast polarity, key extremely poor). No marks distribution is claimed and no forecast is made.",
+    difficulty="easy",
+    status="PUBLISHED",
+    slug="tense-adjectives-and-conjunctions",
+    path="topics/tense-adjectives-and-conjunctions/index.html",
+    execution="published 2026-10-29",
+    microtopics=[
+        "aspect is two independent bits, perfect and continuous, so four aspects and not three",
+        "the twelve forms of a regular and an irregular verb are all distinct, so the form names both dials",
+        "past perfect moves an event back from the reference point, so after plus simple past takes simple past again",
+        "since plus a point and for plus a span both force the present perfect; in 2019 and last year force the simple past",
+        "no will inside an if- or when-clause: the subordinate clause is future by position",
+        "were plus inversion with no if is a second conditional, whose result clause takes would plus the base verb",
+        "of the two takes the comparative and of the three the superlative, and the count is printed",
+        "a comparative cannot take more, most or very, only much",
+        "eight absolute adjectives reject all three degree modifiers while two gradable controls accept all three",
+        "complete, perfect and whole are disputed in edited usage and are tested nowhere",
+        "adjective order as a rank sequence, scored by inversion count 0, 3, 1, 1 on four printed orders",
+        "published references disagree on age against shape, so no item turns on that pair",
+        "-ed names the one who feels and -ing names the cause, and the swapped sentence is still grammatical",
+        "seven coordinating against nine subordinating conjunctions, separated by the fronting test",
+        "one relation takes one marker: although with but, and because with so, are doubled",
+        "the polarity of the first clause plus the conjunction fixes the polarity of the second",
+        "neither ... nor and either ... or take the nearer noun; as well as, along with and together with take the first",
+        "proximity is right in 4 of 4 correlatives and wrong in 2 of 2 additives, so the construction decides",
+    ]))
 
 # the four General Aptitude lessons were split from one tracker entry on 2026-10-28,
 # so the published one carries the date it was verified rather than the syllabus date.
