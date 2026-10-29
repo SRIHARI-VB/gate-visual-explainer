@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C Strings: the Null Terminator, Literals, and strlen against sizeof — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">C Strings and the Null Terminator</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../pointers-in-c/index.html">Pointers in C</a>
+      <a href="../arrays-stacks-queues/index.html">Arrays</a>
+      <a href="../dynamic-memory-and-program-layout/index.html">Dynamic memory</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Strings in C — the null terminator, string literals against character arrays, <code>sizeof</code> against <code>strlen</code>, escapes, the <code>size_t</code> return type, and the byte budget of the copy and append functions. This is a microtopic inside Section 4 of the official GATE 2027 CS syllabus, whose whole text for the section is <em>"Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em></p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given any declaration or fragment that involves a character array or a string literal, state the number of bytes stored and the number of characters before the first zero; decide whether the object is a string at all; say whether a write to it is defined; and trace a fragment that copies, prints or measures a string to its exact output — including the cases where the honest answer is that the behaviour is undefined.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>one question asked four ways</em>: how many bytes are stored, how many characters count, is it writable, and where does it stop. Almost every GATE item on strings in the last twenty years is one of those four, asked on a short literal and a small array.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside the syllabus.</strong></p>
+          <p class="small">Section 4 of the GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, opens with <em>"Programming in C"</em> and then lists <em>"Arrays"</em>. Strings are not a separate clause because C has no string type: a string is a character array, so every string question is a Programming-in-C and arrays question.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Question-indexed archives of past papers list string and character items in 2004, 2017 (both sets), 2022 and 2025 (Set 2). That is a catalogue of somebody's tagging of a collection, not official weightage, and not a forecast for 2027.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary, not that one is guaranteed. Every previous-year item quoted in this lesson carries its year, set and question number, and every answer was recomputed by this page's own model rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../pointers-in-c/index.html">Pointers in C</a> — addresses, dereferencing, pointer arithmetic scaled by the element type, and the decay rule. The whole of scene 7 is that lesson applied.</li>
+            <li><a href="../arrays-stacks-queues/index.html">Arrays, stacks and queues</a> — array storage, indexing and <code>sizeof</code> on arrays. A string is an array of <code>char</code>, so its storage rules are these.</li>
+            <li><a href="../dynamic-memory-and-program-layout/index.html">Dynamic memory and the layout of a C program</a> — which segment a literal lives in, and why that segment may be read-only.</li>
+            <li><a href="../c-fundamentals/index.html">C fundamentals</a> — integer promotions and the signed-against-unsigned comparison in scene 6.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Nothing here needs a compiler, a terminal or any software installed. Every number on the page is computed by the page.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A string is bytes up to the first zero.</strong> The zero is data, and it is counted by <code>sizeof</code> and not by <code>strlen</code>.</li>
+            <li><strong>A literal is not an array you own.</strong> <code>char *s = "GATE"</code> stores a pointer to somebody else's five bytes; <code>char t[] = "GATE"</code> stores the five bytes.</li>
+            <li><strong><code>sizeof</code> counts the object; <code>strlen</code> counts characters.</strong> For an array sized by its initialiser they differ by exactly one; for a pointer they are unrelated.</li>
+            <li><strong><code>strlen</code> returns <code>size_t</code>.</strong> A difference of two lengths is never negative, so a comparison against zero is almost always true.</li>
+            <li><strong>A copy is not finished until the zero is written.</strong> Every library budget is <code>strlen</code> plus the text plus one.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate study time: 60–80 minutes, which is an estimate and not a measurement. Watch the Animation tab once straight through, then use Examples for the five worked items, Edge cases for the boundaries each rule needs, and Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">Captions are on by default and switch to Detailed, Keyword or Exam trap without restarting. Every byte layout, every <code>sizeof</code>, every <code>strlen</code> and every trace on the canvas is computed by the page's model from the rules and re-checked before it is drawn; the count of passing checks is shown under the canvas. No audio file exists: the narration is a script plus optional browser speech synthesis.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> "GATE" as five bytes with an index row, and the pointer that stops at the zero. <strong>2</strong> Two panels: the literal behind a pointer, and the copy inside an array, with the three differences and the standard's own words. <strong>3</strong> The declaration table — six declarations, their <code>sizeof</code>, their <code>strlen</code>, and whether each is a string. <strong>4</strong> Three sizings: ten bytes, four bytes, and the brace form with and without the zero. <strong>5</strong> The escape table, counted in bytes, and adjacent-literal joining. <strong>6</strong> <code>3 - 5</code> in each width, and GATE 2017 Set 1 Q53 landing on 3. <strong>7</strong> The 2017 Set 2 literal with indices 2 and 6 marked, the offset, and the tail "17". <strong>8</strong> The 2025 Set 2 copy traced byte by byte, with the two leftovers. <strong>9</strong> A grid of bytes beside an array of pointers. <strong>10</strong> The four-step procedure and the five traps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a sentence with a full stop</h3>
+          <p class="small">Suppose every message you send must be written as one long strip of paper, and the reader is not told how long it is. The reader starts at the left and reads until a full stop. Everything after the full stop is ignored, even if it is written down. That is a C string: a strip of bytes and a full stop of value zero.</p>
+          <p class="small" style="margin-bottom:0">Three consequences fall out immediately, and they are the whole topic. <em>One:</em> the full stop takes a character's worth of paper, so a four-letter word uses five cells. <em>Two:</em> if you forget the full stop, the reader keeps reading past your strip into whatever is on the table. <em>Three:</em> if you are handed a slip of paper that only says where a strip begins, you cannot know how long it is without reading it — which is exactly why <code>sizeof</code> cannot measure a string you were handed. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the terminator, the extra cell and the walk to the stop. It does not carry writability, which is the subject of scene 2.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal vocabulary, every term in words</h3>
+          <p class="small"><strong>String.</strong> A contiguous sequence of characters terminated by and including the first null character. The <em>null character</em> is the byte whose value is zero; it is written <code>'\0'</code> in source and is not the digit zero.</p>
+          <p class="small"><strong>Character string literal.</strong> A sequence of zero or more multibyte characters in double quotes. The compiler appends a byte of value zero and uses the result to initialise an array of static storage duration, of length just sufficient to hold it.</p>
+          <p class="small"><strong>Character array.</strong> An array of <code>char</code>. It may or may not contain a zero, so it may or may not be a string.</p>
+          <p class="small"><strong><code>size_t</code>.</strong> The unsigned integer type that <code>sizeof</code> and <code>strlen</code> return. Its width is the machine's; its signedness is not negotiable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Terminator.</strong> The zero byte that ends the string. It is stored, it is counted by <code>sizeof</code>, it is not counted by <code>strlen</code>, and it is not printed by <code>%s</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three rules this lesson rests on</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Initialising an array from a literal.</strong> "Successive bytes of the string literal (including the terminating null character if there is room or if the array is of unknown size) initialize the elements of the array." So the zero is stored when there is room, and dropped when the array is exactly one byte short.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>The literal's own array.</strong> "It is unspecified whether these arrays are distinct provided their elements have the appropriate values. If the program attempts to modify such an array, the behavior is undefined." So identical literals may share storage, and a write through a pointer to a literal has no defined result.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong><code>strlen</code>.</strong> It returns the number of characters that precede the terminating null character, and its declared return type is <code>size_t</code>.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The declaration table, which is the examinable core</h3>
+          <div class="sheet">
+            <table class="small" style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr><th style="text-align:left">declaration</th><th style="text-align:left">sizeof</th><th style="text-align:left">strlen</th><th style="text-align:left">a string?</th><th style="text-align:left">why</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>char a[] = "GATE";</code></td><td>5</td><td>4</td><td>yes</td><td>sized by the initialiser: four characters and the zero</td></tr>
+                <tr><td><code>char b[10] = "GATE";</code></td><td>10</td><td>4</td><td>yes</td><td>five bytes used, five zero-filled</td></tr>
+                <tr><td><code>char c[4] = "GATE";</code></td><td>4</td><td>undefined</td><td><strong>no</strong></td><td>the zero did not fit; <code>strlen</code> would read past the array</td></tr>
+                <tr><td><code>char *p = "GATE";</code></td><td>pointer width</td><td>4</td><td>points at one</td><td><code>sizeof</code> reports the pointer, never the text</td></tr>
+                <tr><td><code>char e[] = {'G','A','T','E'};</code></td><td>4</td><td>undefined</td><td><strong>no</strong></td><td>the brace form adds no terminator</td></tr>
+                <tr><td><code>char g[] = "GA\0TE";</code></td><td>6</td><td>2</td><td>yes, truncated</td><td>the embedded zero ends the string early</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small" style="margin-top:8px;margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Every cell in that table is computed by the page's model from the three rules above, by building the byte array and then finding the first zero. On the machine this page draws, a pointer is 8 bytes; GATE states a pointer size when a question depends on it, and the model carries both 8 and 4.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION =========================== -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every byte and every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">C has no string type. A string is a run of char objects ending at the first byte of value zero.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A string is bytes up to the first zero</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">C has no string type. A string is a run of char objects that ends at the first byte of value zero.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES =========================== -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2" data-pager>
+
+        <div class="card card--hero span-2">
+          <h3>Worked examples, page 1 of 2 — sizing and escapes</h3>
+          <p class="small muted" style="margin-bottom:0">Each step states the rule it uses. Nothing is quoted from a table: the page's model builds the byte array and then reads the first zero, and the count of passing checks under the canvas includes every example here.</p>
+        </div>
+
+        <div class="pager-page active">
+          <div class="card card--definition">
+            <h3>E1. Four declarations, four answers</h3>
+            <div class="step-list small">
+              <ol>
+                <li><code>char a[] = "GATE";</code> — no size written, so the compiler makes the array just big enough. Content 4 bytes, plus the terminator. <em>sizeof 5, strlen 4.</em></li>
+                <li><code>char b[10] = "GATE";</code> — size written, so the array is 10. The literal fills five bytes including the zero, and the initialisation zero-fills the rest. <em>sizeof 10, strlen 4.</em></li>
+                <li><code>char c[4] = "GATE";</code> — 4 bytes for 5 needed. The rule stores the literal "including the terminating null character if there is room", and there is no room. <em>sizeof 4, and no zero is present, so it is not a string.</em></li>
+                <li><code>char *p = "GATE";</code> — the literal's array is five bytes elsewhere; <code>p</code> holds its address. <em>sizeof p is the pointer width; strlen p is 4.</em></li>
+              </ol>
+            </div>
+            <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Step 3 is the one that decides marks. The declaration is legal; the <em>use</em> is not. Saying "strlen is 4" there is wrong, because no zero exists to stop the walk.</p>
+          </div>
+
+          <div class="card card--definition">
+            <h3>E2. Counting the bytes of an escaped literal</h3>
+            <p class="small"><code>char t[] = "a\tb\\c\x41";</code> — count bytes, not source characters.</p>
+            <div class="step-list small">
+              <ol>
+                <li><code>a</code> — one byte, value 97.</li>
+                <li><code>\t</code> — two source characters, one byte, value 9.</li>
+                <li><code>b</code> — one byte, value 98.</li>
+                <li><code>\\</code> — one byte, value 92 (a backslash).</li>
+                <li><code>c</code> — one byte, value 99.</li>
+                <li><code>\x41</code> — one byte, value 65, the letter A. A hex escape takes every following hex digit, so the next character must not be a hex digit or it is swallowed.</li>
+              </ol>
+            </div>
+            <p class="small" style="margin-bottom:0">Six content bytes plus the terminator: <em>sizeof 7, strlen 6</em>. Written out, the array holds <code>a</code>, tab, <code>b</code>, backslash, <code>c</code>, <code>A</code>, zero.</p>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="card card--definition">
+            <h3>E3. GATE 2017 Set 1 Q53 — the unsigned difference</h3>
+            <p class="small"><code>int len = ((strlen(s) - strlen(t)) &gt; c) ? strlen(s) : strlen(t);</code> with <code>s = "abc"</code>, <code>t = "defgh"</code>, <code>unsigned c = 0</code>.</p>
+            <div class="step-list small">
+              <ol>
+                <li><code>strlen(s)</code> is 3 and <code>strlen(t)</code> is 5. Both have type <code>size_t</code>.</li>
+                <li>The subtraction is performed in the unsigned type. 3 − 5 is reduced modulo one more than the largest <code>size_t</code>, giving 4294967294 at 32 bits and 18446744073709551614 at 64 bits.</li>
+                <li>That value is greater than 0, so the condition is true.</li>
+                <li>The conditional selects <code>strlen(s)</code>, which is 3, and 3 is stored in the <code>int</code>.</li>
+              </ol>
+            </div>
+            <p class="small" style="margin-bottom:0"><strong>Answer 3.</strong> <span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> GATE CSE 2017, Set 1, Q53 (NAT, 2 marks). The answer does not depend on the width of <code>size_t</code>, only on the sign — which is why the question never states the width.</p>
+          </div>
+
+          <div class="card card--definition">
+            <h3>E4. GATE 2017 Set 2 Q55 — the reversed subscript</h3>
+            <p class="small"><code>char *c = "GATECSIT2017"; char *p = c; printf("%d", (int)strlen(c + 2[p] - 6[p] - 1));</code></p>
+            <div class="step-list small">
+              <ol>
+                <li><code>a[i]</code> is defined as <code>*(a + i)</code>, and addition commutes, so <code>2[p]</code> is <code>p[2]</code>.</li>
+                <li>The literal has twelve characters. <code>p[2]</code> is <code>'T'</code> and <code>p[6]</code> is <code>'I'</code>; letters are consecutive, so the difference is 11.</li>
+                <li><code>c + 2[p] - 6[p] - 1</code> groups as <code>(c + 11) - 1</code> = <code>c + 10</code>. The element type is <code>char</code>, so the offset is a byte count with no scaling.</li>
+                <li>From index 10 the remaining characters are <code>'1'</code> and <code>'7'</code>, then the zero at index 12. <code>strlen</code> is 2.</li>
+              </ol>
+            </div>
+            <p class="small" style="margin-bottom:0"><strong>Answer 2.</strong> <span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> GATE CSE 2017, Set 2, Q55 (NAT, 2 marks).</p>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="card card--definition">
+            <h3>E5. GATE 2025 Set 2 Q9 — the copy that stops one byte early</h3>
+            <p class="small"><code>char a[30] = "@#Hello World!"; stringcopy(a, a + 2);</code> where <code>stringcopy</code> is <code>while (*t) *s++ = *t++;</code></p>
+            <div class="step-list small">
+              <ol>
+                <li>The array holds 14 characters at indices 0–13 and the zero at index 14. The other 15 bytes are zero-filled.</li>
+                <li><code>a + 2</code> is the <code>'H'</code>. The loop copies while the source byte is non-zero, so it copies the 12 characters at indices 2–13 into indices 0–11.</li>
+                <li>The loop tests the zero and exits before copying it, so <strong>no terminator is written</strong>.</li>
+                <li>Indices 12 and 13 still hold the original <code>'d'</code> and <code>'!'</code>, and the original zero at index 14 is untouched.</li>
+                <li><code>printf("%s", a)</code> prints twelve copied characters plus the two leftovers: <code>Hello World!d!</code>, 14 characters.</li>
+              </ol>
+            </div>
+            <p class="small" style="margin-bottom:0"><strong>Answer: option D, <code>Hello World!d!</code></strong> <span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> GATE CSE 2025, Set 2, Q9 (MCQ, 1 mark). Note that the source and destination overlap; copying forward from a higher index to a lower one is the safe direction, and here it is what makes the trace work.</p>
+          </div>
+
+          <div class="card card--trap">
+            <h3>E6. The 2004 segment, and why the answer is "nothing"</h3>
+            <p class="small"><code>char p[20]; char *s = "string"; int length = strlen(s); for (i = 0; i &lt; length; i++) p[i] = s[length - i]; printf("%s", p);</code></p>
+            <div class="step-list small">
+              <ol>
+                <li><code>length</code> is 6. At <code>i = 0</code> the code reads <code>s[6 - 0]</code>, which is the terminator — reading it is defined, because the array has seven bytes and index 6 is inside it.</li>
+                <li><code>p[0]</code> therefore becomes the zero byte. The later iterations fill <code>p[1]</code> onwards, but a string ends at its first zero.</li>
+                <li><code>printf("%s", p)</code> stops immediately, so it prints the empty string — visually, nothing.</li>
+              </ol>
+            </div>
+            <p class="small" style="margin-bottom:0"><strong>Answer: no output.</strong> <span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> GATE CSE 2004, 2-mark MCQ. The archives disagree on the question number (one numbers it 33, others 25, 49 or 78), so only the year is quoted as certain. The corrected loop is <code>p[i] = s[length - 1 - i]</code> followed by <code>p[length] = '\0'</code>.</p>
+          </div>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <div class="row" style="display:flex;gap:10px;align-items:center">
+            <button class="btn" data-pager-prev>&#9664; Previous page</button>
+            <button class="btn" data-pager-next>Next page &#9654;</button>
+            <span class="small muted" data-pager-count>Page 1 of 3</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ========================== -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries, each with the condition it violates</h3>
+          <p class="small muted" style="margin-bottom:0">Six cases that decide marks. Each one is a rule applied at its limit, not a curiosity.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. The empty string</h3>
+          <p class="small"><code>char e[] = "";</code> — content zero bytes plus the terminator. <strong>sizeof 1, strlen 0.</strong> It is a perfectly good string: the zero is the first byte.</p>
+          <p class="small" style="margin-bottom:0">The condition people miss: <code>strlen</code> of it is 0, so <code>strlen(e) - 1</code> is <em>not</em> −1. It is the largest value of <code>size_t</code>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. An embedded zero</h3>
+          <p class="small"><code>char g[] = "GA\0TE";</code> — six bytes, <strong>sizeof 6, strlen 2</strong>. The array is complete; the string it holds stops at index 2.</p>
+          <p class="small" style="margin-bottom:0">The condition people miss: "the literal need not be a string", because an escape can put a zero inside it. <code>sizeof</code> still reports all six bytes.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. One byte short</h3>
+          <p class="small"><code>char c[4] = "GATE";</code> — the zero does not fit and is dropped. <strong>sizeof 4, and no zero byte exists.</strong></p>
+          <p class="small" style="margin-bottom:0">The condition people miss: the declaration is legal and the object is not a string. <code>strlen(c)</code> reads past the array; the behaviour is undefined, not "4".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. Two bytes short</h3>
+          <p class="small"><code>char c[3] = "GATE";</code> — the initialiser would have to provide a value for an element the array does not have. The standard's initialisation rule permits exactly one dropped byte, the terminator, and only when the array is one short.</p>
+          <p class="small" style="margin-bottom:0">The condition people miss: this is not "the same as one byte short, but more so". It is not valid C, and a conforming compiler must diagnose it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. A pointer to a literal, written through</h3>
+          <p class="small"><code>char *s = "GATE"; s[0] = 'g';</code> — undefined behaviour. The literal's array may sit in read-only memory, and identical literals may share one array.</p>
+          <p class="small" style="margin-bottom:0">The condition people miss: "undefined" is not a value. An answer of <code>"gATE"</code>, <code>"GATE"</code> or a crash is equally unsupported; the correct answer is that there is no defined output.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. <code>strncpy</code> with a short count</h3>
+          <p class="small"><code>char d[8]; strncpy(d, "GATE", 4);</code> — four bytes copied, <strong>no terminator</strong>. The destination is not a string.</p>
+          <p class="small" style="margin-bottom:0">The condition people miss: <code>strncpy</code> pads with zeros only when the source is shorter than the count. When the source is at least as long, nothing terminates the result.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The arithmetic boundary that catches the most people</h3>
+          <p class="small"><code>for (i = strlen(s) - 1; i &gt;= 0; i--)</code> with an unsigned <code>i</code>, or with <code>i</code> declared <code>size_t</code>, never terminates when the string is empty: the start value wraps to the largest unsigned value, and <code>i &gt;= 0</code> is true for every unsigned value. The fix is a signed index, or the test <code>i != 0</code> after decrementing, or a pointer walk that stops at the first byte.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page checks the predicate <code>v &gt;= 0</code> over the whole 4-bit unsigned type and finds it true for all sixteen values; the same argument holds at 64 bits because every value of an unsigned type is non-negative by definition.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ===================== -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five beliefs that cost marks</h3>
+          <p class="small muted" style="margin-bottom:0">Each is stated as a learner states it, then killed with the smallest case that kills it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M1. "A four-letter string is four bytes."</h3>
+          <p class="small"><em>Why it tempts:</em> the word has four letters, and <code>strlen</code> says 4, so 4 feels like the size.</p>
+          <p class="small"><em>Why it is wrong:</em> the terminator is a stored byte. <code>char a[] = "GATE"</code> occupies five bytes.</p>
+          <p class="small"><em>Minimal counterexample:</em> <code>char e[] = "";</code> — zero characters, <strong>one</strong> byte. <code>sizeof</code> is 1 and <code>strlen</code> is 0.</p>
+          <p class="small" style="margin-bottom:0"><em>Correct rule:</em> for an array sized by its initialiser, <code>sizeof = strlen + 1</code>. That identity fails for a pointer and for a fixed larger array.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M2. "<code>char *s = "GATE"</code> and <code>char t[] = "GATE"</code> are the same."</h3>
+          <p class="small"><em>Why it tempts:</em> both print identically, both give 4 from <code>strlen</code>, and the initialiser looks the same.</p>
+          <p class="small"><em>Why it is wrong:</em> one is a pointer to somebody else's static array; the other is your own array.</p>
+          <p class="small"><em>Minimal counterexample:</em> <code>s[0] = 'g';</code> is undefined behaviour; <code>t[0] = 'g';</code> is fine. And <code>sizeof</code> gives the pointer width against 5.</p>
+          <p class="small" style="margin-bottom:0"><em>Correct rule:</em> the three differences are writability, <code>sizeof</code>, and assignability (<code>s = "OTHER"</code> is legal, <code>t = "OTHER"</code> is not).</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M3. "<code>sizeof</code> tells you how long the string is."</h3>
+          <p class="small"><em>Why it tempts:</em> for <code>char a[] = "GATE"</code> it gives 5, one more than the length, so the two look interchangeable with an offset.</p>
+          <p class="small"><em>Why it is wrong:</em> <code>sizeof</code> is answered by the compiler from the type and never reads the bytes.</p>
+          <p class="small"><em>Minimal counterexample:</em> <code>char b[10] = "GATE"</code> gives <code>sizeof</code> 10 and <code>strlen</code> 4. And inside a function taking <code>char t[]</code>, <code>sizeof(t)</code> is the pointer width.</p>
+          <p class="small" style="margin-bottom:0"><em>Correct rule:</em> <code>sizeof</code> measures the object; <code>strlen</code> measures the string. An array passed to a function arrives as a pointer, so its length must be passed separately.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M4. "<code>strlen(s) - strlen(t)</code> can be negative."</h3>
+          <p class="small"><em>Why it tempts:</em> the arithmetic is ordinary subtraction and the true value is −2.</p>
+          <p class="small"><em>Why it is wrong:</em> both operands have type <code>size_t</code>, so the operation is unsigned and the result is reduced modulo the width.</p>
+          <p class="small"><em>Minimal counterexample:</em> GATE 2017 Set 1 Q53: lengths 3 and 5, the comparison against 0 is true, and the program prints 3 rather than 5.</p>
+          <p class="small" style="margin-bottom:0"><em>Correct rule:</em> decide the sign first. A difference of two lengths is a length only when the first is at least the second.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M5. "A copy loop copies the whole string."</h3>
+          <p class="small"><em>Why it tempts:</em> the loop reads every character and writes every character, so it looks complete.</p>
+          <p class="small"><em>Why it is wrong:</em> <code>while (*t)</code> stops <em>before</em> the zero, so the zero is never stored. The destination keeps whatever was there.</p>
+          <p class="small"><em>Minimal counterexample:</em> GATE 2025 Set 2 Q9 — twelve bytes copied, the old <code>'d'</code> and <code>'!'</code> survive, and the print is <code>Hello World!d!</code>.</p>
+          <p class="small" style="margin-bottom:0"><em>Correct rule:</em> the library <code>strcpy</code> copies the terminator too. A hand-written loop must add <code>*s = '\0';</code> after it, and then the answer changes.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Two pairs that are constantly confused</h3>
+          <p class="small"><strong>String against character array.</strong> Every string is a character array that happens to contain a zero; not every character array is a string. The test is one scan for a zero byte, not a look at the declaration.</p>
+          <p class="small" style="margin-bottom:0"><strong>Undefined against unspecified.</strong> Writing to a literal is <em>undefined</em> — the standard imposes no requirement at all, so no output can be predicted. Whether two identical literals share storage is <em>unspecified</em> — the implementation must choose one behaviour and document nothing, so <code>"ab" == 2 + "abcdef"</code> may be 1 or 0 and both are conforming. An exam answer may rely on neither.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ====================== -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The question categories that apply, and the reasoning each demands</h3>
+          <p class="small muted" style="margin-bottom:0">Categories A, B, C, E and G of the standard set apply here. D (construction) and F (multiple conditions) appear only as small parts of a trace; H (multi-step) is the commonest of all, because a string trace is several steps of index arithmetic.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A — direct definition, and C — calculation</h3>
+          <p class="small"><strong>Demands:</strong> the byte count and the character count for a stated declaration, including the escapes.</p>
+          <p class="small"><strong>Expected path:</strong> find the object (array or pointer), lay out the bytes, mark the first zero, read off both numbers.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> counting source characters instead of bytes, which turns <code>"\t"</code> into two and <code>"\\n"</code> into one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>B — property verification, and E — counterexample reasoning</h3>
+          <p class="small"><strong>Demands:</strong> "is this a string?", "is this write defined?", "does this copy produce a valid string?".</p>
+          <p class="small"><strong>Expected path:</strong> scan for a zero; check writability against the declaration; check that the loop or function writes the zero.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> answering from the code's intent rather than its bytes — assuming a copy loop terminates the result because a copy should.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>H — multi-step trace, the dominant shape</h3>
+          <p class="small"><strong>Demands:</strong> the exact printed output of a fragment with pointer arithmetic, subscripts, or a loop over characters.</p>
+          <p class="small"><strong>Expected path:</strong> write the index table, resolve each subscript to a character, convert characters to offsets only where the code does arithmetic, then count to the zero.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> reading the expression left to right and adding bytes, instead of applying <code>a[i] = *(a + i)</code> and the scaling rule.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>G — the misconception trap</h3>
+          <p class="small"><strong>Demands:</strong> notice that the intuitive answer is the one the question is built to punish.</p>
+          <p class="small"><strong>Expected path:</strong> when the numbers are small and the code looks pointless, suspect a type or a terminator. The 2017 Set 1 item prints 3, not 5; the 2004 item prints nothing, not <code>gnirts</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> choosing the answer that matches the obvious intent of the code.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The previous-year items quoted in this lesson</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> <strong>2025, Set 2, Q9</strong> (MCQ, 1 mark) — <code>stringcopy(a, a + 2)</code> with a loop that tests before copying. Answer: option D, <code>Hello World!d!</code>.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> <strong>2017, Set 2, Q55</strong> (NAT, 2 marks) — <code>strlen(c + 2[p] - 6[p] - 1)</code> on <code>"GATECSIT2017"</code>. Answer: 2.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> <strong>2017, Set 1, Q53</strong> (NAT, 2 marks) — <code>((strlen(s) - strlen(t)) &gt; c)</code> with lengths 3 and 5. Answer: 3.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified GATE PYQ</span> <strong>2004</strong> (MCQ, 2 marks) — the <code>p[20]</code> / <code>s[length - i]</code> segment. Answer: no output. The question number differs between archives, so it is not quoted.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE =========================== -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Twelve questions</h3>
+          <p class="small">Learning mode is the default: each answer appears when you press Show answer. Turn mock mode on to hide every answer until you submit. Questions 1–3 are basic, 4–6 application, 7–9 GATE-style conceptual, 10–12 the tricky ones. All twelve are <span class="claim-chip claim-chip--community">Original gate-style questions</span> written for this lesson; none is presented as a previous-year question.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode — hide all answers until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Submit and reveal all</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span> <span class="small muted">basic</span></div>
+          <p class="q-body"><code>char s[] = "GATE2027";</code> — what is <code>sizeof(s)</code>?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>9.</strong> Eight characters and the terminator. <code>strlen(s)</code> is 8; <code>sizeof</code> adds the zero.</p>
+            <p class="small" style="margin-bottom:0">Wrong answer 8: counting characters instead of bytes. The array is sized by its initialiser, so it holds the content and the terminator.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span> <span class="small muted">basic</span></div>
+          <p class="q-body">Which declaration produces a character array that is <strong>not</strong> a string? (A) <code>char a[] = "";</code> (B) <code>char b[] = "x";</code> (C) <code>char c[] = {'x'};</code> (D) <code>char d[2] = "x";</code></p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(C).</strong> The brace form stores exactly the bytes listed, so <code>c</code> has one byte and no zero. (A) has sizeof 1 and is a string of length 0; (B) and (D) both store the terminator.</p>
+            <p class="small" style="margin-bottom:0">This is the one place the initialisation itself must write the zero.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span> <span class="small muted">basic</span></div>
+          <p class="q-body">What is <code>strlen("a\0b")</code>?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>1.</strong> The literal is <code>a</code>, a zero byte, <code>b</code>, and the appended zero: <code>sizeof</code> 4. The string ends at the embedded zero, at index 1.</p>
+            <p class="small" style="margin-bottom:0">A character string literal need not be a string, precisely because an escape can put a zero inside it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span> <span class="small muted">application</span></div>
+          <p class="q-body"><code>char buf[6]; strcpy(buf, "GATE"); strcat(buf, "!");</code> — what is the result, and is it safe?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong><code>buf</code> holds <code>"GATE!"</code> and it is safe, exactly fitting.</strong> <code>strcpy</code> needs <code>strlen(src) + 1</code> = 5 bytes, filling indices 0–4. <code>strcat</code> needs <code>strlen(dst) + strlen(src) + 1</code> = 4 + 1 + 1 = 6, overwriting the zero at index 4 and writing a new one at index 5.</p>
+            <p class="small" style="margin-bottom:0">One more character would need 7 bytes and overflow. The buffer has no spare room at all.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span> <span class="small muted">application</span></div>
+          <p class="q-body"><code>char *p = "GATE";</code> on a machine where a pointer is 4 bytes. What does <code>sizeof(p) + strlen(p)</code> equal?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>8.</strong> <code>sizeof(p)</code> is the pointer width, 4, not the text length. <code>strlen(p)</code> is 4. The sum is 8.</p>
+            <p class="small" style="margin-bottom:0">The trap is answering 5 + 4. A pointer's size never depends on what it points at.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span> <span class="small muted">application</span></div>
+          <p class="q-body"><code>char d[8]; strncpy(d, "GATE", 4); printf("%s", d);</code> — what is printed?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Nothing can be predicted.</strong> The count 4 copies <code>G</code>, <code>A</code>, <code>T</code>, <code>E</code> and no terminator, because the source was not shorter than the count. <code>d</code> is not a string, so <code>%s</code> reads past it.</p>
+            <p class="small" style="margin-bottom:0"><code>strncpy</code> pads with zeros only when the source is shorter than the count. The correct pattern is a count of <code>sizeof(d) - 1</code> followed by an explicit terminator.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span> <span class="small muted">conceptual</span></div>
+          <p class="q-body">Inside a function <code>int f(char t[]) { return sizeof(t); }</code>, called with <code>char a[100]</code>, what does <code>f(a)</code> return?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>The pointer width, not 100.</strong> A parameter written <code>char t[]</code> is adjusted to <code>char *t</code>, so <code>sizeof(t)</code> is the size of a pointer.</p>
+            <p class="small" style="margin-bottom:0">This is the same rule as the literal-against-array distinction, one level up: the array decayed. Pass the length, or use a terminator.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span> <span class="small muted">conceptual</span></div>
+          <p class="q-body"><code>char *s = "GATE2011"; printf("%s", s + (s[4] - s[5]));</code> — what is printed, and how many characters is it?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong><code>TE2011</code>, six characters.</strong> <code>s[4]</code> is the digit <code>'2'</code> and <code>s[5]</code> is the digit <code>'0'</code>. Digits are consecutive too, so the difference is 2, and <code>s + 2</code> is the <code>'T'</code>.</p>
+            <p class="small" style="margin-bottom:0">The arithmetic works because the digits 0 to 9 are consecutive in every character set C permits — the same fact the 2017 item uses for letters. Any offset that leaves the array is undefined behaviour, so check that the difference lands inside before you trust it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span> <span class="small muted">conceptual</span></div>
+          <p class="q-body">Which of these are guaranteed by the C standard? (A) <code>sizeof(char)</code> is 1. (B) Two identical string literals have the same address. (C) <code>strlen</code> returns <code>size_t</code>. (D) Writing to a string literal's array is undefined behaviour.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>A, C and D.</strong> <code>sizeof</code> of a character type is 1 by definition. <code>strlen</code> is declared to return <code>size_t</code>. Modification of a literal's array is undefined.</p>
+            <p class="small" style="margin-bottom:0">B is <em>unspecified</em>, not guaranteed: "It is unspecified whether these arrays are distinct provided their elements have the appropriate values." Either behaviour is conforming, so no question may depend on it.</p>
+          </div>
+        </div>
+
+        <div class="question card card--trap">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span> <span class="small muted">tricky</span></div>
+          <p class="q-body"><code>char a[] = "GATE"; printf("%d", (int)(sizeof(a) - strlen(a)));</code> — what is printed? And what would it print if <code>a</code> were <code>char *a = "GATE";</code> on a 64-bit machine?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>1, then 4.</strong> As an array: 5 − 4 = 1. As a pointer: <code>sizeof</code> is 8 and <code>strlen</code> is 4, so 8 − 4 = 4.</p>
+            <p class="small" style="margin-bottom:0">The subtraction is unsigned but the result is positive here, so the wrap of the previous trap does not bite. Change the order and it would: <code>strlen(a) - sizeof(a)</code> gives a huge value, not −1.</p>
+          </div>
+        </div>
+
+        <div class="question card card--trap">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span> <span class="small muted">tricky</span></div>
+          <p class="q-body"><code>char p[20]; char *s = "string"; int n = strlen(s); int i; for (i = 0; i &lt; n; i++) p[i] = s[n - 1 - i]; p[n] = '\0'; printf("%s", p);</code> — what is printed?</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong><code>gnirts</code>.</strong> This is the 2004 segment with both defects repaired: the index is <code>n - 1 - i</code> so the first write is the last character, and the terminator is written explicitly at index <code>n</code>.</p>
+            <p class="small" style="margin-bottom:0">The original wrote <code>s[n - i]</code>, which put the zero at <code>p[0]</code> and printed nothing. One index and one missing byte are the whole difference.</p>
+          </div>
+        </div>
+
+        <div class="question card card--trap">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span> <span class="small muted">tricky</span></div>
+          <p class="q-body"><code>char a[30] = "Hello"; stringcopy(a, a + 1);</code> with <code>while (*t) *s++ = *t++;</code>. Which statements are true? (A) The loop copies four characters. (B) No terminator is written by the loop. (C) The output is <code>ello</code>. (D) The output is <code>elloo</code>.</p>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>A, B and D.</strong> The source <code>a + 1</code> is <code>"ello"</code>, four characters, copied to indices 0–3. The loop never writes the zero. Index 4 still holds the original <code>'o'</code>, and the original zero at index 5 still ends the string, so the print is <code>elloo</code>.</p>
+            <p class="small" style="margin-bottom:0">C is the tempting answer, and it is wrong for exactly the reason the 2025 question exists: the destination beyond the written region is untouched. Overlap is safe here only because the copy moves to a lower index.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION =========================== -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Definitions, formulas with their conditions, the procedure, and the traps with the case that defuses each.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <p class="small"><strong>String</strong> — bytes up to and including the first null character.</p>
+          <p class="small"><strong>Null character</strong> — the byte of value zero, <code>'\0'</code>, not the digit.</p>
+          <p class="small"><strong>Literal</strong> — an unnamed array of static storage duration, initialised with the characters and a zero; may be shared; may not be modified.</p>
+          <p class="small"><strong>Character array</strong> — an array of <code>char</code>; a string only if it contains a zero.</p>
+          <p class="small" style="margin-bottom:0"><strong><code>size_t</code></strong> — the unsigned type returned by <code>sizeof</code> and <code>strlen</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas and their conditions</h3>
+          <p class="small"><code>sizeof</code> = characters + 1 — <em>only</em> for an array sized by its initialiser with no embedded zero.</p>
+          <p class="small"><code>strlen</code> = index of the first zero — <em>only</em> if a zero exists in the object.</p>
+          <p class="small">Copy needs <code>strlen(src) + 1</code> bytes; append needs <code>strlen(dst) + strlen(src) + 1</code>.</p>
+          <p class="small"><code>a[i]</code> = <code>*(a + i)</code> = <code>i[a]</code>, with the offset scaled by <code>sizeof</code> of the element type.</p>
+          <p class="small" style="margin-bottom:0"><code>char names[R][C]</code> is <code>R*C</code> bytes with stride <code>C</code>; <code>char *names[R]</code> is <code>R</code> pointer widths.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Decision procedure</h3>
+          <div class="step-list small">
+            <ol>
+              <li>Read the declaration: array of known size, or pointer?</li>
+              <li>Lay out the bytes, including every zero, with indices.</li>
+              <li>Read <code>sizeof</code> from the object and <code>strlen</code> from the first zero's index.</li>
+              <li>Check every subtraction or comparison involving lengths for unsignedness.</li>
+              <li>Ask whether the terminator was written; if not, say "not a string" and "undefined".</li>
+            </ol>
+          </div>
+          <p class="small" style="margin-bottom:0">If the fragment writes to a literal, the answer is undefined behaviour and no output may be predicted.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, with the case that defuses each</h3>
+          <p class="small">"Four letters, four bytes" → <code>char e[] = "";</code> is one byte.</p>
+          <p class="small"><code>sizeof</code> as a length → <code>char b[10] = "GATE";</code> gives 10 against 4.</p>
+          <p class="small">Pointer as array → <code>sizeof(p)</code> is the pointer width.</p>
+          <p class="small">Negative length difference → 2017 Set 1 Q53 prints 3, not 5.</p>
+          <p class="small">Copy loop terminates the result → 2025 Set 2 Q9 prints <code>Hello World!d!</code>.</p>
+          <p class="small" style="margin-bottom:0">Writing to a literal → undefined, never a value.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Five sentences worth remembering</h3>
+          <p class="small" style="margin-bottom:0">The zero is data: it is stored, counted by <code>sizeof</code>, invisible to <code>strlen</code>. A literal behind a pointer is not yours to write. <code>sizeof</code> answers from the type and <code>strlen</code> from the bytes. A difference of two lengths is unsigned, so its sign is not the arithmetic sign. And a copy is finished only when the zero has been written.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES =========================== -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small muted" style="margin-bottom:0">Grouped by kind. Official material is separated from textbook material, and community material is labelled as observation rather than proof.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code> — Section 4: "Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs." Source for the Class A classification and the scope boundary of this lesson.</li>
+            <li><strong>Previous-year papers</strong> — the wording and data for GATE 2017 Set 1 Q53, GATE 2017 Set 2 Q55, GATE 2025 Set 2 Q9 and the GATE 2004 segment. Every numerical answer was recomputed by this page's model; no answer was taken from a key. Question numbering for the 2004 item differs between archives, so only the year is quoted.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Standard and textbook level</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>ISO/IEC 9899 (the C standard)</strong> — 6.4.5 for string literals (the appended zero, "if there is room" initialisation, unspecified distinctness, undefined modification), 7.1.1 for the definition of a string, 6.5.3.4 for <code>sizeof</code> of a character type, 7.24.2 for <code>strlen</code>, <code>strcpy</code>, <code>strncpy</code>, <code>strcat</code> and <code>strcmp</code>.</li>
+            <li><strong>Kernighan and Ritchie, <em>The C Programming Language</em></strong> — the character-array and pointer chapters, and the remark that strings are no longer modifiable and may be placed in read-only memory.</li>
+            <li><strong>CERT C Secure Coding Standard, STR30-C</strong> — do not attempt to modify string literals; the rule this lesson's scene 2 enforces.</li>
+            <li><strong>cppreference, string literals</strong> — the read-only placement, and the note that identical or overlapping literals may be combined.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Community material, used as observation only</h3>
+          <p class="small" style="margin-bottom:0">Discussion threads on the 2004, 2017 and 2025 items were read to see which answers people reach and where the reasoning breaks. They are not cited as proof of anything: every claim above is supported either by the standard's own wording or by this page's computation. <span class="claim-chip claim-chip--community">Community observation</span> The commonest reported error across those threads is the same one in both directions — counting source characters instead of bytes, and expecting a copy loop to write the terminator. That is a report about discussion, not a measurement of difficulty.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">No C compiler was run to produce these numbers; every <code>sizeof</code>, <code>strlen</code> and trace is computed by the page's model from the standard's rules and re-checked against those rules, and the page cannot detect a rule it has misread. Pointer sizes are carried as 8 and 4 and stated wherever they matter. No audio file exists. No video file exists. The timings in the subtitle files are estimated from the timeline at a normal speaking rate, not measured from recorded audio.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
