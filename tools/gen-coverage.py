@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-10-30"  # the date this tracker was regenerated
+RUN_DATE = "2026-10-31"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -4080,7 +4080,82 @@ topics.append(topic(
         "GATE CSE 2024, Set 1: K4 labelled gives 16, computed by Cayley, by enumeration and by the determinant"
     ]))
 
+# ---------------------------------------------------------------- Compiler Design (runtime environments)
+topics.append(topic(
+    "Compiler Design",
+    "Back end: runtime environments (Section 7)",
+    "Activation records, the control link and the access link, displays and parameter modes",
+    ["the activation record and its fields",
+     "the stack discipline: push in call order, pop in reverse",
+     "the calling sequence split between caller and callee",
+     "the control link against the access link",
+     "nesting levels and the level-difference rule",
+     "non-local access by access links, and its cost",
+     "the display array: one slot per level, saved and restored",
+     "static against dynamic scoping, read along the two links",
+     "the four parameter modes and where they diverge",
+     "frame size, alignment and the stack depth limit"],
+    prereq=["functions-scope-and-preprocessor", "recursion",
+            "dynamic-memory-and-program-layout",
+            "runtime-environments-intermediate-code-and-optimisation"],
+    related=["runtime-environments-intermediate-code-and-optimisation",
+             "lexical-analysis-parsing-and-sdt",
+             "data-flow-analysis-framework",
+             "c-fundamentals",
+             "pointers-in-c",
+             "processes-threads-and-ipc",
+             "memory-management-and-virtual-memory"],
+    importance="high",
+    evidence="Section 7 of the official GATE 2027 CS syllabus names it as its own item: "
+             "\"Runtime environments.\" The clause was read from the official 2027 syllabus PDF at "
+             "gate2027.iitm.ac.in during this run. No marks distribution is claimed, and no "
+             "previous-year question is reproduced: a GATE 2007 static-versus-dynamic-scoping "
+             "question of this shape exists, but question banks disagree on whether it is the CS or "
+             "the IT paper, so no paper or question number is asserted.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="runtime-environments-and-activation-records",
+    path="topics/runtime-environments-and-activation-records/index.html",
+    execution="published 2026-10-31; 77/77 model checks pass; geometry audit clean over 10 scenes; "
+              "every access-link walk required to arrive in the declaring frame; the display "
+              "simulated and its saved entry required to be restored; the four parameter modes run "
+              "as four simulators",
+    microtopics=[
+        "a frame belongs to a call, not to a procedure",
+        "the four bookkeeping words: returned value, return address, control link, access link",
+        "offsets 0, 4, 8, 12, then the data at 16",
+        "the frame pointer reaches every field by a fixed offset",
+        "padding is part of the frame: 20 bytes used, 24 allocated",
+        "the stack pointer for the top, the frame pointer for the current frame",
+        "peak occupancy is a property of one moment, not a running total",
+        "four frames in Main-P-R-Q use 96 bytes",
+        "recursion pushes one frame per level, each with its own copy of the parameter",
+        "base case n <= 1 gives n frames; base case n = 0 gives n + 1",
+        "with the caller, fact(4) holds five frames",
+        "the control link points at the caller and is used to return",
+        "the access link points at the enclosing definition and is used to read",
+        "Q written inside P and called from R: control link R, access link P",
+        "hops equal the level difference, so a local costs zero",
+        "a global read from level 2 costs two hops",
+        "six references cost seven hops in total, average 1.166667",
+        "the walk must arrive in the frame that declares the name",
+        "siblings cannot read each other's locals: Q cannot name R's n",
+        "under recursion the access link is not the previous activation of itself",
+        "a display has one slot per level, not one per call",
+        "R and Q share level 2, so Q overwrites d[2] and R's entry is saved and restored",
+        "the display costs one index everywhere, so it is worse than a local read",
+        "static scoping reads along access links, dynamic along control links",
+        "value copies, reference aliases, value-result copies back, name re-evaluates",
+        "one program gives 11, 12, 6 and 12 in those four modes",
+        "name and reference agree on the scalar program and differ on p(A[i])",
+        "value-result agrees with reference on the array program and differs on the scalar one",
+        "8 MiB over 96 bytes is 87381 frames, using 8388576 bytes with 32 to spare",
+        "a depth limit is rounded down, never up",
+        "static locals and globals live in no frame",
+        "objects outliving their call cannot live on the stack"]))
+
 _VERIFIED = {
+    "runtime-environments-and-activation-records": "2026-10-31",
     "lu-decomposition": "2026-10-30",
     "spatial-aptitude": "2026-10-28",
     "structures-unions-and-enums": "2026-10-29",

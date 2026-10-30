@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runtime environments: activation records and the two links — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Runtime environments and activation records</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../runtime-environments-intermediate-code-and-optimisation/index.html">Related: the compiler back end</a>
+      <a href="../functions-scope-and-preprocessor/index.html">Prerequisite: scope and lifetime in C</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Runtime environments as their own object. What an activation record contains and why; the stack discipline of calls; the control link and the access link and the different questions they answer; how a non-local name is resolved by following access links or by indexing a display; where the parameter modes diverge; and how a frame size becomes a depth limit. This is the phrase <em>Runtime environments</em> in Section 7 of the GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a small program with nested procedures, state the frame layout and its size, count the frames alive at a chosen moment, name the frame that a non-local reference resolves to and the number of links followed to reach it, and predict the printed value under a stated scoping rule and a stated parameter-passing mode — without confusing the two links.</p>
+          <p class="small muted" style="margin-bottom:0">I read the topic as <em>one record, two pointers, and the arithmetic on top of them</em>. Everything else in the clause — displays, parameter modes, depth limits — is that record and those pointers used in a particular way. Every number on this page is computed by the page and printed on the canvas.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A.</strong> Section 7 of the GATE 2027 CS syllabus, IIT Madras, reads: "Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, and data flow analyses: constant propagation, liveness analysis, common sub expression elimination." The words <em>Runtime environments</em> stand alone as a named item.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The syllabus text was read from the official 2027 syllabus PDF during this run. The section is reported to be unchanged from 2026; the wording above is what the 2027 document says, and that is the only wording this page relies on.</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary. It does not mean one is guaranteed, and no marks distribution is claimed anywhere on this page.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><a href="../functions-scope-and-preprocessor/index.html">Functions, scope, lifetime and the preprocessor</a> — block scope, storage duration, and why a <code>static</code> local is not in a frame.</li>
+            <li><a href="../recursion/index.html">Recursion</a> — the call-return discipline this lesson counts frames on.</li>
+            <li><a href="../dynamic-memory-and-program-layout/index.html">Dynamic memory allocation and the layout of a C program</a> — code, static data, stack and heap as four regions.</li>
+            <li><a href="../runtime-environments-intermediate-code-and-optimisation/index.html">The compiler back end</a> — where storage decisions sit among code generation and optimisation.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Approximate learning time: 50 to 70 minutes including the practice set. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>A frame belongs to one call, not to one procedure, and it dies when that call returns.</li>
+            <li>The control link points at the caller; the access link points at the enclosing definition. They are different pointers answering different questions.</li>
+            <li>The number of access links to follow is the difference between two nesting levels — never the depth of the stack.</li>
+            <li>A display trades a walk for an index, and pays for it with a save and restore on every call.</li>
+            <li>Frame size is computed from fields and alignment; depth is the stack divided by that size, rounded down.</li>
+          </ol>
+        </div>
+
+        <div class="card span-2 card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, 300 seconds, one canvas. Scene 1 builds the frame of Q field by field — offsets 0, 4, 8 and 12 for the four bookkeeping words, then the local at 16 and the temporary at 20, with the padded total of 24 bytes arriving last. Scene 2 pushes Main, P, R and Q and pops them in reverse, with the stack pointer and the peak of 96 bytes read off the picture. Scene 3 draws four <code>fact</code> frames for n = 4, 3, 2, 1 and the products 1, 2, 6, 24 appearing on the way back up. Scene 4 puts Q on the canvas with its caller R and its enclosing definition P, and draws the control link to R and the access link to P as two differently styled arrows. Scene 5 walks the chain for <code>b</code>, <code>a</code> and <code>g</code> and fills a table of six references whose hop counts sum to 7. Scene 6 shows the display during Q — d[0] Main, d[1] P, d[2] Q — with the displaced frame R still on the stack and the saved entry inside Q's frame. Scene 7 puts the four parameter modes in one parameter slot and prints 11, 12, 6 and 12. Scene 8 traces <code>p(A[i])</code> under reference and under name, writing A[1] in the first case and A[2] in the second. Scene 9 draws the offset ruler of Main with its four padding bytes and turns 96 bytes into 87381 frames. Scene 10 is the five-step procedure with the two checks that remove wrong options.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: the stack of trays</h3>
+          <p class="small">A canteen keeps its trays in one pile. You take the top tray, use it, and put it back on top. Nobody ever pulls a tray from the middle, because the trays above it are still in use. A running program's calls work the same way: the newest call is always the one that finishes first, so its storage sits on top and is released first.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The tray pile is mine and it is deliberately thin: it explains why a stack is the right shape but says nothing about the two pointers, which are the actual subject. The pointers come next, and the page tests them rather than assuming them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal statements</h3>
+          <p class="small"><strong>Activation.</strong> One execution of a procedure, from the call to the return. A procedure may have many activations alive at once.</p>
+          <p class="small"><strong>Activation record (frame).</strong> The block of storage created for one activation. It holds space for the returned value, the actual parameters, the control link, the access link, saved machine state including the return address, the local variables, and the temporaries used in evaluating expressions.</p>
+          <p class="small"><strong>Control link (dynamic link).</strong> A pointer in the frame to the frame of the caller — the saved frame pointer of the caller. Following control links from any frame walks the chain of calls.</p>
+          <p class="small"><strong>Access link (static link).</strong> A pointer in the frame to the most recent activation of the procedure that lexically encloses this one. Following access links walks the nesting of the source text.</p>
+          <p class="small"><strong>Nesting level.</strong> The number of procedures a procedure is textually inside. The outermost block is level 0; a procedure declared directly inside it is level 1; and so on. The compiler knows every level before the program runs.</p>
+          <p class="small" style="margin-bottom:0"><strong>Display.</strong> An array indexed by nesting level, whose entry i points to the most recent activation at level i. A non-local access becomes one index plus an offset.</p>
+        </div>
+
+        <div class="card">
+          <h3>Symbols, in words</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>frame pointer</strong> — a register holding the base address of the frame that is running, so that any field is frame pointer plus offset.</li>
+            <li><strong>stack pointer</strong> — a register holding the address of the next free slot, so that the top of the stack is known at all times.</li>
+            <li><strong>offset</strong> — a distance in bytes from the frame pointer to a field, fixed by the compiler for each procedure.</li>
+            <li><strong>level difference</strong> — the nesting level of the reading code minus the nesting level of the declaration. It is the number of access links to follow, and it is never negative for a legal program.</li>
+            <li><strong>padding</strong> — bytes inserted so that a frame size is a multiple of the alignment. They belong to no variable but they occupy the stack.</li>
+            <li><strong>value-result</strong> — copy the argument in, work on the copy, copy the final value back at return. Distinct from reference whenever the body also touches the actual variable.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The program this lesson uses, and its assumptions</h3>
+          <p class="small">A Pascal-like language that allows procedures to be nested, with static (lexical) scoping unless a question says otherwise:</p>
+          <pre class="formula">program Main;                    level 0
+  var g : integer;               g = 1
+  procedure P;                   level 1
+    var a : integer;             a = 2
+    procedure Q;                 level 2
+      var b : integer;           b = 3
+      begin b := a + g end;      reads level 1 and level 0
+    end Q;
+    procedure R(n : integer);    level 2
+      begin Q end;               Q called from R
+    end R;
+    begin a := 2; R(5) end;
+  begin g := 1; P end.</pre>
+          <p class="small" style="margin-bottom:0">The call chain is Main, then P, then R, then Q. Q is written inside P and called from R, which is the whole point: its enclosing definition and its caller are different frames. Words are four bytes and frames are aligned to eight, so every size on the page is arithmetic you can redo by hand.</p>
+        </div>
+
+        <div class="card">
+          <h3>The calling sequence, split between caller and callee</h3>
+          <p class="small"><strong>Before the call, the caller</strong> evaluates the actual parameters and stores them where the callee expects them, stores the return address, and passes the access link. Then it jumps.</p>
+          <p class="small"><strong>On entry, the callee</strong> saves the state it will clobber, stores the caller's frame pointer as its own control link, sets the frame pointer to its new frame, and makes room for its locals and temporaries.</p>
+          <p class="small"><strong>On return, the callee</strong> places the returned value where the caller can find it, restores the frame pointer from the control link, restores saved registers, and jumps to the return address. The caller then continues with its own frame intact.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The division of labour is forced by who knows what: only the caller knows the arguments, and only the callee knows its own local layout. That is why the frame is built from both ends and why the control link must be saved before the frame pointer moves.</p>
+        </div>
+
+        <div class="card">
+          <h3>Where each kind of storage lives</h3>
+          <p class="small"><strong>Static area</strong> — globals, string literals, and <code>static</code> locals. Addresses fixed at link time, lifetime the whole run, no frame involved.</p>
+          <p class="small"><strong>Stack</strong> — one frame per live activation. Lifetime is the call, freed strictly in reverse order.</p>
+          <p class="small"><strong>Heap</strong> — objects whose lifetime is not nested inside a call, such as anything from <code>malloc</code>. Freed in any order, which is why it cannot be a stack.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The stack can only support lifetimes that nest, because a frame can only be freed when it is on top. A pointer to a local that has been returned is therefore a dangling pointer: the storage is gone the moment the frame is popped.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed and checked.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">One call, one frame. Every activation gets its own record.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One activation, one record</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">One call, one frame, and the frame dies when the call returns.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Eight worked examples, every number computed</h3>
+          <p class="small" style="margin-bottom:0">Each example below is produced by the model on this page: the frame layouts are built from field lists, the access chains are walked on the static-parent map, the display is simulated on the call sequence, and the four parameter modes are executed as four simulators over the same source. The Animation tab prints how many checks passed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — the layout of one frame</h3>
+          <p class="small"><strong>Question.</strong> Give the offset and size of every field of Q's frame, and its total size.</p>
+          <p class="small"><strong>Step 1, the bookkeeping.</strong> Returned value at 0, return address at 4, control link at 8, access link at 12. Sixteen bytes, the same in every frame of every procedure.</p>
+          <p class="small"><strong>Step 2, the data.</strong> Q has no parameters, one local <code>b</code> at 16, and one temporary at 20.</p>
+          <p class="small"><strong>Step 3, the total.</strong> Twenty-four bytes used, which is already a multiple of eight, so no padding and the frame is 24 bytes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Compare Main.</strong> Twenty bytes used, so four bytes of padding at offset 20 and a 24-byte frame. The padding is part of the frame and part of the stack usage.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — peak stack occupancy</h3>
+          <p class="small"><strong>Question.</strong> How many bytes of stack does the call Main, P, R, Q use at its deepest?</p>
+          <p class="small"><strong>Step 1.</strong> At the moment Q runs, four frames are alive: Main, P, R and Q.</p>
+          <p class="small"><strong>Step 2.</strong> Each of the four is 24 bytes, so the peak is 4 times 24, which is 96 bytes.</p>
+          <p class="small" style="margin-bottom:0"><strong>The trap.</strong> If the program called Q a hundred times, the peak would still be 96 bytes. Peak occupancy is a property of one moment, not a running total.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — counting recursive frames</h3>
+          <p class="small"><strong>Question.</strong> With <code>fact(n)</code> returning 1 when n is at most 1, how many frames are alive during <code>fact(4)</code>?</p>
+          <p class="small"><strong>Step 1.</strong> The calls are fact(4), fact(3), fact(2), fact(1): four fact frames, holding n = 4, 3, 2, 1.</p>
+          <p class="small"><strong>Step 2.</strong> The base case fires at n = 1 and returns 1 without another call, so nothing deeper is pushed.</p>
+          <p class="small"><strong>Step 3.</strong> Add the frame of whoever called <code>fact</code>: five frames alive at the deepest point.</p>
+          <p class="small" style="margin-bottom:0"><strong>The products.</strong> On the way back up the values are 1, then 1 times 2, then 2 times 3, then 6 times 4, which is 24. The multiplication happens in reverse order of the calls.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — six references, seven hops</h3>
+          <p class="small"><strong>Question.</strong> For each reference in the program, how many access links does the code follow?</p>
+          <p class="small"><strong>The rule.</strong> Hops equal the level of the reading code minus the level of the declaration. From Q at level 2: <code>b</code> is level 2, so 0; <code>a</code> is level 1, so 1; <code>g</code> is level 0, so 2. From R at level 2: <code>a</code> gives 1 and <code>g</code> gives 2. From P at level 1: <code>g</code> gives 1.</p>
+          <p class="small"><strong>The total.</strong> 0 + 1 + 2 + 1 + 2 + 1 = 7 hops over six references, an average of 1.166667.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> Each walk must arrive in the frame that the declaration says: <code>a</code> in P, <code>g</code> in Main, <code>b</code> in Q. The page performs that check on all six.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — the display during Q</h3>
+          <p class="small"><strong>Question.</strong> What does the display hold while Q is running?</p>
+          <p class="small"><strong>Step 1.</strong> Main sets d[0], P sets d[1], R sets d[2]. When R calls Q, Q is also at level 2, so Q overwrites d[2].</p>
+          <p class="small"><strong>Step 2.</strong> During Q the display reads Main, P, Q. R's frame is still on the stack but no longer reachable through the display.</p>
+          <p class="small" style="margin-bottom:0"><strong>Step 3.</strong> The old value R was saved inside Q's frame and is written back when Q returns, so d[2] is R again. That save and restore is what the display costs on each call.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 6 — four modes, one program</h3>
+          <p class="small"><strong>The program.</strong> <code>a</code> is 5. Procedure <code>p(x)</code> does <code>x := x + 1</code> and then <code>a := a + x</code>. The call is <code>p(a)</code> and then <code>a</code> is printed.</p>
+          <p class="small"><strong>By value.</strong> The copy becomes 6, then <code>a</code> becomes 5 + 6 = 11. The copy is discarded.</p>
+          <p class="small"><strong>By reference.</strong> <code>x</code> is another name for <code>a</code>, so the first statement makes <code>a</code> 6, and then <code>a</code> becomes 6 + 6 = 12.</p>
+          <p class="small"><strong>By value-result.</strong> The copy becomes 6 and <code>a</code> becomes 11; then the copy-back overwrites 11 with 6.</p>
+          <p class="small" style="margin-bottom:0"><strong>By name.</strong> <code>x</code> is the expression <code>a</code>, re-evaluated each time, so the two statements read as <code>a := a + 1</code> and <code>a := a + a</code>, giving 12. Name and reference agree here; the next example separates them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 7 — name against reference</h3>
+          <p class="small"><strong>The program.</strong> <code>i</code> is 1 and A holds 0, 0, 0. Procedure <code>p(x)</code> does <code>i := 2</code> and then <code>x := 10</code>. The call is <code>p(A[i])</code>.</p>
+          <p class="small"><strong>By reference.</strong> The address of A[1] is taken at the call, while <code>i</code> is still 1. The write goes to A[1] whatever happens to <code>i</code> afterwards, so A becomes 10, 0, 0.</p>
+          <p class="small"><strong>By name.</strong> The formal is the expression A[i], evaluated at the point of the write, when <code>i</code> is 2. A becomes 0, 10, 0.</p>
+          <p class="small" style="margin-bottom:0"><strong>By value-result.</strong> Address taken at the call and value copied back into A[1], so it agrees with reference here — and disagrees with it on the scalar program above, where it printed 6 rather than 12. A mode pair can agree on one program and disagree on the next.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 8 — from frame size to depth</h3>
+          <p class="small"><strong>Question.</strong> An 8 MiB stack and 96 bytes per frame: how deep can the recursion go?</p>
+          <p class="small"><strong>Step 1.</strong> 8 MiB is 8 388 608 bytes.</p>
+          <p class="small"><strong>Step 2.</strong> 8 388 608 divided by 96 is 87381.33, so 87381 whole frames fit.</p>
+          <p class="small"><strong>Step 3.</strong> 87381 times 96 is 8 388 576, leaving 32 bytes unused. One more frame would need 8 388 672, which is 64 bytes beyond the stack.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the check matters.</strong> Rounding up instead of down gives 87382, an answer that cannot be allocated. The multiplication is the cheap way to catch it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rules stop being obvious</h3>
+          <p class="small" style="margin-bottom:0">Nine boundary cases that decide whether an answer is right. Each one is stated with the reason it holds, not as a rule to memorise.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A local costs zero links, not one</h3>
+          <p class="small">When the declaration level equals the reading level, the frame pointer already points at the right frame, so the access is frame pointer plus offset with no link followed at all. Writing "1" for a local is a common slip and it changes every total in a hop-count question.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Hops equal the level difference. For a local that difference is exactly 0, and following zero links is the identity.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Siblings cannot read each other's locals</h3>
+          <p class="small">Q and R are both declared inside P, so both are at level 2, and neither encloses the other. Q cannot name <code>n</code>, R's parameter, at all: it is not in Q's scope. A program that appears to do it is either illegal or is reading a different declaration with the same name.</p>
+          <p class="small" style="margin-bottom:0">This is why the access-link chain of Q is P then Main and never R. The chain follows the text, and the text puts R beside Q, not around it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Under recursion the access link does not point at the previous activation</h3>
+          <p class="small">For a procedure declared at the top level, its static parent is the outermost block, so its access link points there — not at the previous frame of itself. Two activations of the same procedure at the same level are not linked by access links, because neither encloses the other.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The access link is defined by the enclosing definition. Recursion creates frames at the same level, so no nesting relation exists between them to point at.</p>
+        </div>
+
+        <div class="card">
+          <h3>Calling outward: the access link is not the caller's frame</h3>
+          <p class="small">If code at level 2 calls a procedure at level 1, the access link for the new frame is the frame at level 1 — which may or may not be the caller. When the call goes to an enclosing procedure the two can coincide; when it does not, they differ. The rule that decides it is the level, not the call.</p>
+          <p class="small" style="margin-bottom:0">The general recipe: take the callee's level minus one, walk that far from the caller's frame, and use the frame you reach.</p>
+        </div>
+
+        <div class="card">
+          <h3>Same-level calls overwrite the display entry</h3>
+          <p class="small">R and Q are both level 2, so calling Q from R overwrites d[2]. The displaced frame is still live, but a display alone can no longer reach it. That is exactly why the old entry is saved in the new frame and restored on return.</p>
+          <p class="small" style="margin-bottom:0">A display with one slot per level is not a display with one slot per call, and questions that confuse the two produce a display that cannot be restored.</p>
+        </div>
+
+        <div class="card">
+          <h3>Static locals and globals are in no frame</h3>
+          <p class="small">A <code>static</code> local has static storage duration: it lives in the static data area for the whole run, so it survives between calls and is not part of any activation record. A recursive function that keeps state in a <code>static</code> local does not keep one copy per frame — it keeps one copy, shared.</p>
+          <p class="small" style="margin-bottom:0">This is the difference between "each call has its own" and "each call sees the same", and it is why the frame count and the value count can disagree.</p>
+        </div>
+
+        <div class="card">
+          <h3>C frames carry no access link</h3>
+          <p class="small">Standard C does not allow a function to be defined inside another function, so every function is at level 0 and no non-local reference ever needs a link. A C frame still has a control link, because returning still needs the caller's frame pointer.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Nested function definitions are a GNU C extension, not standard C, and code relying on them is not portable. GATE questions in the Compiler Design section use a hypothetical nested language for exactly this reason.</p>
+        </div>
+
+        <div class="card">
+          <h3>Variable-length data on the stack</h3>
+          <p class="small">When a local array's size is only known at run time, the frame cannot have a fixed size. The usual arrangement keeps the fixed part of the frame at a known offset from the frame pointer and grows the variable part below it, so offsets to parameters and locals stay fixed even though the frame does not.</p>
+          <p class="small" style="margin-bottom:0">That is why the frame pointer exists separately from the stack pointer: the stack pointer moves with the variable part, the frame pointer does not.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Objects that outlive the call cannot live in the frame</h3>
+          <p class="small">Return the address of a local and the storage is freed the moment the frame is popped: the pointer dangles, and reading it is undefined behaviour in C. The same applies to a pointer stored somewhere that outlives the call.</p>
+          <p class="small" style="margin-bottom:0">This is the boundary of the whole stack model: nested lifetimes go on the stack, non-nested lifetimes go on the heap, and a lifetime that is neither is a bug in the program rather than a gap in the model.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven wrong beliefs, each with the smallest example that refutes it</h3>
+          <p class="small" style="margin-bottom:0">Each entry gives the belief, the counterexample, and what to say instead. The counterexamples are the ones this page computes and draws, so you can watch each one fail.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. "The access link is the caller."</h3>
+          <p class="small"><strong>The belief.</strong> One pointer does both jobs, so a frame points at whoever called it.</p>
+          <p class="small"><strong>The counterexample.</strong> Q is written inside P and called from R. If the access link pointed at R, then <code>b := a + g</code> would look for <code>a</code> in R, and R has no <code>a</code>. The read either fails or takes the wrong declaration.</p>
+          <p class="small" style="margin-bottom:0"><strong>Instead.</strong> Two pointers, two questions: control link answers "who called me", access link answers "where was I written".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. "Under recursion the static link points at the previous activation."</h3>
+          <p class="small"><strong>The belief.</strong> The second call of <code>fact</code> links back to the first, like a chain of calls.</p>
+          <p class="small"><strong>The counterexample.</strong> All the <code>fact</code> frames are at the same nesting level, and a static link points at a strictly outer level. There is no level between them to point at.</p>
+          <p class="small" style="margin-bottom:0"><strong>Instead.</strong> The chain of calls is the control links; the access link of a top-level recursive procedure points at the outermost block.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. "Value-result is just another name for reference."</h3>
+          <p class="small"><strong>The belief.</strong> Both let the callee change the caller's variable, so they behave the same.</p>
+          <p class="small"><strong>The counterexample.</strong> With <code>a</code> equal to 5 and a body of <code>x := x + 1</code> then <code>a := a + x</code>, reference prints 12 and value-result prints 6: the body stores 11 into <code>a</code>, and then the delayed copy-back overwrites it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Instead.</strong> Reference writes immediately; value-result writes once, at return. They differ exactly when the body touches the actual variable directly.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. "Name is the same as reference."</h3>
+          <p class="small"><strong>The belief.</strong> Both give the callee access to the caller's variable, so the outputs match.</p>
+          <p class="small"><strong>The counterexample.</strong> On the scalar program both print 12, which is where the belief comes from. On <code>p(A[i])</code> with <code>i</code> set to 2 inside, reference writes A[1] and name writes A[2].</p>
+          <p class="small" style="margin-bottom:0"><strong>Instead.</strong> Reference binds an address once; name re-evaluates an expression at every use. Agreeing on one program is not evidence of equality.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. "The frame size is the sum of the variables."</h3>
+          <p class="small"><strong>The belief.</strong> Count the parameters and locals, multiply by four, done.</p>
+          <p class="small"><strong>The counterexample.</strong> Main holds one four-byte local and sixteen bytes of bookkeeping, which is twenty, yet its frame is twenty-four. The extra four bytes are padding so the frame starts on an eight-byte boundary.</p>
+          <p class="small" style="margin-bottom:0"><strong>Instead.</strong> Bookkeeping plus data, then rounded up to the alignment. Padding occupies the stack even though no variable lives in it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. "Count every call to get the frame count."</h3>
+          <p class="small"><strong>The belief.</strong> A loop that calls a function a hundred times creates a hundred frames that all count.</p>
+          <p class="small"><strong>The counterexample.</strong> Each call's frame is popped when it returns, so at any moment only the calls that have started and not returned are alive. Calling Q a hundred times still peaks at four frames.</p>
+          <p class="small" style="margin-bottom:0"><strong>Instead.</strong> Take the deepest point of the call chain. Peak occupancy is a property of one moment.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>7. "A display has one entry per call."</h3>
+          <p class="small"><strong>The belief.</strong> Every frame gets a slot, so a display is a copy of the stack.</p>
+          <p class="small"><strong>The counterexample.</strong> R and Q are both level 2, so they share one slot and Q overwrites R. The display has exactly as many slots as the program has nesting levels, which the compiler knows.</p>
+          <p class="small" style="margin-bottom:0"><strong>Instead.</strong> One slot per level, holding the most recent activation at that level, with the displaced value saved in the frame and restored on return.</p>
+        </div>
+
+        <div class="card">
+          <h3>The one-sentence separator</h3>
+          <p class="small">The control link answers <em>who called me</em> and is used to return. The access link answers <em>where was I written</em> and is used to read a non-local name.</p>
+          <p class="small" style="margin-bottom:0">Every other fact in this topic — scoping rules, displays, hop counts, depth limits — is arithmetic layered on that sentence. If an answer contradicts it, the answer is wrong, whatever the arithmetic looked like.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this clause is examined</h3>
+          <p class="small">Section 7 names <em>Runtime environments</em> as one item in a list of six. Within that item, questions come in three shapes, and all three reduce to the same five steps. Nothing on this page claims a marks distribution, and nothing claims that a particular shape appeared in a particular paper unless a year and paper are named.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The clause is quoted from the official GATE 2027 CS syllabus PDF at <code>gate2027.iitm.ac.in</code>, read during this run. That is the entire syllabus justification for this lesson.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — output under a stated rule</h3>
+          <p class="small">A small program with a global and a shadowing local, run under static scoping and then under dynamic scoping, asking for the two printed values. Or the same program under two parameter modes.</p>
+          <p class="small"><strong>Procedure.</strong> Fix the rule first. Under static scoping, resolve every free name in the text where the procedure is written; under dynamic scoping, resolve it in the most recent live frame on the call chain. Then execute the statements in order, one column per variable.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> If your static trace ever consulted the caller, the trace is a dynamic trace and the answer is wrong.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — which frame, which link</h3>
+          <p class="small">Name the frame that a given reference resolves to, the link that is followed, or the number of dereferences. Sometimes the question shows a stack of frames and asks which one a name reaches.</p>
+          <p class="small"><strong>Procedure.</strong> Find the declaration and its level, subtract the reading level, follow that many access links, then add the offset. For the link itself: caller for the control link, enclosing definition for the access link.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> The frame you reach must be the one whose procedure declares the name. If it is not, the level or the parent map is wrong.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — counts and bytes</h3>
+          <p class="small">How many frames are alive, how many bytes the stack uses, how deep a recursion of a given frame size can go, or how many fields a record holds.</p>
+          <p class="small"><strong>Procedure.</strong> Find the deepest point of the call chain, count the frames alive there, and multiply by the padded frame size. For a depth limit, divide the stack by the frame size and round down.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> Multiply back: the product must not exceed the stack, and one more frame must exceed it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps that cost marks here</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Using the caller as the access link, which silently converts a static-scoping question into a dynamic one.</li>
+            <li>Counting one hop for a local, which is zero.</li>
+            <li>Counting every call rather than the frames alive at one moment.</li>
+            <li>Forgetting the padding when the question asks for bytes.</li>
+            <li>Treating value-result as reference when the body touches the actual variable.</li>
+            <li>Treating name as reference when the argument contains a side-effecting expression such as an array index.</li>
+            <li>Rounding a depth limit up rather than down.</li>
+            <li>Assuming a display has one slot per call instead of one per level.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What is and is not claimed about past papers</h3>
+          <p class="small">A static-versus-dynamic-scoping question of the shape above — a global <code>i</code>, a procedure <code>f</code> with a local <code>i</code>, and a procedure <code>g</code> that prints <code>i</code> — appears in GATE 2007. Question banks disagree about whether it is the CS paper or the IT paper, and this page did not open the official paper to settle it.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Because the paper attribution could not be confirmed during this run, that question is <strong>not</strong> reproduced here as a previous-year question, and no question number is claimed. The practice set below is written for this lesson and labelled as original.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Preparation guides list scoping and parameter-passing programs, activation-record fields and the two links as recurring short items in this clause. That is a description of what guides emphasise, not a measurement of any paper, and it is offered only as a hint about where to practise.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five-step procedure, written once</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Find the declaration the name denotes, under the rule the question states.</li>
+            <li>Read its nesting level, and the level of the code doing the reading.</li>
+            <li>Subtract: that difference is the number of access links.</li>
+            <li>Follow that many links, then add the offset inside the frame you reached.</li>
+            <li>Name the frame — or, for a count, take the deepest point and multiply by the frame size.</li>
+          </ol>
+          <p class="small" style="margin:8px 0 0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Steps 2 and 3 are the definition of the access-link walk, and step 4 is the definition of an offset. The procedure is not a shortcut; it is the definition written as instructions.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Every question below is an <strong>original practice question</strong> written for this lesson in GATE format. None is presented as an official previous-year item: no year, paper or question number is claimed. The program is the one on the Build-up tab unless a question says otherwise.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>In the program of this lesson, the statement <code>b := a + g</code> runs in Q. How many access links does the code follow to read <code>g</code>? Give the count.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p><code>g</code> is declared in Main at level 0, and the reading code is in Q at level 2. The number of links is the difference, 2 − 0 = 2: one link from Q's frame to P's, then one from P's to Main's.</p>
+            <p><strong>Why 1 appears.</strong> That is the count for <code>a</code>, which is declared in P at level 1. <strong>Why 0 appears.</strong> That is the count for <code>b</code>, a local of Q. <strong>Why 3 appears.</strong> That is the number of frames below Q on the stack, which is a different quantity: hop count follows levels, not frames.</p>
+            <p class="small muted">The page walks this chain and checks that it arrives in Main.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>While Q is executing, which frame does Q's control link point to, and which does Q's access link point to?</p>
+            <ol class="choices">
+              <li>Control link to R, access link to P</li>
+              <li>Control link to P, access link to R</li>
+              <li>Both point to R</li>
+              <li>Both point to P</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p>Q was called from R, so its control link is R's frame. Q was written inside P, so its access link is the most recent activation of P.</p>
+            <p><strong>Why B is wrong.</strong> It swaps the two jobs, which is the single most common error in this topic. <strong>Why C is wrong.</strong> It is the answer you get if one pointer is made to do both jobs, which is exactly dynamic scoping. <strong>Why D is wrong.</strong> P is not the caller, so no control link can point at it here.</p>
+            <p class="small muted">The page checks that the two parents of Q are different frames, and draws both arrows.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Frames are 24 bytes each. What is the maximum number of stack bytes in use during the call Main, then P, then R, then Q? Give the number of bytes.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 96</p>
+            <p>At the deepest point four frames are alive, and 4 × 24 = 96.</p>
+            <p><strong>Why 72 appears.</strong> That is three frames, as if Main's frame did not count. <strong>Why 24 appears.</strong> That is one frame, which is the answer to a different question. <strong>Why 120 appears.</strong> That is five frames, one more than the chain has.</p>
+            <p class="small muted">The page sums the four frame sizes and checks the total against the peak.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A function <code>f(n)</code> returns 1 when n is at most 1, and otherwise calls <code>f(n-1)</code>. Including the frame of the caller of <code>f</code>, how many frames are alive at the deepest point of the call <code>f(6)</code>?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 7</p>
+            <p>The base case fires at n = 1, so the calls are f(6), f(5), f(4), f(3), f(2), f(1): six frames of <code>f</code>. Adding the caller's frame gives 7.</p>
+            <p><strong>Why 6 appears.</strong> That counts only the frames of <code>f</code>, which is right for a question that excludes the caller and wrong for this one. <strong>Why 8 appears.</strong> That is the answer for a base case of n equal to 0, where one more call happens. Read the base case before you count.</p>
+            <p class="small muted">The page checks both formulas: n frames for base case n ≤ 1, n + 1 frames for base case n = 0.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A global <code>a</code> is 5. A procedure <code>p(x)</code> executes <code>x := x + 1</code> and then <code>a := a + x</code>, and is called as <code>p(a)</code>. What does <code>a</code> equal afterwards if the parameter is passed by value-result?</p>
+            <ol class="choices">
+              <li>5</li>
+              <li>6</li>
+              <li>11</li>
+              <li>12</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The copy becomes 6 and <code>a</code> becomes 5 + 6 = 11 inside the body. At return the copy value 6 is written back into <code>a</code>, overwriting the 11.</p>
+            <p><strong>Why 11 is wrong.</strong> That is call by value, where nothing is copied back. <strong>Why 12 is wrong.</strong> That is call by reference, where <code>x</code> and <code>a</code> are the same cell, so the second statement reads 6 twice. <strong>Why 5 is wrong.</strong> That is the value before the call, which nothing here preserves.</p>
+            <p class="small muted">The page runs all four modes as separate simulators and prints the four results.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p><code>i</code> is 1 and A holds 0, 0, 0. Procedure <code>p(x)</code> executes <code>i := 2</code> and then <code>x := 10</code>, and is called as <code>p(A[i])</code>. Under call by name, which cell of A holds 10 afterwards?</p>
+            <ol class="choices">
+              <li>A[1]</li>
+              <li>A[2]</li>
+              <li>Both A[1] and A[2]</li>
+              <li>Neither, because the assignment is invalid</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Under call by name the formal is the expression A[i], evaluated at the point of use. By then <code>i</code> is 2, so the write lands in A[2].</p>
+            <p><strong>Why A[1] is wrong.</strong> That is call by reference, and also value-result, where the address is captured while <code>i</code> is still 1. <strong>Why both is wrong.</strong> The statement is executed once, so exactly one cell is written. <strong>Why neither is wrong.</strong> Nothing about the assignment is invalid; only its target depends on when the expression is evaluated.</p>
+            <p class="small muted">The page simulates all four modes on this program and checks that reference and name write different cells while value-result and reference agree.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following statements about a display are true?</p>
+            <ol class="choices">
+              <li>It has one entry per nesting level of the program</li>
+              <li>It has one entry per live activation record</li>
+              <li>Its entry for a level holds the most recent activation at that level</li>
+              <li>An entry overwritten by a same-level call must be saved and restored</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, C, D</p>
+            <p>The number of slots equals the number of nesting levels, which the compiler knows from the program text. Each slot holds the most recent activation at its level, and a same-level call overwrites a slot, so the displaced value is saved in the new frame and restored at return.</p>
+            <p><strong>Why B is wrong.</strong> A display is not a copy of the stack: R and Q are both level 2 and share one slot. A display with one slot per live frame would not be a display, and could not be indexed by level.</p>
+            <p class="small muted">The page simulates the display over the call sequence and checks that Q overwrites R at level 2 and that R's entry is restored.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>An 8 MiB stack, frames of 96 bytes, no other stack usage. What is the greatest number of frames that can be allocated? Give the count.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 87381</p>
+            <p>8 388 608 divided by 96 is 87381.33, and a partial frame cannot be allocated, so the answer is 87381. Multiplying back: 87381 × 96 = 8 388 576, which fits, and 87382 × 96 = 8 388 672, which does not.</p>
+            <p><strong>Why 87382 appears.</strong> That is rounding up, which allocates a frame that does not fit. <strong>Why 87381.33 appears.</strong> A count is an integer. <strong>Why 8192 appears.</strong> That is 8 MiB divided by 1024, which counts kilobytes rather than frames.</p>
+            <p class="small muted">The page computes the floor, the product and the next product, and checks that the first fits and the second does not.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p><code>x</code> is a global equal to 1. <code>show</code> prints <code>x</code> and is declared at the top level. <code>g</code> declares a local <code>x</code> equal to 2 and calls <code>show</code>. The program calls <code>g</code> from the main block. What is printed under static scoping and under dynamic scoping?</p>
+            <ol class="choices">
+              <li>Static 1, dynamic 2</li>
+              <li>Static 2, dynamic 1</li>
+              <li>Static 1, dynamic 1</li>
+              <li>Static 2, dynamic 2</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p><code>show</code> is written at the top level, so under static scoping its free <code>x</code> is the global, whatever called it: 1. Under dynamic scoping the lookup follows the control links to the caller <code>g</code>, whose local <code>x</code> is the most recent live binding: 2.</p>
+            <p><strong>Why B is wrong.</strong> It reverses the two rules. <strong>Why C is wrong.</strong> It is the static answer twice, which is what a trace that never consults the call chain produces. <strong>Why D is wrong.</strong> It is the dynamic answer twice, which is what a trace that always consults the caller produces.</p>
+            <p class="small muted">The page resolves the same name through the two different parent maps and checks that the two answers differ.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">The definitions, the arithmetic, the decision procedure and the traps, on one screen. Every number is the one this lesson computed.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Activation record</strong> — the storage of one call: returned value, parameters, control link, access link, saved state and return address, locals, temporaries.</li>
+            <li><strong>Control link</strong> — to the caller frame; saved frame pointer; used to return.</li>
+            <li><strong>Access link</strong> — to the most recent frame of the enclosing definition; used for non-local reads.</li>
+            <li><strong>Nesting level</strong> — how many procedures enclose the declaration textually; outermost is 0.</li>
+            <li><strong>Display</strong> — array indexed by level; one slot per level; save and restore on same-level calls.</li>
+            <li><strong>Static scoping</strong> — resolve along access links. <strong>Dynamic scoping</strong> — resolve along control links.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The arithmetic</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Hops</strong> = level of the reading code − level of the declaration. Zero for a local.</li>
+            <li><strong>Frame size</strong> = bookkeeping + parameters + locals + temporaries, rounded up to the alignment.</li>
+            <li><strong>Peak stack</strong> = frames alive at the deepest point × padded frame size.</li>
+            <li><strong>Depth limit</strong> = floor(stack bytes ÷ frame size), then check the product and the next product.</li>
+            <li><strong>Recursive frame count</strong> = n for base case n ≤ 1, n + 1 for base case n = 0, plus the caller's frame.</li>
+            <li><strong>Display cost</strong> = one index, always; <strong>chain cost</strong> = the level difference.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The four parameter modes</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Value</strong> — a copy in the callee frame; changes lost. On this lesson's program: 11.</li>
+            <li><strong>Reference</strong> — the caller's address; every write immediate. 12.</li>
+            <li><strong>Value-result</strong> — copy in, copy out at return. 6, because the copy-back overwrites the body's own change.</li>
+            <li><strong>Name</strong> — the argument expression, re-evaluated at each use. 12 here, but it writes A[2] rather than A[1] on the array program, where reference writes A[1].</li>
+          </ul>
+          <p class="small" style="margin:8px 0 0">Only value is C's ordinary parameter passing. The other three appear in hypothetical languages, which is where GATE puts them.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Eight traps, in the order they bite</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Access link set to the caller instead of the enclosing definition.</li>
+            <li>A local given one hop instead of zero.</li>
+            <li>Hop count taken from the stack depth instead of the level difference.</li>
+            <li>Frames counted over the run instead of at the deepest point.</li>
+            <li>Padding omitted from the frame size.</li>
+            <li>Value-result assumed equal to reference.</li>
+            <li>Name assumed equal to reference.</li>
+            <li>Depth limit rounded up.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Quick self-test, answers in one word</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Which link does a return use? <em>control.</em></li>
+            <li>Which link does a non-local read use? <em>access.</em></li>
+            <li>How many hops for a global from level 2? <em>two.</em></li>
+            <li>How many bytes of bookkeeping in this lesson's frames? <em>sixteen.</em></li>
+            <li>How many slots does a display have for a program with three levels? <em>three.</em></li>
+            <li>Does value-result differ from reference when the body never touches the actual? <em>no.</em></li>
+            <li>Is a <code>static</code> local inside the frame? <em>no.</em></li>
+            <li>What happens to a pointer to a returned local? <em>dangles.</em></li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What this lesson does not cover</h3>
+          <p class="small" style="margin-bottom:0">Garbage collection and heap management, which the Dragon Book treats in the same chapter but which the 2027 clause does not name; the details of a real calling convention for a named architecture; and tail-call optimisation, which is a code-generation technique rather than a runtime-environment fact. Each is outside this lesson's scope, and none is claimed to be in the syllabus.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the claims come from</h3>
+          <p class="small" style="margin-bottom:0">The syllabus wording was read from the official document during this run, not recalled. The runtime-environment material is standard and is attributed below; every number on the page is computed and checked by the page itself.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official syllabus</h3>
+          <p class="small"><strong>GATE 2027 Computer Science and Information Technology syllabus, IIT Madras</strong> — <code>gate2027.iitm.ac.in</code>, the CS syllabus PDF. Section 7 reads: "Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, and data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> That sentence is the entire syllabus justification for this lesson. Nothing else is claimed to be in the syllabus, and no marks distribution is asserted.</p>
+        </div>
+
+        <div class="card">
+          <h3>Standard treatment</h3>
+          <p class="small"><strong>Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em>, Chapter 7, "Run-Time Environments"</strong> — storage organisation, stack allocation and activation records, calling sequences, access to non-local data through access links and displays, and heap management. The field list, the two links, the level-difference rule and the display are the chapter's, and the worked numbers here are this lesson's own.</p>
+          <p class="small" style="margin-bottom:0"><strong>University lecture notes on runtime organisation</strong> — UC Davis ECS 142 and the ANU compiler course notes both set out the activation record, the calling and return sequences, the access link and the display in the same terms, including the save-and-restore of a display entry on a same-level call. Used to confirm the treatment is not one author's idiosyncrasy.</p>
+        </div>
+
+        <div class="card">
+          <h3>What the page computes for itself</h3>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is quoted. The page builds each frame from a field list and checks that the fields are contiguous, that the size is a multiple of the alignment, and that fields plus padding cover the frame exactly. It walks the access-link chain for all six references and requires each walk to arrive in the frame whose procedure declares the name. It simulates the display over the call sequence and requires Q to overwrite R at level 2 and R's entry to be restored. It executes the four parameter modes as four simulators and checks the four printed values and the two array outcomes. It computes the depth limit and checks that the product fits while the next product does not. The count of checks that passed is printed on the Animation tab.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>What could not be confirmed, and what is interpretation</h3>
+          <p class="small">A GATE 2007 question on static versus dynamic scoping exists in the shape described on the GATE patterns tab, but question banks disagree on whether it belongs to the CS paper or the IT paper, and the official paper was not opened during this run. No previous-year question is therefore reproduced, and no question number is claimed; every practice question is labelled original.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The stack of trays in the Build-up tab is an analogy for last-in, first-out storage. It is offered to make the discipline memorable and it says nothing about the two pointers, which the lesson supplies separately.</p>
+          <p class="small" style="margin-bottom:0">The frame sizes and offsets are those of a four-byte-word machine aligned to eight bytes, stated on the page. A different machine would give different numbers by the same arithmetic; the method is what transfers, not the 24.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
