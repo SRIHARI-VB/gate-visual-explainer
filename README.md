@@ -83,6 +83,7 @@ lessons are static files and work from a local clone.
 | Local Optimisation and Basic Blocks: Leaders, DAGs and the Six Safe Rewrites | Compiler Design | A — explicitly in the syllabus | `topics/local-optimisation-and-basic-blocks/index.html` |
 | Runtime Environments, Intermediate Code and Optimisation | Compiler Design | A — explicitly in the syllabus | `topics/runtime-environments-intermediate-code-and-optimisation/index.html` |
 | Calculus: Limits, Extrema and Integration | Engineering Mathematics | A — explicitly in the syllabus | `topics/calculus-limits-extrema-and-integration/index.html` |
+| Integration: Techniques, Definite Integrals and Improper Integrals | Engineering Mathematics | A — explicitly in the syllabus | `topics/integration-techniques-and-definite-integrals/index.html` |
 | Matrices, Systems and Eigenvalues | Engineering Mathematics | A — explicitly in the syllabus | `topics/matrices-systems-and-eigenvalues/index.html` |
 | Mean, Median, Mode and Standard Deviation: Three Middles, One Spread, and When Each Rule Fails | Engineering Mathematics | A — explicitly in the syllabus | `topics/mean-median-mode-standard-deviation/index.html` |
 | Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
