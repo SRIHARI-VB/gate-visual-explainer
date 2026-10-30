@@ -3443,6 +3443,109 @@ topics.append(topic(
         "writing the terminator first is what makes a reversal print nothing (GATE CSE 2004)",
     ]))
 
+# ---------------------------------------------------------------- Probability: conditional expectation
+# Restored 2026-10-30: this entry had been lost from the generator while the
+# tracker still carried it, so regenerating dropped a published lesson.
+topics.append(topic(
+    "Engineering Mathematics", "Probability and Statistics",
+    "Expectation of a sum: linearity of expectation and indicator variables",
+    [
+        "expectation as a weighted average and a linear functional",
+        "linearity of expectation for any joint distribution",
+        "indicator random variables and E[I(A)] = P(A)",
+        "writing a count as a sum of indicators",
+        "the tail-sum identity for non-negative integer variables",
+        "variance of a sum and the covariance term",
+        "expectation of a product and where independence is required"
+    ],
+    prereq=["probability and random variables", "counting and combinatorics", "hashing", "sorting algorithms"],
+    related=["asymptotic complexity and recurrences", "divide and conquer", "exact counts: comparisons, probes and transfers", "mean, median, mode and standard deviation"],
+    importance="high",
+    evidence="The GATE 2027 CS syllabus (IIT Madras, Section 1, Probability and Statistics) names 'Random variables' and 'Mean'; this microtopic is the property of the mean that makes a count computable. A verified previous-year item sits directly on it: GATE CSE 2022 Q16, expected number of keys in a slot, official answer n/m. A second, GATE CSE 2002 (2 marks), asks for the expected number of comparisons of a random search and answers n. Question catalogues file further expected-value items under Algorithms and Engineering Mathematics. Historical presence is an observation about past papers, not a forecast for 2027.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="linearity-of-expectation",
+    path="topics/linearity-of-expectation/index.html",
+    execution="published and pushed; 35/35 model checks pass, 1201 frames drawn across 10 scenes without error, timeline and caption checks clean",
+    microtopics=[
+        "E[aX + bY + c] = aE[X] + bE[Y] + c with no hypothesis on the joint law",
+        "the derivation as one swap of two finite sums, so dependence is irrelevant",
+        "Y = X as the dependence test: sum still 7, product 91/6 against 49/4",
+        "the unit of the count: position, pair, key, slot, trial, comparison",
+        "fixed points: n positions at probability 1/n, mean exactly 1 for every n",
+        "the n = 5 distribution 44, 45, 20, 10, 0, 1 and why exactly n-1 fixed points is impossible",
+        "inversions: C(n,2) pairs at probability 1/2, giving n(n-1)/4",
+        "the half-probability bijection needs distinct keys",
+        "descents: (n-1)/2, the adjacent-pair version of the same argument",
+        "hashing: expected load n/m, colliding pairs C(n,2)/m, occupied slots m(1-(1-1/m)^n)",
+        "two hash functions split by key parity leave the load at n/m (GATE 2022 Q16)",
+        "coupon collector: m H(m) keys to fill m slots, 14.7 for six",
+        "randomised quicksort: pair probability 2/(j-i+1) and the exact 2(n+1)H(n) - 4n",
+        "the exact count against the 2n ln n bound, 24.4373 against 46.05 at n = 10",
+        "tail-sum identity proved by reordering non-negative terms; first term is 1",
+        "larger of two dice: 161/36 = 4.4722 by six tails and by 36 outcomes",
+        "variance of a sum needs zero covariance; independence is sufficient, not necessary",
+        "E[g(X)] = g(E[X]) only for affine g; E[1/X] = 49/120 against 1/E[X] = 2/7",
+        "an expectation need not be attainable, an integer, or a value the variable takes",
+        "a mean of 1 does not make 1 typical: 44 of 120 shuffles have no fixed point",
+        "infinite means break additivity by making E[X] - E[X] undefined",
+    ]))
+
+topics.append(topic(
+    "Engineering Mathematics", "Probability and Statistics",
+    "Conditional expectation and the law of total expectation",
+    [
+        "conditional probability as a rescaled probability inside an event",
+        "conditional mean E[X | A] as an ordinary mean over A",
+        "E[X | Y = y] for every value of y",
+        "E[X | Y] as a random variable",
+        "the law of total expectation over a partition",
+        "the tower property E[E[X | Y]] = E[X]",
+        "conditioning on the first step to build a recursion",
+        "the law of total variance",
+        "conditioning on a continuous variable through its density",
+        "mixtures: a mean that passes through and a variance that does not"
+    ],
+    prereq=["probability and random variables", "linearity of expectation", "mean, median, mode and standard deviation"],
+    related=["linearity of expectation", "probability and random variables", "counting and combinatorics", "mean, median, mode and standard deviation"],
+    importance="high",
+    evidence="The GATE 2027 CS syllabus names 'Conditional probability and Bayes theorem' in Section 1 (Probability and Statistics) and names the mean of a random variable; it does not use the phrase conditional expectation. Official GATE 2027 CS syllabus, IIT Madras (CS_GATE2027_Syllabus.pdf, read 2026-10-30). Examined directly: GATE CSE 2021 Set 2 Q16 (expected marks from a chosen order of two questions) and GATE CSE 2025 Q65 (expected length of the subinterval containing 0.4), plus GATE DA 2025 Q1 (E[E[X|Y]] = E[X]) and GATE ECE 2015 Set 2 (the wait for two consecutive heads), which are labelled as other papers wherever they appear. Question numbering for the 2021 and 2025 items comes from question catalogues, not from the official papers.",
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="conditional-expectation-and-total-expectation",
+    path="topics/conditional-expectation-and-total-expectation/index.html",
+    execution="published 2026-10-30; 31 model checks, ten scenes, 40 captions, geometry audit clean",
+    microtopics=[
+        "E[X | A] is the ordinary mean formula with the conditional probability substituted",
+        "the definition needs P(A) above zero",
+        "two dice restricted to sums of at least 10: 64/6 = 10.6667 against 7 unconditionally",
+        "the condition rescales the surviving probabilities so they add to one",
+        "E[max | min = y] takes six values, 3.7273, 4.2222, 4.7143, 5.2, 5.6667 and 6",
+        "the block counts 11, 9, 7, 5, 3, 1 and why the pair y-y counts once",
+        "weighting the six conditional means by 11/36 down to 1/36 returns exactly 161/36",
+        "the tower identity proved by swapping two finite sums",
+        "the partition form E[X] = sum of E[X | A_i] P(A_i) and the requirement that the parts are disjoint and exhaustive",
+        "the weights are the probabilities of the parts, not the conditional probabilities inside them",
+        "two coins, fair and 0.2, give 0.5 x 1 + 0.5 x 0.4 = 0.7 heads",
+        "conditioning on an independent variable leaves the mean constant, so its variance is zero",
+        "a recursion counts the step just taken in every equation",
+        "the wait for two consecutive heads: a = 1 + a/2 + b/2 and b = 1 + a/2, so a = 6 and b = 4",
+        "the exact distribution F(n-1)/2^n sums to 6.000000, confirming the recursion",
+        "E[X | Y] is a random variable, and its mean is E[X]",
+        "the conditional mean is a coarsening: each outcome replaced by its block average",
+        "Var(E[X | Y]) is at most Var(X), with equality only when the conditional mean is constant",
+        "the law of total variance Var(X) = E[Var(X | Y)] + Var(E[X | Y])",
+        "the split 1.5176 inside plus 0.4539 between equals 1.9715 on the dice",
+        "P(Y = y) is zero for a continuous Y, so the ratio definition fails",
+        "the conditional mean for a continuous variable is a limit over shrinking intervals, equal to an integral against the conditional density",
+        "the piece of the unit interval holding 0.4 has expected length 0.74",
+        "a uniform bias over three tosses gives mean 1.5 and variance 1.25 against 0.75 at p = 0.5",
+        "the mean passes through a mixture and the variance does not",
+        "substituting the mean parameter is valid only for linear quantities",
+        "GATE CSE 2021 Set 2 Q16: A first gives 16 marks against 14 for B first",
+        "E[E[X | Y]] = E[X] and 'E[X | Y] is a random variable' are true; Var(X) = E[Var(X | Y)] is false as written",
+    ]))
+
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
             "microtopics", "coverage_note", "last_verified_date")
 if os.path.exists("syllabus-coverage.json"):
@@ -3475,6 +3578,8 @@ _VERIFIED = {
     "arithmetic-algorithms-booth-division-cla": "2026-10-30",
     "mathematical-induction": "2026-10-30",
     "c-strings-and-the-null-terminator": "2026-10-30",
+    "linearity-of-expectation": "2026-10-30",
+    "conditional-expectation-and-total-expectation": "2026-10-30",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
