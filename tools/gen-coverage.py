@@ -491,6 +491,47 @@ topics.append(topic(
                  "the four-step exam procedure and its checks"]))
 
 topics.append(topic(
+    EM, "Linear algebra", "LU decomposition: the recording rule and its four consequences",
+    ["the factorisation A = L U and the two triangular shapes",
+     "Doolittle and Crout: which diagonal carries the ones",
+     "the multiplier and the trailing-block update",
+     "solving a system as Ly = b then Ux = y",
+     "the determinant as the product of the pivots",
+     "the inverse from the factors",
+     "existence: the leading principal minor theorem and its assumption",
+     "partial pivoting and PA = LU",
+     "L D L-transpose and the Cholesky special case",
+     "the operation count and the many-right-hand-side trade"],
+    prereq=["matrices-systems-and-eigenvalues", "counting-and-combinatorics"],
+    related=["asymptotic-complexity", "monoids-and-groups", "linearity-of-expectation"],
+    importance="high",
+    evidence="Named verbatim as the last item of the Linear Algebra clause of Section 1 of the GATE 2027 CS syllabus ('Matrices, determinants, system of linear equations, eigenvalues and eigenvectors, LU decomposition'), the same wording carried by the 2023, 2025 and 2026 editions. Question catalogues record items in GATE CSE 2015 Set 1, 2022 and 2025 Set 2; that is a record of past papers, not a weightage claim.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="lu-decomposition",
+    path="topics/lu-decomposition/index.html",
+    execution="2026-10-30: published, 45 of 45 model checks passed, geometry audit clean, captions regenerated from the timeline",
+    microtopics=["the multiplier m(i,k) = entry over pivot, recorded where it cleared",
+                 "U is what elimination leaves; L is what elimination used",
+                 "the pivot comes from the trailing block, not the original diagonal",
+                 "unknown count: n(n-1)/2 in L plus n(n+1)/2 in U equals n^2, so one convention decides the pair",
+                 "Doolittle puts ones on L; Crout puts ones on U",
+                 "A = [[2,1,-1],[-4,-1,3],[2,2,2]] gives multipliers -2, 1, 1 and integer factors",
+                 "GATE CSE 2022: L32 = -1/2, U33 = -1/2, x = (0, 2, -1)",
+                 "GATE CSE 2015 Set 1: l22 = 5 under Crout, 1 under Doolittle, on the same matrix",
+                 "GATE CSE 2025 Set 2: statements A, B, C true and D false",
+                 "forward substitution never divides; back substitution divides by each pivot",
+                 "det = product of the diagonal of U, times -1 per row swap",
+                 "the 4x4 with pivots 4, 7/4, 12/7, 5/3 has det 20, matched by cofactor and by the fourth minor",
+                 "counterexample [[1,1,1],[1,1,2],[1,2,2]]: det -1, D2 = 0, no LU without pivoting",
+                 "D(n) may be zero without destroying the factorisation; only D1..D(n-1) matter",
+                 "PA = LU always exists; the swap costs one sign flip",
+                 "A = L D L-transpose always; Cholesky is the square-root form and needs positive definiteness",
+                 "cost (2/3)n^3 + (1/2)n^2 - (7/6)n, measured and matched for n = 2..12",
+                 "at n = 10: 705 once, 190 per extra solve, crossover at two right-hand sides",
+                 "the symmetric-P counterexample: L = [[1,0],[1/2,1]], U = [[4,2],[0,2]], neither symmetric"]))
+
+topics.append(topic(
     EM, "Calculus", "Limits, continuity, differentiability, maxima and minima",
     ["limits and standard forms", "continuity", "differentiation rules",
      "mean value theorem", "maxima and minima", "integration"],
@@ -3910,6 +3951,7 @@ topics.append(topic(
     ]))
 
 _VERIFIED = {
+    "lu-decomposition": "2026-10-30",
     "spatial-aptitude": "2026-10-28",
     "structures-unions-and-enums": "2026-10-29",
     "integrity-constraints-keys-and-null": "2026-10-29",
@@ -3930,6 +3972,19 @@ _VERIFIED = {
     "binomial-distribution": "2026-10-30",
     "counting-spanning-trees": "2026-10-30",
 }
+# The carry-forward merge runs above the late appends, so a topic that the merge
+# carried forward and that is also appended below would land in the list twice.
+# Keep the first occurrence of each (slug, topic) pair.
+_seen = set()
+_dedup = []
+for _t in topics:
+    _k = (_t.get("lesson_slug"), _t.get("topic"))
+    if _k in _seen:
+        continue
+    _seen.add(_k)
+    _dedup.append(_t)
+topics = _dedup
+
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
     if _d:
