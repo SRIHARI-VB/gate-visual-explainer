@@ -1,4 +1,4 @@
-# Counting Spanning Trees — transcript
+# Counting spanning trees: enumeration, deletion-contraction, Prüfer codes and the Matrix-Tree theorem — transcript
 
 Full narration and caption text in reading order, with scene headings. This is the
 accessibility fallback and the printable study document for the lesson.
