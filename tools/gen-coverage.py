@@ -4245,6 +4245,93 @@ topics.append(topic(
         "the three unlicensed conclusions: an endpoint point, a tangent equal to the chord, a unique point",
         "the decision procedure: hypotheses, then point or bound or count, then bound the answer"]))
 
+# ---------------------------------------------------------------- Compiler Design (intermediate code generation)
+topics.append(topic(
+    "Compiler Design",
+    "Back end: intermediate code generation (Section 7)",
+    "Intermediate code generation: three-address code, the four counts, control-flow translation and the three tables",
+    ["the intermediate representation and why it exists",
+     "the six three-address instruction forms",
+     "expression trees translated in postorder",
+     "operators, fresh temporaries, live temporaries and the register number",
+     "static single assignment form and the phi function",
+     "control flow: loops, conditionals, labels and jumps",
+     "short circuit in control context against value context",
+     "quadruples, triples and indirect triples",
+     "indexed loads, pointers and calls"],
+    prereq=["lexical-analysis-parsing-and-sdt",
+            "runtime-environments-and-activation-records",
+            "runtime-environments-intermediate-code-and-optimisation",
+            "local-optimisation-and-basic-blocks"],
+    related=["local-optimisation-and-basic-blocks",
+             "data-flow-analysis-framework",
+             "lexical-analysis-parsing-and-sdt",
+             "runtime-environments-and-activation-records",
+             "exact-counts-across-topics"],
+    importance="high",
+    evidence="Section 7 of the official GATE 2027 CS syllabus names it as its own item: "
+             "\"Intermediate code generation.\" The clause was read from the official 2027 syllabus PDF at "
+             "gate2027.iitm.ac.in during this run. Three previous-year questions were verified against "
+             "answer archives during the same run and are the only ones the lesson presents as official: "
+             "GATE 2014 Set 3 Q17 (purpose of intermediate code, keyed answer optimiser reuse), "
+             "GATE 2015 Set 1 Q55 (least SSA temporaries, keyed answer 8) and GATE 2016 Set 1 Q19 "
+             "(total SSA variables, keyed answer 10). Three questions are evidence that the item is "
+             "examined; they are not a marks distribution and no frequency claim is made from them.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="intermediate-code-generation",
+    path="topics/intermediate-code-generation/index.html",
+    execution="published 2026-10-31; 70/70 model checks pass; geometry audit clean over 10 scenes; "
+              "code generated from expression trees rather than typed; the least live temporary count "
+              "found by exhaustive search over every legal evaluation order; each control-flow "
+              "translation executed in a three-address interpreter and compared with the source "
+              "statement on a finite grid; the three tables built from one instruction list; the "
+              "2016 segment renamed to SSA and re-executed",
+    microtopics=[
+        "M languages and N machines: M x N generators against M front ends plus N back ends",
+        "the optimiser is the component the form makes reusable (GATE 2014 Set 3 Q17)",
+        "machine independence means no register, no instruction set and no word size is named",
+        "at most one operator and at most three addresses per instruction",
+        "x = y + z * w is two instructions because precedence must be made explicit",
+        "temporaries are names in a table, not physical registers",
+        "postorder: children before parent, left before right",
+        "each operator emits one instruction and one fresh temporary",
+        "leaves are source variables and cost no temporary",
+        "n operators give n instructions and n fresh names for a straight-line expression",
+        "operators, fresh temporaries, live temporaries and the register number are four questions",
+        "the result of an instruction may overwrite an operand that dies there",
+        "(a+b)*(c+d) uses three names and never needs more than two live",
+        "the least live count is found by enumerating every legal order and keeping the smallest peak",
+        "2 legal orders for a three-operator tree, 80 for E3, 84 for E4, 1 for a chain",
+        "Sethi-Ullman: leaf 1, unequal children take the larger, equal children k take k+1",
+        "the register number charges a slot for each leaf value, the temporary count does not",
+        "a*b+c*d+e*f: 2 temporaries against 3 registers, the cleanest separation of the two counts",
+        "SSA means every name is defined exactly once",
+        "SSA temporaries equal the operator count: 8 for q+r/3+s-t*5+u*v/w (GATE 2015 Set 1 Q55)",
+        "2 is the right answer to the reuse question and the wrong answer to the SSA question",
+        "total SSA variables are inputs plus definitions: 5 + 5 = 10 (GATE 2016 Set 1 Q19)",
+        "a phi function names the value arriving from each predecessor at a join",
+        "an indexed load scales the index by the element size: t1 = i*4, then t2 = a[t1]",
+        "the scale is the element size, not the array length and not the index",
+        "a one-byte element folds the multiplication away and changes the instruction count",
+        "a call emits one param per argument, then call with the argument count, then a copy",
+        "a loop is labels and jumps with the test at the top",
+        "the while translation is 5 instructions, 3 labels and 3 jumps",
+        "every jump target must be a label that exists",
+        "labels are rows but compute nothing, so rows exceed instructions by the label count",
+        "the generated loop agrees with max(x, n) on all 25 input pairs",
+        "moving the test to the bottom turns a while into a do-while and changes the meaning",
+        "short circuit: the second test is not evaluated when the first is false",
+        "control context costs 7 instructions and runs the second test in 4 of 16 cases",
+        "value context costs 14 instructions and runs both tests in all 16 cases",
+        "short circuit constrains evaluation, not just the value returned",
+        "a quadruple names its result, so any row can be moved",
+        "a triple identifies a result by the row position, written (i)",
+        "inserting a row breaks every later triple reference",
+        "indirect triples add a movable statement table over the same rows",
+        "in a triple, (1) means row 1, not the value 1",
+        "the decision procedure: SSA or reuse, then temporaries or registers, then labels or not"]))
+
 # The carry-forward merge runs above the late appends, so a topic that the merge
 # carried forward and that is also appended below would land in the list twice.
 # Keep the first occurrence of each (slug, topic) pair.

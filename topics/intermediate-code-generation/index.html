@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intermediate code generation: three-address code, temporaries and the three tables — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Intermediate code generation</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Prerequisite: syntax-directed translation</a>
+      <a href="../local-optimisation-and-basic-blocks/index.html">Next: local optimisation</a>
+      <a href="../data-flow-analysis-framework/index.html">Related: data-flow analysis</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Intermediate code generation as its own object. What the intermediate form is for; the six three-address forms and the rule that gives the form its name; how an expression tree becomes instructions; the four different counts a question can mean (operators, fresh temporaries, live temporaries, registers); static single assignment form and the two numbers GATE has keyed for it; the translation of indexing, pointers, calls, loops and boolean conditions; and the three tables — quadruples, triples and indirect triples — that store one instruction list. This is the phrase <em>Intermediate code generation</em> in Section 7 of the GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given an expression, produce its three-address code, state how many instructions it takes, and give the right temporary count for the wording asked — fresh names under SSA, or the least simultaneously-live number. Given a loop or a boolean condition, produce the translation, count its instructions, labels and jumps, and say which evaluations the translation performs. Given one instruction list, write it as quadruples, triples and indirect triples, and say what each table costs.</p>
+          <p class="small muted" style="margin-bottom:0">I read the topic as <em>one form, four counts, three tables</em>. Everything else in the clause — indexing, calls, loops, short circuit, SSA — is that form used in a particular place. Every number on this page is computed by the page at load time and printed on the canvas.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A.</strong> Section 7 of the GATE 2027 CS syllabus, IIT Madras, reads: "Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination." The words <em>Intermediate code generation</em> stand alone as a named item, so a question here is inside the declared boundary.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The wording above was read from the official 2027 syllabus PDF during this run. Class A does not mean a question is guaranteed, and no marks distribution is claimed anywhere on this page.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Question archives tag this item with both counting questions (how many temporaries, how many variables) and identification questions (which of these is SSA form). That is a description of what the archives index, not a measurement of any paper.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis, parsing and syntax-directed translation</a> — the attributes and semantic actions that emit each instruction as a production reduces.</li>
+            <li><a href="../runtime-environments-and-activation-records/index.html">Runtime environments and activation records</a> — why a temporary needs storage and where that storage lives.</li>
+            <li><a href="../local-optimisation-and-basic-blocks/index.html">Local optimisation and basic blocks</a> — the DAG of a block, which is this form read as a graph.</li>
+            <li><a href="../expressions-and-operator-precedence/index.html">Expression evaluation and operator precedence</a> if you want the order-of-evaluation background; otherwise the tree on the Animation tab supplies it.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Approximate learning time: 55 to 75 minutes including the practice set. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>The form exists so that one optimiser and one analysis can serve every language and every machine.</li>
+            <li>One operator per instruction is what makes the order of evaluation explicit and readable by a later pass.</li>
+            <li>Four counts share one expression: operators, fresh temporaries, live temporaries, registers. They are not interchangeable.</li>
+            <li>SSA means one name per definition, so its temporary count is the operator count — that is the number GATE 2015 keyed.</li>
+            <li>Labels are positions, not operands, but they are still rows: a row count and an instruction count differ by the number of labels.</li>
+          </ol>
+        </div>
+
+        <div class="card span-2 card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, 300 seconds, one canvas. Scene 1 prices the form: 4 languages and 3 machines give 12 generators without it and 8 components with it. Scene 2 lays out the six instruction forms with the one-operator rule. Scene 3 walks the tree for (a+b)*(c+d) in postorder and prints the three instructions as each operator is reached. Scene 4 puts the five expressions of the lesson in one table with four columns — operators, fresh temporaries, exhaustively searched minimum live temporaries, and the Sethi-Ullman register number — and shows why the two middle counts differ on a*b+c*d+e*f. Scene 5 writes the GATE 2015 expression twice, once in SSA form with eight names and once with two reused slots, and marks the keyed answer. Scene 6 translates an indexed load with its scale and a two-argument call. Scene 7 builds the while loop's five instructions, three labels and three jumps, and reports the 25 input pairs on which the generated code agrees with the loop. Scene 8 puts the two short-circuit translations side by side: 7 instructions against 14, and the second comparison running 4 times in 16 against 16 times in 16. Scene 9 stores one instruction list as quadruples, triples and indirect triples. Scene 10 is the five-step procedure with the two verified previous-year numbers and the two checks that remove wrong options.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: the note two cooks leave each other</h3>
+          <p class="small">One cook writes recipes and another runs the kitchen. The recipe says "fold in the cream until it coats the spoon" — perfectly clear to a cook, useless to a machine that has no spoon. So the first cook rewrites each recipe as a numbered list of single actions: beat, fold, rest, bake. The second cook can follow that list on any stove, and if the kitchen changes the list still stands.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is deliberately thin and it is mine. It explains why a middle language exists, and it stops explaining anything the moment you ask how many temporaries an expression needs — which is the actual subject, and which the page computes rather than illustrates.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal statements</h3>
+          <p class="small"><strong>Three-address code (TAC).</strong> An intermediate language in which each instruction has at most one operator and at most three addresses: two operands and a result.</p>
+          <p class="small"><strong>Temporary.</strong> A name that holds the result of one instruction and is not a variable of the source program. Written t1, t2, … on this page.</p>
+          <p class="small"><strong>Definition and use.</strong> An instruction defines its result and uses its operands. A temporary is <em>live</em> from its definition to its last use.</p>
+          <p class="small"><strong>Quadruple.</strong> A four-field row: operator, first operand, second operand, result.</p>
+          <p class="small"><strong>Triple.</strong> A three-field row: operator and two operands. The result is not named; it is identified by the row's position, written (i).</p>
+          <p class="small"><strong>Indirect triple.</strong> A triple table plus a statement table of row numbers, so statements can be reordered without rewriting operands.</p>
+          <p class="small" style="margin-bottom:0"><strong>Static single assignment (SSA).</strong> A property of a form: every name is defined exactly once. Where control flow merges, a <em>phi</em> function names the value that arrives from each predecessor.</p>
+        </div>
+
+        <div class="card">
+          <h3>Symbols, in words</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>x = y op z</strong> — x receives the result of applying op to y and z. op is one of +, −, ×, ÷.</li>
+            <li><strong>t1</strong> — the first temporary: a place to keep one computed value.</li>
+            <li><strong>L1, L2, L3</strong> — labels: names for positions in the instruction list. They hold no value.</li>
+            <li><strong>if x &lt; y goto L2</strong> — if the comparison holds, continue at the instruction after L2; otherwise continue with the next instruction.</li>
+            <li><strong>relop</strong> — a relational operator: &lt;, ≤, &gt;, ≥, =, ≠.</li>
+            <li><strong>operators</strong> — the internal nodes of the expression tree. Each one becomes one instruction.</li>
+            <li><strong>fresh temporaries</strong> — one new name per definition. This is the SSA count.</li>
+            <li><strong>live temporaries</strong> — how many hold a value that will still be read. Their peak is the minimum number of slots needed.</li>
+            <li><strong>register number</strong> — the Sethi-Ullman count, which adds one when both children need the same number, and which also counts the leaf values.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The expressions, and the assumptions under which they are counted</h3>
+          <pre class="formula">E1  (a+b)*(c+d)
+E2  a*b+c*d+e*f
+E3  ((a+b)*(c+d))+((e+f)*(g+h))
+E4  q+r/3+s-t*5+u*v/w
+E5  a-b-c</pre>
+          <p class="small">All arithmetic is over integers, and division truncates toward zero, as in C for positive operands. Precedence and left associativity are the usual ones, so E2 is ((a*b + c*d) + e*f) and E5 is ((a-b)-c). No algebraic rewriting is allowed: the count is for the tree as written, not for a mathematically equal tree.</p>
+          <p class="small" style="margin-bottom:0">A leaf that is a digit is a literal, not a variable — the page's evaluator treats it that way, which matters for E4.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four counts, defined once</h3>
+          <p class="small"><strong>Operators.</strong> Internal nodes of the tree. For a straight-line expression this is also the number of instructions.</p>
+          <p class="small"><strong>Fresh temporaries.</strong> One name per definition. Equal to the operator count, and equal to the SSA count.</p>
+          <p class="small"><strong>Live temporaries.</strong> Peak of the set of temporaries holding a value that is still needed, minimised over every evaluation order that computes children before parents. The page finds this by exhaustion.</p>
+          <p class="small"><strong>Register number.</strong> Sethi-Ullman: a leaf is 1; a node whose children have different numbers takes the larger; a node whose children have equal numbers k takes k+1.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The live count can be smaller than the register number because a leaf value need not occupy a slot of its own: it is read from memory. The register number counts it, and that is exactly where the two counts part company.</p>
+        </div>
+
+        <div class="card">
+          <h3>The three translation schemes used here</h3>
+          <pre class="formula">while (x &lt; n) { x = x + 1; }
+
+L1: if x &lt; n goto L2
+    goto L3
+L2: t1 = x + 1
+    x = t1
+    goto L1
+L3:</pre>
+          <p class="small">Five instructions, three labels, three jumps. The test sits at the top, which is what makes a zero-iteration loop possible.</p>
+          <pre class="formula">if (a &lt; b) x = 1; else x = 2;
+
+    if a &lt; b goto L1
+    goto L2
+L1: x = 1
+    goto L3
+L2: x = 2
+L3:</pre>
+          <p class="small" style="margin-bottom:0">Five instructions, three labels. A shorter scheme exists — test, else-branch, jump, then-branch — which uses two labels and saves one jump; both are correct, and a count question must say which scheme it means.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed and checked.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The front end writes a form that names no machine. The back end turns it into one machine's code.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why an intermediate form exists</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The front end writes a form that names no machine.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="small muted" style="grid-column:1/-1;margin:4px 0 0">
+          Captions are on by default and are generated from the same timeline that drives the animation, so they cannot drift. No audio file ships with this lesson; the narration text is the transcript, and the browser's own speech synthesis can read it if you enable voice in your browser.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Eight worked examples, every number computed</h3>
+          <p class="small" style="margin-bottom:0">Each example below is produced by the model on this page: the code is generated from the expression tree, the minimum temporary count comes from an exhaustive search over legal evaluation orders, the control-flow translations are executed in a three-address interpreter and compared with the source statement's own meaning, and the three tables are built from one instruction list and evaluated. The Animation tab prints how many checks passed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — (a+b)*(c+d) to three instructions</h3>
+          <p class="small"><strong>Question.</strong> Translate the expression and give the instruction count.</p>
+          <p class="small"><strong>Step 1, postorder.</strong> Left child a+b first, then right child c+d, then the root.</p>
+          <pre class="formula">t1 = a + b
+t2 = c + d
+t3 = t1 * t2</pre>
+          <p class="small" style="margin-bottom:0"><strong>Step 2, the count.</strong> Three operators, three instructions, three temporaries. A fourth instruction, x = t3, would appear if the source assigns the value to a variable.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — the same expression with two temporaries</h3>
+          <p class="small"><strong>Question.</strong> What is the least number of temporaries that must exist at once?</p>
+          <pre class="formula">t1 = a + b
+t2 = c + d
+t1 = t1 * t2</pre>
+          <p class="small"><strong>Why this is legal.</strong> t1 is read for the last time by the third instruction, so its slot may hold that instruction's result. t2 dies at the same instruction.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> The page simulates this code over all 81 assignments of 1 to 3 to the four variables and gets the same value as the tree every time.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Example 3 — the four counts, side by side</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="text-align:left;border-bottom:1px solid var(--border-strong)">
+                <th style="padding:4px 6px">Expression</th>
+                <th style="padding:4px 6px">Operators</th>
+                <th style="padding:4px 6px">Fresh temps (SSA)</th>
+                <th style="padding:4px 6px">Least live temps</th>
+                <th style="padding:4px 6px">Register number</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:4px 6px"><code>(a+b)*(c+d)</code></td><td style="padding:4px 6px">3</td><td style="padding:4px 6px">3</td><td style="padding:4px 6px"><strong>2</strong></td><td style="padding:4px 6px">3</td></tr>
+              <tr><td style="padding:4px 6px"><code>a*b+c*d+e*f</code></td><td style="padding:4px 6px">5</td><td style="padding:4px 6px">5</td><td style="padding:4px 6px"><strong>2</strong></td><td style="padding:4px 6px">3</td></tr>
+              <tr><td style="padding:4px 6px"><code>((a+b)*(c+d))+((e+f)*(g+h))</code></td><td style="padding:4px 6px">7</td><td style="padding:4px 6px">7</td><td style="padding:4px 6px"><strong>3</strong></td><td style="padding:4px 6px">4</td></tr>
+              <tr><td style="padding:4px 6px"><code>q+r/3+s-t*5+u*v/w</code></td><td style="padding:4px 6px">8</td><td style="padding:4px 6px">8</td><td style="padding:4px 6px"><strong>2</strong></td><td style="padding:4px 6px">3</td></tr>
+              <tr><td style="padding:4px 6px"><code>a-b-c</code></td><td style="padding:4px 6px">2</td><td style="padding:4px 6px">2</td><td style="padding:4px 6px"><strong>1</strong></td><td style="padding:4px 6px">2</td></tr>
+            </tbody>
+          </table>
+          <p class="small" style="margin:6px 0 0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The least-live column is the minimum, over every order that computes children before parents, of the peak number of live temporaries. The page enumerates those orders — 2 for E1, 80 for E3, 84 for E4 — simulates each, and keeps the smallest peak. The last column is the Sethi-Ullman number, computed by its own recursion. Notice that a*b+c*d+e*f is the clearest case where the two differ: 2 temporaries, 3 registers.</p>
+          <p class="small muted" style="margin-bottom:0">Why they differ: the register number charges one slot for each leaf value that must be held, while the temporary count lets a leaf be read from memory. A question that says "temporaries" and a question that says "registers" are asking different things.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — GATE 2015 Set 1, Q55</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Official question.</strong> "The least number of temporary variables required to create a three-address code in static single assignment form for the expression q + r/3 + s − t*5 + u*v/w is ______." Two-mark numerical question. The keyed answer is <strong>8</strong>. (Question number as the archive consulted labels it; sources differ in numbering.)</p>
+          <p class="small"><strong>Why 8.</strong> In SSA form every definition needs its own name, and the expression has eight operators: r/3, t*5, u*v, (u*v)/w, q + r/3, + s, − t*5, and the final +.</p>
+          <pre class="formula">t1 = r/3   t2 = q+t1  t3 = t2+s  t4 = t*5
+t5 = t3-t4 t6 = u*v   t7 = t6/w  t8 = t5+t7</pre>
+          <p class="small" style="margin-bottom:0"><strong>Why 2 also looks right, and is not.</strong> With reuse, two slots carry the whole expression. The question forbids reuse by naming SSA form. The page recomputes 8 from the tree and prints it on the canvas.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — GATE 2016 Set 1, Q19</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Official question.</strong> For the segment <code>x = u−t; y = x*v; x = y+w; y = t−z; y = x*y;</code> the minimum number of <em>total variables</em> required to convert it to SSA form is ______. Numerical question; keyed answer <strong>10</strong>.</p>
+          <p class="small"><strong>Why 10.</strong> Five variables are read before being defined: u, t, v, w, z. Each of the five statements defines a new name. 5 + 5 = 10.</p>
+          <pre class="formula">x#1 = u - t      y#2 = x#1 * v
+x#3 = y#2 + w    y#4 = t - z
+y#5 = x#3 * y#4</pre>
+          <p class="small" style="margin-bottom:0"><strong>The trap.</strong> The question asks for total variables, not temporaries. Answering 5 counts the definitions only; the five inputs are variables too.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 6 — a loop, counted and executed</h3>
+          <p class="small"><strong>Question.</strong> Translate <code>while (x &lt; n) { x = x + 1; }</code> and count.</p>
+          <p class="small"><strong>The translation.</strong> Test at the top, body, jump back; three labels mark the test, the body and the exit.</p>
+          <p class="small"><strong>The counts.</strong> 5 instructions, 3 labels, 3 jumps. Every jump target is a label that exists — the page checks that mechanically.</p>
+          <p class="small" style="margin-bottom:0"><strong>The semantic check.</strong> The generated code is executed for x and n from 0 to 4, 25 pairs, and the final x equals max(x, n) in all 25. Translation is correct only if it computes the same function, and this is how the page proves it for a finite grid rather than asserting it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 7 — one condition, two translations</h3>
+          <p class="small"><strong>Question.</strong> Translate <code>if (a &lt; b &amp;&amp; c &lt; d) x = 1; else x = 0;</code> in control context and in value context.</p>
+          <p class="small"><strong>Control context.</strong> The second test sits behind the first test's true branch: 7 instructions, 4 labels, 5 jumps. Executed over the 16 boolean combinations, the c &lt; d comparison runs in exactly the 4 cases where a &lt; b holds.</p>
+          <p class="small"><strong>Value context.</strong> Each comparison is turned into a 0/1 temporary with its own diamond, then multiplied: 14 instructions, 7 labels, and the second comparison runs in all 16 cases.</p>
+          <p class="small" style="margin-bottom:0"><strong>Both agree on the value.</strong> The page executes both and compares with (a&lt;b and c&lt;d) in all 16 cases. They differ in what they evaluate, not in what they return — which is why only one of them honours short circuit.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 8 — one list, three tables</h3>
+          <p class="small"><strong>The list.</strong> <code>t1 = a+b; t2 = c+d; t1 = t1*t2</code>.</p>
+          <p class="small"><strong>Quadruples.</strong> Three rows of four fields; the result is named, so any row can move.</p>
+          <p class="small"><strong>Triples.</strong> Three rows of three fields; the third row reads (0) and (1), which are the positions that defined t1 and t2.</p>
+          <p class="small" style="margin-bottom:0"><strong>Indirect triples.</strong> The same three rows plus a statement table 0, 1, 2. Reordering that table reorders the program; inserting a row in the triple table would instead shift every later (i) reference.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the counts and the translations change shape</h3>
+          <p class="small" style="margin-bottom:0">The rules on this page hold under stated assumptions. Each card below names an assumption and says what happens when it fails.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The final assignment is an instruction too</h3>
+          <p class="small">An expression with n operators is n instructions <em>while it is being evaluated</em>. If the source says <code>x = (a+b)*(c+d)</code>, one more instruction, <code>x = t3</code>, appears unless the code generator is allowed to write the last temporary straight into x.</p>
+          <p class="small" style="margin-bottom:0">That is why "3 instructions" and "4 instructions" can both be defended for the same expression: the question has to say whether the store counts.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Integer division truncates, and by zero it does not exist</h3>
+          <p class="small">The page's evaluator truncates toward zero, which is C's rule for positive operands. If a question's expression contains a division, the answer depends on that convention for negative operands, and a compiler may not fold a division whose divisor is a literal zero.</p>
+          <p class="small" style="margin-bottom:0">Never state a value for an expression that divides by zero: the program has no defined result, and no count of instructions makes it have one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Labels are rows but not instructions</h3>
+          <p class="small">A label computes nothing, yet it occupies a row in a quadruple table and it can be a jump target. So a row count and an instruction count for the same program differ by the number of labels.</p>
+          <p class="small" style="margin-bottom:0">For the while loop on this page: 5 instructions and 8 rows. A question that asks for rows and gets 5 is short by 3.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: the loop with the test at the bottom</h3>
+          <p class="small">Take the while loop and move the test to the end, which is the natural translation of <code>do … while</code>:</p>
+          <pre class="formula">L1: t1 = x + 1
+    x = t1
+    if x &lt; n goto L1</pre>
+          <p class="small" style="margin-bottom:0">This is two instructions shorter and it is wrong: with x = 5 and n = 0 the body runs once, while the while loop runs zero times. The page's 25-pair check catches exactly this — the pair (5, 0) returns 6 instead of 5. Shorter code is not the same as equivalent code.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: reuse across a call</h3>
+          <p class="small">Two slots are enough for <code>q+r/3+s-t*5+u*v/w</code> <em>within one straight-line block</em>. Put <code>f()</code> between two instructions and the temporary holding a value across the call may be clobbered by the callee's own frame if it lives in a register the callee does not save.</p>
+          <p class="small" style="margin-bottom:0">The safe statement is narrower than the slogan: reuse is justified by liveness <em>within</em> a block, and a call is a barrier that liveness analysis must be told about.</p>
+        </div>
+
+        <div class="card">
+          <h3>Repeated subexpressions are not free</h3>
+          <p class="small">The counts here are for the tree as written. If <code>b*c</code> appears twice, a naive translation emits it twice and pays two temporaries; a value-numbering pass merges the two into one node of a DAG, which is a different representation of the same block.</p>
+          <p class="small" style="margin-bottom:0">That merge belongs to <a href="../local-optimisation-and-basic-blocks/index.html">local optimisation and basic blocks</a>, not to generation. Generation produces the tree's code; the DAG is what an optimiser builds from it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Unary minus, n-ary sums, and assignment inside an expression</h3>
+          <p class="small"><code>-a</code> is one operator and one instruction, <code>t1 = -a</code>. A sum written <code>a+b+c+d</code> is three binary operators, so three instructions — the source's n-ary appearance does not make it one.</p>
+          <p class="small" style="margin-bottom:0">In C, <code>x = (y = 3) + 1</code> is an assignment used as a value: two instructions, and the order in which y's store and x's read happen is fixed by the tree, not by the text.</p>
+        </div>
+
+        <div class="card">
+          <h3>An element of one byte hides the multiplication</h3>
+          <p class="small">With 4-byte integers, <code>a[i]</code> is <code>t1 = i*4</code> then <code>t2 = a[t1]</code>. With a <code>char</code> array the scale is 1, and many generators fold <code>i*1</code> away, so the same source shape costs one instruction instead of two.</p>
+          <p class="small" style="margin-bottom:0">The element size is part of the answer, so a question about instruction counts for indexing must state it — or state the array's type.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that cost marks, each with the case that refutes it</h3>
+          <p class="small" style="margin-bottom:0">Every refutation below is a computation the page performs, not an appeal to authority.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "The SSA count and the least-temporaries count are the same"</h3>
+          <p class="small"><strong>The belief.</strong> Both ask how many temporaries an expression needs, so they must agree.</p>
+          <p class="small"><strong>The refutation.</strong> For <code>q+r/3+s-t*5+u*v/w</code> the SSA count is 8 and the least live count is 2. Both are correct answers to their own question; the page computes both and prints them in the same table row.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> SSA forbids reuse by definition. "Least temporaries" permits it. Read the phrase "in static single assignment form" before you count.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Instructions always equal operators"</h3>
+          <p class="small"><strong>The belief.</strong> The operator count is the instruction count, so control flow does not change it.</p>
+          <p class="small"><strong>The refutation.</strong> The while loop has no operators in the source's expression sense beyond one addition, yet it takes 5 instructions, 3 labels and 3 jumps. The if-else takes 5 instructions and defines nothing.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Operators give instructions for a straight-line expression. Control flow adds jumps and labels on top.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "Quadruples and triples are the same table with a column removed"</h3>
+          <p class="small"><strong>The belief.</strong> A triple is a quadruple without the result field, so anything true of one is true of the other.</p>
+          <p class="small"><strong>The refutation.</strong> In a triple the result is a <em>position</em>. Insert a row at the top and every later (i) reference silently points at a different computation; in quadruples, names are unaffected. That is why indirect triples exist.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Quadruples name, triples number, indirect triples number through a movable table.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Intermediate code is machine-dependent, and it exists to improve register allocation"</h3>
+          <p class="small"><strong>The belief.</strong> The form mentions temporaries, so it is about the machine; and since it is about storage, it helps register allocation.</p>
+          <p class="small"><strong>The refutation.</strong> This is exactly GATE 2014 Set 3 Q17, whose keyed answer is optimiser reuse. Register allocation is machine-dependent and belongs to the back end, so it cannot be the purpose of a machine-independent form.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Machine independence is the whole point; anything register-shaped happens after the form.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "A label is one of the three addresses"</h3>
+          <p class="small"><strong>The belief.</strong> <code>if x &lt; y goto L2</code> names three things, so it is a three-address instruction in the same sense as <code>t1 = a + b</code>.</p>
+          <p class="small"><strong>The refutation.</strong> L2 is a position, not a value; it cannot be an operand of arithmetic. The three addresses in the name refer to operands and result, and a jump uses none of them.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Labels are rows and targets. They are never operands.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Short circuit is an optimisation, so any translation may drop it"</h3>
+          <p class="small"><strong>The belief.</strong> Skipping the second test is just a speed-up; the value is the same either way.</p>
+          <p class="small"><strong>The refutation.</strong> The values do agree — the page checks all 16 combinations and both translations match. What differs is which evaluations happen: 4 of 16 against 16 of 16. If the second test divides by zero or writes a variable, the value-context translation changes the program's behaviour.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Short circuit constrains evaluation, not just results.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Three verified previous-year questions, and the shapes that repeat</h3>
+          <p class="small" style="margin-bottom:0">Only the three questions in the table below are presented as official. Each was checked against a paper or an answer archive during this run, and the year, set and answer are stated. Everything in the Practice tab that is not in this table is labelled an original practice question.</p>
+        </div>
+
+        <div class="card span-2">
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="text-align:left;border-bottom:1px solid var(--border-strong)">
+                <th style="padding:4px 6px">Paper</th>
+                <th style="padding:4px 6px">What it asks</th>
+                <th style="padding:4px 6px">Keyed answer</th>
+                <th style="padding:4px 6px">What it tests</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:4px 6px">GATE 2014 Set 3, Q17 (1 mark)</td>
+                <td style="padding:4px 6px">One purpose of using intermediate code</td>
+                <td style="padding:4px 6px">Reusing the machine-independent optimiser</td>
+                <td style="padding:4px 6px">Why the form exists at all</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 6px">GATE 2015 Set 1, Q55 (2 marks)</td>
+                <td style="padding:4px 6px">Least temporary variables for TAC in SSA form</td>
+                <td style="padding:4px 6px">8</td>
+                <td style="padding:4px 6px">SSA means one name per definition</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 6px">GATE 2016 Set 1, Q19</td>
+                <td style="padding:4px 6px">Total variables to convert a segment to SSA</td>
+                <td style="padding:4px 6px">10</td>
+                <td style="padding:4px 6px">Inputs count as variables too</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin:6px 0 0">Question numbering follows the archives consulted and may differ by one between sources; the year, set and answer are the load-bearing parts. No frequency or weightage claim is made from three questions.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The five steps</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Read whether the form is SSA, plain three-address code, or registers.</li>
+            <li>Count operators: each one is an instruction while the expression is evaluated.</li>
+            <li>If SSA, count definitions: each needs a fresh name, so the answer is the operator count.</li>
+            <li>If reuse is allowed, find the peak live count — at most the operator count, often much less.</li>
+            <li>If the code has control flow, add labels and jumps, and say which count the question wants.</li>
+          </ol>
+          <p class="small muted" style="margin:8px 0 0">Step 1 decides the answer for the two questions in the table above, and it takes ten seconds.</p>
+        </div>
+
+        <div class="card">
+          <h3>Question shapes</h3>
+          <p class="small"><strong>Count a temporary or a variable.</strong> Numerical. Decide SSA or not, then count operators or definitions.</p>
+          <p class="small"><strong>Identify the SSA form.</strong> MCQ. Reject any option that assigns the same name twice.</p>
+          <p class="small"><strong>Identify the purpose.</strong> MCQ. The answer is machine independence and optimiser reuse, never registers.</p>
+          <p class="small"><strong>Count instructions or rows.</strong> Numerical. Decide whether labels and stores are counted; the question's wording usually settles it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Read a table.</strong> MCQ. Given quadruples or triples, say what a row computes — in triples, resolve (i) to row i before anything else.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps that recur</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Answering the reuse count when the question says SSA. (8 against 2 on the same expression.)</li>
+            <li>Counting temporaries when the question says total variables. (5 against 10 on the 2016 segment.)</li>
+            <li>Counting operators for a program with a loop. (1 against 5 instructions.)</li>
+            <li>Treating a label as an operand or as an instruction.</li>
+            <li>Reading (1) in a triple as the value 1 instead of row 1.</li>
+            <li>Assuming short circuit holds in a translation that builds truth values first.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0"><span class="claim-chip claim-chip--community">Community observation</span> Preparation discussions list these six as the recurring slips. That is a report of what people get wrong, not a measurement of any paper.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 and 2 are <strong>official previous-year questions</strong>, each with its year, set and keyed answer. Questions 3 to 6 are <strong>original practice questions</strong> written for this lesson in GATE format; no year, paper or question number is claimed for them.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE 2015 Set 1, Q55</span></div>
+          <div class="q-body">
+            <p>The least number of temporary variables required to create a three-address code in static single assignment form for the expression q + r/3 + s − t*5 + u*v/w is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 8</p>
+            <p>SSA form gives every definition its own name, and the expression has eight operators: r/3, t*5, u*v, (u*v)/w, q+r/3, that plus s, that minus t*5, and the final addition. Eight definitions, eight temporaries.</p>
+            <p><strong>Why 2 appears.</strong> Two slots suffice with reuse allowed — t1 = r/3, t2 = q+t1, t2 = t2+s, t1 = t*5, t2 = t2−t1, t1 = u*v, t1 = t1/w, t2 = t2+t1. Correct arithmetic, wrong question: the words "static single assignment form" forbid the reuse.</p>
+            <p><strong>Why 3 appears.</strong> That is the Sethi-Ullman register number for this tree, which also charges a slot for each leaf value.</p>
+            <p class="small muted">The page generates both forms and checks that each computes the expression's value on every input in its grid.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE 2016 Set 1, Q19</span></div>
+          <div class="q-body">
+            <p>Consider the code segment <code>x = u − t; y = x * v; x = y + w; y = t − z; y = x * y;</code>. The minimum number of total variables required to convert it to static single assignment form is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 10</p>
+            <p>Five variables are read before being defined — u, t, v, w, z — and each of the five statements defines a new name: x#1, y#2, x#3, y#4, y#5. Five plus five is ten.</p>
+            <p><strong>Why 5 appears.</strong> That counts only the new definitions, which is the answer to "how many temporaries". <strong>Why 8 appears.</strong> That typically comes from counting the distinct names on the left of the original segment (x and y) as one each and then adding the five inputs — the renaming is what turns two source names into five definitions.</p>
+            <p class="small muted">The page renames the segment, checks that no name is defined twice, and executes the renamed version to confirm it computes the same function on a grid of inputs.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>For the expression <code>a*b + c*d + e*f</code>, how many temporary variables must hold a value at the same time if a temporary may be reused as soon as its value is dead? Give the least number.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>t1 = a*b; t2 = c*d; t1 = t1+t2; t2 = e*f; t1 = t1+t2. At most two values are live at any instruction, and the parent of two computed children forces at least two, so the minimum is exactly 2.</p>
+            <p><strong>Why 5 appears.</strong> That is the fresh-name count: one per operator. <strong>Why 3 appears.</strong> That is the Sethi-Ullman register number, which also charges for the leaf values held during evaluation.</p>
+            <p class="small muted">The page finds 2 by trying every legal evaluation order and keeping the smallest peak; it also runs the two-slot code over a grid of inputs and compares with the tree.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following are true of the three-address code generated for <code>while (x &lt; n) { x = x + 1; }</code> by the translation used in this lesson?</p>
+            <ol class="choices">
+              <li>It uses three labels.</li>
+              <li>It contains five instructions that compute something, plus three label markers.</li>
+              <li>Moving the test to the end of the loop leaves the loop's meaning unchanged.</li>
+              <li>Every jump target is the name of a label that appears in the code.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, D</p>
+            <p>The test, the body and the exit are three labels; the instructions are the conditional jump, the exit jump, the addition, the copy back and the loop-back jump; and each of the three jumps targets a label that exists.</p>
+            <p><strong>Why C is wrong.</strong> Moving the test to the bottom turns the while into a do-while: with x = 5 and n = 0 the body runs once instead of zero times. The page's 25-pair check catches exactly this pair.</p>
+            <p class="small muted">The page checks target validity mechanically and executes the code against max(x, n) for every pair in the grid.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A triple table contains the rows <code>0: + a b</code>, <code>1: + c d</code>, <code>2: * (0) (1)</code>. What does row 2 compute?</p>
+            <ol class="choices">
+              <li>The product of the numbers 0 and 1</li>
+              <li>The product of the values computed by rows 0 and 1</li>
+              <li>The product of a and b</li>
+              <li>The value stored in a variable named (0)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>In a triple, the result of a row is identified by the row's position. (0) is the value defined by row 0, which is a+b; (1) is c+d. So row 2 computes (a+b)*(c+d).</p>
+            <p><strong>Why A is wrong.</strong> It reads the position as a literal, which is the single most common error in reading triples. <strong>Why C is wrong.</strong> It stops one row too early: a*b is not in the table. <strong>Why D is wrong.</strong> There is no variable with that name; parentheses mark a position reference, not an identifier.</p>
+            <p class="small muted">The page builds this triple table from the same instruction list as the quadruple table and evaluates both.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>An array <code>a</code> has 4-byte integer elements. How many three-address instructions does <code>x = a[i]</code> take, counting the final store to x and not counting any label?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>t1 = i*4; t2 = a[t1]; x = t2. The multiplication that turns an index into a byte offset is an instruction of its own, and the store to x is a third.</p>
+            <p><strong>Why 2 appears.</strong> That is the count without the store, which is right for "how many instructions to compute the value" and wrong for "how many to execute the assignment". <strong>Why 1 appears.</strong> That treats the indexed load as a single instruction, which is only true of the machine's addressing mode, not of the intermediate form.</p>
+            <p class="small muted">The page prints the two-instruction load on the canvas with the scale of 4, and states the store separately.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything on this tab is a rule or a number already derived above; nothing new is introduced.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>TAC:</strong> at most one operator, at most three addresses per instruction.</li>
+            <li><strong>Temporary:</strong> a name for one computed value; not a source variable.</li>
+            <li><strong>Live:</strong> defined and not yet last-used.</li>
+            <li><strong>Quadruple:</strong> op, arg1, arg2, result.</li>
+            <li><strong>Triple:</strong> op, arg1, arg2; result is the row number, written (i).</li>
+            <li><strong>Indirect triple:</strong> triple rows plus a statement table of row numbers.</li>
+            <li><strong>SSA:</strong> every name defined exactly once; phi at joins.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The counts</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Straight-line expression: instructions = operators = fresh temporaries.</li>
+            <li>SSA: temporaries = definitions = operators.</li>
+            <li>Least live temporaries ≤ operators, and ≤ the register number.</li>
+            <li>Register number: leaf 1; unequal children take the larger; equal children k take k+1.</li>
+            <li>Loop: 5 instructions, 3 labels, 3 jumps (this scheme).</li>
+            <li>If-else: 5 instructions, 3 labels, 3 jumps (this scheme).</li>
+            <li>Short circuit: 7 instructions in control context, 14 in value context.</li>
+            <li>Indexed load: 2 instructions plus the store, at scale = element size.</li>
+            <li>Total SSA variables: inputs + definitions.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The decision procedure</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Is the form SSA? Then answer with the definition count.</li>
+            <li>Is reuse allowed? Then answer with the least live count.</li>
+            <li>Does the question say registers? Then use the Sethi-Ullman number.</li>
+            <li>Does the question say total variables? Then add the inputs.</li>
+            <li>Does the code contain control flow? Then decide whether labels count as rows.</li>
+          </ol>
+          <p class="small muted" style="margin:8px 0 0">Each step is a yes/no that fixes one number. Do them in order.</p>
+        </div>
+
+        <div class="card">
+          <h3>Three numbers to remember</h3>
+          <p class="small"><strong>8</strong> — SSA temporaries for q+r/3+s−t*5+u*v/w (GATE 2015 Set 1).</p>
+          <p class="small"><strong>10</strong> — total SSA variables for the five-statement segment (GATE 2016 Set 1).</p>
+          <p class="small" style="margin-bottom:0"><strong>2 against 3</strong> — the least live temporaries against the register number for a*b+c*d+e*f, the cleanest case where the two counts differ.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Quick self-checks</h3>
+          <p class="small">1. (a+b)*(c+d) in SSA form: how many temporaries? <span class="muted">— 3, the operator count.</span></p>
+          <p class="small">2. The same expression with reuse: how many live at once? <span class="muted">— 2.</span></p>
+          <p class="small">3. A while loop's translation has 5 instructions; how many rows does its quadruple table have? <span class="muted">— 8, because the three labels are rows.</span></p>
+          <p class="small">4. In a triple table, what does the operand (4) mean? <span class="muted">— the value defined by row 4.</span></p>
+          <p class="small" style="margin-bottom:0">5. Which translation of a &amp;&amp; keeps short circuit, and how do you tell from the counts? <span class="muted">— the control translation: 7 instructions, and the second test runs in only 4 of 16 cases.</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">The syllabus wording and the three previous-year questions were checked during this run. The computational claims on this page are not sourced — they are derived and executed by the page, and the model checks report the result.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official documents</h3>
+          <ul class="small src-list" style="margin:0;padding-left:18px">
+            <li>GATE 2027 CS syllabus, IIT Madras — <code>CS_GATE2027_Syllabus.pdf</code> on gate2027.iitm.ac.in. Supports the Section 7 wording quoted in the Overview and the Class A classification.</li>
+            <li>GATE 2027 information brochure, Appendix D — the syllabus in its official context.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Only the syllabus text is taken as authoritative here. No weightage figure is taken from any source.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year questions</h3>
+          <ul class="small src-list" style="margin:0;padding-left:18px">
+            <li>GATE 2014 Set 3, Q17 — purpose of intermediate code; keyed answer is optimiser reuse. Checked against two independent answer archives.</li>
+            <li>GATE 2015 Set 1, Q55 — least temporaries in SSA form; keyed answer 8. Checked against an answer archive and a reproduction of the paper's question text.</li>
+            <li>GATE 2016 Set 1, Q19 — total variables for SSA conversion; keyed answer 10. Checked against a paper reproduction and two answer archives.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Question numbers follow the archives consulted and can differ by one between sources; the year, set and answer are what this page relies on.</p>
+        </div>
+
+        <div class="card">
+          <h3>Standard references for the method</h3>
+          <ul class="small src-list" style="margin:0;padding-left:18px">
+            <li>Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em> — three-address code, quadruples, triples and indirect triples, SSA, and the Sethi-Ullman numbering.</li>
+            <li>Sethi and Ullman, "The generation of optimal code for arithmetic expressions" (JACM, 1970) — the register-number recursion used in the fourth column of the table.</li>
+            <li>Standard compiler-course notes on control-flow translation and backpatching — the label schemes used here.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">These are named as the origin of the definitions, not quoted.</p>
+        </div>
+
+        <div class="card">
+          <h3>What this page computes rather than cites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Every operator, temporary, label and jump count, from the trees and instruction lists in the lesson code.</li>
+            <li>The least live temporary counts, by enumerating every legal evaluation order.</li>
+            <li>The agreement of each translation with its source statement, by executing both on a finite grid.</li>
+            <li>The SSA renaming and its variable count, by renaming the segment and re-executing it.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">A finite grid is evidence, not proof: it shows the translations agree on the inputs tried, and the argument that they agree in general is the reasoning in the Build-up tab.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Limits of this lesson</h3>
+          <p class="small">No audio file ships, so the caption timings are estimated from the timeline at a normal speaking rate rather than measured. No video file was produced.</p>
+          <p class="small" style="margin-bottom:0">The page was checked by the repository's headless checker, which parses every script, runs the model, draws every scene at quarter-second intervals, and audits text placement; that check is not a substitute for reading the lesson in a browser.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
