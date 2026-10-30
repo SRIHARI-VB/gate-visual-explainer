@@ -73,6 +73,7 @@ lessons are static files and work from a local clone.
 | IP Fragmentation, CIDR and NAT | Computer Networks | A — explicitly in the syllabus | `topics/ip-fragmentation-cidr-and-nat/index.html` |
 | Layering, Switching and Performance Metrics | Computer Networks | A — explicitly in the syllabus | `topics/layering-switching-and-performance-metrics/index.html` |
 | Link Layer: Error Detection, MAC and Ethernet | Computer Networks | A — explicitly in the syllabus | `topics/link-layer-error-detection-mac-and-ethernet/index.html` |
+| Network Security: Properties, Keys, Signatures and Firewalls | Computer Networks | A — explicitly in the syllabus | `topics/network-security/index.html` |
 | TCP Flow Control, Congestion Control and the Socket API | Computer Networks | A — explicitly in the syllabus | `topics/tcp-flow-congestion-control-and-sockets/index.html` |
 | Context-Free Grammars and Pushdown Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/context-free-grammars-and-pushdown-automata/index.html` |
 | Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
