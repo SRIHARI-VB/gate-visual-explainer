@@ -2954,6 +2954,43 @@ topics.append(topic(
                  "conditional GET and Cache-Control max-age",
                  "the five counting traps"]))
 
+topics.append(topic(
+    "Computer Networks", "Security", "Network security: authentication, key cryptography, signatures, certificates and firewalls",
+    ["authentication", "basics of private key cryptography", "basics of public key cryptography",
+     "digital signatures", "certificates", "firewalls"],
+    prereq=["layering, switching and performance metrics", "number representation and modular arithmetic",
+            "counting and combinatorics"],
+    related=["DNS and HTTP", "TCP flow control, congestion control and sockets",
+             "hashing (data structures)", "asymptotic complexity"],
+    importance="medium-high",
+    evidence="GATE 2027 Section 10 closes with 'Network security: authentication, basics of public key and private key cryptography, digital signatures and certificates, firewalls.' The sentence is identical in the 2025, 2026 and 2027 editions. Catalogues record items in GATE CSE 2009, 2011, 2013, 2014 Set 1, 2015 Set 1, 2016 Sets 1 and 2, 2017 Set 1 and 2019; that is a catalogue's tagging, not official weightage.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="network-security",
+    path="topics/network-security/index.html",
+    execution="2026-10-30: published, 47 of 47 model checks passed, geometry audit clean, captions regenerated from the timeline",
+    microtopics=[
+        "confidentiality, integrity, authentication and non-repudiation as separate properties",
+        "the direction rule: receiver public key for secrecy, sender private key for proof",
+        "shared-key count N(N-1)/2 against N(N-1), 2N and N-1",
+        "the two counts agreeing only at N = 5",
+        "RSA: n = pq, phi(n) = (p-1)(q-1), e d = 1 mod phi(n)",
+        "the modular inverse by Euclid, and the gcd condition for its existence",
+        "the round trip over all 220 messages below n = 221",
+        "e d = 1 mod phi(n) against e d = 1 mod n (GATE CSE 2009)",
+        "recovering the primes from n and phi(n): p + q = n - phi(n) + 1",
+        "square-and-multiply, its multiplication count, and the cycle of powers",
+        "signing a digest, verifying with the signer public key, failing under a wrong key",
+        "the transmitted pair {m, K_sender-(H(m))}",
+        "sign-then-encrypt and the four-key sequence (GATE CSE 2013)",
+        "collision against second preimage, and who can mount a birthday attack",
+        "digest functions against encryption schemes (MD5 and SHA-1 against RSA and DES)",
+        "certificates as a signed name-to-key binding, and the chain to a trusted root",
+        "MAC against signature: why a MAC gives no non-repudiation",
+        "packet filter semantics: first match, dead rules, and order as policy",
+        "what a layer-3, layer-4 and layer-7 device can read",
+        "the layer-4 firewall's limits (GATE CSE 2011)"]))
+
 # General Aptitude is four separate skills with four separate procedures, so it is
 # tracked as four lessons rather than one. The syllabus section names each of them.
 GA_EVIDENCE = ("General Aptitude is common to all GATE papers and carries 15 of 100 marks in "
@@ -3803,6 +3840,18 @@ if os.path.exists("syllabus-coverage.json"):
                 for _k in PRESERVE:
                     if _o.get(_k):
                         _t[_k] = _o[_k]
+        # A published lesson whose tracker entry is not defined by this generator
+        # must not be dropped by a regeneration: carry it forward verbatim.
+        _defined = {(t["subject"], t["topic"]) for t in topics}
+        _carried = 0
+        for _o in _old.get("topics", []):
+            if (_o.get("subject"), _o.get("topic")) in _defined:
+                continue
+            if _o.get("coverage_status") in ("PUBLISHED", "NEEDS_REVIEW") and _o.get("lesson_slug"):
+                topics.append(_o)
+                _carried += 1
+        if _carried:
+            print("carried forward", _carried, "published entry(ies) not defined in this generator")
     except Exception as _e:
         print("warning: could not merge the existing tracker:", _e)
 
