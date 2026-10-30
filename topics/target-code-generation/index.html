@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Target code generation: instruction selection, register allocation and peephole optimisation — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Target code generation</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../intermediate-code-generation/index.html">Prerequisite: intermediate code</a>
+      <a href="../data-flow-analysis-framework/index.html">Related: data-flow analysis</a>
+      <a href="../local-optimisation-and-basic-blocks/index.html">Related: local optimisation</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Target code generation — the three decisions between intermediate code and machine code. Choosing an instruction for each part of a DAG and pricing the choice; deciding how many registers a computation needs, by the Sethi-Ullman numbering and by exact search; building an interference graph from liveness, colouring it, proving the colour count optimal with a clique, assigning registers and spilling when there are too few; and cleaning up locally with peephole rules. The two previous-year questions that sit here are GATE CSE 2013 Q49 (minimum registers for a code segment, keyed 4) and GATE CSE 2017 Set 1 Q52 (minimum registers for an expression tree, keyed 2).</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a basic block, build its DAG and say how many instructions two different machines need. Given an expression, compute the Sethi-Ullman label and then decide whether it is the answer or an over-count. Given a block with control flow, compute live-in and live-out at every statement, build the interference graph, colour it, name its largest clique, and say whether the colour count is proved minimal. Given a k smaller than that count, choose a spill set and justify it. Given a few instructions, decide whether a peephole rewrite preserves behaviour, and say which condition it needs.</p>
+          <p class="small muted" style="margin-bottom:0">I read the topic as <em>three decisions, three counts</em>. Instruction selection is counted in instructions, register allocation in registers, and peephole optimisation in instructions removed — and the three counts are independent, which is why one question can have two defensible-looking answers. Every number on this page is computed at load time and printed on the canvas.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class C, with two class A inputs.</strong> Section 7 of the GATE 2027 CS syllabus, IIT Madras, reads: "Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination." Code generation is <em>not</em> named. Liveness analysis and local optimisation are, and register assignment and peephole optimisation are the two things those clauses are for.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The syllabus text above was read from the official 2027 PDF during this run. Class C does not mean a question is impossible, and class A does not mean one is guaranteed; no marks distribution is claimed anywhere on this page.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Two questions in this exact area are keyed in the archives consulted for this run: GATE CSE 2013 Q49 and GATE CSE 2017 Set 1 Q52. That is evidence about past papers, not a forecast.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><a href="../intermediate-code-generation/index.html">Intermediate code generation</a> — three-address code, temporaries, quadruples. Every instruction list here is in that form.</li>
+            <li><a href="../data-flow-analysis-framework/index.html">Data-flow analysis</a> — the fixed-point idea and the liveness equations used in scene 5.</li>
+            <li><a href="../local-optimisation-and-basic-blocks/index.html">Local optimisation and basic blocks</a> — the DAG of a basic block and the local rewrites.</li>
+            <li><a href="../runtime-environments-and-activation-records/index.html">Runtime environments</a> — where a variable lives when it is not in a register.</li>
+            <li>Comfort with sets and with the idea of a graph colouring, both from Discrete Mathematics.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, thirty seconds each, in reasoning order: the three jobs and the four counts; a block becoming a DAG and what the merge saves; one DAG covered by two machines and both programs executed; the expression tree labelled by the formula and then searched exactly; liveness backwards over the 2013 block; the interference graph with degrees; the colouring with its clique; colours turned into registers and a spill set chosen; a peephole window over eleven instructions; and the two checks that come before any arithmetic.</p>
+          <p class="small muted" style="margin-bottom:0">The graph in scenes 6 and 7 is drawn from the edge list the model computes, and the edges are drawn only after each one is matched to a program point that witnesses it.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>What you should be able to do afterwards</h3>
+          <p class="small" style="margin-bottom:0">Count instructions from a DAG for a named machine; count registers from a tree, and say when the formula is exact; compute liveness on a block with a branch; draw the interference graph and defend every edge; colour it, and prove the number with a clique; pick a spill set and say what it costs; and reject a peephole rewrite whose condition is missing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Level 1 — intuition: three questions, in order</h3>
+          <p>Think of a builder who has a drawing and must produce a real wall. The drawing says what shape the wall is; the builder decides which bricks to use (instruction selection), which hands hold what while the mortar sets (register allocation), and which offcuts to throw away at the end (peephole optimisation). The drawing never changes. Only the three decisions do.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy stops here: bricks have no liveness, and a register holding a dead value can be reused, which is the whole subject.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2 — the DAG of a basic block</h3>
+          <p class="small">A basic block is a straight-line sequence with one entry and one exit. Its DAG has a leaf for each variable read, an internal node for each distinct operator applied to two values, and an edge from an operand to the operator that uses it. Two statements with the same operator and the same two operands land on the same node.</p>
+          <p class="small">For the block used in this lesson — <code>t1 = a*b; t2 = c*d; t3 = t1+t2; t4 = a*b; t5 = t4-t2</code> — counting the statements gives 5 operators and 6 variable reads. Counting the DAG gives 4 operators and 4 leaves, because the second <code>a*b</code> is the first one.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The merge is sound only inside one block: outside it, a branch may have changed <code>a</code> or <code>b</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2 — instruction selection and its price list</h3>
+          <p class="small">Selection is a covering problem: each machine instruction covers one node of the DAG plus some of the loads its operands need. On a load-store machine every operand must sit in a register, so a load covers one leaf. On an accumulator machine an operand may be read from memory, so one instruction covers a node and an operand.</p>
+          <p class="small">The two coverings of this lesson's DAG: <strong>8 instructions</strong> (4 loads, 4 arithmetic) peaking at <strong>3 registers</strong>, or <strong>12 instructions</strong> (3 per operator node) at <strong>1 register</strong>.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 4 loads + 4 operations = 8; 4 operator nodes × 3 instructions = 12. Both lists are executed by the page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2 — liveness and interference</h3>
+          <p class="small">A variable is <em>live</em> at a point if some path from that point reads it before writing it. Liveness is computed backwards: <code>live-in(s) = use(s) ∪ (live-out(s) − def(s))</code>, iterated over the control-flow graph until nothing changes. Two variables <em>interfere</em> when some point has both live; then they cannot share a register.</p>
+          <p class="small">The interference graph has one node per variable and one edge per interfering pair. Colouring it with k colours assigns k registers, and the largest clique is a lower bound on the colours needed.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A clique of size k forces k distinct registers, because every pair in it is live together at some point.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2 — Sethi-Ullman numbering</h3>
+          <p class="small">Label each leaf 1. For an internal node with child labels l and r, the label is <code>max(l, r)</code> when they differ, and <code>l + 1</code> when they are equal. The label of the root is the number of registers the tree needs when every leaf must occupy a register and the instruction cannot write into a register that already holds an operand.</p>
+          <p class="small">For <code>(a-1)*(((b+c)/3)+d)</code> the labels run 1, 1, 2 on the left, 1, 1, 2, 1, 2, 1, 2 on the right, and 3 at the root — because the two children of the root both carry 2.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Equal labels mean one result must be held while the other subtree is computed, which is what costs the extra register.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Level 4 — the worked example, and the number that differs</h3>
+          <p class="small">Run the formula on that expression and you get 3. Run an exhaustive search over every order in which the tree can be evaluated, on a machine that allows immediates and lets an instruction write into a register holding an operand, and you get <strong>2</strong>. The search is not disagreeing with the formula: the formula charges the constants <code>1</code> and <code>3</code> a register each, and this machine does not need to.</p>
+          <p class="small">Label the constant leaves 0 instead of 1 and the formula returns 2 as well. The paper — GATE CSE 2017 Set 1 Q52 — keys 2.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The eight-instruction sequence in the Examples tab uses two registers at every point, and one register is impossible because the division needs both an operand and the immediate.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 5 — spilling</h3>
+          <p class="small">When the machine has fewer registers than the graph needs colours, some variable must be spilled: stored after each definition and reloaded before each use. Spilling removes that node from the graph, which is an approximation — the real live range breaks into small pieces — and it is the standard one.</p>
+          <p class="small">The page tries all 63 non-empty spill sets on the 2013 block and keeps the cheapest that leaves a 3-colourable graph: spill <code>d</code>, at 1 reload plus 2 stores.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Dropping <code>b</code> and <code>x</code> instead leaves the clique {a, c, d, e} intact, so the graph still needs 4 colours and the spill bought nothing.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 6 — peephole rules carry conditions</h3>
+          <p class="small">A peephole pass slides a small window over the generated code and rewrites short patterns. Five rules are used here, each with a condition: a load of the location just stored to (nothing writes the register in between); adding zero or multiplying by one; a jump to the very next label; and a store overwritten by another store to the same location (no read of that location in between).</p>
+          <p class="small">Applied to an eleven-instruction list, each rule fires once and six instructions remain. Both lists are executed for all 25 input pairs from 0 to 4, and they agree on memory and on both registers.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> Twenty-five input pairs are evidence, not proof; the argument that the rewrites are sound in general is the condition attached to each rule.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed and checked.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The intermediate form names no register. The back end supplies them.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">What the back end has to decide</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The intermediate form names no register. The back end supplies them.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="small muted" style="grid-column:1/-1;margin:4px 0 0">
+          Captions are on by default and are generated from the same timeline that drives the animation, so they cannot drift. No audio file ships with this lesson; the narration text is the transcript, and the browser's own speech synthesis can read it if you enable voice in your browser.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked examples, with every number computed</h3>
+          <p class="small" style="margin-bottom:0">Each example below is executed by the page: the two instruction selections are run on a small machine, the register counts come from an exhaustive search over evaluation orders, and the liveness, interference and colouring come from the block itself rather than from a worked solution.</p>
+        </div>
+
+        <div class="card">
+          <h3>1. A block, its DAG, and two coverings</h3>
+          <p class="small">Block: <code>t1 = a*b; t2 = c*d; t3 = t1+t2; t4 = a*b; t5 = t4-t2</code>. As a tree it needs 5 operators and 6 variable reads — 11 instructions on a load-store machine. As a DAG it needs 4 operators and 4 leaves — 8.</p>
+          <p class="small"><strong>Load-store selection</strong> (8 instructions, 3 registers at the peak):</p>
+          <p class="formula">LOAD R1, a · LOAD R2, b · MUL R1, R1, R2 · LOAD R2, c · LOAD R3, d · MUL R2, R2, R3 · ADD R3, R1, R2 · SUB R1, R1, R2</p>
+          <p class="small">With <code>a, b, c, d = 3, 5, 7, 2</code> the machine ends with <code>R3 = 29</code> (t3) and <code>R1 = 1</code> (t5). With <code>1, 0, −2, 6</code> it ends with <code>R1 = 12</code>.</p>
+          <p class="small muted" style="margin-bottom:0">The accumulator covering of the same DAG takes 3 instructions per operator node — 12 — and one register. Both were executed; both agree.</p>
+        </div>
+
+        <div class="card">
+          <h3>2. The 2017 expression, two ways</h3>
+          <p class="small">For <code>(a-1)*(((b+c)/3)+d)</code> the Sethi-Ullman label is <strong>3</strong>; the exact search with immediates returns <strong>2</strong>; the label with constants counted as 0 is also <strong>2</strong>. The two constants are the entire difference.</p>
+          <p class="small"><strong>Two registers, no spill:</strong></p>
+          <p class="formula">LOAD R1, b · LOAD R2, c · ADD R1, R1, R2 · DIV R1, R1, #3 · LOAD R2, d · ADD R1, R1, R2 · LOAD R2, a · SUB R2, R2, #1 · MUL R1, R2, R1</p>
+          <p class="small">One register is impossible: the division needs the value of <code>(b+c)</code> and the immediate <code>3</code> in play at the same moment, and arithmetic cannot take a memory operand.</p>
+          <p class="small muted" style="margin-bottom:0">On trees with no constants the search returns the label exactly: 4 for <code>((a+b)*(c+d))+((e+f)*(g+h))</code>, 3 for <code>(a-b)-(c*d)</code>.</p>
+        </div>
+
+        <div class="card">
+          <h3>3. Liveness on the 2013 block</h3>
+          <p class="small">Live-in sets, computed backwards to a fixed point:</p>
+          <p class="formula">S1 c=a+b {a,b} · S2 d=c*a {a,c} · S3 e=c+a {a,c,d} · S4 x=c*c {a,c,d,e} · S5 if(x&gt;a) {a,d,e,x} · S6 y=a*a {a} · S7 goto {—} · S8 d=d*d {d,e} · S9 e=e*e {e} · S10 {—}</p>
+          <p class="small">The largest set is 4, at the <code>if</code>: the else branch reads <code>d</code> and <code>e</code>, the then branch reads <code>a</code>, and the test reads <code>x</code> and <code>a</code>. <code>y</code> appears nowhere, because it is written and never read.</p>
+          <p class="small muted" style="margin-bottom:0">Four live variables is a lower bound on registers, and here it is met — which the colouring has to show, not assume.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. The interference graph and its colouring</h3>
+          <p class="small">Ten edges: <code>a-b, a-c, a-d, a-e, a-x, c-d, c-e, d-e, d-x, e-x</code>. Degrees: <code>a</code> 5, <code>d</code> 4, <code>e</code> 4, <code>c</code> 3, <code>x</code> 3, <code>b</code> 1.</p>
+          <p class="small">Greedy colouring by decreasing degree gives <strong>4</strong> colours: <code>R1 = {a}</code>, <code>R2 = {d, b}</code>, <code>R3 = {e}</code>, <code>R4 = {c, x}</code>. No edge joins two nodes of one colour, so the assignment is valid.</p>
+          <p class="small">The clique <code>{a, c, d, e}</code> has 4 nodes all joined, so 3 colours is impossible, and the exhaustive search over all 729 three-colourings finds none. Colour count and clique size meet at 4, so 4 registers is optimal.</p>
+          <p class="small muted" style="margin-bottom:0">That meeting is a fact about this graph, not a theorem. Greedy colouring can exceed the chromatic number on other graphs.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Three registers instead of four</h3>
+          <p class="small">The graph is not 3-colourable, so one variable must spill. Of the 63 non-empty spill sets, the cheapest that leaves a 3-colourable graph is <code>{d}</code>, at cost 3: one reload (its single use, in <code>d = d*d</code>) and two stores (its two definitions, in <code>d = c*a</code> and in <code>d = d*d</code>).</p>
+          <p class="small">Dropping <code>b</code> and <code>x</code> instead leaves {a, c, d, e} intact, so the graph still needs 4 colours. A spill only helps if it breaks a clique.</p>
+          <p class="small muted" style="margin-bottom:0">Spill cost here is uses plus definitions — a simple model. Real allocators weight by loop depth, which this block does not have.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. Peephole: eleven instructions to six</h3>
+          <p class="small">Before: <code>LOAD R1,a · STORE R1,t · LOAD R1,t · ADD R1,R1,#0 · MUL R1,R1,#1 · STORE R1,b · JMP L1 · L1: · LOAD R2,c · STORE R2,b · STORE R1,b</code>.</p>
+          <p class="small">After: <code>LOAD R1,a · STORE R1,t · STORE R1,b · L1: · LOAD R2,c · STORE R1,b</code> — five rules, one instruction each, six left.</p>
+          <p class="small">The two programs were executed for every pair of inputs from 0 to 4: 25 pairs, identical memory, identical registers. A second pass over the result removes nothing more, so the list is a fixed point.</p>
+          <p class="small muted" style="margin-bottom:0">Note what survives: the load of <code>c</code> into <code>R2</code> is now dead, but no rule here removes a dead load whose register is never read. A later dead-code pass would.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rules stop applying</h3>
+          <p class="small" style="margin-bottom:0">Every claim on this page has a condition attached, and the conditions are what the exam tests. These are the boundary cases worth carrying into the paper.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Maximum live is not the minimum number of registers</h3>
+          <p class="small">Take the 2017 expression as three-address code: <code>t1=b+c; t2=t1/3; t3=t2+d; t4=a-1; t5=t3*t4</code>. On entry to the first statement, <code>a, b, c, d</code> are all live — four variables — and yet the computation needs only <strong>2</strong> registers.</p>
+          <p class="small">The reason: <code>a, b, c, d</code> are source variables that live in memory. A register is only needed for values that must be held across instructions, and the only such values here are temporaries. Maximum live counts variables; the allocation counts values that must be in registers.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> In the 2013 question every variable is assumed to be compiled into a register, which is exactly why maximum live <em>is</em> the answer there. Read that assumption before using the shortcut.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A colouring is an upper bound; a clique is a lower bound</h3>
+          <p class="small">Greedy colouring always produces a valid colouring, so its colour count is always achievable — an upper bound on the chromatic number. It is never, by itself, a proof that fewer colours are impossible.</p>
+          <p class="small">A clique of size k proves k colours are necessary. When the two numbers meet, the answer is proved optimal. When they do not, you know only that the truth lies between them.</p>
+          <p class="small muted" style="margin-bottom:0">In this lesson's graph they meet at 4, and the page states that as a fact about this graph, not as a general rule.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The formula is exact only under its assumptions</h3>
+          <p class="small">Sethi-Ullman assumes (i) every leaf occupies a register and (ii) an instruction's result cannot overwrite one of its operands. On a machine with immediates, condition (i) fails for constant leaves and the label over-counts — 3 instead of 2 on the 2017 tree.</p>
+          <p class="small">On a machine where results may overwrite operands, the label can also over-count. The exhaustive search in this page allows both, and it is what the 2017 answer follows.</p>
+          <p class="small muted" style="margin-bottom:0">Where the tree has no constants and instructions write into operands, the search and the label agree — checked on two trees here.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A peephole rule without its condition is wrong</h3>
+          <p class="small">Delete a <code>LOAD R1, x</code> after <code>STORE R1, x</code> and you are right only if nothing writes <code>R1</code> in between. Delete a <code>STORE R2, y</code> that a later <code>STORE R1, y</code> overwrites and you are right only if nothing reads <code>y</code> in between. Delete a jump to the next label and you are right only if that label really is the next instruction.</p>
+          <p class="small">Each of those conditions is a place where a question can plant the failure: one intervening instruction and the rewrite changes the program.</p>
+          <p class="small muted" style="margin-bottom:0">The five rules in this lesson are written with their conditions in the same sentence, on purpose.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What spilling does not model</h3>
+          <p class="small">Spilling a variable here removes its node from the graph. That is the textbook approximation: the real live range breaks into one small range per use, which often interferes with less than the original did.</p>
+          <p class="small">The page reports the cheapest set under that approximation and says so. It does not claim the spilled program's register count, and it does not model loop-depth weighting, coalescing, or rematerialisation.</p>
+          <p class="small muted" style="margin-bottom:0">For a GATE question that fixes the code and asks for a count, the approximation is enough; for a compiler you would iterate spill, recolour, and repeat.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>One block, not a program</h3>
+          <p class="small">The DAG is valid inside a single basic block. Across a branch, a variable may have been reassigned, so two syntactically identical computations are not the same value.</p>
+          <p class="small">Liveness, by contrast, is a whole-program property: the live sets here are computed over the block's control-flow graph including the branch, which is why <code>d</code> and <code>e</code> interfere even though they never appear in the same statement.</p>
+          <p class="small muted" style="margin-bottom:0">A DAG of a whole program would need SSA form or value numbering with reaching definitions, which is a different lesson.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that produce the wrong option</h3>
+          <p class="small" style="margin-bottom:0">Each is stated as a learner might hold it, then corrected with a computed counterexample from this lesson.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Minimum registers equals the maximum number of live variables.”</h3>
+          <p class="small">Sometimes. On the 2013 block the largest live set is 4 and the answer is 4, so the shortcut works. On the 2017 expression as three-address code, four variables are live at one point and two registers suffice, because those four live in memory.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correction:</strong> maximum live is a lower bound on registers, and it is tight only when every live value must be in a register.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“The Sethi-Ullman number is the answer to any register question.”</h3>
+          <p class="small">It is the answer under its two assumptions. On <code>(a-1)*(((b+c)/3)+d)</code> it gives 3; the machine with immediates needs 2, and the paper keys 2.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correction:</strong> ask what the question allows before quoting the formula, and label constant leaves 0 when immediates are allowed.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Greedy colouring is the chromatic number.”</h3>
+          <p class="small">Greedy is a heuristic that always returns a valid colouring and can use more colours than necessary. Here it happens to reach 4, which equals the chromatic number, and the page says that is a coincidence on this graph.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correction:</strong> to claim a minimum, produce a clique of that size, or run the exhaustive search for k−1.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Two variables interfere if they appear in the same statement.”</h3>
+          <p class="small">Interference is about being live at the same point, not about sharing a line. <code>d</code> and <code>e</code> never appear in one statement and interfere anyway; <code>t1</code> and <code>t2</code> in the DAG appear in one statement and do interfere, but for the liveness reason.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correction:</strong> draw an edge only when a program point has both live, and name that point.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“A DAG is an optimisation you apply after code generation.”</h3>
+          <p class="small">The DAG is the block with repeated computations merged, built before any instruction is chosen. In this lesson the DAG is built by operator lookup from the statements, so the merge is a fact about the block rather than a decision about the drawing.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correction:</strong> build the DAG first, then select instructions from it; the instruction count is a property of the DAG plus the machine.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Fewer instructions is always the better code.”</h3>
+          <p class="small">The load-store covering is 8 instructions at 3 registers; the accumulator covering is 12 at 1. Neither dominates. A machine with one register cannot run the first, and a machine with registers to spare runs it faster.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correction:</strong> instruction count and register count pull in opposite directions; the machine's price list decides.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Any peephole rewrite that shortens the code is safe.”</h3>
+          <p class="small">Each of the five rules needs a condition. Drop the condition — one intervening write to the register, one intervening read of the location — and the rewrite changes behaviour while still shortening the code.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Correction:</strong> state the condition with the rule; a rewrite without a condition is a guess.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four question shapes, and the procedure for each</h3>
+          <p class="small" style="margin-bottom:0">These shapes are described from the two verified questions below and from the general form of the area. No frequency is claimed and no paper is predicted.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — minimum registers for a code segment</h3>
+          <p class="small">The question gives a straight-line block with a branch and asks for the fewest registers that compile it without spilling, sometimes adding "do not apply any optimisation other than register allocation".</p>
+          <p class="small"><strong>Procedure.</strong> (1) Write the control-flow graph. (2) Compute live-in and live-out for every statement, backwards, to a fixed point. (3) Take the largest live set — a lower bound. (4) Build the interference graph and colour it. (5) If the colour count equals the largest live set, that is the answer; otherwise the colour count is.</p>
+          <p class="small muted" style="margin-bottom:0">On the 2013 block: largest live set 4, chromatic number 4, answer 4.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — minimum registers for an expression</h3>
+          <p class="small">The question gives an expression, states the machine (load-store, operands from registers only), and asks for the fewest registers with no spill.</p>
+          <p class="small"><strong>Procedure.</strong> (1) Draw the tree. (2) Label it by Sethi-Ullman, charging each constant a register only if the machine has no immediates. (3) Check whether an instruction may write into an operand register; if not, the label is the answer. (4) If the question allows immediates, the label with constants at 0 is the answer — and it is what an exhaustive search returns.</p>
+          <p class="small muted" style="margin-bottom:0">On the 2017 expression: label 3, machine with immediates 2, answer 2.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — what liveness is used for</h3>
+          <p class="small">A one-line MCQ asking which optimisation uses live variable analysis. The answer is register assignment, because liveness gives the live ranges and the interference graph.</p>
+          <p class="small"><strong>Procedure.</strong> Eliminate the options that do not depend on which values are needed later: constant folding, strength reduction, and runtime call management do not.</p>
+          <p class="small muted" style="margin-bottom:0">GATE CSE 2025 Set 1 Q3 is in this shape; the keyed option is register assignment to variables.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 — is this rewrite behaviour-preserving?</h3>
+          <p class="small">The question shows a short instruction sequence and a proposed local rewrite, and asks whether the result computes the same thing.</p>
+          <p class="small"><strong>Procedure.</strong> Find the condition the rewrite depends on, then look for the instruction that breaks it: an intervening write to the register, an intervening read of the location, or a label that is not the next instruction. If the breaking instruction is present, the rewrite is not safe.</p>
+          <p class="small muted" style="margin-bottom:0">The page applies five rules to an eleven-instruction list and executes both versions; question 6 in the Practice tab is in this shape.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The two checks that come before any arithmetic</h3>
+          <p class="small"><strong>Check 1 — which count?</strong> Registers are physical; variables are names, some of which live in memory; instructions are lines of machine code. A question asking for "minimum registers" wants the chromatic number of the interference graph, or the largest live set when that is also the answer. A question asking for "minimum variables" or "minimum temporaries" wants a count of names, not of registers.</p>
+          <p class="small"><strong>Check 2 — what is allowed?</strong> Spills allowed or not; code motion allowed or not; immediates allowed or not. Each one changes the answer: the 2013 block needs 4 with allocation alone and 3 with code motion as well, and the 2017 expression needs 3 without immediates and 2 with them.</p>
+          <p class="small muted" style="margin-bottom:0">Both numbers in each pair are defensible answers to different questions, which is why the wrong one is offered as an option.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 to 3 are <strong>official previous-year questions</strong>, each with its year, set and keyed answer. Questions 4 to 7 are <strong>original practice questions</strong> written for this lesson in GATE format; no year, paper or question number is claimed for them.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE 2017 Set 1, Q52</span></div>
+          <div class="q-body">
+            <p>Consider the expression <code>(a−1) * (((b+c)/3) + d)</code>. Let X be the minimum number of registers required by an optimal code generation (without any register spill) algorithm for a load/store architecture, in which (i) only load and store instructions can have memory operands and (ii) arithmetic instructions can have only register or immediate operands. The value of X is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>Load <code>b</code> and <code>c</code>, add, divide by the immediate 3, load <code>d</code>, add, load <code>a</code>, subtract the immediate 1, multiply. Two registers hold everything at every point, and no value spills.</p>
+            <p><strong>Why 3 appears.</strong> That is the Sethi-Ullman label of the tree when the constants <code>1</code> and <code>3</code> are charged a register each. The architecture described allows immediates, so they are not.</p>
+            <p><strong>Why 1 appears.</strong> One register cannot work: the division needs <code>(b+c)</code> and the immediate in play at once, and arithmetic cannot read a memory operand.</p>
+            <p class="small muted">The page computes both numbers — label 3, exhaustive search 2 — and executes the two-register sequence.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE 2013, Q49</span></div>
+          <div class="q-body">
+            <p>The following code segment is executed on a processor which allows only register operands in its instructions. Each instruction can have at most two source operands and one destination operand. Assume that all variables are dead after this code segment.</p>
+            <p><code>c = a + b; d = c * a; e = c + a; x = c * c; if (x &gt; a) { y = a * a; } else { d = d * d; e = e * e; }</code></p>
+            <p>What is the minimum number of registers needed in the instruction set architecture of the processor to compile this code segment without any spill to memory? Do not apply any optimization other than optimizing register allocation.</p>
+            <ol class="choices">
+              <li>3</li>
+              <li>4</li>
+              <li>5</li>
+              <li>6</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — 4</p>
+            <p>The live sets peak at 4 on entry to the <code>if</code>, where <code>a</code>, <code>d</code>, <code>e</code> and <code>x</code> are all live. The interference graph has 10 edges, its largest clique is {a, c, d, e}, and the exhaustive search over all 729 three-colourings finds none — so 4 is both necessary and sufficient.</p>
+            <p><strong>Why 3 appears.</strong> With code motion allowed as well, the block needs only 3. The question's last sentence forbids that, so 3 is the answer to a different question.</p>
+            <p class="small muted">The page computes the live sets, the graph, the clique and the colouring, and reports the same 4.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE 2025 Set 1, Q3</span></div>
+          <div class="q-body">
+            <p>Which ONE of the following techniques used in compiler code optimization uses live variable analysis?</p>
+            <ol class="choices">
+              <li>Run-time function call management</li>
+              <li>Register assignment to variables</li>
+              <li>Strength reduction</li>
+              <li>Constant folding</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — register assignment to variables</p>
+            <p>Liveness gives the live range of every variable, and two ranges that overlap become an edge in the interference graph. Colouring that graph is the assignment step.</p>
+            <p><strong>Why the others fail.</strong> Call management is about frames and calling conventions; strength reduction replaces an expensive operation with a cheaper equivalent; constant folding evaluates constant expressions. None of them needs to know which values are still going to be read.</p>
+            <p class="small muted">Question number follows the archive consulted; the year, set and keyed option are what this page relies on.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>For the 2013 code segment above, the interference graph has one node per variable. How many edges does it have? (Six variables appear; fifteen pairs are possible.)</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 10</p>
+            <p>The edges are <code>a-b, a-c, a-d, a-e, a-x, c-d, c-e, d-e, d-x, e-x</code>. <code>y</code> never appears, because it is written in the then branch and never read.</p>
+            <p><strong>Why 15 appears.</strong> That is every pair of the six variables, which would be right only if all six were ever live together. <strong>Why 9 appears.</strong> That usually drops <code>d-e</code>, because the two never share a statement — but they are both live across the else branch, so the edge is real.</p>
+            <p class="small muted">The page builds the graph from the live sets and checks every edge against a witness point, in both directions.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>On a load-store machine with immediates, where an instruction may write its result into a register that already holds an operand, what is the minimum number of registers needed to evaluate <code>a*b + (c − 1)</code> with no spill?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>Load <code>a</code> and <code>b</code>, multiply into one of them; load <code>c</code> into the other and subtract the immediate 1; add. Two registers, four instructions plus two loads.</p>
+            <p><strong>Why 3 appears.</strong> The Sethi-Ullman label of this tree is 3: the left child carries 2, the right child carries 2 (because <code>c−1</code> is labelled 2 when the constant is charged a register), and equal labels add one. Labelling the constant 0 gives 2, which is what the machine needs.</p>
+            <p class="small muted">The page's search returns 2 here and returns the label exactly on trees with no constants.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following local rewrites are guaranteed to preserve the behaviour of the surrounding code? Assume no labels are involved unless stated.</p>
+            <ol class="choices">
+              <li>Deleting <code>LOAD R1, x</code> immediately after <code>STORE R1, x</code>.</li>
+              <li>Deleting <code>ADD R1, R1, #0</code>.</li>
+              <li>Deleting <code>STORE R2, y</code> when a later instruction <code>STORE R1, y</code> exists, with a <code>LOAD R3, y</code> between them.</li>
+              <li>Deleting <code>JMP L1</code> when <code>L1:</code> labels the instruction immediately after it.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, D</p>
+            <p>A is safe because the register already holds exactly what was stored and nothing writes it in between. B is safe because adding zero changes nothing. D is safe because the jump goes where execution would fall through anyway.</p>
+            <p><strong>Why C is not safe.</strong> The <code>LOAD R3, y</code> between the two stores reads the value the first store wrote. Delete the store and that load reads the old value of <code>y</code>. The condition the rule needs — no read of the location in between — is exactly what fails here.</p>
+            <p class="small muted">This is the same condition the page's fifth rule carries, and the reason the rule is stated with it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A basic block has five statements and six variable reads. Its DAG has four operator nodes and four leaves. On a load-store machine, how many instructions does the DAG need, and how many would the block need without merging repeated computations?</p>
+            <ol class="choices">
+              <li>8 with the DAG, 11 without</li>
+              <li>8 with the DAG, 12 without</li>
+              <li>9 with the DAG, 11 without</li>
+              <li>4 with the DAG, 5 without</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A — 8 and 11</p>
+            <p>The DAG needs 4 loads (one per distinct leaf) plus 4 arithmetic instructions. Without merging, the block has 6 leaf occurrences and 5 operators: 6 loads plus 5 arithmetic, which is 11.</p>
+            <p><strong>Why 12 appears.</strong> That counts 6 loads and 6 operators, which is one operator too many for five statements. <strong>Why 4 and 5 appear.</strong> Those are the DAG's operator count and the block's statement count, not instruction counts.</p>
+            <p class="small muted">The page builds the DAG from the block and counts both coverings, then executes them.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, procedures and traps, in the order you would use them in the exam.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Basic block DAG</strong> — one node per distinct value in the block; repeated computations share a node.</li>
+            <li><strong>Instruction selection</strong> — covering the DAG's nodes with machine instructions, priced by the machine.</li>
+            <li><strong>Live at a point</strong> — some path from there reads the variable before writing it.</li>
+            <li><strong>Interference</strong> — two variables live at one point, so they cannot share a register.</li>
+            <li><strong>Colouring</strong> — assigning registers so that interfering variables differ.</li>
+            <li><strong>Chromatic number</strong> — the fewest colours a valid colouring can use.</li>
+            <li><strong>Clique</strong> — a set of nodes all pairwise adjacent; its size bounds the colours from below.</li>
+            <li><strong>Spill</strong> — keeping a variable in memory, storing after each definition and reloading before each use.</li>
+            <li><strong>Peephole rule</strong> — a short pattern replacement over a small window, valid only under its condition.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four procedures</h3>
+          <p class="small"><strong>Liveness.</strong> <code>live-in(s) = use(s) ∪ (live-out(s) − def(s))</code>; <code>live-out(s) = ∪ live-in(t)</code> over successors. Iterate backwards until nothing changes.</p>
+          <p class="small"><strong>Interference.</strong> For every program point, join every pair in its live set. An edge without a witness point is a bug.</p>
+          <p class="small"><strong>Colouring.</strong> Greedy by decreasing degree gives a valid upper bound; exhaustive search or a clique gives the truth or a lower bound.</p>
+          <p class="small"><strong>Sethi-Ullman.</strong> Leaves 1 (0 for constants if immediates are allowed); internal node <code>max(l, r)</code>, plus one if <code>l = r</code>.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Numbers from this lesson to remember</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Block of 5 statements: 11 instructions as a tree, 8 as a DAG.</li>
+            <li>Same DAG: 8 instructions at 3 registers, or 12 at 1.</li>
+            <li>2017 expression: label 3, machine 2, keyed answer 2.</li>
+            <li>2013 block: largest live set 4, chromatic number 4, keyed answer 4.</li>
+            <li>2013 interference graph: 6 nodes, 10 edges, clique {a, c, d, e}.</li>
+            <li>Three registers: spill <code>d</code> at cost 3.</li>
+            <li>Peephole: 11 instructions to 6, five rules, 25 input pairs checked.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Using maximum live as the answer when some variables live in memory.</li>
+            <li>Quoting the Sethi-Ullman label on a machine with immediates.</li>
+            <li>Reporting a greedy colour count as a proved minimum.</li>
+            <li>Drawing an interference edge from a shared statement rather than from a shared live point.</li>
+            <li>Applying a peephole rule whose condition has been broken by an intervening instruction.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Sixty-second self-test</h3>
+          <p class="small">1. Why does the DAG of five statements have four operator nodes? 2. Why is <code>y</code> absent from the interference graph? 3. What proves that 3 registers is impossible for the 2013 block? 4. Why does the 2017 expression need 2 rather than 3? 5. Which condition does the "delete the overwritten store" rule need?</p>
+          <p class="small muted" style="margin-bottom:0">Answers: the fourth statement repeats the first; it is written and never read; the clique {a, c, d, e}; the constants are immediates; that nothing reads the location between the two stores.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">The syllabus wording and the three previous-year questions were checked during this run. The computational claims on this page are not sourced — they are derived and executed by the page, and the model checks report the result.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official documents</h3>
+          <ul class="small src-list" style="margin:0;padding-left:18px">
+            <li>GATE 2027 CS syllabus, IIT Madras — <code>CS_GATE2027_Syllabus.pdf</code> on gate2027.iitm.ac.in. Supports the Section 7 wording quoted in the Overview and the Class C classification.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Only the syllabus text is taken as authoritative here. No weightage figure is taken from any source.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year questions</h3>
+          <ul class="small src-list" style="margin:0;padding-left:18px">
+            <li>GATE CSE 2017 Set 1, Q52 — minimum registers for <code>(a−1)*(((b+c)/3)+d)</code>; keyed answer 2. Checked against an answer archive, a paper reproduction and a second question bank, all three giving 2.</li>
+            <li>GATE CSE 2013, Q49 — minimum registers for the code segment; keyed answer 4, options 3, 4, 5 and 6. Checked against an answer archive and the discussion of the code-motion variant, which gives 3.</li>
+            <li>GATE CSE 2025 Set 1, Q3 — which technique uses live variable analysis; keyed option "register assignment to variables". Checked against two independent answer sources.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Question numbers follow the archives consulted and can differ by one between sources; the year, set and keyed answer are what this page relies on.</p>
+        </div>
+
+        <div class="card">
+          <h3>Standard references for the method</h3>
+          <ul class="small src-list" style="margin:0;padding-left:18px">
+            <li>Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em> — DAGs of basic blocks, instruction selection, register allocation by colouring, and peephole optimisation.</li>
+            <li>Sethi and Ullman, "The generation of optimal code for arithmetic expressions" (JACM, 1970) — the register-number recursion used in scene 4.</li>
+            <li>Chaitin, "Register allocation and spilling via graph colouring" (1982) — the interference-graph formulation and the spill loop.</li>
+            <li>Standard compiler-course notes on liveness and interference — the equations in the Build-up tab.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">These are named as the origin of the definitions, not quoted. No clause or page number is claimed, because the documents themselves were not opened for this run.</p>
+        </div>
+
+        <div class="card">
+          <h3>What this page computes rather than cites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>The DAG of the block, by operator lookup, with a check that every parent follows its children.</li>
+            <li>Both instruction selections, and their agreement with the block, by executing them.</li>
+            <li>The minimum register count for four expression trees, by exhaustive search over evaluation orders.</li>
+            <li>Live-in and live-out for all ten statements, iterated to a fixed point.</li>
+            <li>The interference graph, checked against the definition on all fifteen pairs.</li>
+            <li>The chromatic number by exhaustive search, the clique by exhaustive search, and the greedy colouring's validity.</li>
+            <li>The cheapest spill set, by trying all 63 non-empty subsets.</li>
+            <li>The peephole result, by executing both programs on 25 input pairs and re-running the rules to a fixed point.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Limits of this lesson</h3>
+          <p class="small">The machine models are simplified: one memory model, no addressing modes beyond a scale of one, no loop-depth weighting in the spill cost, and no coalescing. The execution checks are finite: 25 input pairs for the peephole rules and one or two inputs for the selections. A finite grid is evidence, not proof.</p>
+          <p class="small">The lesson does not claim that code generation is named in the syllabus, does not claim any marks weight, and does not claim that the greedy colouring is optimal in general — only that it is optimal on this graph, where the clique proves it.</p>
+          <p class="small muted" style="margin-bottom:0">No audio or video file ships with this lesson, and no MP4 was produced.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <p class="small muted">GATE Visual Explainer · target code generation · every number computed and checked on this page · captions generated from one timeline</p>
+  </footer>
+
+</div>
+
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
