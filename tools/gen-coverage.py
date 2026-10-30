@@ -3856,6 +3856,59 @@ if os.path.exists("syllabus-coverage.json"):
         print("warning: could not merge the existing tracker:", _e)
 
 # Lessons whose last verification date is later than the syllabus fetch date.
+topics.append(topic(
+    "Discrete Mathematics", "Graph theory",
+    "Counting spanning trees: enumeration, deletion-contraction, Pruefer codes and the Matrix-Tree theorem",
+    [
+        "the definition: all n vertices, exactly n-1 edges, no cycle",
+        "counting by enumerating every (n-1)-subset of the edge set",
+        "deletion-contraction and its two base cases",
+        "Cayley's formula n^(n-2) and its hypothesis",
+        "the Pruefer bijection in both directions",
+        "the Laplacian, its cofactor and the Matrix-Tree theorem",
+        "the named families: tree, cycle, complete bipartite, wheel, disconnected",
+        "labelled against unlabelled counts, and the Catalan count of binary search trees"
+    ],
+    prereq=["graphs-connectivity", "counting-and-combinatorics", "matrices-systems-and-eigenvalues", "trees-bst-and-heaps"],
+    related=["graph-traversals-mst-shortest-paths", "graphs-connectivity", "counting-and-combinatorics",
+             "generating-functions", "matching-and-colouring", "exact-counts-across-topics"],
+    importance="medium-high",
+    evidence="Section 5 of the GATE 2027 CS syllabus names 'minimum spanning trees' and Section 1 names 'Combinatorics: counting'; the count is the search space those clauses rest on, and Section 4 names 'trees'. Official GATE 2027 CS syllabus PDF, IIT Madras, read 2026-10-30. Examined directly: GATE CSE 2024, Set 1 asked for the number of spanning trees of K4 labelled A, B, C, D, and the official key gives 16; the question text and key were confirmed against several independent catalogues of the paper, which disagree on the item number, so no number is quoted. Presence in past papers is an observation, not a forecast for 2027, and no marks weight is claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="counting-spanning-trees",
+    path="topics/counting-spanning-trees/index.html",
+    execution="published 2026-10-30 by the scheduled run; 32 model checks, ten scenes, 40 captions, geometry audit clean",
+    microtopics=[
+        "a spanning tree keeps all n vertices, uses exactly n-1 edges, and has no cycle; any two of the three imply the third",
+        "K4: 6 edges, C(6,3) = 20 three-edge sets, 4 of them triangles, 16 spanning trees",
+        "the four rejected three-edge sets are exactly the four triangles, one per omitted vertex",
+        "C4: 4 three-edge sets, none rejected, 4 trees, one per edge deleted",
+        "K2,3 has five vertices, so a spanning tree needs four edges: C(6,4) = 15 sets, 12 trees, 3 rejected",
+        "the number of edges alone does not decide the count: K4 and K2,3 both have six and give 16 and 12",
+        "delete-contract: T(G) = T(G-e) + T(G/e), the two cases disjoint and exhaustive",
+        "the diamond (K4 minus an edge) counts 8, split into 4 + 4",
+        "base cases: one vertex counts 1, no edges on two or more vertices counts 0, disconnected counts 0",
+        "a self-loop left by a contraction must be deleted: keeping it gives 111 for K3,3 instead of 81",
+        "Cayley: n^(n-2) for n = 1 to 7 is 1, 1, 3, 16, 125, 1296, 16807",
+        "the exponent is n-2 because a tree is pinned down by n-2 independent choices",
+        "Cayley needs a complete graph; on C4 it over-counts, 16 against the true 4",
+        "the Pruefer encoding: delete the smallest leaf, write its neighbour, stop at two vertices",
+        "the six-vertex tree of this lesson encodes to 1, 2, 4, 4 by deleting leaves 3, 1, 2, 5",
+        "decoding: degree = 1 + occurrences, then join the smallest degree-1 label to the next entry",
+        "all 125 codes on five labels decode to 125 distinct trees, and every one re-encodes to itself",
+        "the Laplacian L = D - A has row sums zero, so its own determinant is zero",
+        "the Matrix-Tree theorem: any cofactor equals the tree count; all four K4 cofactors give 16",
+        "the K4 minor has 3 on the diagonal and -1 off it; expanding gives 24 - 4 - 4 = 16",
+        "C5 counts 5 by determinant and by contraction; K3,3 counts 81 and 3^2 x 3^2 = 81 agrees",
+        "the wheel W4 counts 45; K5 counts 125 = 5^3 and K6 counts 1296 = 6^4",
+        "parallel edges multiply the count: two parallel edges between two vertices give 2 trees",
+        "determinant and contraction agree on all 64 graphs on four vertices and all 1024 on five",
+        "labelled against unlabelled: 16 labelled trees on four vertices but only 2 shapes",
+        "the Catalan confusion: binary search trees on four keys number 14, not 16",
+        "GATE CSE 2024, Set 1: K4 labelled gives 16, computed by Cayley, by enumeration and by the determinant"
+    ]))
+
 _VERIFIED = {
     "spatial-aptitude": "2026-10-28",
     "structures-unions-and-enums": "2026-10-29",
@@ -3875,6 +3928,7 @@ _VERIFIED = {
     "exponential-and-poisson-distributions": "2026-10-30",
     "normal-distribution": "2026-10-30",
     "binomial-distribution": "2026-10-30",
+    "counting-spanning-trees": "2026-10-30",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
