@@ -3659,6 +3659,65 @@ topics.append(topic(
 
 topics.append(topic(
     "Engineering Mathematics", "Probability and Statistics",
+    "The binomial distribution: three conditions, one count",
+    [
+        "the Bernoulli trial and its two masses q and p",
+        "the binomial count as a sum of n indicator variables",
+        "the mass function C(n,k) p^k q^(n-k) and the count of success sequences",
+        "the two end masses q^n and p^n",
+        "the mass function summing to 1 by the binomial theorem",
+        "the ratio recursion P(k+1)/P(k) = ((n-k)/(k+1))(p/q)",
+        "the most probable count floor((n+1)p), and the tied case when (n+1)p is a whole number",
+        "the mean np by linearity, and the variance npq which needs independence",
+        "the standard deviation root(npq), and why a variance above the mean rules out a binomial",
+        "adding two binomials with equal p, and the unequal-p sum that is not binomial",
+        "the symmetry n - X ~ Bin(n, 1-q) and the symmetric case p = 1/2",
+        "the Poisson limit with np fixed, and the measured gap against n",
+        "the geometric and negative binomial counts, which are not binomial",
+        "sampling without replacement: the hypergeometric and the finite population correction",
+        "the four-step procedure: fixed n, constant p, independence, and which count"
+    ],
+    prereq=["probability and random variables", "counting and combinatorics", "linearity of expectation"],
+    related=["probability and random variables", "counting and combinatorics", "linearity of expectation",
+             "normal distribution", "exponential and poisson distributions",
+             "mean, median, mode and standard deviation", "bayes theorem as a revision rule"],
+    importance="high",
+    evidence="The GATE 2027 CS syllabus names 'Uniform, normal, exponential, Poisson and binomial distributions' verbatim in Section 1 (Probability and Statistics); official syllabus PDF, IIT Madras, read 2026-10-30. Examined directly and recomputed from the question text: GATE CSE 2004, 1 mark (two heads and two tails in four fair tosses, answer 3/8), GATE CSE 2004, 2 marks (Hamming distance of two random n-bit strings, answer C(n,d)/2^n, confirmed as 56/256 at n = 8 by two independent routes), GATE CSE 2006 Q21 (exactly n chosen from 2n, answer C(2n,n)/4^n), GATE CSE 2005, 2 marks (two random bit strings not identical, answer 1 - 1/2^n) and GATE CSE 2002 (at least one head and one tail in four tosses, answer 7/8). Presence in past papers is an observation, not a forecast for 2027, and no marks weight is claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="binomial-distribution",
+    path="topics/binomial-distribution/index.html",
+    execution="published 2026-10-30; 60 model checks, ten scenes, 40 captions, geometry audit clean",
+    microtopics=[
+        "the Bernoulli masses are q and p, mean p, variance pq = 0.21 at p = 0.3",
+        "the binomial count is X1 + ... + Xn, which gives the mean by linearity alone",
+        "C(10,3) = 120 sequences, each 0.3^3 x 0.7^7 = 0.002224, so the bar at 3 is 0.266828",
+        "P(0) = q^n = 0.028248 and P(n) = p^n = 0.000006 at n = 10, p = 0.3",
+        "the eleven bars at n = 10, p = 0.3 total 1.000000000000, and nothing outside 0 to n carries mass",
+        "the ratio recursion matches the measured ratio of neighbouring bars at all ten values of k: 4.285714, 1.928571, 1.142857, 0.75, 0.514286, ...",
+        "the ratio crosses below 1 at k = 3, which is where the peak sits",
+        "floor((n+1)p) gives 3 at n = 10, p = 0.3 and two tied modes 4 and 5 at n = 9, p = 0.5, each 0.246094",
+        "at n = 5, p = 0.3 the peak is 1 although np = 1.5, because 0.360150 beats 0.308700",
+        "summing the bars gives mean 30 and variance 21 at n = 100, p = 0.3, matching np and npq",
+        "at n = 7, p = 0.9 the mean is 6.3 and the variance 0.63, so npq is far below np",
+        "with the mean fixed at 6 the variance is 6(1-p): 5.4 at p = 0.1 down to 0.6 at p = 0.9",
+        "with n fixed the variance is largest at p = 1/2: 5.0 at n = 20 against 3.2 at p = 0.2 and 0.8",
+        "GATE CSE 2004: the Hamming distance is Bin(n, 1/2), so P(D = d) = C(n,d)/2^n, and 2^n C(n,d) over 2^2n agrees at 14336/65536 = 0.218750",
+        "GATE CSE 2006 Q21: the count is Bin(2n, 1/2), so P(X = n) = C(2n,n)/4^n, which falls 0.5, 0.375, ... 0.112275 at n = 25",
+        "C(2n,n)/4^n is within 0.5 per cent of 1/root(pi n) at n = 25, and 1/2 is only the n = 1 value",
+        "Bin(4,0.3) + Bin(6,0.3) reproduces Bin(10,0.3) by convolution with difference 0.000000000000",
+        "Bin(2,0.2) + Bin(3,0.8) differs from Bin(5,0.5) by 0.141900 while both have mean 2.8 and variance 0.8",
+        "the Poisson gap at rate 3 is 4.279e-2, 3.432e-3, 3.368e-4, 3.361e-5 and 3.361e-6 as n runs 10 to 100000",
+        "the geometric mean is 1/p = 3.3333 with median 2, and P(at least one in 10) = 1 - 0.7^10 = 0.971752",
+        "the third success landing on trial 5 is C(4,2) 0.3^3 0.7^2 = 0.079380, not the binomial 0.132300",
+        "the negative binomial mean is k/p = 10, and the geometric is the case k = 1",
+        "sampling without replacement at N = 10, K = 3, n = 4 gives P(1) = 0.500000 against the binomial 0.411600",
+        "the hypergeometric variance is npq(N-n)/(N-1) = 0.840000 x 0.666667 = 0.560000, with the mean unchanged at 1.2",
+        "GATE CSE 2004: two heads in four tosses is 6/16 = 0.375; GATE CSE 2002: at least one of each is 7/8 = 0.875"
+    ]))
+
+topics.append(topic(
+    "Engineering Mathematics", "Probability and Statistics",
     "The normal distribution: standardise first, then read the tail",
     [
         "the density 1/(sigma root 2 pi) exp(-(x-mu)^2/(2 sigma^2)) and its two parameters",
@@ -3766,6 +3825,7 @@ _VERIFIED = {
     "bayes-theorem-as-revision": "2026-10-30",
     "exponential-and-poisson-distributions": "2026-10-30",
     "normal-distribution": "2026-10-30",
+    "binomial-distribution": "2026-10-30",
 }
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
