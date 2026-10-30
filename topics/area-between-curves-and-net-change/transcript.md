@@ -1,4 +1,4 @@
-# Area Between Curves And Net Change — transcript
+# Areas, Net Change and Probability as Area: What the Definite Integral Is For — transcript
 
 Full narration and caption text in reading order, with scene headings. This is the
 accessibility fallback and the printable study document for the lesson.
