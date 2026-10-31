@@ -4643,6 +4643,63 @@ topics.append(topic(
         "a union that returns false is the cycle test, not an error",
         "what the structure cannot do: split, reconstruct a path, detect a directed cycle, list a set"]))
 
+# ---------------------------------------------------------------- Computer Networks (flow control)
+topics.append(topic(
+    "Computer Networks", "Data link and transport flow control",
+    "Sliding window and ARQ protocols",
+    ["stop-and-wait and its efficiency",
+     "sender and receiver windows",
+     "Go-Back-N retransmission",
+     "Selective Repeat retransmission",
+     "utilisation of a sliding window",
+     "minimum window for full utilisation",
+     "sequence-number space and window bounds",
+     "bandwidth-delay product as a window"],
+    prereq=["layering-switching-and-performance-metrics",
+            "link-layer-error-detection-mac-and-ethernet",
+            "tcp-flow-congestion-control-and-sockets"],
+    related=["tcp-flow-congestion-control-and-sockets",
+             "layering-switching-and-performance-metrics",
+             "link-layer-error-detection-mac-and-ethernet",
+             "dns-and-http"],
+    importance="high",
+    evidence=("The GATE 2027 CS syllabus names 'performance metrics' in Section 10 and 'TCP - flow control "
+              "and congestion control'. The three protocol names are not in the 2027 document, so this lesson "
+              "is class A by clause and class B by name; that caveat is stated in the lesson itself. " + SYL),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="sliding-window-arq-protocols",
+    path="topics/sliding-window-arq-protocols/index.html",
+    execution=("published 2026-10-31; 69/69 model checks, geometry audit clean, 40 caption cues over 10 scenes"),
+    microtopics=[
+        "Tt = L/B and Tp = d/v; a = Tp/Tt is dimensionless",
+        "the stop-and-wait cycle is Tt + 2Tp and delivers one frame",
+        "eta = 1/(1+2a) for stop-and-wait, min(1, W/(1+2a)) for a window",
+        "the cap at one: a link cannot be more than fully used",
+        "eta = Lv/(Lv + 2dB): falls with distance and with rate (GATE CSE 2023 Q7)",
+        "a faster link idles longer, so a higher rate lowers utilisation",
+        "1500/1700 = 88.24 per cent for 3000 bits at 2000 bps with 100 ms one-way (GATE CSE 2025 Set 2 Q36)",
+        "the 93.75 per cent distractor counts one propagation delay",
+        "minimum window is the ceiling of 1 + 2a: 21 for a = 10 (GATE CSE 2026 Set 1 Q45)",
+        "the plus one is the frame being transmitted, so 1 + 2a and never 2a",
+        "window 5 of a 9-packet pipe gives 5/9 of 20 MB/s, 11.11 MB/s (GATE CSE 2003 Q84)",
+        "a window larger than 1 + 2a buys nothing and costs buffer",
+        "bandwidth-delay product in bits divided by the frame size is the window in frames",
+        "Go-Back-N: receiver window of one, cumulative acknowledgement, whole window resent",
+        "Selective Repeat: receiver window of W, per-frame acknowledgement, one frame resent",
+        "one loss in twelve frames, window 4: 17 transmissions against 13",
+        "the same loss at window 8: 21 against 13, so GBN cost grows with the window",
+        "elapsed time 24 against 23 at window 4, and 24 against 20 at window 8",
+        "a lost acknowledgement is not a lost frame: 12 frames still take 12 transmissions",
+        "both protocols deliver in order; GBN discards, SR buffers until the gap fills",
+        "the GBN ambiguity is at the sender: a delayed ack for an old frame carries the same number",
+        "GBN bound N <= 2^m - 1; the first failing window is exactly 2^m (4, 8, 16, 32)",
+        "SR bound N <= 2^(m-1), from two windows that must not overlap: 2N <= 2^m",
+        "the first SR failure is 3, 5, 9, 17 for m = 2..5, one past each bound",
+        "a window of 21 needs 5 sequence bits under GBN and 6 under SR",
+        "buffers: W at the sender and 1 at the receiver, against W at both ends",
+        "efficiency cannot distinguish the protocols; only retransmission behaviour can"]))
+
 _seen = set()
 _dedup = []
 for _t in topics:

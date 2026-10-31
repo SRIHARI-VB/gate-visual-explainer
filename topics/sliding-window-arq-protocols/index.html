@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sliding window and ARQ — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Sliding window and ARQ</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Related: TCP flow and congestion control</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Sliding-window flow control and the three automatic repeat-request protocols — stop-and-wait, Go-Back-N and Selective Repeat — with the window arithmetic and the two sequence-number bounds.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Compute a link's transmission time, propagation time and their ratio, and read utilisation from them. Invert the utilisation formula to find the smallest window that fills a link. Trace one lost frame through Go-Back-N and through Selective Repeat and count the transmissions each costs. Derive why a window of Go-Back-N is at most $$2^m - 1$$ and a window of Selective Repeat at most $$2^{m-1}$$ for an $$m$$-bit sequence number, and pick the field width a required window needs.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>one ratio asked four ways</em>: what fraction of the link is used, what window fills it, how many bits must number it, and what one loss costs. Every number on this page is computed by the page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A by clause, with a stated caveat.</strong> Section 10 of the GATE 2027 CS syllabus, published by IIT Madras, names <em>"Principles of Layering; Basics of switching … and performance metrics"</em>, and separately <em>"TCP - flow control and congestion control, socket API"</em>. Flow control, performance metrics and the window are therefore in scope.</p>
+          <p class="small">The caveat is honest and worth stating: the 2027 wording of the data-link clause is <em>"error detection, Medium Access Control, Ethernet"</em>, and the three protocol names — stop-and-wait, Go-Back-N, Selective Repeat — do not appear anywhere in the 2027 document. They are the standard machinery behind the flow-control clause, so this lesson treats them as <strong>class B</strong> in their own right: not named, but the mechanism the named clause is about. Compare the 2026 wording, which named <em>"Application layer protocols: DNS, SMTP, HTTP, FTP, Email"</em> and did not name flow control in the data-link clause.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Paper archives tag this family in 2003, 2016, 2023, 2025 and 2026. That is somebody's indexing of a collection, not official weightage and not a forecast for 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering, switching and performance metrics</a> — transmission delay, propagation delay, throughput and the bandwidth-delay product. Every formula here is built from those four quantities.</li>
+            <li><a href="../link-layer-error-detection-mac-and-ethernet/index.html">Link-layer error detection, MAC and Ethernet</a> — what a frame is, and why a frame can be lost rather than corrupted.</li>
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow control and congestion control</a> — the same window idea seen from the transport layer, where the receiver advertises it.</li>
+            <li>Powers of two, and the ceiling function. Nothing beyond that.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">No software is needed. The simulator on this page runs in the browser and its results are printed on the canvas.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A sender that waits wastes the round trip.</strong> Utilisation is one frame per transmission-plus-round-trip, so $$1/(1+2a)$$.</li>
+            <li><strong>A window fills the pipe.</strong> $$W$$ frames per cycle gives $$W/(1+2a)$$, capped at one.</li>
+            <li><strong>The window that fills a link is its bandwidth-delay product</strong>, in frames: $$1+2a$$ rounded up.</li>
+            <li><strong>Go-Back-N trades bandwidth for memory</strong>: one receiver buffer, and a whole window resent per loss.</li>
+            <li><strong>The sequence field bounds the window</strong>: $$2^m-1$$ for Go-Back-N, $$2^{m-1}$$ for Selective Repeat, and both are forced, not chosen.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate study time: 50–70 minutes, which is an estimate and not a measurement. Watch the Animation once straight through, then take Examples for the four worked paper items, Edge cases for where each rule stops, and Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">Captions are on by default and switch to Detailed, Keyword or Exam trap without restarting. The count of passing model checks is shown under the canvas; a check that fails would say so there rather than be hidden.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes in the order the reasoning needs them. <strong>1</strong> The stop-and-wait cycle as a bar: 8 ms of transmission and 20 ms of nothing. <strong>2</strong> The sender window sliding, and efficiency against window size on one link. <strong>3</strong> The 2025 paper item computed, and the 2023 item read as a direction rather than a number. <strong>4</strong> The pipe holding 21 frames, and the ceiling rule. <strong>5</strong> One lost frame through Go-Back-N, with the retransmitted tail counted. <strong>6</strong> The same loss through Selective Repeat, with the buffer drawn. <strong>7</strong> The acknowledgement ambiguity that forces $$2^m-1$$, with the first failing window computed for four field widths. <strong>8</strong> The two windows overlapping in one sequence space, forcing $$2^{m-1}$$. <strong>9</strong> Transmissions, elapsed time and buffers side by side. <strong>10</strong> The four-line procedure and the five traps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a delivery van that waits for a signature</h3>
+          <p class="small">A courier must hand each parcel over personally and bring back a signature before loading the next one. Driving takes a while and the parcel is handed over in seconds. The van is loaded and moving for a tiny part of the day; the rest is driving out and back with nothing on board. That is stop-and-wait, and the wasted part is exactly the travel time.</p>
+          <p class="small" style="margin-bottom:0">The cure is obvious in the metaphor and in the protocol: load several parcels, and let the van keep moving while earlier signatures come back. How many parcels may be out at once is the <em>window</em>. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The metaphor carries the idle time and the window. It does not carry the sequence-number bound, which is a labelling argument and gets its own two scenes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The vocabulary, every term in words</h3>
+          <p class="small"><strong>Frame</strong> — one unit of data with a header, sent as a whole. Its size in bits is written $$L$$.</p>
+          <p class="small"><strong>Transmission time $$T_t$$</strong> — how long the sender holds the wire: $$L$$ divided by the link rate $$B$$.</p>
+          <p class="small"><strong>Propagation time $$T_p$$</strong> — how long one bit takes to cross the link: distance divided by signal speed.</p>
+          <p class="small"><strong>The ratio $$a$$</strong> — $$T_p / T_t$$. It is dimensionless, and it decides everything in this lesson.</p>
+          <p class="small"><strong>Window</strong> — how many frames may be unacknowledged at once.</p>
+          <p class="small" style="margin-bottom:0"><strong>Sequence number</strong> — the label in the header, carried in $$m$$ bits, so it takes $$2^m$$ values and then repeats.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Utilisation, in one derivation</h3>
+          <p class="small">A stop-and-wait sender transmits for $$T_t$$, then waits one round trip, $$2T_p$$, for the acknowledgement. The cycle is $$T_t + 2T_p$$ and it delivers one frame. So</p>
+          <p class="small" style="text-align:center">$$\eta = \frac{T_t}{T_t + 2T_p} = \frac{1}{1+2a}.$$</p>
+          <p class="small">With a window of $$W$$, the same cycle delivers $$W$$ frames, so $$\eta = \min\left(1, \frac{W}{1+2a}\right)$$. The cap is not decoration: a link cannot carry more than its own rate, and any value above one means the window is already big enough.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The acknowledgement's own transmission time is dropped here. That is a stated assumption, not an oversight: include it only when a question gives an acknowledgement size.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three protocols, in words</h3>
+          <p class="small"><strong>Stop-and-wait.</strong> Window of one. Send, wait, send. Correct but slow, and the slower the link's round trip relative to its frame, the worse it is.</p>
+          <p class="small"><strong>Go-Back-N.</strong> The sender may have $$W$$ frames out. The receiver window is one frame: it accepts only the number it expects, and discards anything later. On a timeout the sender resends the whole window from the lost frame.</p>
+          <p class="small"><strong>Selective Repeat.</strong> The receiver window is as wide as the sender's. Out-of-order frames are stored and acknowledged individually, so only the lost frame is resent.</p>
+          <p class="small" style="margin-bottom:0">All three are <em>sliding window</em> protocols: the window is a range of sequence numbers that advances as acknowledgements arrive.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Why a sequence number has to repeat, and what that costs</h3>
+          <p class="small">An $$m$$-bit field carries $$2^m$$ distinct labels, and then it must reuse them. Reuse is safe only while no two frames carrying the same label can be confused. In Go-Back-N the confusion is at the sender: a delayed acknowledgement for the old frame numbered 0 looks exactly like an acknowledgement for the new frame numbered 0, so one label must be left unused and the window is at most $$2^m - 1$$.</p>
+          <p class="small" style="margin-bottom:0">In Selective Repeat the receiver also holds a window, so two windows share one label space. They must not overlap, which needs $$2N \le 2^m$$, so the window is at most $$2^{m-1}$$. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both bounds are proved by exhibiting the duplicate that appears one step past them, and the page computes that first failing window for $$m = 2,3,4,5$$ rather than asserting it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A stop-and-wait sender puts one frame on the wire, then stops and waits for its acknowledgement.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One frame at a time, and the empty pipe</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The link is busy while the frame is going out, and silent for everything after that.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked items, each with its arithmetic shown</h3>
+          <p class="small muted" style="margin-bottom:0">Every step names the rule it uses, so a wrong answer can be traced to the step that produced it. The numbers are the same ones the animation draws, and the page recomputes each one on load.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 1 — GATE CSE 2025 Set 2, Q36</h3>
+          <p class="small">Stop-and-wait over a channel of 2000 bps carrying 3000-bit frames, with a one-way propagation delay of 100 ms. Acknowledgements are negligible. Find the channel utilisation.</p>
+          <ol class="step-list small">
+            <li>$$T_t = 3000 / 2000 = 1500$$ ms. <span class="why">Frame bits over link rate.</span></li>
+            <li>$$2T_p = 2 \times 100 = 200$$ ms. <span class="why">The question gives one-way, so double it once.</span></li>
+            <li>Cycle $$= 1500 + 200 = 1700$$ ms. <span class="why">One transmission, two propagation delays.</span></li>
+            <li>$$\eta = 1500/1700 = 0.882353$$, so <strong>88.24 per cent</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> 1500/1600 = 93.75 per cent comes from counting one propagation delay. It is the standard distractor in this family.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 — GATE CSE 2023, Q7</h3>
+          <p class="small">Two hosts use stop-and-wait on a point-to-point link. In which scenario is the link utilisation lowest: longer or shorter link, and lower or higher transmission rate?</p>
+          <ol class="step-list small">
+            <li>Substitute $$T_t = L/B$$ and $$T_p = d/v$$ into $$\eta = T_t/(T_t + 2T_p)$$. <span class="why">$$L$$ frame bits, $$B$$ rate, $$d$$ distance, $$v$$ signal speed.</span></li>
+            <li>Multiply through: $$\eta = \dfrac{Lv}{Lv + 2dB}$$. <span class="why">Now every symbol appears once, in the numerator or the denominator.</span></li>
+            <li>$$\eta$$ falls as $$d$$ rises, and falls as $$B$$ rises. <span class="why">Both enlarge the denominator only.</span></li>
+            <li>Answer: <strong>longer link, higher rate</strong>. On the page's own numbers, 99.01 per cent for short and slow against 0.001 per cent for long and fast.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Reading "higher rate" as "better". A faster link finishes transmitting sooner and therefore idles longer, so the fraction used falls.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 — GATE CSE 2026 Set 1, Q45</h3>
+          <p class="small">A sliding-window protocol over a lossless link: 1000-bit frames, 100 kbps bandwidth, one-way propagation delay 100 ms, acknowledgements and processing free. Find the minimum window $$W$$ for 100 per cent utilisation.</p>
+          <ol class="step-list small">
+            <li>$$T_t = 1000 / 10^5 = 10$$ ms. <span class="why">The rate is given with $$1k = 10^3$$.</span></li>
+            <li>$$a = T_p/T_t = 100/10 = 10$$. <span class="why">Dimensionless.</span></li>
+            <li>$$1 + 2a = 21$$. <span class="why">The pipe, measured in frames.</span></li>
+            <li>Full utilisation needs $$W \ge 21$$, so $$W = 21$$; a window of 20 gives 20/21 = 95.24 per cent.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> 20, from using $$2a$$ instead of $$1+2a$$. The extra one is the frame being transmitted while the first acknowledgement is already on its way back.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 — GATE CSE 2003, Q84</h3>
+          <p class="small">Host A sends to host B with a send window and receive window of 5 packets. Packets are 1000 bytes, transmission time 50 µs each, acknowledgement transmission negligible, propagation delay 200 µs. Find the maximum achievable throughput.</p>
+          <ol class="step-list small">
+            <li>$$a = T_p/T_t = 200/50 = 4$$, so $$1+2a = 9$$. <span class="why">The pipe holds nine packets.</span></li>
+            <li>$$\eta = \min(1, 5/9) = 0.5556$$. <span class="why">The window, not the pipe, is the limit.</span></li>
+            <li>Bandwidth $$= 1000\text{ B} / 50\,\mu s = 20 \times 10^6$$ B/s. <span class="why">Frame size over transmission time.</span></li>
+            <li>Throughput $$= 0.5556 \times 20 \times 10^6 = 11.11 \times 10^6$$ B/s.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Answering 20 × 10⁶, the raw bandwidth, which assumes the window can saturate the link. At window 9 it could; at window 5 it cannot.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Example 5 — one lost frame, both protocols, counted</h3>
+          <p class="small">Twelve frames, window 4, propagation of 2 frame times, and frame 2 lost on its first transmission. The page simulates both protocols tick by tick.</p>
+          <p class="small">Go-Back-N: frames 3 and 4 are discarded, the timer on 2 expires, and the whole window from 2 is resent. <strong>17 transmissions</strong>, and 24 frame times to finish. At window 8 it is <strong>21 transmissions</strong> and still 24 frame times.</p>
+          <p class="small">Selective Repeat: frames 3 and 4 are buffered and acknowledged, only frame 2 times out. <strong>13 transmissions</strong> at either window size, and 23 frame times at window 4, 20 at window 8.</p>
+          <p class="small" style="margin-bottom:0"><strong>What this shows.</strong> The two protocols are identical on a clean link and differ only in the price of a loss. That is why an efficiency question cannot distinguish them, and why a retransmission question always can.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries: where each rule stops working</h3>
+          <p class="small muted" style="margin-bottom:0">Each card states the condition a rule needs and what changes when it fails. These are the cases that separate a correct answer from an almost-correct one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The utilisation formula assumes acknowledgements are free</h3>
+          <p class="small">With an acknowledgement of $$L_a$$ bits on the same link, the cycle gains $$L_a/B$$ and the denominator becomes $$1 + 2a + L_a/L$$. At $$L_a = 100$$ bits on a 1000-bit frame the correction is ten per cent of a frame time.</p>
+          <p class="small" style="margin-bottom:0"><strong>When to apply it.</strong> Only when the question gives an acknowledgement size or says it is not negligible. Adding it to a question that said "negligible" moves the answer outside the tolerance band.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>$$W = 1$$ is stop-and-wait, not a degenerate window</h3>
+          <p class="small">The formula $$W/(1+2a)$$ at $$W = 1$$ gives exactly $$1/(1+2a)$$. Nothing breaks; the general case contains the special one.</p>
+          <p class="small" style="margin-bottom:0"><strong>The related boundary.</strong> A window larger than $$1+2a$$ gives no further gain. On link C, windows of 21 and 30 both give 100 per cent; the extra nine frames buy nothing and cost buffer.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Go-Back-N's bound is about acknowledgements, not about the receiver</h3>
+          <p class="small">The receiver window of one cannot confuse anything: it accepts only the number it expects. The ambiguity is entirely at the sender, where a delayed acknowledgement for an old frame carries the same number as a new one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample to "the receiver causes it".</strong> With $$m = 3$$ and $$W = 8$$ the failure appears even though every frame arrives correctly and in order: only the acknowledgement is late. Selective Repeat fails differently, with two windows overlapping.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A loss costs one frame in Selective Repeat — unless the acknowledgement is lost</h3>
+          <p class="small">A lost acknowledgement is not a lost frame. The sender's timer expires and it resends, the receiver recognises the number as already delivered, and it re-acknowledges. The simulation of a lost acknowledgement for frame 1 costs no extra transmissions at all: 12 frames still take 12.</p>
+          <p class="small" style="margin-bottom:0"><strong>For counting questions.</strong> Ask which was lost. A lost frame costs a retransmission; a lost acknowledgement usually costs only a duplicate acknowledgement, and sometimes one needless resend.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The bandwidth-delay product is in bits; a window is in frames</h3>
+          <p class="small">On link C the bandwidth-delay product is 21 frames × 1000 bits = 21 000 bits, which is also 10 ms × 100 kbps = 1000 bits in transmission plus 2 × 100 ms × 100 kbps = 20 000 bits in flight.</p>
+          <p class="small" style="margin-bottom:0"><strong>The conversion.</strong> Divide by the frame size before comparing to a window. A question that gives the product in bits and the window in frames wants that division and nothing else.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The sequence field and the window are different questions</h3>
+          <p class="small">A window of 21 needs 5 bits under Go-Back-N, since $$2^4-1 = 15 < 21 \le 31 = 2^5-1$$, and 6 bits under Selective Repeat, since $$2^5 = 32 \ge 21 > 16 = 2^5$$ halved.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why they differ.</strong> The same window needs one more bit under Selective Repeat, because its bound halves the usable space. A question that asks for bits without naming the protocol is incomplete, and both answers are defensible only if the protocol is stated.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce a plausible wrong answer</h3>
+          <p class="small muted" style="margin-bottom:0">Each card gives the belief, why it is tempting, the smallest case that refutes it, and the rule to use instead. They are drawn from the shapes of the wrong options in this family of questions, not from a survey of learners.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "A bigger window always means better throughput"</h3>
+          <p class="small"><strong>Why it tempts.</strong> On a clean link it is true up to $$1+2a$$, and the graph looks monotone.</p>
+          <p class="small"><strong>Refutation.</strong> On a lossy link under Go-Back-N, twelve frames with one loss cost 17 transmissions at window 4 and 21 at window 8 — the bigger window transmits more, not less.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> A window buys utilisation up to the pipe size, and multiplies the cost of each loss beyond it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Go-Back-N and Selective Repeat have different efficiency"</h3>
+          <p class="small"><strong>Why it tempts.</strong> They behave differently, so they ought to compute differently.</p>
+          <p class="small"><strong>Refutation.</strong> The formula $$\min(1, W/(1+2a))$$ mentions neither protocol. Simulated on a clean link at $$p = 3$$, window 4, both give 0.571.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The formula is a best case with no loss. Only retransmission behaviour separates the two, and that needs a loss in the question.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "The sequence-number bound is $$2^m$$"</h3>
+          <p class="small"><strong>Why it tempts.</strong> There are $$2^m$$ labels, so using all of them feels natural.</p>
+          <p class="small"><strong>Refutation.</strong> With $$m = 3$$, a window of 8 makes a late acknowledgement ambiguous. The page computes the first failing window as 4, 8, 16 and 32 for two to five bits — exactly $$2^m$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Go-Back-N: $$N \le 2^m - 1$$. Selective Repeat: $$N \le 2^{m-1}$$.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Go-Back-N also buffers the good frames"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The frames did arrive correctly, so throwing them away looks wasteful.</p>
+          <p class="small"><strong>Refutation.</strong> Go-Back-N's receiver window is one frame wide; it accepts only the number it expects. Frames 3 and 4 after a missing 2 are discarded, and that discard is why the retransmission is a whole window.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The receiver buffer is what distinguishes the two protocols: one frame against $$W$$.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Efficiency can be reported above 100 per cent"</h3>
+          <p class="small"><strong>Why it tempts.</strong> $$W/(1+2a)$$ with a large window gives a number above one, and the arithmetic is correct.</p>
+          <p class="small"><strong>Refutation.</strong> A link cannot carry more than its own rate. On link A, window 4 gives 4/3.5 = 1.14 before the cap, and the answer is 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Always write the min. If your answer exceeds one, the question is telling you the window is sufficient.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "The one-way delay is the round trip"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Questions often say "propagation delay" without saying which, and the phrase reads like the whole wait.</p>
+          <p class="small"><strong>Refutation.</strong> GATE 2025 Set 2 Q36 gives one-way 100 ms, and using 200 ms in the denominator gives 88.24 per cent; using 100 ms gives 93.75, which is not the key.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The formula already contains the factor two. Double a one-way delay once, never twice.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four question shapes, one set of three numbers</h3>
+          <p class="small muted" style="margin-bottom:0">Every item in this family hands you frame size, link rate and a delay, then asks for one of four things. Identify which, and the arithmetic is fixed. The previous-year items quoted carry their year, set and question number, and each answer was recomputed here rather than copied.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — utilisation from a window</h3>
+          <p class="small">"Frames of $$L$$ bits, rate $$B$$, delay $$T_p$$, window $$W$$. Find the utilisation." Compute $$a = T_p/T_t$$, then $$\min(1, W/(1+2a))$$. If the answer exceeds one, the window is already enough.</p>
+          <p class="small" style="margin-bottom:0">Seen as GATE CSE 2003 Q84 (throughput) and GATE CSE 2025 Set 2 Q36 (stop-and-wait).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — the minimum window</h3>
+          <p class="small">"What is the smallest window for 100 per cent utilisation?" Invert: $$W = \lceil 1+2a \rceil$$. Round up, always, because a window short of the pipe leaves it idle.</p>
+          <p class="small" style="margin-bottom:0">Seen as GATE CSE 2026 Set 1 Q45, where $$1+2a = 21$$ exactly and the answer is 21.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — the sequence field</h3>
+          <p class="small">"How many bits are needed?" Apply the protocol's bound and take the smallest $$m$$ that admits the window: $$2^m - 1 \ge N$$ for Go-Back-N, $$2^{m-1} \ge N$$ for Selective Repeat. A window of 21 gives 5 bits or 6.</p>
+          <p class="small" style="margin-bottom:0">Read the protocol name before answering. Without it the question has two right answers, which is why papers that ask this always name the protocol.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 — retransmissions after a loss</h3>
+          <p class="small">"Frame $$k$$ is lost. How many frames are transmitted in all?" Go-Back-N resends the window from $$k$$; Selective Repeat resends $$k$$ alone. The page's twelve-frame trace gives 17 and 21 against 13.</p>
+          <p class="small" style="margin-bottom:0">The quantity asked for is a count, so it must be a whole number at least as large as the number of frames. That single check catches most slips.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The four-line procedure, written down once</h3>
+          <p class="small">Line one: $$T_t = L/B$$, with bytes multiplied by eight. Line two: $$T_p$$ from distance over speed, or as the question states it — one way unless it says round trip. Line three: $$a = T_p/T_t$$ and the denominator $$1+2a$$. Line four: substitute, and name the quantity you are producing before you write it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why this order.</strong> Every error in this family is in lines one and two, in units, or in the fourth line, in which quantity was asked for. Doing them in a fixed order makes the error visible at the step that caused it rather than in the final number.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps, by sight</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Doubling a delay that was already a round trip, or not doubling one that was not.</li>
+            <li>Mixing bytes with bits per second.</li>
+            <li>Dropping the plus one, turning 21 into 20.</li>
+            <li>Giving Go-Back-N the Selective Repeat bound, or the reverse.</li>
+            <li>Assuming a larger window always transmits less, when under Go-Back-N it transmits more.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The sanity checks that cost one line</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>An efficiency is between zero and one.</li>
+            <li>A window is a whole number and at least one.</li>
+            <li>A bit count is a positive integer, and usually between 1 and 16.</li>
+            <li>A transmission count is at least the number of frames.</li>
+            <li>$$a$$ is dimensionless: if your $$a$$ has units, the division was wrong.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 to 4 are previous-year items with their year, set and question number, and every answer was recomputed by this page. Questions 5 to 7 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2025 Set 2 Q36</span></div>
+          <div class="q-body">
+            <p>Frames of 3000 bits are sent between two nodes using stop-and-wait. The transmission rate is 2000 bps and the propagation delay is 100 ms. Processing times at the source and destination are negligible, and the acknowledgement packet size is negligible. Which one of the following most accurately gives the channel utilisation in percentage?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 88.23%</p>
+            <p>$$T_t = 3000/2000 = 1500$$ ms, $$2T_p = 200$$ ms, so $$\eta = 1500/1700 = 0.88235$$.</p>
+            <p><strong>Why 93.75% appears.</strong> 1500/1600 counts one propagation delay instead of two. <strong>Why 75% appears.</strong> It treats the delay as 250 ms each way, which the question does not say.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2023 Q7</span></div>
+          <div class="q-body">
+            <p>Two hosts are connected by a point-to-point link and use the stop-and-wait protocol. In which one of the following scenarios is the utilisation of the link the lowest?</p>
+            <ol class="choices">
+              <li>Longer link length and lower transmission rate</li>
+              <li>Longer link length and higher transmission rate</li>
+              <li>Shorter link length and lower transmission rate</li>
+              <li>Shorter link length and higher transmission rate</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — longer link, higher rate</p>
+            <p>$$\eta = Lv/(Lv + 2dB)$$ falls as $$d$$ rises and as $$B$$ rises. On the page's numbers: 99.01 per cent for short and slow, 9.90 for short and fast, 0.99 for long and slow, 0.001 for long and fast.</p>
+            <p><strong>Why A tempts.</strong> "Lower rate" sounds worse. But a lower rate means a longer transmission time, so the sender waits for a smaller fraction of the cycle.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2026 Set 1 Q45</span></div>
+          <div class="q-body">
+            <p>A sliding-window protocol runs over a lossless link with window $$W$$ frames, each frame 1000 bits including the header. The bandwidth is 100 kbps ($$1k = 10^3$$) and the one-way propagation delay is 100 ms. Processing times are zero and acknowledgement transmission time is zero. What is the minimum $$W$$, in frames, for 100 per cent link utilisation?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 21</p>
+            <p>$$T_t = 1000/10^5 = 10$$ ms, $$T_p = 100$$ ms, so $$a = 10$$ and $$1+2a = 21$$. A window of 21 keeps the pipe full; 20 gives 20/21.</p>
+            <p><strong>Why 20 appears.</strong> Using $$2a$$ instead of $$1+2a$$. <strong>Why 22 appears.</strong> Doubling the one-way delay and then adding one more.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2003 Q84</span></div>
+          <div class="q-body">
+            <p>Host A sends data to host B over a full-duplex link using the sliding window protocol, with send and receive windows of 5 packets. Data packets are 1000 bytes and their transmission time is 50 µs. Acknowledgement transmission time is negligible. The propagation delay over the link is 200 µs. What is the maximum achievable throughput?</p>
+            <ol class="choices">
+              <li>7.69 × 10⁶ bytes per second</li>
+              <li>11.11 × 10⁶ bytes per second</li>
+              <li>12.33 × 10⁶ bytes per second</li>
+              <li>15.00 × 10⁶ bytes per second</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — 11.11 × 10⁶ B/s</p>
+            <p>$$a = 200/50 = 4$$, so $$1+2a = 9$$ and $$\eta = 5/9$$. Bandwidth is $$1000/50\,\mu s = 20 \times 10^6$$ B/s, so throughput is $$(5/9) \times 20 \times 10^6 = 11.11 \times 10^6$$.</p>
+            <p><strong>Why 15.00 appears.</strong> That is a window of 6.75 packets, which does not exist. <strong>Why 20 × 10⁶ is absent.</strong> The question is testing whether you notice the window, not the pipe, is the limit.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A 4-bit sequence number is used. Give the largest window under Go-Back-N, and then under Selective Repeat. (Two numbers, in that order.)</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 15 under Go-Back-N, 8 under Selective Repeat</p>
+            <p>$$2^4 - 1 = 15$$ and $$2^{4-1} = 8$$. The page computes the first failing window as 16 and 9 respectively, which is one past each bound.</p>
+            <p><strong>Why 16 and 16 appears.</strong> Using the whole label space for both. <strong>Why 15 and 15 appears.</strong> Applying the Go-Back-N bound to Selective Repeat, which ignores the receiver's window.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Twelve frames are sent over a link whose one-way propagation is two frame times, with a window of four and frame 2 lost on its first transmission. Which statements are CORRECT?</p>
+            <ol class="choices">
+              <li>Go-Back-N transmits 17 frames in all, and Selective Repeat transmits 13.</li>
+              <li>Go-Back-N delivers frames 3 and 4 to the application before frame 2.</li>
+              <li>With a window of eight, Go-Back-N transmits 21 frames.</li>
+              <li>Selective Repeat needs 13 transmissions at either window size.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, C and D</p>
+            <p>Both protocols are simulated on the page and the counts agree: 17 and 13 at window 4, 21 and 13 at window 8.</p>
+            <p><strong>Why B is false.</strong> Neither protocol delivers out of order. Go-Back-N discards 3 and 4; Selective Repeat buffers them and delivers them only when 2 fills the gap. Delivery order is preserved in both.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Frames of 1000 bits travel over a 2 Mbps link with a one-way propagation delay of 5 ms. Acknowledgements are negligible. What is the minimum window, in frames, for 100 per cent utilisation?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 21</p>
+            <p>$$T_t = 1000/2\times10^6 = 0.5$$ ms, so $$a = 5/0.5 = 10$$ and $$1+2a = 21$$. The same 21 as the 2026 item, arrived at from different numbers — which is why the ratio, not the absolute delays, is what matters.</p>
+            <p><strong>Why 20 appears.</strong> Dropping the plus one. <strong>Why 41 appears.</strong> Doubling the one-way delay twice.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Everything needed for a question in this family, on one screen. If a line here is unfamiliar, the scene that explains it is named beside it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions and quantities</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>$$T_t = L/B$$ — transmission time (scene 1).</li>
+            <li>$$T_p = d/v$$ — propagation time, one way (scene 1).</li>
+            <li>$$a = T_p/T_t$$ — dimensionless (scene 1).</li>
+            <li>Cycle of a stop-and-wait sender: $$T_t + 2T_p$$ (scene 1).</li>
+            <li>Window — frames unacknowledged at once (scene 2).</li>
+            <li>Bandwidth-delay product — data a round trip can hold (scene 4).</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four formulas</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Stop-and-wait: $$\eta = 1/(1+2a)$$.</li>
+            <li>Sliding window: $$\eta = \min(1, W/(1+2a))$$.</li>
+            <li>Minimum window: $$W = \lceil 1+2a \rceil$$.</li>
+            <li>Go-Back-N bound: $$N \le 2^m - 1$$; Selective Repeat bound: $$N \le 2^{m-1}$$.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The two protocols side by side</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Receiver window: 1 against $$W$$.</li>
+            <li>Acknowledgement: cumulative against per frame.</li>
+            <li>On a loss: resend the window against resend the frame.</li>
+            <li>Twelve frames, one loss, window 4: 17 against 13 transmissions.</li>
+            <li>Buffers: $$W$$ at the sender and 1 at the receiver, against $$W$$ at both.</li>
+            <li>Clean link: identical efficiency, because the formula has no protocol in it.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, and the one-line check for each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>One-way against round trip — the formula already has the two.</li>
+            <li>Bytes against bits — multiply by eight before dividing.</li>
+            <li>The missing plus one — $$1+2a$$, not $$2a$$.</li>
+            <li>The two bounds — one has the minus in the base, the other in the exponent.</li>
+            <li>Window against pipe — a window larger than $$1+2a$$ buys nothing.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Three questions to answer from memory before you close this tab</h3>
+          <p class="small">A link has a round trip of 40 ms and frames of 4 ms transmission time. What window fills it? <em>($$a = 20/4 = 5$$, so 11 frames.)</em></p>
+          <p class="small">With 3 sequence bits, what is the largest Go-Back-N window, and what is the first window that fails? <em>(7, and 8.)</em></p>
+          <p class="small" style="margin-bottom:0">Twelve frames, one lost, window 8: how many transmissions under each protocol? <em>(21 under Go-Back-N, 13 under Selective Repeat.)</em></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson is built on, and what it is not</h3>
+          <p class="small muted" style="margin-bottom:0">The syllabus claim was checked against the official document. The two bounds were checked against lecture notes and then re-derived by computation on the page. The previous-year items were read from paper archives and their arithmetic was recomputed here, not copied from an answer key.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official and academic</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>CS_GATE2027_Syllabus.pdf</code>. Read in full on 31 October 2026. It supplies the Section 10 wording quoted in the Overview, including the absence of the three protocol names.</li>
+            <li><strong>ECE 333 lecture notes, Northwestern University</strong> — the worked ambiguity examples for Go-Back-N with $$N = 2^n$$ and Selective Repeat with $$N = 2^{n-1}$$, including the "3 bits, window 8" and "3 bits, window 7" cases. Used for the derivation, not quoted.</li>
+            <li><strong>Standard textbook treatment</strong> — the same two bounds appear in Kurose and Ross, and in Tanenbaum and Wetherall. Neither was opened during this run, so they are named as the conventional home of the result rather than as sources consulted.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Previous-year items</h3>
+          <p class="small">Each was read from a public archive of the paper, and every number was recomputed on this page.</p>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE CSE 2025 Set 2, Q36</strong> — stop-and-wait utilisation, 88.23 per cent.</li>
+            <li><strong>GATE CSE 2023, Q7</strong> — lowest-utilisation scenario, longer link at higher rate.</li>
+            <li><strong>GATE CSE 2026 Set 1, Q45</strong> — minimum window, 21 frames.</li>
+            <li><strong>GATE CSE 2003, Q84</strong> — maximum throughput with window 5, 11.11 × 10⁶ B/s.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Honest limits of this page</h3>
+          <p class="small">The previous-year items are transcriptions from community archives, not from the official paper PDFs, and the 2026 item's option letters are not reproduced here because only its numeric answer could be confirmed. Where a question's option list could not be verified, the answer is given as a value rather than as a letter.</p>
+          <p class="small">The simulator is a model, not a measurement. It assumes a fixed timeout of one round trip plus one frame time, acknowledgements with zero transmission time, and a deterministic loss pattern. Real implementations use adaptive timeouts and can lose acknowledgements as well as frames; the lesson tests the lost-acknowledgement case separately rather than folding it into the model.</p>
+          <p class="small" style="margin-bottom:0">No audio file exists: the narration is the browser's speech synthesis, and the subtitle timings are estimated from the timeline rather than measured from recorded speech. No video file exists either.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
