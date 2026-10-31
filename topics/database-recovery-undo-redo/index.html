@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Database recovery: undo and redo — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Database recovery: undo and redo</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../transactions-and-concurrency-control/index.html">Prerequisite: transactions</a>
+      <a href="../file-systems/index.html">Related: file systems</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Log-based database recovery — the log record and its two values, write-ahead logging, the undo list and the redo list, the order each one runs in, the checkpoint and its active-transaction list, and what a crash during recovery does. This is the mechanism that makes atomicity and durability true, inside the "Transactions" clause of Section 9 of the GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given any log of start, write, commit, abort and checkpoint records, produce the undo list and the redo list, replay them in the correct direction, and state the recovered value of every item. Check the answer against the committed-only state. Recognise the two transactions most often mis-assigned — one that started before the checkpoint and one that committed before it — and know what a fuzzy checkpoint changes.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one walk over the log, run in two directions</em>. The log records the old value and the new value of every change; redo walks it forwards applying new values, undo walks it backwards applying old values. Everything else — the lists, the checkpoint, the active list — is bookkeeping that decides which records that walk touches.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside the syllabus, with a caveat worth stating.</strong> Section 9 of the official GATE 2027 CS syllabus (IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>) ends: <em>"File organization, indexing (e.g., B and B+ trees). Transactions and concurrency control."</em></p>
+          <p class="small">The words "recovery" and "log" do not appear in that sentence. What appears is "Transactions", and atomicity and durability — two of the four properties the word transaction denotes — are impossible without this mechanism. The topic is therefore inside the clause, but it is not named separately, and this lesson does not pretend otherwise.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Two direct questions exist, both recomputed on this page: <strong>GATE CSE 2015, Set 2</strong> asked for the undo and redo lists of a checkpointed log (official key: undo T3 and T1, redo T2), and <strong>GATE CSE 2021, Set 1</strong> asked what happens when a system crashes again during recovery (official key: the same undo and redo list is used).</p>
+          <p class="small" style="margin-bottom:0">Class A means a question here is inside the declared boundary, not that one is guaranteed. No marks distribution is claimed for 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Each is a full lesson in this repository.</p>
+          <p class="small"><strong>Transactions and concurrency control</strong> — <a href="../transactions-and-concurrency-control/index.html">transactions-and-concurrency-control</a>. This lesson is its continuation: that one defines commit and abort, this one asks what happens to them after a crash.</p>
+          <p class="small"><strong>File systems</strong> — <a href="../file-systems/index.html">file-systems</a>. "Stable storage" means a file on a disk that survives a crash; the write is not complete when the buffer is written.</p>
+          <p class="small"><strong>Memory management and virtual memory</strong> — <a href="../memory-management-and-virtual-memory/index.html">memory-management-and-virtual-memory</a>. Dirty pages, flushing and replacement are the buffer-manager vocabulary used here.</p>
+          <p class="small" style="margin-bottom:0"><strong>Graphs: connectivity and structure</strong> — <a href="../graphs-connectivity/index.html">graphs-connectivity</a>. Not needed for the algorithm, but the same "one walk, one order" reasoning as a topological order.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas this lesson turns on</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li><strong>A write record keeps both values.</strong> Old value for undo, new value for redo. One value would not support both directions.</li>
+            <li><strong>The log reaches disk before the page.</strong> Write-ahead logging is what makes the record usable after a crash at any instant.</li>
+            <li><strong>A start joins the undo list; a commit moves its transaction to the redo list.</strong> The two lists are disjoint by construction.</li>
+            <li><strong>Redo walks LSN up, undo walks LSN down.</strong> Reverse either and the database holds a value nothing wrote.</li>
+            <li><strong>A checkpoint's active list is not optional.</strong> It is the only record of a transaction that started before the checkpoint and never committed.</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, 300 seconds, one canvas. Scene 1 breaks atomicity on two items. Scene 2 follows one change along the log path and the data path. Scene 3 reads the five record types and the two values. Scene 4 builds the two lists record by record. Scene 5 replays them and compares with the committed-only state. Scene 6 places the two buffer decisions on one grid. Scene 7 shows the order witness on a single item. Scene 8 works the GATE 2015 log with its checkpoint. Scene 9 crashes during recovery and recomputes the second pass. Scene 10 fixes the procedure and names the sharp-checkpoint assumption.</p>
+          <p class="small" style="margin-bottom:0">Approximate learning time: <strong>40 to 55 minutes</strong>, including the ten practice questions. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>One line to keep</h3>
+          <p class="small" style="margin-bottom:0">The log holds both values, so recovery can always rebuild the state that the committed transactions alone define — redo newest last, undo newest first, then compare.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 1 of 2 — from a crash to the two lists</h3>
+              <p class="small" style="margin-bottom:0">Levels 1 to 4: the intuition, the formal definitions, the structure of a log, and the first complete decision. Nothing here needs the animation running.</p>
+            </div>
+
+            <div class="card">
+              <h3>Intuition: the shopkeeper's day book</h3>
+              <p class="small">A shopkeeper writes every sale in a day book before touching the cash box. If the shop is robbed mid-transaction, the day book still says what was meant to happen, so the books can be put right the next morning.</p>
+              <p class="small">The day book is the log. The cash box is the data page. "Write it down before you do it" is write-ahead logging, and it is the whole trick.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the ordering, not the arithmetic. What makes recovery possible is not that a record exists, but that it exists <em>before</em> the change it describes.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definitions</h3>
+              <p class="small">A <strong>log</strong> is an append-only sequence of records on stable storage. Each record carries an <strong>LSN</strong>, a log sequence number: a strictly increasing integer that is its address in the log.</p>
+              <p class="small">A <strong>write record</strong> for transaction T on item X holds four fields: the transaction, the item, the <strong>old value</strong> and the <strong>new value</strong>. Written as <code>&lt;T, X, old, new&gt;</code>.</p>
+              <p class="small">The <strong>undo list</strong> holds transactions that have no commit record. The <strong>redo list</strong> holds transactions that do.</p>
+              <p class="small" style="margin-bottom:0">Recovery is <strong>correct</strong> when the state it produces equals the state obtained by applying exactly the writes of committed transactions, in LSN order, to the initial state. That state is the <em>committed-only state</em> and this page computes it separately for every scenario.</p>
+            </div>
+
+            <div class="card">
+              <h3>Symbols, in words</h3>
+              <ul class="small" style="margin:0;padding-left:18px">
+                <li><strong>&lt;start T&gt;</strong> — transaction T has begun.</li>
+                <li><strong>&lt;T, X, old, new&gt;</strong> — T changed item X from old to new.</li>
+                <li><strong>&lt;commit T&gt;</strong> — T finished successfully; its work must survive.</li>
+                <li><strong>&lt;abort T&gt;</strong> — T was rolled back; its work must not survive.</li>
+                <li><strong>&lt;checkpoint L&gt;</strong> — all dirty pages were forced, and L lists the transactions still running.</li>
+                <li><strong>LSN</strong> — the record's position; replay order is LSN order.</li>
+                <li><strong>x, y, z</strong> — the data items in this lesson, holding integers.</li>
+              </ul>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Write-ahead logging, stated exactly</h3>
+              <p class="small">Before a data page carrying a change is written to the data file, the log record describing that change must already be on stable storage.</p>
+              <div class="formula">log record reaches disk &nbsp;&rarr;&nbsp; then the page it describes<span class="gloss">The consequence used throughout: at the instant of any crash, every value that reached the disk has a record on the disk that explains it.</span></div>
+              <p class="small" style="margin-bottom:0">The page also tests this: for every item whose value on disk at the crash differs from its initial value, the log contains a write record producing that value. That check passes on all six scenarios.</p>
+            </div>
+
+            <div class="card">
+              <h3>Why both directions exist</h3>
+              <table class="small" style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr><th style="text-align:left;padding:4px 6px">At the crash</th><th style="text-align:left;padding:4px 6px">The disk holds</th><th style="text-align:left;padding:4px 6px">So recovery must</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td style="padding:4px 6px">a committed change still in memory</td><td style="padding:4px 6px">the old value</td><td style="padding:4px 6px"><strong>redo</strong> — apply the new value</td></tr>
+                  <tr><td style="padding:4px 6px">an uncommitted page flushed early</td><td style="padding:4px 6px">the new value</td><td style="padding:4px 6px"><strong>undo</strong> — apply the old value</td></tr>
+                  <tr><td style="padding:4px 6px">both accidents at once</td><td style="padding:4px 6px">a mix</td><td style="padding:4px 6px">both, in the right order</td></tr>
+                </tbody>
+              </table>
+              <p class="small muted" style="margin:8px 0 0">The buffer policies that decide which accidents are possible are on page 2.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Build-up, page 2 of 2 — the two algorithms and the checkpoint</h3>
+              <p class="small" style="margin-bottom:0">Levels 4 to 6: the list builder, the replay engine, the buffer policies, and the checkpoint rule with its one assumption.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Algorithm 1 — build the two lists</h3>
+              <ol class="small" style="margin:0;padding-left:18px">
+                <li>Find the last <code>&lt;checkpoint L&gt;</code>. If there is none, the read starts at the first record and the undo list starts empty.</li>
+                <li>If there is one, copy <code>L</code> into the undo list. This is the only way to see a transaction that started before the checkpoint.</li>
+                <li>Read every record from there to the crash:
+                  <ul style="margin:2px 0 0;padding-left:16px">
+                    <li><code>&lt;start T&gt;</code> — add T to the undo list.</li>
+                    <li><code>&lt;commit T&gt;</code> — remove T from the undo list, add T to the redo list.</li>
+                    <li><code>&lt;abort T&gt;</code> — remove T from both lists.</li>
+                    <li><code>&lt;T, X, old, new&gt;</code> — no effect on either list.</li>
+                  </ul>
+                </li>
+              </ol>
+              <p class="small" style="margin-bottom:0">The lists end disjoint: every transaction either has a commit record in the window or it does not.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Algorithm 2 — replay</h3>
+              <ol class="small" style="margin:0;padding-left:18px">
+                <li><strong>Redo</strong> every write record of every redo-list transaction, in <em>increasing</em> LSN, applying the new value.</li>
+                <li><strong>Undo</strong> every write record of every undo-list transaction, in <em>decreasing</em> LSN, applying the old value.</li>
+                <li>Compare the result with the committed-only state.</li>
+              </ol>
+              <div class="formula">redo: new values, LSN up &nbsp;&middot;&nbsp; undo: old values, LSN down<span class="gloss">Both directions are one walk along the LSN axis. Reversing either produces a value that some transaction held mid-flight, which no committed state contains.</span></div>
+              <p class="small" style="margin-bottom:0">Both directions are idempotent: applying the same record twice leaves the value it sets. That is why a crash during recovery is survivable.</p>
+            </div>
+
+            <div class="card">
+              <h3>The four buffer policies, and the two names to know</h3>
+              <table class="small" style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr><th style="text-align:left;padding:4px 6px">Policy</th><th style="text-align:left;padding:4px 6px">Meaning</th><th style="text-align:left;padding:4px 6px">Needs</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td style="padding:4px 6px">no-force</td><td style="padding:4px 6px">pages need not be flushed at commit</td><td style="padding:4px 6px">redo</td></tr>
+                  <tr><td style="padding:4px 6px">force</td><td style="padding:4px 6px">pages are flushed at commit</td><td style="padding:4px 6px">no redo</td></tr>
+                  <tr><td style="padding:4px 6px">steal</td><td style="padding:4px 6px">an uncommitted page may be flushed</td><td style="padding:4px 6px">undo</td></tr>
+                  <tr><td style="padding:4px 6px">no-steal</td><td style="padding:4px 6px">it may not</td><td style="padding:4px 6px">no undo</td></tr>
+                </tbody>
+              </table>
+              <p class="small" style="margin:6px 0 0"><strong>Deferred modification</strong> = no-steal, no-force: redo only. <strong>Immediate modification</strong> = steal, no-force: undo and redo. These are the two names GATE uses.</p>
+              <p class="small muted" style="margin-bottom:0">Deferred does not mean the log is unused. The undo list is still built; the page checks that both of its undo steps change nothing.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The checkpoint rule, and the assumption it makes</h3>
+              <p class="small">A <strong>simple</strong> (also called sharp) checkpoint forces every dirty page and writes <code>&lt;checkpoint L&gt;</code> with the active list. Two consequences follow, and they pull in opposite directions:</p>
+              <p class="small">A transaction that <em>committed before</em> the checkpoint needs no redo, because its pages were forced. A transaction that <em>started before</em> the checkpoint and never committed still needs undo, and only the active list reveals it.</p>
+              <p class="small" style="margin-bottom:0"><strong>The assumption:</strong> a <em>fuzzy</em> checkpoint does not force the pages. Then a transaction committed before it may still be missing from disk, so the read must go back to the start of the oldest transaction active at the checkpoint and redo more. On the GATE 2015 log that grows the redo list from {T2} to {T4, T2} and the records read from 5 to 9.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>Where learners go wrong, in one table</h3>
+              <table class="small" style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr><th style="text-align:left;padding:4px 6px">Situation</th><th style="text-align:left;padding:4px 6px">Wrong reflex</th><th style="text-align:left;padding:4px 6px">Correct rule</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td style="padding:4px 6px">a transaction with a commit record</td><td style="padding:4px 6px">always redo</td><td style="padding:4px 6px">redo unless it committed before a sharp checkpoint</td></tr>
+                  <tr><td style="padding:4px 6px">a transaction that started before the checkpoint</td><td style="padding:4px 6px">ignore it — it is before the read window</td><td style="padding:4px 6px">read the checkpoint's active list; it may be the whole answer</td></tr>
+                  <tr><td style="padding:4px 6px">undoing a transaction that wrote one item twice</td><td style="padding:4px 6px">apply old values in log order</td><td style="padding:4px 6px">apply them in reverse log order</td></tr>
+                  <tr><td style="padding:4px 6px">counting undo operations</td><td style="padding:4px 6px">count only the ones that changed a value</td><td style="padding:4px 6px">count records; a no-op is still an operation</td></tr>
+                  <tr><td style="padding:4px 6px">a second crash during recovery</td><td style="padding:4px 6px">the database is now inconsistent</td><td style="padding:4px 6px">restart from the same log; both directions are idempotent</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>Previous page</button>
+        <span class="small muted" data-pager-count>Page 1 of 2</span>
+        <button class="btn" data-pager-next>Next page</button>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every list and every value computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A write record keeps both values: the old one for undo, the new one for redo.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A crash between two writes, and why the log exists</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">One transaction moves forty from item x to item y. The crash lands between the two writes.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 — a plain log, six records, no checkpoint</h3>
+              <p class="small">Initial state x = 100, y = 50, z = 10. The log below ends in a crash. Every number in the answer is recomputed by the page.</p>
+              <table class="small" style="width:100%;border-collapse:collapse;margin-top:6px">
+                <thead>
+                  <tr><th style="text-align:left;padding:3px 6px">LSN</th><th style="text-align:left;padding:3px 6px">Record</th><th style="text-align:left;padding:3px 6px">Effect on the lists</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td style="padding:3px 6px">1</td><td style="padding:3px 6px"><code>&lt;start T1&gt;</code></td><td style="padding:3px 6px">T1 joins undo</td></tr>
+                  <tr><td style="padding:3px 6px">2</td><td style="padding:3px 6px"><code>&lt;T1, x, 100, 60&gt;</code></td><td style="padding:3px 6px">no change</td></tr>
+                  <tr><td style="padding:3px 6px">3</td><td style="padding:3px 6px"><code>&lt;start T2&gt;</code></td><td style="padding:3px 6px">T2 joins undo</td></tr>
+                  <tr><td style="padding:3px 6px">4</td><td style="padding:3px 6px"><code>&lt;T2, z, 10, 20&gt;</code></td><td style="padding:3px 6px">no change</td></tr>
+                  <tr><td style="padding:3px 6px">5</td><td style="padding:3px 6px"><code>&lt;commit T2&gt;</code></td><td style="padding:3px 6px">T2 leaves undo, joins redo</td></tr>
+                  <tr><td style="padding:3px 6px">6</td><td style="padding:3px 6px"><code>&lt;T1, y, 50, 90&gt;</code></td><td style="padding:3px 6px">no change</td></tr>
+                </tbody>
+              </table>
+              <p class="small" style="margin:8px 0 0"><strong>Lists:</strong> undo {T1}, redo {T2}. <strong>Disk at the crash:</strong> x = 60 (T1's page was flushed early), y = 50 (T1's second write never reached a page), z = 10 (T2's page is still in memory).</p>
+            </div>
+
+            <div class="card">
+              <h3>The replay, step by step</h3>
+              <ol class="step-list small" style="margin:0">
+                <li><strong>Redo, ascending.</strong> LSN 4 is T2's write, and T2 is in the redo list. z becomes 20. One write redone.</li>
+                <li><strong>Undo, descending.</strong> LSN 6 is T1's write to y: apply the old value 50. y is already 50, so this step changes nothing.</li>
+                <li><strong>Undo continues.</strong> LSN 2 is T1's write to x: apply the old value 100. x returns to 100.</li>
+                <li><strong>Compare.</strong> Recovered: 100, 50, 20. Committed-only: start at 100, 50, 10 and apply T2's write, giving 100, 50, 20. Equal on all three items.</li>
+              </ol>
+              <p class="small muted" style="margin:8px 0 0">Three replay steps in total: one redo, two undo. One of the three changes no value.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>What the no-op teaches</h3>
+              <p class="small">The undo of y looks pointless. It is not: the recovery algorithm does not know which pages were flushed, so it restores every old value of every undo-list transaction and lets the ones already correct stay correct.</p>
+              <p class="small" style="margin-bottom:0">So a question that asks <em>how many undo operations are performed</em> wants 2 here, not 1. A question that asks <em>which items change</em> wants x only. Both questions are answerable, and they are different questions.</p>
+            </div>
+
+            <div class="card">
+              <h3>Why the redo alone is not enough</h3>
+              <p class="small">If recovery stopped after redo, the state would be x = 60, y = 50, z = 20. The item x holds a value written by a transaction that never committed, and the sum of x and y is 110 rather than 150.</p>
+              <p class="small" style="margin-bottom:0">The page checks this explicitly: the redo-only state differs from the committed-only state. Undo is not a belt-and-braces step; on this log it is the step that fixes the only wrong value.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 2 — the GATE CSE 2015 Set 2 log, with a checkpoint</h3>
+              <p class="small">The question, as published: <em>(start, T4); (write, T4, y, 2, 3); (start, T1); (commit, T4); (write, T1, z, 5, 7); (checkpoint); (start, T2); (write, T2, x, 1, 9); (commit, T2); (start, T3); (write, T3, z, 7, 2);</em> then a crash. Initial state x = 1, y = 2, z = 5.</p>
+              <p class="small" style="margin-bottom:0"><strong>Official key:</strong> Undo T3, T1; Redo T2. The page derives the same two lists from the log rather than copying them, and then replays them to a state it compares with the committed-only state.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 1 — read the checkpoint</h3>
+              <p class="small">The last checkpoint is at LSN 6. Its active list is {T1}: T1 started at LSN 3 and has no commit record anywhere. T4 committed at LSN 4, before the checkpoint, so T4 is not in the list.</p>
+              <p class="small" style="margin-bottom:0">The page also computes the active set from the log independently — every transaction that started and has neither committed nor aborted by that LSN — and gets {T1}, which agrees with the record. That is the check that catches a mis-transcribed question.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 2 — read forward to the crash</h3>
+              <p class="small">From LSN 7 to LSN 11 there are five records: start T2, write T2, commit T2, start T3, write T3.</p>
+              <p class="small">T2 joins the undo list at its start and leaves it at its commit, joining the redo list. T3 joins the undo list and stays. The undo list, seeded with {T1}, ends as {T1, T3}.</p>
+              <p class="small" style="margin-bottom:0"><strong>Lists:</strong> undo {T1, T3}, redo {T2}. Five records read instead of eleven.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 3 — replay and compare</h3>
+              <p class="small">Disk at the crash: x = 1 (T2's page still in memory), y = 3 (forced at the checkpoint), z = 2 (T3's page was flushed).</p>
+              <ol class="step-list small" style="margin:6px 0 0">
+                <li>Redo T2 at LSN 8: x becomes 9.</li>
+                <li>Undo T3 at LSN 11: z becomes 7.</li>
+                <li>Undo T1 at LSN 5: z becomes 5.</li>
+              </ol>
+              <p class="small" style="margin:8px 0 0">Recovered: x = 9, y = 3, z = 5. Committed-only: start at 1, 2, 5, apply T4's write (y = 3) and T2's write (x = 9) — the same three values. y is touched by nobody in the replay, because T4 is in neither list.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Step 4 — the two traps in this one question</h3>
+              <p class="small"><strong>Dropping T1.</strong> A reader that starts at the checkpoint never sees LSN 3. The page computes what that costs: z would end at 7, the value of a transaction that never committed, instead of 5. Nothing in the log after LSN 6 mentions T1 at all.</p>
+              <p class="small" style="margin-bottom:0"><strong>Adding T4.</strong> "T4 committed, so redo it" is the other reflex. T4's page was forced at the checkpoint, so redoing it is unnecessary. Without a checkpoint in the log the redo list becomes {T4, T2} and two writes are redone instead of one — which is the same log read under a different protocol.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 3 — the order witness, on one item</h3>
+              <p class="small">Initial x = 0. Log: <code>&lt;start T1&gt;</code>, <code>&lt;T1, x, 0, 5&gt;</code>, <code>&lt;T1, x, 5, 9&gt;</code>, crash. T1 never commits, so T1 is in the undo list and both of its writes are undone. The disk holds 9.</p>
+              <p class="small">Forward order applies old values 0 then 5, leaving 5 — an intermediate value of a transaction that never committed. Reverse order applies 5 then 0, leaving 0, which is the initial value.</p>
+              <p class="small" style="margin-bottom:0">The page computes both and asserts that only the reverse order equals the committed-only state. The same argument in the other direction: a committed transaction writing one item twice must be redone in increasing LSN, or it ends at the earlier new value.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>Previous page</button>
+        <span class="small muted" data-pager-count>Page 1 of 2</span>
+        <button class="btn" data-pager-next>Next page</button>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundary cases, each one computed rather than described</h3>
+          <p class="small" style="margin-bottom:0">Six logs are modelled on this page: A (plain), B (one item written twice), C (the 2015 checkpoint log), D (deferred modification), E (a committed transaction writing one item twice), F (a transaction that wrote nothing). Every claim below is one of the checks reported on the Animation tab.</p>
+        </div>
+
+        <div class="card">
+          <h3>No checkpoint at all</h3>
+          <p class="small">With no checkpoint record, the read starts at the first record, so every committed transaction is in the redo list whether or not its pages reached disk. Redo is then partly wasted work, never wrong work.</p>
+          <p class="small" style="margin-bottom:0">On the 2015 log: 11 records read, redo {T4, T2}, two writes redone, and the same recovered state as the checkpointed read. The checkpoint buys time, not correctness.</p>
+        </div>
+
+        <div class="card">
+          <h3>Deferred modification</h3>
+          <p class="small">If no uncommitted page is ever written, then at the crash the disk holds the initial values plus whatever committed work was flushed. Every undo step is therefore a no-op.</p>
+          <p class="small" style="margin-bottom:0">Computed on the A log: the undo list is still {T1} with two write records, and both undo steps change nothing (y stays 50, x stays 100). So the algorithm reduces to redo — which is what "deferred needs only redo" means, stated precisely.</p>
+        </div>
+
+        <div class="card">
+          <h3>An abort record in the log</h3>
+          <p class="small">A transaction with <code>&lt;abort T&gt;</code> was rolled back before the crash, so its changes are already gone. The list builder removes it from both lists.</p>
+          <p class="small" style="margin-bottom:0">Some texts instead leave it in the undo list. Both give the same database state, because undo is idempotent and the old values are already in place. When a question's options differ on this, read which convention the question states; when it states none, "aborted means already rolled back" is the safe reading.</p>
+        </div>
+
+        <div class="card">
+          <h3>A transaction that wrote nothing</h3>
+          <p class="small">Scenario F: T1 starts and commits with no write records; T2 starts and never commits. Lists: redo {T1}, undo {T2}.</p>
+          <p class="small" style="margin-bottom:0">Replay touches nothing: T1 contributes zero write records and T2 wrote nothing either. The state stays x = 7. A transaction can be in a list and still do no work — the lists are about transactions, the replay is about records.</p>
+        </div>
+
+        <div class="card">
+          <h3>A fuzzy checkpoint</h3>
+          <p class="small">A fuzzy checkpoint does not force the dirty pages, so a transaction committed before it may still be missing from disk. The read must then go back to the start of the oldest transaction that was active at the checkpoint.</p>
+          <p class="small" style="margin-bottom:0">On the 2015 log that moves the floor from LSN 7 to LSN 3, the records read from 5 to 9, and the redo list from {T2} to {T4, T2}. The recovered state is unchanged, because redoing a change that is already on disk is idempotent. Say which protocol you assumed if the question does not.</p>
+        </div>
+
+        <div class="card">
+          <h3>A checkpoint with an empty active list</h3>
+          <p class="small">If every transaction had committed before the checkpoint, the active list is empty, the undo list starts empty, and the read begins at the record after the checkpoint.</p>
+          <p class="small" style="margin-bottom:0">This is the cheapest possible recovery: no transaction from before the checkpoint is in either list, and only post-checkpoint transactions are examined. It is also the case that most illustrates why the active list is stored rather than inferred.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The counterexample that catches a wrong answer</h3>
+          <p class="small">Take the 2015 log and drop T1 from the undo list — the mistake a reader makes who starts at the checkpoint. The replay then ends with z = 7.</p>
+          <p class="small" style="margin-bottom:0">Seven is a value that <em>does</em> appear in the log, as T1's new value, so nothing looks obviously wrong. Only the comparison with the committed-only state exposes it: z should be 5. This is why the lesson checks the recovered state against that reference instead of trusting the lists.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Where recovery alone stops: cascading rollback</h3>
+          <p class="small">If T2 had read x while T1 held it uncommitted, and then committed, undoing T1 would change a value T2 had already used. Recovery would then have to roll T2 back as well, even though T2 committed.</p>
+          <p class="small" style="margin-bottom:0">No log of the kind in this lesson can repair that, which is why recoverability and strictness are properties of the <em>protocol</em>, not of the recovery algorithm. Strict two-phase locking prevents the situation; the transactions lesson covers the ladder. Undo/redo lists assume no such dirty read occurred.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>"A committed transaction is always in the redo list"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the list builder says a commit record moves a transaction to the redo list, and that is exactly what it does.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the rule applies to commits <em>inside the read window</em>. With a sharp checkpoint, the window starts after the checkpoint, and a transaction that committed before it never appears.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the GATE 2015 log. T4 commits at LSN 4, the checkpoint is at LSN 6, and the official key puts T4 in neither list.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> redo needs the page to be possibly missing. A checkpoint that forced the page removes the need.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A transaction that started before the checkpoint is already safe"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the checkpoint declares that everything before it is consistent on disk, and the reader is told to stop there.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the checkpoint makes the <em>pages</em> consistent, not the transactions. A transaction still running at that instant has pages on disk that must be rolled back.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> T1 in the 2015 log. Dropping it leaves z = 7 instead of 5 — the page computes both.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> seed the undo list from the checkpoint's active list before reading a single record after it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Undo applies old values in the order the writes happened"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the log is read forwards, and the records are naturally in that order.</p>
+          <p class="small"><strong>Why it is wrong:</strong> a transaction that wrote the same item twice leaves an intermediate value behind if the old values are applied in log order.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> x: 0 &rarr; 5 &rarr; 9, uncommitted. Forward undo gives 5; reverse undo gives 0. Only 0 is the value before the transaction.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> undo in decreasing LSN. The last old value applied must be the oldest.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A crash during recovery makes the database inconsistent"</h3>
+          <p class="small"><strong>Why it tempts:</strong> recovery is half-finished, so the database is obviously in some intermediate state.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the log has not changed and neither redo nor undo accumulates. Restarting rebuilds the same lists and replays the same records.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> recover the A log, then recover it again from the recovered state. The page computes both and they are identical.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> recovery is idempotent, so it is restarted, not resumed. GATE CSE 2021 Set 1 keys exactly this.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Undo and redo are inverses, so their order does not matter"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both act on the same records, and one is described as the reverse of the other.</p>
+          <p class="small"><strong>Why it is wrong:</strong> they act on <em>disjoint sets of transactions</em>, so there is no record that both would touch. Within a direction, the order is forced; across directions, the phases are separate.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the A log — undo touches x and y, redo touches z. No item appears in both phases.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> redo all, then undo all. The lists are disjoint, so the phases cannot interfere.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A no-op undo is a bug"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the algorithm applies an old value that the item already holds, which looks like wasted work or a wrong list.</p>
+          <p class="small"><strong>Why it is wrong:</strong> recovery cannot know which pages were flushed. It restores every old value of every undo-list transaction, and the correct ones stay correct.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the A log — undoing T1's write to y sets 50 to 50. Exactly one of the two undo steps is a no-op.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> count records when a question asks how many operations run; count changes only when it asks which items change.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one-line summary</h3>
+          <p class="small" style="margin-bottom:0">Read the checkpoint's active list first, seed the undo list with it, move transactions only on commit, redo oldest first, undo newest first — and then check the result against the state the committed transactions alone define.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this topic is asked, and the two items that actually exist</h3>
+          <p class="small" style="margin-bottom:0">Two verified previous-year questions are quoted below with their paper named. Both are recomputed on this page, and both answers were confirmed against the official key rather than against a coaching solution. Everything labelled "pattern" is a description of the question shape, not a claim that a particular question exists.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE CSE 2015, Set 2 — the checkpoint log</h3>
+          <p class="small"><em>Consider a simple checkpointing protocol and the following set of operations in the log. (start, T4); (write, T4, y, 2, 3); (start, T1); (commit, T4); (write, T1, z, 5, 7); (checkpoint); (start, T2); (write, T2, x, 1, 9); (commit, T2); (start, T3); (write, T3, z, 7, 2); If a crash happens now and the system tries to recover using both undo and redo operations, what are the contents of the undo list and the redo list?</em></p>
+          <p class="small"><strong>Official key:</strong> Undo T3, T1; Redo T2.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it tests:</strong> the active list (T1), and the exclusion of a transaction that committed before the checkpoint (T4). Both are traps, and the four options are built from exactly those two mistakes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE CSE 2021, Set 1 — a crash during recovery</h3>
+          <p class="small"><em>Suppose a database system crashes again while recovering from a previous crash. Assume checkpointing is not done by the database either during the transactions or during recovery. Which of the following statements is/are correct?</em> (A) The same undo and redo list will be used while recovering again. (B) The system cannot recover any further. (C) All the transactions that are already undone and redone will not be recovered again. (D) The database will become inconsistent.</p>
+          <p class="small"><strong>Official key:</strong> A only.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it tests:</strong> that the log is unchanged and that both directions are idempotent. C is the interesting distractor: it sounds like a resume, but without a checkpoint the lists are rebuilt from the same records.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five question shapes</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li><strong>Give the two lists.</strong> Most common. Fix the window, then move transactions only on commit.</li>
+            <li><strong>Give the recovered value of an item.</strong> Requires replaying in the right direction, not just the lists.</li>
+            <li><strong>Count the records read or redone.</strong> The checkpoint's saving, as a number.</li>
+            <li><strong>Which transaction needs neither undo nor redo.</strong> The committed-before-the-checkpoint case.</li>
+            <li><strong>Reason about a failure during recovery.</strong> Idempotence, and whether the log changes.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>What the question usually withholds</h3>
+          <p class="small">Three facts are often left implicit, and each changes the answer:</p>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>The protocol.</strong> "Simple checkpointing" means pages were forced. Without that phrase, a fuzzy checkpoint is possible and the redo list can grow.</li>
+            <li><strong>The disk state at the crash.</strong> When the question does not give it, the answer is only the two lists; when it does, the recovered values depend on it.</li>
+            <li><strong>Whether abort records exist.</strong> A transaction that aborted before the crash belongs to neither list under the usual convention.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">If a question gives no disk state and asks for values, say which values you assumed were flushed; the list answer does not depend on it.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Ninety seconds, in an exam</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Underline the checkpoint and copy its active list — write it down before anything else.</li>
+            <li>Walk the records after it, writing each transaction's name once, in the undo column, and moving it across at its commit.</li>
+            <li>Replay: redo up the log, undo down it. Do not re-derive the lists.</li>
+            <li>If values are asked, compare with the committed-only state — that is faster than checking each item by eye.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The distractor grammar</h3>
+          <p class="small">Wrong options are built from four moves: including T4 in redo (committed before the checkpoint); omitting T1 from undo (started before it); putting the same transaction in both lists; and treating a committed transaction as needing no replay at all.</p>
+          <p class="small" style="margin-bottom:0">On the 2015 question the four options are exactly: the key; the key plus T4 in redo; everything in redo and nothing in undo; and T4 in undo as well. Naming the moves is faster than evaluating each option.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 and 2 are previous-year items with the paper named and the official key stated. Questions 3 to 10 are original practice questions written for this lesson and labelled as such. No question is presented as an official item unless the paper is identified.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2015, Set 2</span></div>
+          <div class="q-body">
+            <p>Log: (start, T4); (write, T4, y, 2, 3); (start, T1); (commit, T4); (write, T1, z, 5, 7); (checkpoint); (start, T2); (write, T2, x, 1, 9); (commit, T2); (start, T3); (write, T3, z, 7, 2). A crash happens now and the system recovers using both undo and redo. The contents of the lists are</p>
+            <ol class="choices">
+              <li>Undo: T3, T1; Redo: T2</li>
+              <li>Undo: T3, T1; Redo: T2, T4</li>
+              <li>Undo: none; Redo: T2, T4, T3, T1</li>
+              <li>Undo: T3, T1, T4; Redo: T2</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A — Undo T3, T1; Redo T2</p>
+            <p>The checkpoint at LSN 6 has active list {T1}, so T1 is in the undo list before any later record is read. T2 starts and commits after it, so T2 moves to the redo list. T3 starts and never commits, so T3 stays in undo. T4 committed at LSN 4, before the checkpoint, so its page was forced and it needs no redo.</p>
+            <p><strong>Why B is wrong.</strong> It adds T4, the committed-before-the-checkpoint trap. <strong>Why C is wrong.</strong> It treats every transaction as needing redo and none as needing undo, which would keep T1's and T3's uncommitted work. <strong>Why D is wrong.</strong> It puts T4 in the undo list, which would roll back a committed transaction.</p>
+            <p class="small muted">Official GATE 2015 answer key: option A. The page recomputes both lists from the log and reaches the same pair.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2021, Set 1</span></div>
+          <div class="q-body">
+            <p>Suppose a database system crashes again while recovering from a previous crash. Assume checkpointing is not done by the database either during the transactions or during recovery. Which of the following statements is/are correct?</p>
+            <ol class="choices">
+              <li>The same undo and redo list will be used while recovering again.</li>
+              <li>The system cannot recover any further.</li>
+              <li>All the transactions that are already undone and redone will not be recovered again.</li>
+              <li>The database will become inconsistent.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A only</p>
+            <p>The log on stable storage is unchanged by a recovery attempt: no records are removed and no checkpoint is written. So the second attempt reads the same records and rebuilds the same two lists. Both redo and undo are idempotent, so replaying them again leaves the values they set.</p>
+            <p><strong>Why B is wrong.</strong> Nothing is consumed by a failed attempt; the log is still there. <strong>Why C is wrong.</strong> It describes a resume, but without a checkpoint there is nothing to resume from — the lists are rebuilt from the beginning. <strong>Why D is wrong.</strong> Once recovery completes, the state equals the committed-only state; an interrupted attempt leaves a state that the next attempt repairs.</p>
+            <p class="small muted">Official GATE 2021 Set 1 answer key: A. The page recovers the same log twice and checks that the state is identical.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A system uses deferred modification, so a page is written to disk only after its transaction commits. At a crash, which lists does recovery need?</p>
+            <ol class="choices">
+              <li>Both an undo list and a redo list</li>
+              <li>Only a redo list</li>
+              <li>Only an undo list</li>
+              <li>Neither list</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — only a redo list</p>
+            <p>Under deferred modification no uncommitted value ever reaches the disk, so there is nothing to undo: every undo step would be a no-op. But a committed transaction's pages may still be in memory at the crash, so its writes must be redone.</p>
+            <p><strong>Why A is wrong.</strong> Both are needed only when an uncommitted page may be flushed — the steal case, which is immediate modification. <strong>Why C is wrong.</strong> Undo alone would lose committed work that never reached the disk. <strong>Why D is wrong.</strong> That is the force plus no-steal corner, which needs neither.</p>
+            <p class="small muted">The page checks the deferred case directly: both undo steps of the A log change nothing under deferred modification.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Initial x = 0. The log is &lt;start T1&gt;, &lt;T1, x, 0, 5&gt;, &lt;T1, x, 5, 9&gt;, and then a crash. T1 never commits, and the disk holds x = 9. If undo applies the old values in <em>increasing</em> LSN order, the value of x after recovery is _________.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 5</p>
+            <p>Increasing LSN applies LSN 2 first, setting x to 0, then LSN 3, setting x to 5. The last write wins, so x ends at 5 — the intermediate value of a transaction that never committed.</p>
+            <p><strong>The likely error.</strong> Answering 0 by applying the values in the correct (decreasing) order, which is the right answer to a different question. Read the direction the question states.</p>
+            <p class="small muted">The page computes both orders: forward gives 5, reverse gives 0, and only the reverse equals the committed-only state.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>For the GATE CSE 2015 Set 2 log (11 records, checkpoint at LSN 6 with active list {T1}), how many log records does a sharp-checkpoint recovery read, counting from the record after the checkpoint to the crash?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 5</p>
+            <p>Records at LSN 7, 8, 9, 10 and 11: start T2, write T2, commit T2, start T3, write T3. Everything before LSN 6 is settled by the checkpoint, and LSN 6 itself is the checkpoint record whose active list was already copied.</p>
+            <p><strong>The likely error.</strong> 9, from reading back to LSN 3, the start of the oldest active transaction — that is the fuzzy-checkpoint rule, which reads 9 records. <strong>Another.</strong> 11, the whole log, which is the no-checkpoint answer.</p>
+            <p class="small muted">The page computes 5 for the sharp protocol, 9 for the fuzzy variant, and 11 with no checkpoint at all.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following are true of a simple (sharp) checkpoint?</p>
+            <ol class="choices">
+              <li>Every dirty page is forced to disk at the checkpoint.</li>
+              <li>The checkpoint record names the transactions active at that instant.</li>
+              <li>A transaction that committed before the checkpoint needs no redo.</li>
+              <li>A transaction that started before the checkpoint and never committed needs no undo.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and C</p>
+            <p>A sharp checkpoint forces the pages (A) and records the active list (B). Because the pages are forced, a transaction committed before it is certainly on disk and needs no redo (C).</p>
+            <p><strong>Why D is wrong.</strong> The opposite is true, and it is the single most common error on this topic. T1 in the 2015 log started before the checkpoint and never committed; it must be undone, and only the active list reveals it. Dropping it leaves z at 7 instead of 5.</p>
+            <p class="small muted">A fuzzy checkpoint is the one where A fails — and then C fails too, because a committed page may still be missing.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A transaction T wrote item x twice and committed: &lt;T, x, 1, 5&gt; at LSN 2 and &lt;T, x, 5, 9&gt; at LSN 3. The page is not on disk at the crash. If redo applies the new values in <em>decreasing</em> LSN order, the value of x after recovery is</p>
+            <ol class="choices">
+              <li>1</li>
+              <li>5</li>
+              <li>9</li>
+              <li>Undefined, because redo order is irrelevant</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — 5</p>
+            <p>Decreasing LSN applies LSN 3 first (x becomes 9), then LSN 2 (x becomes 5). The last write wins, so x ends at 5, an intermediate value that the committed transaction no longer holds.</p>
+            <p><strong>Why C appears.</strong> 9 is the correct answer to the correctly ordered question — redo must run in increasing LSN. <strong>Why A appears.</strong> 1 is the pre-transaction value, which is what <em>undo</em> would restore, not redo. <strong>Why D is wrong.</strong> Order matters exactly when one transaction writes one item more than once.</p>
+            <p class="small muted">The page computes both orders on this log: ascending gives 9 and equals the committed-only state; descending gives 5.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Why must a write record hold the old value as well as the new one?</p>
+            <ol class="choices">
+              <li>So that a committed transaction can be rolled back if the user changes their mind.</li>
+              <li>So that recovery can restore the item when the transaction did not commit.</li>
+              <li>So that the log can be compressed by storing only the difference.</li>
+              <li>It need not; the new value alone is sufficient.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Undo applies the old value. Without it, a page flushed early by an uncommitted transaction could never be repaired — there would be no record of what the item held before.</p>
+            <p><strong>Why A is wrong.</strong> A committed transaction cannot be rolled back by the recovery system; that would break durability. <strong>Why C is wrong.</strong> Compression is not why the field exists, and a difference is not what is stored. <strong>Why D is wrong.</strong> With only the new value, redo would work and undo would be impossible, which is precisely the deferred-modification restriction.</p>
+            <p class="small muted">The mirror question — why the new value is needed — has the same shape: redo applies it, and without it a committed page still in memory could not be reconstructed.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A log contains &lt;start T1&gt;, &lt;T1, x, 4, 6&gt;, &lt;commit T1&gt;, &lt;start T2&gt;, &lt;T2, y, 1, 2&gt;, and then a crash. No checkpoint exists. Which statements are correct?</p>
+            <ol class="choices">
+              <li>The undo list is {T2} and the redo list is {T1}.</li>
+              <li>The two lists are disjoint.</li>
+              <li>If T2's page had already been flushed, recovery restores y to 1.</li>
+              <li>T1's write to x must be undone because its page may not be on disk.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and C</p>
+            <p>T1 commits, so it is in the redo list; T2 never commits, so it is in the undo list. The lists are disjoint by construction. If T2's page reached the disk, undo applies the old value 1 to y.</p>
+            <p><strong>Why D is wrong.</strong> T1 committed, so its work must survive; nothing about it is undone. The uncertainty about whether its page reached disk is the reason it is <em>redone</em>, not undone.</p>
+            <p class="small muted">Note that C is true whether or not the page was flushed: if it was, undo changes y; if it was not, undo is a no-op and y is already 1.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — the whole lesson on one screen</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the two algorithms, the checkpoint rule, the two orders, and the four traps. Every number here is one the page computes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Log</strong> — append-only records on stable storage, each with an LSN.</li>
+            <li><strong>Write record</strong> — <code>&lt;T, X, old, new&gt;</code>; old for undo, new for redo.</li>
+            <li><strong>Write-ahead logging</strong> — the record reaches disk before the page it describes.</li>
+            <li><strong>Undo list</strong> — transactions with no commit record in the read window.</li>
+            <li><strong>Redo list</strong> — transactions with one.</li>
+            <li><strong>Committed-only state</strong> — the initial state with exactly the committed transactions' writes applied. The correctness target.</li>
+            <li><strong>Sharp checkpoint</strong> — forces every dirty page and writes <code>&lt;checkpoint L&gt;</code>.</li>
+            <li><strong>Fuzzy checkpoint</strong> — does not force; the read must go back further.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Procedure</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Last checkpoint? Copy its active list into undo. None? Start at record 1, undo empty.</li>
+            <li>Read to the crash: start &rarr; undo; commit &rarr; undo&rarr;redo; abort &rarr; neither; write &rarr; nothing.</li>
+            <li>Redo write records of redo-list transactions, LSN increasing, new values.</li>
+            <li>Undo write records of undo-list transactions, LSN decreasing, old values.</li>
+            <li>Check: lists disjoint; state equals the committed-only state.</li>
+          </ol>
+          <div class="formula">redo: new, LSN up &nbsp;&middot;&nbsp; undo: old, LSN down<span class="gloss">The two directions of one walk. Reverse either and the database holds a value some transaction held mid-flight.</span></div>
+        </div>
+
+        <div class="card">
+          <h3>The numbers on this page</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr><th style="text-align:left;padding:3px 6px">Case</th><th style="text-align:left;padding:3px 6px">Undo</th><th style="text-align:left;padding:3px 6px">Redo</th><th style="text-align:left;padding:3px 6px">Read</th></tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:3px 6px">A, no checkpoint</td><td style="padding:3px 6px">T1</td><td style="padding:3px 6px">T2</td><td style="padding:3px 6px">6</td></tr>
+              <tr><td style="padding:3px 6px">C, sharp</td><td style="padding:3px 6px">T1, T3</td><td style="padding:3px 6px">T2</td><td style="padding:3px 6px">5</td></tr>
+              <tr><td style="padding:3px 6px">C, fuzzy</td><td style="padding:3px 6px">T1, T3</td><td style="padding:3px 6px">T4, T2</td><td style="padding:3px 6px">9</td></tr>
+              <tr><td style="padding:3px 6px">C, no checkpoint</td><td style="padding:3px 6px">T1, T3</td><td style="padding:3px 6px">T4, T2</td><td style="padding:3px 6px">11</td></tr>
+              <tr><td style="padding:3px 6px">B, one item twice</td><td style="padding:3px 6px">T1</td><td style="padding:3px 6px">—</td><td style="padding:3px 6px">3</td></tr>
+              <tr><td style="padding:3px 6px">F, no writes</td><td style="padding:3px 6px">T2</td><td style="padding:3px 6px">T1</td><td style="padding:3px 6px">3</td></tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin:8px 0 0">Recovered states: A &rarr; 100, 50, 20; C &rarr; 9, 3, 5; B &rarr; 0. Each equals its committed-only state.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The four traps</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li><strong>Committed before the checkpoint &ne; redo.</strong> Its pages were forced.</li>
+            <li><strong>Started before the checkpoint &ne; safe.</strong> Read the active list; it may be the whole answer.</li>
+            <li><strong>Undo runs backwards.</strong> One item written twice exposes it: 5 instead of 0.</li>
+            <li><strong>A no-op undo is still an operation.</strong> Count records, not changes.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">And one trap outside the algorithm: recovery assumes no transaction read uncommitted data. If one did, undo would need a cascading rollback, which is a protocol property.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Three sentences to carry</h3>
+          <p class="small">The log keeps both values, so either direction is always possible. The lists decide which records each direction touches; the LSN decides the order within a direction. Correctness is the recovered state equalling the committed-only state, and that equality is checkable in seconds.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The order claims are proved by the two single-item logs on this page: forward undo gives 5 where reverse gives 0, and descending redo gives 5 where ascending gives 9. Both are computed, not asserted.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, fetched and read for this run. Section 9 ends: "File organization, indexing (e.g., B and B+ trees). Transactions and concurrency control." That sentence is the hook for this topic; the words "recovery" and "log" do not appear in it, and this lesson says so rather than implying otherwise.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE 2015, Set 2</strong> — the checkpoint log question. The question text and the key (Undo T3, T1; Redo T2) were confirmed against two independent archives of the paper. <strong>GATE CSE 2021, Set 1</strong> — the crash-during-recovery question, key A, confirmed against three independent archives.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook material</h3>
+          <p class="small"><strong>Silberschatz, Korth and Sudarshan</strong>, <em>Database System Concepts</em>, the recovery chapter — the log record format, deferred and immediate modification, the undo/redo lists, and the checkpoint with its active-transaction list.</p>
+          <p class="small"><strong>Elmasri and Navathe</strong>, <em>Fundamentals of Database Systems</em>, the transaction processing and recovery chapters — the same material with the deferred/immediate split presented as two algorithms, which is the framing used on the Build-up tab.</p>
+          <p class="small" style="margin-bottom:0"><strong>Ramakrishnan and Gehrke</strong>, <em>Database Management Systems</em> — write-ahead logging, the buffer-policy vocabulary (steal/no-steal, force/no-force) used in scene 6, and the ARIES analysis/redo/undo structure mentioned only as the modern successor.</p>
+        </div>
+
+        <div class="card">
+          <h3>What the page computes for itself</h3>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is copied. The list builder and the replay engine are implemented separately from the reference computation, and every scenario is checked three ways: the two lists are disjoint, the recovered state equals the committed-only state, and no item ends holding a value written only by an uncommitted transaction. The order claims are demonstrated by running both orders and comparing. The checkpoint's active list is computed from the log and compared with the record. Idempotence is checked by running recovery a second time from the recovered state. The page reports how many checks passed on the Animation tab.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>What could not be confirmed, and what is not claimed</h3>
+          <p class="small">No claim is made about how many marks this topic will carry in GATE CSE 2027, and no historical weightage is asserted. The two previous-year items are the ones whose text and keys were verified; other recovery questions may exist in papers whose archives were not checked.</p>
+          <p class="small" style="margin-bottom:0">The 2015 question's number differs between archives, so no question number is quoted. No question in the practice set is described as a previous-year item unless the paper is named.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Where this connects</h3>
+          <p class="small" style="margin-bottom:0"><a href="../transactions-and-concurrency-control/index.html">Transactions and concurrency control</a> defines commit, abort, recoverability and strictness — this lesson is what those properties cost to implement. <a href="../file-systems/index.html">File systems</a> supplies stable storage and the distinction between a buffered write and a completed one. <a href="../memory-management-and-virtual-memory/index.html">Memory management</a> supplies dirty pages and flushing, which is where "steal" and "no-force" come from. <a href="../integrity-constraints-keys-and-null/index.html">Integrity constraints</a> is the reason undo must restore a consistent state rather than an arbitrary one: an aborted transaction that broke a foreign key must leave no trace of having done so. And the ordering argument — one walk, two directions, an order that is forced — is the same reasoning as a topological order in <a href="../graphs-connectivity/index.html">graphs</a>.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

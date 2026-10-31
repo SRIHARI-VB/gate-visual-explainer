@@ -1,0 +1,160 @@
+1
+00:00:00,000 --> 00:00:07,500
+T1 moves 40 from item x to item y: x goes 100 to 60, y goes 50 to 90.
+
+2
+00:00:07,500 --> 00:00:15,000
+The crash lands between the two writes: x has lost 40, y never received it.
+
+3
+00:00:15,000 --> 00:00:22,500
+Atomicity says both writes survive or neither does. The log is what makes that possible.
+
+4
+00:00:22,500 --> 00:00:30,000
+Recovery reads the log and rebuilds the state that the committed transactions alone define.
+
+5
+00:00:30,000 --> 00:00:37,500
+Every change is written twice: a log record first, then the data page.
+
+6
+00:00:37,500 --> 00:00:45,000
+Write-ahead logging: the log record reaches stable storage before the page it describes.
+
+7
+00:00:45,000 --> 00:00:52,500
+A committed page may still be in memory at the crash. That is why redo exists.
+
+8
+00:00:52,500 --> 00:01:00,000
+An uncommitted page may have been flushed early. That is why undo exists.
+
+9
+00:01:00,000 --> 00:01:07,500
+Five record types carry everything recovery needs.
+
+10
+00:01:07,500 --> 00:01:15,000
+A write record keeps both values: old 100, new 60. Undo needs old, redo needs new.
+
+11
+00:01:15,000 --> 00:01:22,500
+The checkpoint record names the transactions still running at that instant.
+
+12
+00:01:22,500 --> 00:01:30,000
+An LSN orders the replay; without it, undo has no notion of newest first.
+
+13
+00:01:30,000 --> 00:01:37,500
+One log, two transactions, a crash at the end, and no checkpoint.
+
+14
+00:01:37,500 --> 00:01:45,000
+A start record puts its transaction in the undo list.
+
+15
+00:01:45,000 --> 00:01:52,500
+A commit record moves the transaction from the undo list to the redo list.
+
+16
+00:01:52,500 --> 00:02:00,000
+The result: undo T1, redo T2. The two lists never share a transaction.
+
+17
+00:02:00,000 --> 00:02:07,500
+The disk at the crash is not the truth: x holds 60, written by a transaction that never committed.
+
+18
+00:02:07,500 --> 00:02:15,000
+Redo walks forward: apply the new value of every write in the redo list.
+
+19
+00:02:15,000 --> 00:02:22,500
+Undo walks backward: apply the old value of every write in the undo list.
+
+20
+00:02:22,500 --> 00:02:30,000
+The result equals the initial state with only the committed transaction applied.
+
+21
+00:02:30,000 --> 00:02:37,500
+Two buffer decisions decide which of undo and redo you need.
+
+22
+00:02:37,500 --> 00:02:45,000
+Force or no-force: are pages flushed at commit? No-force means a committed change may be missing, so redo.
+
+23
+00:02:45,000 --> 00:02:52,500
+Steal or no-steal: may an uncommitted page be flushed? Steal means a dirty value may be on disk, so undo.
+
+24
+00:02:52,500 --> 00:03:00,000
+Deferred modification is the no-steal corner: only redo. Immediate modification is steal: both.
+
+25
+00:03:00,000 --> 00:03:07,500
+One transaction writes x twice, 0 to 5 and 5 to 9, and never commits.
+
+26
+00:03:07,500 --> 00:03:15,000
+Undo in forward order leaves 5, a value that no committed transaction ever wrote.
+
+27
+00:03:15,000 --> 00:03:22,500
+Undo in reverse order leaves 0, the value before the transaction began.
+
+28
+00:03:22,500 --> 00:03:30,000
+Undo newest first, redo oldest first. Reversing either gives a value nothing wrote.
+
+29
+00:03:30,000 --> 00:03:37,500
+A checkpoint forces every dirty page and records which transactions are still running.
+
+30
+00:03:37,500 --> 00:03:45,000
+T4 committed before the checkpoint, so its page is already on disk and T4 needs no redo.
+
+31
+00:03:45,000 --> 00:03:52,500
+T1 started before the checkpoint and never committed: the active list puts it back in undo.
+
+32
+00:03:52,500 --> 00:04:00,000
+Reading back only to the checkpoint: undo T1 and T3, redo T2. Five records instead of eleven.
+
+33
+00:04:00,000 --> 00:04:07,500
+What if the machine crashes again while it is recovering?
+
+34
+00:04:07,500 --> 00:04:15,000
+The log has not changed, so the same two lists are rebuilt and the same records replayed.
+
+35
+00:04:15,000 --> 00:04:22,500
+Redo and undo are idempotent: applying a record twice leaves the value it sets.
+
+36
+00:04:22,500 --> 00:04:30,000
+GATE CSE 2021 Set 1 asked this, and the official key is the same undo and redo list.
+
+37
+00:04:30,000 --> 00:04:37,500
+Five steps: last checkpoint, its active list, scan to the crash, split the lists, replay.
+
+38
+00:04:37,500 --> 00:04:45,000
+Then check your answer: recovered state equals the committed-only state, and the lists are disjoint.
+
+39
+00:04:45,000 --> 00:04:52,500
+Boundary: a fuzzy checkpoint does not force pages, so you must read back further and redo more.
+
+40
+00:04:52,500 --> 00:05:00,000
+One line: the log holds both values, so recovery can always rebuild the committed state.
+
