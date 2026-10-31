@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Counting semaphores and the bounded buffer — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Counting semaphores and the bounded buffer</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../synchronisation-and-deadlock/index.html">Prerequisite: synchronisation and deadlock</a>
+      <a href="../readers-writers-and-dining-philosophers/index.html">Related: the classical problems</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The counting semaphore as a resource counter &mdash; what its value and its queue mean, the two closed forms that answer value questions, and the bounded-buffer producer&ndash;consumer built from three counters, together with the occupancy and blocked-process bounds that follow.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a sequence of P and V operations, compute the final value and the number of processes still waiting, and say which of the two quantities the order can change. Answer the largest-initial-value question of GATE 2016 without tracing orders. Read a bounded-buffer program, say what each of its three counters counts, and place the four calls in an order that cannot deadlock. Decide all four assignments of GATE 2018 by the question&rsquo;s own definitions rather than by the names. State the two counting bounds and the one-sentence reason each holds.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>the counting half of concurrency</em>: the prerequisite lesson builds semaphores, monitors and the two wait orders; this one owns the arithmetic of the counter, the occupancy questions, and the searches that decide the four published assignments.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> Section 8 of the GATE 2027 CS syllabus, published by IIT Madras, reads: <em>&ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>Class A by area, class B by name.</strong> &ldquo;Counting semaphore&rdquo; and &ldquo;bounded buffer&rdquo; are not phrases in that sentence; &ldquo;concurrency and synchronization&rdquo; is. These two are the standard content of the clause, and the lesson teaches them as its worked instances.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Question archives index items on this family in 1998, 2014, 2016 and 2018. Those are individual questions that can be read and re-solved, not a weightage figure, and nothing here forecasts 2027.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Prerequisites, and what is assumed</h3>
+          <p class="small">The critical-section problem, mutual exclusion, progress and bounded waiting, and the ordinary (non-counting) semaphore are built in <a href="../synchronisation-and-deadlock/index.html">Synchronisation and Deadlock</a>. The three classical problems are in <a href="../readers-writers-and-dining-philosophers/index.html">Readers&ndash;Writers and Dining Philosophers</a>.</p>
+          <p class="small">This lesson assumes you can read a <code>wait</code>/<code>signal</code> pair as a decrement and an increment, and nothing more. Every quantity it uses is defined here before it is used.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--assumption">Assumption</span> A <code>wait</code> that finds a zero value blocks and is <em>queued</em>; it does not fail and retry. Every closed form below depends on that one sentence, and it is stated again wherever it is used.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, 300 seconds. The counter and its queue are drawn as two boxes that move through a traced sequence (scenes 1&ndash;3). The 2016 question is drawn as a table of initial values with the boundary row highlighted (scene 4). The buffer is drawn as slots plus three counters beside the two code bodies (scene 5), then as the four measured quantities of an exhaustive search (scene 6). The 2018 question is drawn as four assignment rows with the measured item range beside each (scene 7). The two bounds and the six searched configurations follow (scene 8), then the deadlock states of the lock-first order at four buffer sizes (scene 9), and the four-step procedure (scene 10).</p>
+          <p class="small" style="margin-bottom:0">Every number on the canvas is computed by the page&rsquo;s own model in <code>lesson.js</code> and re-checked against its definition; the check results are printed under the canvas, not hidden.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a stack of tokens and a waiting line</h3>
+          <p class="small">Picture a counter with a stack of tokens on it. Asking for a token takes one if the stack is not empty. If the stack is empty you sit down in a waiting line and sleep. Handing a token back gives it straight to the first person in the line if there is one, and otherwise puts it on the stack. That is a counting semaphore, completely.</p>
+          <p class="small" style="margin-bottom:0">Two quantities matter, and they are different: how many tokens are on the stack, and how many people are in the line. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The token stack carries the arithmetic; the line carries the queue length. Most errors in this topic come from counting one and forgetting the other.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two operations, precisely</h3>
+          <p class="small"><strong>P(S)</strong>, also written <code>wait(S)</code>: if the value of S is positive, subtract one and continue. Otherwise add the caller to S&rsquo;s queue and block.</p>
+          <p class="small"><strong>V(S)</strong>, also written <code>signal(S)</code>: if S&rsquo;s queue is non-empty, remove one process from it and make it runnable. Otherwise add one to the value.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Both operations are indivisible. The test and the decrement in P are one step; that indivisibility is the entire reason a semaphore is not just an integer variable.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two conventions, and why both are safe</h3>
+          <p class="small">Dijkstra&rsquo;s original allows the value to go negative, and the magnitude of a negative value is the number of sleepers. The other convention keeps the value at zero or above and counts the queue separately.</p>
+          <p class="formula">Dijkstra:      value = v0 - P + V        sleepers = max(0, -value)
+Clamped:       value = max(0, v0 - P + V)  sleepers = max(0, -(v0 - P + V))</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both report the same sleeper count, because the clamped value is the raw value floored at zero and the sleepers are exactly the part that was floored away. So a question that states one convention can be answered in the other, and the answer is unchanged.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The closed forms</h3>
+          <p class="formula">final value   = v0 - (number of P) + (number of V)
+sleepers left = max(0, (number of P) - (number of V) - v0)
+valid while   v0 + (number of V) >= (number of P)</p>
+          <p class="small">The first form is a count of permits and needs no order. The third line is the condition under which nothing blocks; when it fails, the first form still gives the raw value but the value is below zero.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Each P removes exactly one permit and each V adds exactly one, so the sum is a telescoping count. The number of sleepers is the number of P operations that could not be paid for, which is the shortfall and never negative.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The bounded buffer, and the invariant that follows from one sentence</h3>
+          <p class="small">A buffer of N slots is shared by producers that add items and consumers that remove them. Three counters suffice: <code>empty</code>, initialised to N, counts free slots; <code>full</code>, initialised to 0, counts items available to read; <code>mutex</code>, initialised to 1, is the lock on the buffer itself.</p>
+          <p class="formula">producer:  wait(empty)  wait(mutex)  add item   signal(mutex)  signal(full)
+consumer:  wait(full)   wait(mutex)  take item  signal(mutex)  signal(empty)</p>
+          <p class="small">Every slot is either free or filled, and nothing else, so the two counters partition the buffer. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A producer&rsquo;s add is the only event that moves a slot from free to filled, and it is paired with one signal(full); a consumer&rsquo;s take is the only event that moves one back, paired with one signal(empty). So <code>empty + full = N</code> at every instant between operations, and the number of items equals <code>full</code>.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--assumption">Assumption</span> The invariant is between operations. In the middle of an insert, after the item is added and before the signal, the item count is one higher than <code>full</code>. A question that asks about &ldquo;any instant&rdquo; means any instant between operations, and this lesson says so wherever it uses the invariant.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>What a search settles here, and what it does not</h3>
+          <p class="small">Each process is a small state machine whose instructions are the calls above, the shared state is the three counter values plus the item count and the number inside the buffer, and a step is one enabled instruction of one process. Because every process runs a fixed number of items and then stops, the state space is finite, and walking it is a complete decision procedure for &ldquo;is there any interleaving in which this invariant breaks&rdquo; &mdash; not a sample of schedules.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> What the search does not settle is fairness: which waiter a V wakes is unspecified, so &ldquo;can a process wait for ever&rdquo; is a statement about infinite schedules and needs its own argument. It also does not settle timing, because no state records how long a process has waited. Both limits are stated on the animation&rsquo;s sixth scene rather than left implied.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A counting semaphore is one integer, its value, plus a queue of sleeping processes.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">What a counting semaphore actually counts</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A counting semaphore is not a lock. It is one integer, called its value, together with a queue of processes that are waiting on it.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked examples, each with the justification for every step</h3>
+          <p class="small" style="margin-bottom:0">Examples 1, 3 and 5 are previous-year items with their year and question number. Examples 2 and 4 are worked traces written for this lesson and labelled as such. Every number below is recomputed by the page&rsquo;s model rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 1 &mdash; GATE CSE 1998 Q1.31 <span class="badge">PYQ</span></h3>
+          <p class="small">A counting semaphore is initialised to 10. Then 6 P operations and 4 V operations are completed. What is the resulting value?</p>
+          <p class="formula">final = 10 - 6 + 4 = 8</p>
+          <p class="small">Nothing blocks, because 10 + 4 = 14 is at least 6, so every P finds a permit. The ledger dips to 4 and comes back to 8, and the value is positive throughout.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The paper&rsquo;s options are 0, 8, 10 and 12, and the published answer is 8. The page simulates the ten operations one at a time and checks that the simulation agrees with the closed form.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 &mdash; three P and one V from 1 <span class="badge badge--orig">Original</span></h3>
+          <p class="small">Start at 1 and issue P, P, P, V.</p>
+          <p class="formula">after P:  value 1 -> 0
+after P:  value 0, sleeper 1
+after P:  value 0, sleeper 2
+after V:  the V serves the queue: sleeper 1, value 0</p>
+          <p class="small">The final queue is 3 &minus; 1 &minus; 1 = 1, the peak queue is 2, and the value never left zero after the first P. Under the negative convention the same state is written as value &minus;1.</p>
+          <p class="small" style="margin-bottom:0">The page also enumerates all fifteen orders of four P and two V operations: the final queue length is the same in every one of them, while the peak queue varies. That contrast is the point of the example, and it is the same contrast scene 3 draws.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 &mdash; GATE CSE 2016 Set 2 Q49 <span class="badge">PYQ</span></h3>
+          <p class="small">A non-negative counting semaphore receives 20 P and 12 V operations in some order. What is the largest initial value for which at least one P operation remains blocked?</p>
+          <p class="formula">final = v0 - 20 + 12 = v0 - 8
+a P is still blocked  &lt;=&gt;  v0 - 8 &lt; 0  &lt;=&gt;  v0 &lt;= 7</p>
+          <p class="small">At v0 = 7 the final value is &minus;1, one waiter. At 8 it is 0 and nobody waits. So the largest is 7, which is 20 &minus; 12 &minus; 1.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The published answer is 7. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The general threshold is P &minus; V &minus; 1 whenever V &lt; P; if V is at least P no initial value forces a block.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 &mdash; a buffer of 2, both sides twice <span class="badge badge--orig">Original</span></h3>
+          <p class="small">One producer and one consumer, N = 2, each running two items, with the correct order.</p>
+          <p class="formula">empty=2 full=0 mutex=1
+produce:  empty 1, mutex 0, add -> items 1, mutex 1, full 1
+produce:  empty 0, mutex 0, add -> items 2, mutex 1, full 2
+consume:  full 1, mutex 0, take -> items 1, mutex 1, empty 1</p>
+          <p class="small">The search over every interleaving of this program reaches 52 states, finds no stuck state, and never places two processes inside the buffer.</p>
+          <p class="small" style="margin-bottom:0">The invariant is visible at every line: 2 + 0 = 2, then 1 + 1 = 2, then 0 + 2 = 2, then 1 + 1 = 2 again.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Example 5 &mdash; GATE CSE 2018 Q40, decided by simulation <span class="badge">PYQ</span></h3>
+          <p class="small">The question sets <code>empty</code> to 0 and <code>full</code> to N, then defines <code>empty</code> as the slots the consumer may read (the items) and <code>full</code> as the slots the producer may write (the free slots), and asks which assignment of P, Q, R, S is correct.</p>
+          <p class="formula">A  P: full  Q: full   R: empty  S: empty   items reach 4 in a 3-slot buffer; consumer never runs
+B  P: empty Q: empty  R: full   S: full    items fall to -4; deadlock
+C  P: full  Q: empty  R: empty  S: full    items stay in 0..3; every process finishes
+D  P: empty Q: full   R: full   S: empty   items fall to -3</p>
+          <p class="small">Only C waits on the counter of what the side needs and signals the counter of what it has just created. A signals the counter it just decremented, so that counter never rises for the other side; B and D let the consumer read before anything is produced.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The published answer is C. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The four verdicts here are measurements from the same exhaustive search used everywhere else in this lesson, not readings of the options.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample span-2">
+          <h3>Boundary 1 &mdash; a buffer of one slot is the smallest demonstration, and a buffer of zero is not a buffer</h3>
+          <p class="small">With N = 1 the correct order still works: the producer waits for the single slot, adds, and the consumer takes it back. The search on this page covers N = 1 with two producers and two consumers and finds no deadlock.</p>
+          <p class="small" style="margin-bottom:0">With N = 0 the invariant <code>empty + full = 0</code> holds but no producer can ever proceed, because <code>empty</code> starts at 0 and only a consumer&rsquo;s signal can raise it, while no consumer can consume. That is a degenerate case rather than a synchronisation bug, and a question that sets N = 0 is asking about a program that cannot work. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The three-case liveness argument on scene 8 assumes N &ge; 1, and this is why.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 2 &mdash; a V that does not change the value</h3>
+          <p class="small">If the queue is non-empty, a V wakes a waiter and the value stays where it is. A student who answers &ldquo;the value rises by one&rdquo; has assumed an empty queue.</p>
+          <p class="small" style="margin-bottom:0">This is the one place in the topic where the two conventions can look different: under the negative convention the value rises from &minus;2 to &minus;1 and the sleeper count falls; under the clamped convention the value stays at 0 and the sleeper count falls. Both describe the same state change.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 3 &mdash; an unbalanced workload blocks legitimately</h3>
+          <p class="small">Two consumers each wanting two items and a producer that makes only two items will block for ever, and that is not a synchronisation defect: the workload asks for four items and supplies two.</p>
+          <p class="small" style="margin-bottom:0">The searches on this page therefore always use balanced workloads, so that a reported deadlock is a defect of the code and not of the arithmetic. A question that gives unequal counts is asking about a program that cannot finish, which is a different claim from &ldquo;this program deadlocks&rdquo;.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 4 &mdash; a larger buffer does not make the lock-first order safe</h3>
+          <p class="small">The common claim is that with a large or unbounded buffer the producer never waits, so taking the lock first happens to be safe. The search here does not bear that out: it finds a stuck state at buffer sizes 1, 2, 3 and 5, because the <em>consumer</em> takes the lock and then sleeps on <code>full</code> while holding it.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> What a larger buffer removes is the producer&rsquo;s wait for a slot. The consumer&rsquo;s wait for an item remains, and that is the wait that holds the lock. So the repair is the order of the calls, not the size of the buffer.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 5 &mdash; the two signals are not interchangeable</h3>
+          <p class="small">A producer that signals <code>empty</code> wakes another producer, and no consumer ever hears about the item. A consumer that signals <code>full</code> wakes another consumer, and the producers never hear about the freed slot.</p>
+          <p class="small" style="margin-bottom:0">The rule that survives every variant: a side signals the counter the <em>other</em> side is waiting on. Read each signal as &ldquo;what did I just create for somebody else&rdquo;.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 6 &mdash; the peak queue is order-dependent, the final queue is not</h3>
+          <p class="small">For three P and one V from a value of 1, the final queue is 1 under every order, and the peak queue is 2 when the three P operations come first and 1 when the V comes early.</p>
+          <p class="small" style="margin-bottom:0">So a question about &ldquo;the maximum number of processes blocked at once&rdquo; is a worst-order question and needs the adversarial order, while &ldquo;how many are still blocked at the end&rdquo; is a totals question. The page checks both statements by enumerating all ten orders.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six wrong beliefs, each with a counterexample and the rule that replaces it</h3>
+          <p class="small" style="margin-bottom:0">Each entry names why the belief tempts, the smallest case that refutes it, and the rule to carry instead. Every counterexample here is computed by the page, not asserted.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. &ldquo;A V always increases the value&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> V is described as an increment, and the increment is the part that is easy to remember.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> value 0 with one sleeper, then a V. The value stays 0 and the sleeper wakes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a V serves the queue first. The value rises only when nobody is waiting.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. &ldquo;The order of P and V changes the final value&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the order changes the trace, and a trace is what you see when you simulate.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 4 P and 2 V from a value of 2, in all fifteen orders: one final (value, queue) pair, fifteen different traces.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> totals decide the final value and the final queue; only the peak queue and the identity of the woken process depend on the order.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. &ldquo;empty counts free slots, because that is what it is called&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the name is an abbreviation, and abbreviations are usually right.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> GATE 2018 Q40 sets <code>empty</code> to 0 and defines it as the slots the consumer may read, which is the item count. Reading the names gives the wrong assignment.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> write the meaning next to each name from the question&rsquo;s own definition, then assign.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. &ldquo;The same four calls in any order are the same solution&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the set of calls is identical, and the code looks symmetric.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the consumer takes <code>mutex</code> before <code>full</code>; with an empty buffer it sleeps holding the lock, and the producer cannot enter. The search finds this state at every buffer size it tries.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the counting semaphore comes first. Never sleep while holding a lock the waker needs.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. &ldquo;A bigger buffer makes the wrong order safe&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the producer&rsquo;s wait for a slot is the wait people notice, and a big buffer removes it.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the search on this page finds a stuck state at buffer sizes 1, 2, 3 and 5, from the consumer side.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the deadlock is a property of the order of the calls, not of the capacity. Capacity changes when the producer waits, not whether anyone can wait while holding the lock.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. &ldquo;Deadlock-free means every process gets through&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> in a small program the two usually coincide, and the words sound like the same promise.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the correct bounded buffer never deadlocks, yet which waiter a V wakes is unspecified, so one consumer can be passed over repeatedly.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> deadlock-freedom is about reachable states and is settled by a search; starvation-freedom is about infinite schedules and needs a fairness argument. This page&rsquo;s search proves the first and explicitly does not claim the second.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four shapes, and the reasoning each one demands</h3>
+          <p class="small" style="margin-bottom:0">The subject asks this material in four recognisable shapes. For each: the shape, the reasoning, and the approach that looks right and is not.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 &mdash; the value after a sequence</h3>
+          <p class="small">&ldquo;A counting semaphore is initialised to v0. After P P operations and V V operations, what is the value?&rdquo;</p>
+          <p class="small"><strong>Reasoning:</strong> v0 &minus; P + V, with no trace at all. If the question says &ldquo;in some order&rdquo;, the answer is still that number.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> simulating one order and reporting the value at the point the simulation was stopped, which answers a different question.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 &mdash; the largest initial value that still blocks somebody</h3>
+          <p class="small">&ldquo;What is the largest initial value for which at least one operation remains blocked?&rdquo;</p>
+          <p class="small"><strong>Reasoning:</strong> the value must end below zero, so v0 &lt; P &minus; V, and the largest such integer is P &minus; V &minus; 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> answering P &minus; V, which is the largest value with nobody blocked. The two answers are one apart, and the question names which side it wants.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 &mdash; fill in the missing calls</h3>
+          <p class="small">&ldquo;Placeholders P, Q, R, S may each be one of two counters; which assignment is correct?&rdquo;</p>
+          <p class="small"><strong>Reasoning:</strong> each side waits on the counter of what it needs and signals the counter of what it created. Check the initial values: a counter starting at 0 blocks its waiter immediately.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> choosing the option that is symmetric, or that matches the counter names. Both are how the distractors are built.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 &mdash; counting occupancy, or counting blocked processes</h3>
+          <p class="small">&ldquo;What is the maximum number of items in the buffer?&rdquo; &ldquo;What is the maximum number of processes blocked at once?&rdquo;</p>
+          <p class="small"><strong>Reasoning:</strong> occupancy is min(N, items produced); blocked processes are at most n &minus; 1 under the correct order, because one process can always move.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> answering N for occupancy when fewer items are produced, and answering n for blocked processes, which is the deadlock case.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The reading procedure, in the order to apply it</h3>
+          <p class="small"><strong>1.</strong> List the counters and write what each counts, from the question&rsquo;s definitions. <strong>2.</strong> For each side, read its first wait and its two signals, and check the first wait is the counting semaphore. <strong>3.</strong> For a value question, use v0 &minus; P + V and max(0, P &minus; V &minus; v0). <strong>4.</strong> For an occupancy question, use empty + full = N. <strong>5.</strong> For a liveness question, look for a process asleep while holding a lock another process needs.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> Steps 1 and 2 remove the naming trap and the order trap; steps 3 and 4 remove the arithmetic; step 5 is the one sentence that decides every deadlock question in the family.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set &mdash; answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1, 2 and 4 are previous-year items with their year and question number. Questions 3, 5, 6 and 7 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given, and every numeric answer here was recomputed by this page&rsquo;s model.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 1998 Q1.31</span></div>
+          <div class="q-body">
+            <p>A counting semaphore was initialised to 10. Then 6 P (wait) operations and 4 V (signal) operations were completed on this semaphore. The resulting value of the semaphore is</p>
+            <ol class="choices">
+              <li>0</li>
+              <li>8</li>
+              <li>10</li>
+              <li>12</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B &mdash; 8</p>
+            <p>Each P removes one permit and each V adds one, so the value is 10 &minus; 6 + 4 = 8. Nothing blocks, because 10 + 4 is at least 6, so the simple count is valid.</p>
+            <p><strong>Why 0 is tempting.</strong> It comes from subtracting all ten operations as though every one were a P. <strong>Why 12 is tempting.</strong> It comes from adding 4 to 10 and forgetting the 6. <strong>Why 10 is tempting.</strong> It assumes the four V operations cancel four of the six P operations and then forgets the remaining two.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2016 Set 2 Q49</span></div>
+          <div class="q-body">
+            <p>Consider a non-negative counting semaphore S. The operation P(S) decrements S, and V(S) increments S. During an execution, 20 P(S) operations and 12 V(S) operations are issued in some order. The largest initial value of S for which at least one P(S) operation will remain blocked is _______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 7</p>
+            <p>The final value is v0 &minus; 20 + 12 = v0 &minus; 8. A P remains blocked exactly when that value is below zero, so v0 &lt; 8, and the largest integer is 7. At v0 = 7 the final value is &minus;1 and one process is still waiting.</p>
+            <p><strong>Why 8 appears.</strong> It is the largest initial value with <em>nobody</em> blocked, which is the other side of the boundary. <strong>Why the phrase &ldquo;in some order&rdquo; misleads.</strong> It suggests tracing orders, but the totals fix the final value whatever the order, so no trace is needed.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A counting semaphore starts at 3. Eight P operations and two V operations are then issued. Under the convention in which a blocked P is queued and woken by a later V, how many processes are still waiting when all ten operations have been issued?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>The shortfall is max(0, P &minus; V &minus; v0) = max(0, 8 &minus; 2 &minus; 3) = 3. Three P operations were never paid for, and the two V operations woke two of the six that had to queue.</p>
+            <p><strong>Why 6 appears.</strong> It counts every P that had to wait at some moment and forgets that the two V operations woke two of them. <strong>Why 8 appears.</strong> It counts P operations rather than unpaid ones. <strong>Why 1 appears.</strong> It is the peak value reached, not the number of sleepers.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2018 Q40</span></div>
+          <div class="q-body">
+            <p>A producer&ndash;consumer solution uses a buffer of size N and semaphores <code>empty</code>, <code>full</code> and <code>mutex</code> with initial values 0, N and 1. The question defines <code>empty</code> as the number of available slots for the consumer to read from, and <code>full</code> as the number of available slots for the producer to write to. The producer does <code>wait(P); wait(mutex); add; signal(mutex); signal(Q);</code> and the consumer does <code>wait(R); wait(mutex); take; signal(mutex); signal(S);</code>. Which assignment is correct?</p>
+            <ol class="choices">
+              <li>P: full, Q: full, R: empty, S: empty</li>
+              <li>P: empty, Q: empty, R: full, S: full</li>
+              <li>P: full, Q: empty, R: empty, S: full</li>
+              <li>P: empty, Q: full, R: full, S: empty</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C &mdash; P: full, Q: empty, R: empty, S: full</p>
+            <p>The producer waits for a free slot, which this question calls <code>full</code>, and signals that an item now exists, which it calls <code>empty</code>. The consumer waits on the item count and signals the free-slot count. Check against the initial values: <code>empty</code> = 0 makes the consumer block on an empty buffer, and <code>full</code> = N lets the producer fill it.</p>
+            <p><strong>Why A fails.</strong> The producer waits on and signals the same counter, so the consumer&rsquo;s counter never rises: the page&rsquo;s search shows the item count reaching 4 in a 3-slot buffer while the consumer never runs. <strong>Why B and D fail.</strong> The producer&rsquo;s counter starts at 0 so it blocks at once, while the consumer is allowed to read, and the item count falls to &minus;4 and &minus;3.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following are true of the standard bounded-buffer solution with counters <code>empty</code>, <code>full</code> and <code>mutex</code> in the correct order?</p>
+            <ol class="choices">
+              <li>In every state between operations, <code>empty + full</code> equals the buffer size.</li>
+              <li>At most n &minus; 1 of the n processes can be blocked at the same time.</li>
+              <li>The number of items in the buffer can exceed the buffer size if producers run more often.</li>
+              <li>Two processes can be inside the buffer together if they wait on different counters first.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and B</p>
+            <p>A is the partition invariant: every slot is free or filled and nothing else. B holds because one process can always take a step &mdash; a full buffer lets a consumer run, an empty one lets a producer run, and a process blocked on the lock leaves its holder runnable. The page measures B on six configurations.</p>
+            <p><strong>Why C is false.</strong> The producer cannot add without first taking a free slot, so the item count is bounded by the buffer size; the search never exceeds it. <strong>Why D is false.</strong> The lock, not the counter order, is what keeps two processes out, and both sides take the same <code>mutex</code>.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A producer&ndash;consumer program has the consumer do <code>wait(mutex); wait(full); take; signal(mutex); signal(empty);</code>, with <code>full</code> initialised to 0 and a buffer of any size. Which statement is TRUE?</p>
+            <ol class="choices">
+              <li>It is correct, because it never loses an item.</li>
+              <li>It can deadlock, because the consumer can sleep while holding <code>mutex</code>.</li>
+              <li>It can deadlock only when the buffer holds exactly one slot.</li>
+              <li>It cannot deadlock if the buffer is unbounded.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>With an empty buffer the consumer takes <code>mutex</code>, finds <code>full</code> at 0 and sleeps, still holding the lock. The producer then needs <code>mutex</code> to add the item the consumer is waiting for and cannot get it. The page&rsquo;s search finds this stuck state at buffer sizes 1, 2, 3 and 5.</p>
+            <p><strong>Why A is wrong.</strong> Losing no item is not the same as making progress; the program can stop with the buffer empty and nobody able to move. <strong>Why C is wrong.</strong> The size is irrelevant, which is what the four searched sizes show. <strong>Why D is wrong.</strong> An unbounded buffer removes the producer&rsquo;s wait for a slot, not the consumer&rsquo;s wait for an item, and it is the consumer&rsquo;s wait that holds the lock.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Two producers and two consumers share a buffer of 3 slots and use the correct order. Each of the four processes runs two items and then stops. Over every reachable interleaving, what is the largest number of these four processes that are blocked at the same time?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>At least one process can always take a step, so at most three of the four can be asleep. The search on this page reaches states with three blocked and none with four, across 2360 reachable states.</p>
+            <p><strong>Why 4 appears.</strong> Four is the deadlock case, which the correct order rules out &mdash; and the lock-first order does reach states with every process asleep. <strong>Why 2 appears.</strong> Two is the number of producers, which is a different question.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything on this page in the form you would want it in the last hour before the paper: five definitions, four formulas, three bounds, and the traps that decide the questions.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, in one line each</h3>
+          <p class="small"><strong>Counting semaphore</strong> &mdash; an integer value plus a queue of blocked processes.</p>
+          <p class="small"><strong>P / wait</strong> &mdash; take one permit if the value is positive, otherwise queue and block.</p>
+          <p class="small"><strong>V / signal</strong> &mdash; hand one permit to a queued waiter, otherwise raise the value.</p>
+          <p class="small"><strong>empty</strong> &mdash; free slots in the buffer; starts at N.</p>
+          <p class="small" style="margin-bottom:0"><strong>full</strong> &mdash; items available to read; starts at 0. <strong>mutex</strong> &mdash; the lock; starts at 1.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas</h3>
+          <p class="formula">final value    = v0 - P + V
+sleepers left  = max(0, P - V - v0)
+no blocking    while v0 + V >= P
+largest v0 that still blocks a P  = P - V - 1</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> All four follow from the telescoping count of permits. None of them depends on the order of the operations.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Bounds</h3>
+          <p class="small"><strong>Occupancy</strong> &mdash; at most min(N, items produced so far).</p>
+          <p class="small"><strong>Blocked processes</strong> &mdash; at most n &minus; 1, because one process can always take a step.</p>
+          <p class="small" style="margin-bottom:0"><strong>Inside the buffer</strong> &mdash; at most one, because <code>mutex</code> is 0 or 1.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two invariants</h3>
+          <p class="small"><code>empty + full = N</code> between operations, and the number of items equals <code>full</code>.</p>
+          <p class="small" style="margin-bottom:0"><code>0 &le; mutex &le; 1</code>, and <code>mutex = 0</code> means exactly one process is inside.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The traps, and the sentence that defuses each</h3>
+          <p class="small"><strong>Names against definitions</strong> &mdash; write what each counter counts from the question&rsquo;s words, not from its name.</p>
+          <p class="small"><strong>Order of the two waits</strong> &mdash; the counting semaphore comes first. Never sleep holding a lock the waker needs.</p>
+          <p class="small"><strong>&ldquo;In some order&rdquo;</strong> &mdash; for the final value and the final queue, the order is irrelevant; for the peak queue it is not.</p>
+          <p class="small"><strong>Largest value with somebody blocked, against largest with nobody blocked</strong> &mdash; they differ by one, and the question says which it wants.</p>
+          <p class="small" style="margin-bottom:0"><strong>Deadlock against starvation</strong> &mdash; the search settles the first; the second needs a fairness argument the search does not provide.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Five ideas to leave with</h3>
+          <p class="small">A semaphore has two quantities and a question can ask about either.</p>
+          <p class="small">Totals decide the final value; the order decides the peak and nothing else.</p>
+          <p class="small">Each side waits for what it needs and signals what it created for the other side.</p>
+          <p class="small">The lock comes after the counting semaphore, always.</p>
+          <p class="small" style="margin-bottom:0">A correct solution can still starve a process, and saying so is part of answering honestly.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small"><strong>Official syllabus.</strong> GATE 2027 CS syllabus, IIT Madras, Section 8, read verbatim: &ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo; That sentence supports the class-A-by-area claim and nothing more; neither &ldquo;counting semaphore&rdquo; nor &ldquo;bounded buffer&rdquo; appears in it.</p>
+          <p class="small"><strong>Previous-year items.</strong> GATE CSE 1998 Q1.31, GATE CSE 2016 Set 2 Q49 and GATE CSE 2018 Q40, each read from public question archives that reproduce the paper text and its answer key. These are community reproductions of official papers, not scans of the papers themselves, so the year and question number are given and the wording is quoted as reproduced. Every number in a solution was recomputed here rather than copied from a key.</p>
+          <p class="small"><strong>Standard references.</strong> The counting semaphore, the two conventions for its value, the bounded-buffer solution with three semaphores and the producer&ndash;consumer problem are the standard treatment in operating-systems texts (Silberschatz, Galvin and Gagne; Tanenbaum and Bos) and in Dijkstra&rsquo;s original bounded-buffer solution. No textbook was opened during this run, so these are named as the conventional home of the material rather than as sources consulted.</p>
+          <p class="small" style="margin-bottom:0"><strong>Community discussions.</strong> Public solution threads on the 2016 and 2018 items were read to see which wrong options attract students. They are somebody&rsquo;s reasoning, not authority, and nothing here rests on them: every claim was recomputed by the page&rsquo;s model.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>What was verified, and how</h3>
+          <p class="small"><strong>The closed forms.</strong> Compared against an exhaustive enumeration of all fifteen orders of four P and two V operations, for five initial values: one final (value, queue) pair in every case, and several distinct peak queues.</p>
+          <p class="small"><strong>The bounded buffer.</strong> A complete breadth-first search over every interleaving, with each process running a fixed number of items so the state space is finite. Four invariants are asserted at every reachable state, and six configurations are searched.</p>
+          <p class="small" style="margin-bottom:0"><strong>The 2018 question.</strong> All four assignments are run through the same search with the question&rsquo;s own initial values, so the verdicts are measurements. The model checks are printed under the canvas: if any had failed, the page would say so.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Where this lesson stops</h3>
+          <p class="small">No audio file is shipped, so the caption timings are estimated from the timeline at a normal speaking rate rather than measured. No video file exists.</p>
+          <p class="small">The searches use one or two producers and one or two consumers with a few items each. They are complete for those programs, and they say nothing about larger systems beyond the bounds derived separately and labelled as derivations.</p>
+          <p class="small" style="margin-bottom:0">The syllabus is a topic list, not a depth specification. Nothing here claims a marks weight for this topic, and the historical items cited are examples that can be read, not a distribution.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>One correction worth naming</h3>
+          <p class="small">A common statement in study material is that taking the lock first &ldquo;happens not to deadlock&rdquo; with a large or unbounded buffer, because the producer then never waits. The search on this page does not bear that out: it finds a stuck state at buffer sizes 1, 2, 3 and 5, produced by the <em>consumer</em> sleeping on <code>full</code> while holding <code>mutex</code>.</p>
+          <p class="small" style="margin-bottom:0">The claim is reported here as a community observation that the computation contradicts, and the edge-case tab states the repair: the order of the calls, not the capacity of the buffer.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
