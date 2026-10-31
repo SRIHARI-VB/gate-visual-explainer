@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Barriers and their implementations — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Barriers and their implementations</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../synchronisation-and-deadlock/index.html">Prerequisite: synchronisation and deadlock</a>
+      <a href="../monitors-and-condition-variables/index.html">Related: monitors</a>
+      <a href="../atomic-instructions-and-locks/index.html">Related: atomic instructions</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Barriers — what one is, the arrival gate and the departure gate, the GATE CSE 2006 barrier and its defect, the four candidate repairs of its second question, the naive counter barrier, the sense-reversing barrier, and the two-phase semaphore barrier.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a barrier implementation, say whether it is correct for one invocation and whether it is correct for two; find the counter and the process that resets it; explain in one sentence why a fast process can push the counter past <em>n</em>; decide all four options of the 2006 repair question; and write down a barrier that survives repeated use, with the sense-reversing and the two-phase designs both available.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>the waiting-and-releasing construct</em>, the third of the synchronisation primitives after the semaphore and the monitor: the prerequisite lessons build exclusion and the classical problems, and this one owns the barrier, its two gates, and the counting questions that come with them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> Section 8 of the GATE 2027 CS syllabus, published by IIT Madras, reads: <em>&ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>Class A by area, class B by name.</strong> The word &ldquo;barrier&rdquo; does not appear in that sentence; &ldquo;concurrency and synchronization&rdquo; does. A barrier is a standard synchronisation construct and the subject of a linked pair of questions in the 2006 paper.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> GATE CSE 2006 carries a two-question linked set on exactly the code in this lesson. That is one paper, read directly; nothing here forecasts 2027.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Prerequisites, and what is assumed</h3>
+          <p class="small">Critical sections, mutual exclusion, progress and bounded waiting, and the plain binary semaphore with P and V are built in <a href="../synchronisation-and-deadlock/index.html">Synchronisation and Deadlock</a>. The counting semaphore is in <a href="../counting-semaphores-and-the-bounded-buffer/index.html">Counting Semaphores and the Bounded Buffer</a>. The monitor, whose <code>broadcast</code> is the natural way to build a barrier in a language, is in <a href="../monitors-and-condition-variables/index.html">Monitors and Condition Variables</a>.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--assumption">Assumption</span> Unless a question says otherwise, each C statement is one atomic step at the level of the model, the read inside a spin test is atomic, and processes run on separate cores so a spin can proceed. Every claim that depends on those assumptions is stated again where it is used.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, 300 seconds. The construct and its two gates come first, drawn as three lanes meeting a line (scene 1). The 2006 code is read as three blocks rather than eleven lines (scene 2), and then executed: one invocation first, which is correct (scene 3), then two invocations, which deadlock (scene 4). The four candidate repairs are then run one by one (scene 5), and the keyed repair is examined for what it does and does not fix (scene 6). The last three teaching scenes are the three answers to &ldquo;how do I know which round this is&rdquo;: the naive barrier and its failure (scene 7), the sense-reversing barrier (scene 8), and the two-phase barrier (scene 9). The counts and the reading procedure close the lesson (scene 10).</p>
+          <p class="small" style="margin-bottom:0">Every number on the canvas is computed by the page&rsquo;s own model in <code>lesson.js</code> &mdash; a statement-level simulator plus a breadth-first search over every interleaving of three processes &mdash; and re-checked against its definition. The check results are printed under the canvas, not hidden.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <p class="small">1. A barrier has an arrival gate and a departure gate; only the second is hard.</p>
+          <p class="small">2. The spin must be outside the critical section, so the value it reads is unprotected.</p>
+          <p class="small">3. Resetting the counter to a constant reuses a value, so a late reader sees the wrong round.</p>
+          <p class="small">4. Sense reversal flips a flag, so two rounds never look alike.</p>
+          <p class="small" style="margin-bottom:0">5. Two phases count up and then down, so nothing is ever reset at all.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a meeting point with a door on each side</h3>
+          <p class="small">Picture a corridor with two doors and a room between them. Everyone working on step one of a job must pass through the first door before anybody may pass through the second. A person who arrives early waits in the room. The last person to arrive opens the second door and everybody leaves together. Then the room has to be empty and ready before the next job, because the same people will come back for step two.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The first door is the arrival gate, the second is the departure gate, and the room is the counter. The whole difficulty of a barrier is not the first door. It is making the room ready again without anybody slipping into it twice.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Barrier, precisely</h3>
+          <p class="small">A <strong>barrier</strong> for <em>n</em> processes is a point in the code with two properties. <strong>Safety:</strong> no process passes the barrier until all <em>n</em> processes have reached it. <strong>Progress:</strong> once all <em>n</em> have reached it, all of them pass in finite time.</p>
+          <p class="small">A barrier used more than once adds a third: a process may pass the <em>k</em>-th barrier only after all processes have passed the (<em>k</em>&minus;1)-th. A barrier that satisfies safety and progress for one use and fails this third property is not a barrier; it is a barrier-shaped bug.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The third property is what forbids &ldquo;two processes in adjacent rounds at the same time&rdquo;. Hensgen, Finkel and Manber state it exactly this way: no two processes may be in adjacent epochs.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The arrival gate</h3>
+          <p class="small">One shared counter, incremented under a lock. A process that finds the counter below <em>n</em> waits; the process that brings it to <em>n</em> releases everyone.</p>
+          <p class="formula">arrive:   lock;  arrived++;  unlock;
+          if (arrived &lt; n)  wait until released;</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The increment must be atomic with respect to other increments, or two processes can read the same value and write the same value and one arrival is lost. It need not be atomic with respect to the wait, and it must not be: holding the lock while spinning would block the arrivals you are waiting for.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The departure gate</h3>
+          <p class="small">After the release, the counter must be restored and the next round must be distinguishable from this one. There are only three known ways to do it, and they are the three designs of this lesson.</p>
+          <p class="formula">1. reset a constant to 0        (2006 code — wrong)
+2. flip a shared sense flag     (sense reversing)
+3. count up then count down     (two phase)</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> Designs 2 and 3 differ in what the shared word <em>means</em>. In design 2 it names the round; in design 3 it counts the processes still inside. Neither ever reuses a value with a new meaning.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The 2006 barrier, read as three blocks</h3>
+          <p class="formula">1   P(S);                          arrival gate
+2   process_arrived++;              (protected — correct)
+3   V(S);
+4   while (process_arrived != 3);    the wait (unprotected)
+5   P(S);                          departure gate
+6   process_left++;                 (protected — correct)
+7   if (process_left == 3) {
+8      process_arrived = 0;
+9      process_left = 0;
+10  }
+11  V(S);</p>
+          <p class="small">Both critical sections are correct. The defect is in the interaction between the unprotected wait on line 4 and the reset on line 8. A process can read three on line 4, leave, re-enter the barrier, and increment on line 2 before another process has read line 4 at all. The counter is then four, and the two remaining processes spin for three for ever.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The reset on line 8 happens only when <code>process_left</code> reaches three, and <code>process_left</code> reaches three only when all three processes pass line 6, and a process cannot pass line 6 unless it passed line 4. So the reset is always <em>after</em> the release, and a fast process has a window between the two.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed by the same model.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A barrier holds every process at one point until the last one arrives.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">What a barrier is</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A barrier is a meeting point. Every process must arrive, and none may leave until all of them have arrived.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked examples, each one computed by this page</h3>
+          <p class="small">Example 1 is one invocation of the 2006 barrier, which is correct. Example 2 is the eighteen-step interleaving that deadlocks two invocations. Example 3 is all four candidate repairs, run. Example 4 is the sense-reversing barrier. Example 5 is the two-phase barrier, including the question a lecture slide asks about a non-atomic counter. Every number quoted was produced by the search in <code>lesson.js</code> and re-checked before it was drawn.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The searches are complete for the programs they model: every reachable state of every interleaving is visited, so &ldquo;no run does X&rdquo; is a statement about all runs of that program, not about a sample.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 1 &mdash; one invocation is correct</h3>
+          <p class="small">Three processes, one invocation, binary semaphore <code>S = 1</code>, both counters starting at 0.</p>
+          <div class="step-list">
+            <li><strong>P1</strong> <code>P(S)</code> &rarr; <code>process_arrived = 1</code> &rarr; <code>V(S)</code> &rarr; tests 1 &ne; 3, spins.</li>
+            <li><strong>P2</strong> <code>P(S)</code> &rarr; 2 &rarr; <code>V(S)</code> &rarr; tests 2 &ne; 3, spins.</li>
+            <li><strong>P3</strong> <code>P(S)</code> &rarr; 3 &rarr; <code>V(S)</code> &rarr; tests 3 = 3, falls through.</li>
+            <li>All three leave line 4, take the lock one at a time, and <code>process_left</code> reaches 3, which resets both counters to 0.</li>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Measured.</strong> <strong>416</strong> reachable states, <strong>0</strong> deadlocked end states, <strong>0</strong> processes released early, the counter never above <strong>3</strong>, and at most <strong>2</strong> processes spinning at once. So the first invocation passes, and the exam question is about the second.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Example 2 &mdash; the interleaving that deadlocks</h3>
+          <p class="small">The same three processes, now calling the barrier twice. The search finds the shortest deadlocking trace in <strong>18</strong> statements; these are its last steps.</p>
+          <div class="step-list">
+            <li>All three arrive; <code>process_arrived = 3</code>; P1 reads 3 and leaves the loop.</li>
+            <li>P1 takes the lock, <code>process_left = 1</code>, which is not 3, so it does <em>not</em> reset; <code>V(S)</code>; P1 returns.</li>
+            <li>P1 calls the barrier again: <code>P(S)</code>, <code>process_arrived = 4</code>, <code>V(S)</code>.</li>
+            <li>P1, P2 and P3 all test <code>process_arrived != 3</code>. It is 4. None of them ever leaves.</li>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Measured.</strong> <strong>8</strong> deadlocked end states out of <strong>1538</strong> reachable states, and the counter reaches <strong>5 = 2n &minus; 1</strong> somewhere in the graph. That figure is the signature: round one contributes <em>n</em> arrivals, round two contributes <em>n</em> &minus; 1 more, and then the last process is stuck.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Example 3 &mdash; the four candidate repairs, run</h3>
+          <p class="small">Each option of the second question was transcribed and searched. &ldquo;Early departures&rdquo; counts reachable states in which a process completes a round while fewer than <em>n</em> processes have arrived in that round.</p>
+          <div class="step-list">
+            <li><strong>A &mdash; lines 6 to 10 replaced by <code>process_arrived--</code>.</strong> <strong>450</strong> early departures. A process decrements, re-enters, increments, and the counter reads 3 again while the others are still arriving. <span class="muted">&mdash; fails</span></li>
+            <li><strong>B &mdash; wait at the start until <code>process_arrived</code> is 0.</strong> The counter never exceeds <strong>3</strong>. This is the keyed answer, and it removes the defect the first question names. <span class="muted">&mdash; keyed</span></li>
+            <li><strong>C &mdash; context switch disabled across the barrier.</strong> Stuck at the very first invocation: a process that finds the counter at 1 spins, and nobody else can run to make it 3. <span class="muted">&mdash; fails</span></li>
+            <li><strong>D &mdash; <code>process_left</code> made private.</strong> No process ever sees 3, so the reset never happens, and the counter climbs to <strong>6 = 2n</strong>. <span class="muted">&mdash; fails</span></li>
+          </div>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> D reaches 2<em>n</em> rather than 2<em>n</em> &minus; 1 because every process now arrives twice: with no shared departure count there is no reset to stop the second round from adding a full <em>n</em>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Example 4 &mdash; what option B does not fix</h3>
+          <p class="small">Option B is the keyed answer, and it does bound the counter. The same search, run on B, still finds stalled end states.</p>
+          <div class="step-list">
+            <li>All three pass round 1; the last one out resets <code>process_arrived</code> to 0.</li>
+            <li>P1 enters round 2: the gate reads 0, so P1 passes, and increments to 1.</li>
+            <li>P2 and P3 reach the gate, read 1, and wait for 0.</li>
+            <li>Only a completed round 2 can reset the counter, and round 2 needs P2 and P3.</li>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Measured.</strong> <strong>12</strong> stalled end states out of <strong>1115</strong> states, with the counter correctly capped at 3. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The gate is a condition on a variable the barrier itself must change, which is circular. It is a symptom fix, not a reuse fix &mdash; and it is still the right answer to the question the paper asks.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 5 &mdash; sense reversing and two phase, measured</h3>
+          <p class="formula">sense:  local = !local;
+        if (fetch_and_dec(count) == 1)
+           count = n;  sense = local;
+        else repeat until sense == local;
+
+two:    P(arrival); if (++counter &lt; n) V(arrival);
+        else V(departure);  P(departure);
+        if (--counter &gt; 0) V(departure); else V(arrival);</p>
+          <p class="small"><strong>Sense reversing</strong>, two invocations, three processes: <strong>2396</strong> states, <strong>0</strong> deadlocked end states, <strong>0</strong> early departures, <strong>6</strong> runs that finish both rounds.</p>
+          <p class="small"><strong>Two phase</strong>, same setting: <strong>1669</strong> states, <strong>0</strong> deadlocked, <strong>0</strong> early departures. With the counter deliberately split into a read and a write (non-atomic): <strong>7054</strong> states and still <strong>0</strong> deadlocked &mdash; because both the increment and the decrement sit inside a region protected by a semaphore, so the atomicity is never needed.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> For the naive barrier (spin until the counter returns to <em>n</em>), the same search finds <strong>6</strong> runs that finish and <strong>18</strong> deadlocked end states. A barrier that works for some schedules is not a barrier.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rules stop applying, and what breaks when they do</h3>
+          <p class="small">Each card names the boundary, the exact condition that fails, and the smallest case that shows it. Read these before the misconceptions: several of them are the counterexample a misconception needs.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>n = 1: a barrier that is not a barrier</h3>
+          <p class="small">With one process the arrival gate is always already satisfied, so a barrier degenerates to no-ops. The 2006 code still works: the counter reaches 1, which is <em>n</em>, and the process passes immediately.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where it bites:</strong> a question that fixes <em>n</em> = 1 makes every deadlock question vacuous, and any &ldquo;n &minus; 1 processes spin&rdquo; answer becomes 0. Check <em>n</em> before reasoning about spins.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>n = 2: the deadlock still happens</h3>
+          <p class="small">With two processes and two invocations the 2006 barrier still deadlocks: the counter reaches <strong>3 = 2n &minus; 1</strong> and both processes spin. Measured by the same search.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it matters:</strong> the smallest interesting case is <em>n</em> = 2, not <em>n</em> = 3, so a question with two processes is not a simplified version that avoids the bug. It is the same bug with fewer moving parts.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The last arrival never spins</h3>
+          <p class="small">The process that brings the counter to <em>n</em> finds the test already true, so it does not spin. That is why at most <em>n</em> &minus; 1 processes spin at once, measured here for <em>n</em> from 2 to 5.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where it bites:</strong> an option claiming &ldquo;all <em>n</em> processes spin&rdquo; is wrong by one, and the off-by-one is the whole point of the option.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A spinning process is runnable, not blocked</h3>
+          <p class="small">A spin loop consumes the processor. The operating system sees a running process, not a sleeping one, so it cannot detect this deadlock and cannot break it by scheduling someone else.</p>
+          <p class="small" style="margin-bottom:0"><strong>The consequence for questions:</strong> &ldquo;the OS will detect the deadlock and recover&rdquo; is false for any spin barrier. It is also why real systems spin only for a bounded time and then block.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Holding the lock while spinning blocks the release</h3>
+          <p class="small">If line 4 were moved inside <code>P(S)</code> and <code>V(S)</code>, the spinning process would hold the only lock, and the processes whose arrivals would satisfy the test could never take it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition that fails:</strong> the lock is needed by the very processes the waiter is waiting for. So the spin must be outside, and the counter read must be unprotected &mdash; which is exactly why the design has to make stale reads harmless.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Memory ordering: the counter may not be visible</h3>
+          <p class="small">On a machine with a weak memory model, a write to the counter may not be visible to another core in program order. A correct implementation inserts a release store after the write and an acquire load inside the spin.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The implementations in the sources below (Scott&rsquo;s pseudocode and the OpenMP runtime) use acquire/release annotations for exactly this reason. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> GATE questions model a sequentially consistent machine, so this appears only as a conceptual point; it is stated here so the model is not mistaken for hardware.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Deadlock, starvation and an early release are three different failures</h3>
+          <p class="small"><strong>Deadlock:</strong> no process can make progress. <strong>Starvation:</strong> some process never gets its turn while others proceed. <strong>Early release:</strong> a process passes the barrier before all have arrived, which is a safety violation, not a liveness one.</p>
+          <p class="small" style="margin-bottom:0"><strong>How to tell them apart:</strong> the search reports them separately, and so should you. Option A of the 2006 question fails by early release (450 states) and not by deadlock; the original code fails by deadlock and never by early release.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What the model assumes</h3>
+          <p class="small">Each C statement is one atomic step; the read inside the spin test is atomic; <code>process_arrived++</code> is atomic when it is inside a critical section; processes run on separate cores.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it is stated:</strong> a real compiler may split <code>process_arrived++</code> into a load and a store even inside a critical section that is only a semaphore, and a real machine may reorder. Neither changes the deadlock, which survives all of them &mdash; but a claim about a specific step count does depend on the assumption.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that are wrong, and the smallest thing that refutes each</h3>
+          <p class="small">Each card gives the belief as it is usually stated, why it is tempting, a counterexample small enough to check by hand, and the rule that replaces it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. &ldquo;A barrier is just a mutex that lets everybody in&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Both use one shared variable and both involve waiting, and a barrier does provide a kind of exclusion &mdash; exclusion between rounds.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> A mutex with <em>n</em> processes lets one in at a time and never releases them together. A barrier releases all <em>n</em> together and excludes nothing within a round.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> A mutex orders processes against each other. A barrier orders rounds against each other. The variable in a barrier answers &ldquo;has everybody arrived&rdquo;, not &ldquo;is somebody inside&rdquo;.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. &ldquo;If it is correct for one invocation it is correct&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The single invocation is what you can trace by hand, and it works: 416 states, no deadlock, no early release.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Two invocations, three processes, eighteen statements: the counter reaches 4 and all three spin. The 2006 paper is built on exactly this gap.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> A barrier is a reuse mechanism, so correctness means correctness for every <em>k</em>. Test two invocations, always.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. &ldquo;The spin should be inside the critical section&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Everything else in the program is inside one, and the counter is shared data.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Move line 4 inside <code>P(S)</code>/<code>V(S)</code>: the first process to arrive holds the only lock and spins, and the other two block on <code>P(S)</code> and never arrive. The barrier now deadlocks with one invocation.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> The spin must not hold a resource that an arrival needs. That is precisely why the counter is read without protection, and why the design has to tolerate a stale read.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. &ldquo;Making the counter atomic fixes the deadlock&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Atomicity is the usual repair for a lost update, and the counter is shared.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> The 2006 code already increments inside a critical section, so the increment is effectively atomic, and it still deadlocks. The bug is not a lost update; it is a value being reused with a new meaning.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Atomicity makes one operation indivisible. It says nothing about whether the value means the same thing in the next round.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. &ldquo;The OS will see the deadlock and recover&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Deadlock detection is a standard topic, and there is a wait-for graph in the chapter before this one.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> A spinning process holds the processor and holds no resource. A wait-for graph built from resource ownership has no edge to show, so the detector reports nothing while the system makes no progress.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Spin-based deadlock is invisible to resource-based detection. It is one reason real barriers bound the spin and then block.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. &ldquo;Option B is wrong because a full search finds a stall&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> This page&rsquo;s own search finds 12 stalled states under B, which looks like a refutation of the answer key.</p>
+          <p class="small"><strong>What is actually true.</strong> B bounds the counter at <em>n</em>, which is exactly the defect the first question names, and the key is B. A stricter question &mdash; &ldquo;which change makes this a reusable barrier&rdquo; &mdash; would not have B as its answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Answer the question that was asked. Keep the exam judgement and the engineering judgement in separate sentences, and say which one you are making.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The five question shapes this topic produces</h3>
+          <p class="small">Each card names the shape, the reasoning it demands, and the approach that loses the mark. Verified previous-year items are named with their year and paper; nothing is called a PYQ on resemblance alone.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 &mdash; is this barrier correct, and if not why</h3>
+          <p class="small">A barrier is given and one statement about it is true: a deadlock, a missing critical section, a wrong semaphore, or a bound on <em>n</em>. The reasoning is about the second invocation.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2006 asks exactly this about the code in this lesson, as the first of a linked pair of questions, and the key is that two invocations in immediate succession may deadlock.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Checking that every shared update is inside a critical section and concluding the code is correct. Both critical sections here are correct, and the code is still wrong.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 &mdash; which change rectifies it</h3>
+          <p class="small">Four candidate repairs, each a small edit: replace a block, add a wait at the start, disable context switching, or change a variable's scope.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2006 asks this as the second of the linked pair; the key is the wait at the start until <code>process_arrived</code> becomes zero.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Choosing the option that removes the symptom you just traced. Option A removes the departure counter, and it lets a single process pass the barrier alone.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 &mdash; what value does the counter reach</h3>
+          <p class="small">A barrier is given with <em>n</em> processes and two invocations, and the question asks for the largest value of a counter, or its value at a named point.</p>
+          <p class="small"><strong>Method.</strong> Count arrivals per round: round one can contribute <em>n</em>, round two can contribute <em>n</em> &minus; 1 before the last process is stuck, so the maximum is 2<em>n</em> &minus; 1. If the reset cannot happen at all &mdash; option D &mdash; the maximum is 2<em>n</em>.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Answering <em>n</em> + 1, which is what the shortest deadlock trace shows (4 for <em>n</em> = 3) but not the largest value any run reaches (5). Read the question: &ldquo;at least&rdquo; and &ldquo;at most&rdquo; give different answers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 &mdash; how many processes are spinning or blocked</h3>
+          <p class="small">Questions asking how many processes can be inside the barrier, spinning, or blocked on a semaphore at one moment.</p>
+          <p class="small"><strong>Method.</strong> In a spin barrier at most <em>n</em> &minus; 1 spin, because the last arrival never spins; in a semaphore barrier at most <em>n</em> &minus; 1 are blocked at the departure semaphore, because the last arrival is the one that opens it. In both cases exactly one process is doing something.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Answering <em>n</em>, or answering &ldquo;all of them, because they are all waiting&rdquo;. The releaser is never waiting.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Shape 5 &mdash; which of these is a correct reusable barrier</h3>
+          <p class="small">Four implementations, one correct. The options usually differ in one of three ways: whether the counter is reset to a constant, whether a sense flag is flipped, or whether there are two phases.</p>
+          <p class="small"><strong>Method.</strong> Ask what each design does about round <em>k</em> + 1. A reset to a constant reuses a value and is wrong unless something else prevents the reuse. A sense flip makes the two rounds different. A two-phase design never resets, so nothing is reused.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Choosing the shortest code. The two-phase barrier is longer than the naive one and is correct; the naive one is four lines and deadlocks in the second round.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set &mdash; answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 and 2 are previous-year items with their year and paper. Questions 3 to 7 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given, and every numeric answer here was recomputed by this page&rsquo;s model or derived in the solution.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2006, linked answer question 78</span></div>
+          <div class="q-body">
+            <p>Barrier is a synchronization construct where a set of processes synchronizes globally, i.e. each process in the set arrives at the barrier and waits for all others to arrive and then all processes leave the barrier. Let the number of processes in the set be three and S be a binary semaphore with the usual P and V functions. Consider this C implementation, with line numbers on the left:</p>
+            <p class="small mono">1: P(S); &nbsp; 2: process_arrived++; &nbsp; 3: V(S);<br>
+            4: while (process_arrived != 3);<br>
+            5: P(S); &nbsp; 6: process_left++;<br>
+            7: if (process_left == 3) { &nbsp; 8: process_arrived = 0; &nbsp; 9: process_left = 0; &nbsp; 10: }<br>
+            11: V(S);</p>
+            <p class="small">The variables <code>process_arrived</code> and <code>process_left</code> are shared among all processes and are initialized to zero. The implementation above is incorrect. Which one of the following is true?</p>
+            <ol class="choices">
+              <li>The barrier implementation is wrong due to the use of binary semaphore S.</li>
+              <li>The barrier implementation may lead to a deadlock if two barrier invocations are used in immediate succession.</li>
+              <li>Lines 6 to 10 need not be inside a critical section.</li>
+              <li>The barrier implementation is correct if there are only two processes instead of three.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>A process can read three on line 4, leave the loop, finish the barrier without resetting the counters (because <code>process_left</code> is not yet 3), and call the barrier again. Its second arrival makes <code>process_arrived</code> four, and the other two processes spin on line 4 for ever. This page&rsquo;s search finds that interleaving in 18 statements and finds 8 deadlocked end states overall.</p>
+            <p><strong>Why A fails.</strong> A binary semaphore is sufficient: it is only used to protect the two counter updates, and both critical sections are correct. <strong>Why C fails.</strong> Lines 6 to 10 must be protected, or two processes can both read <code>process_left</code> as 1 and both write 2, and the reset never happens. <strong>Why D fails.</strong> The search confirms the deadlock for n = 2 as well: the counter reaches 3 = 2n &minus; 1 and both processes spin.</p>
+            <p class="small"><strong>Provenance note.</strong> The question is the first of the linked pair 78&ndash;79 in the GATE CSE 2006 paper, whose text is available in public archives of the paper. It is quoted here because the year and the paper are known; the answer B is the published key.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2006, linked answer question 79</span></div>
+          <div class="q-body">
+            <p>For the same barrier implementation as Question 1, which one of the following rectifies the problem?</p>
+            <ol class="choices">
+              <li>Lines 6 to 10 are simply replaced by <code>process_arrived--</code>.</li>
+              <li>At the beginning of the barrier the first process to enter the barrier waits until <code>process_arrived</code> becomes zero before proceeding to execute <code>P(S)</code>.</li>
+              <li>Context switch is disabled at the beginning of the barrier and re-enabled at the end.</li>
+              <li>The variable <code>process_left</code> is made private instead of shared.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The problem is that <code>process_arrived</code> can pass <em>n</em>. A gate at the start stops a process from beginning a new invocation while the previous one has not finished, so the counter cannot exceed three. This page runs all four options: under B the counter never exceeds 3, whereas the original reaches 4 and D reaches 6.</p>
+            <p><strong>Why A fails.</strong> With the departure counter gone, a process can decrement, re-enter, increment, and read 3 again while the others are still arriving. The search finds 450 states in which a process completes a round before all three have arrived. <strong>Why C fails.</strong> The spin needs other processes to run; with context switching off, the first process to find the counter at 1 spins and nobody can arrive. The search is stuck at the very first invocation. <strong>Why D fails.</strong> A private <code>process_left</code> never reaches 3, so the reset never happens and the counter climbs to 6 = 2n.</p>
+            <p class="small"><strong>Honest note.</strong> A full search on the literal transcription of B still finds 12 stalled end states in the second invocation, because the gate can only be cleared by a reset that round two must produce. The key is B, and it does fix the counter bound the paper is asking about; a barrier for repeated use needs the sense or two-phase design.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following are true of the sense-reversing centralized barrier (count starts at <em>n</em>, shared <code>sense</code>, private <code>local</code>)?</p>
+            <ol class="choices">
+              <li>Each process flips its own <code>local</code> before it decrements the count.</li>
+              <li>The last process to arrive resets the count and then publishes its own sense.</li>
+              <li>A process waiting in round <em>k</em> can be released by a flip belonging to round <em>k</em> + 1.</li>
+              <li>It needs the count to be reset before the sense is published.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, D</p>
+            <p>A is the first line of the procedure, and it is what makes the local value a round marker. B is the last process&rsquo;s branch. D is the ordering that matters: publishing the sense releases the waiters, so the count must already be back at <em>n</em> when a waiter wakes.</p>
+            <p><strong>Why C is false.</strong> The whole point is that it cannot. Round <em>k</em> and round <em>k</em> + 1 use opposite sense values, so a flip belonging to round <em>k</em> + 1 sets the shared sense to the value round <em>k</em> + 2 will want, not the one a round-<em>k</em> waiter is watching. That is exactly the property that makes a stale read harmless, and the search confirms it: 0 deadlocked end states and 0 early releases over two invocations.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>The GATE CSE 2006 barrier is used with <em>n</em> = 5 processes, and every process calls it twice in immediate succession. What is the largest value <code>process_arrived</code> can reach?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 9</p>
+            <p>The counter is never reset, because the reset needs all five processes to pass line 6 and the deadlock prevents that. Round one contributes five arrivals, so the counter reaches 5. One process then slips through line 4 and re-enters the barrier, and four more can do the same before the last one is stuck at the spin. That gives 5 + 4 = 9 = 2<em>n</em> &minus; 1.</p>
+            <p class="small">This page measures the maximum for <em>n</em> = 2, 3 and 4 as 3, 5 and 7, which is 2<em>n</em> &minus; 1 in each case; the general form is the derivation above, not a measurement at <em>n</em> = 5.</p>
+            <p><strong>Why 6 appears.</strong> It is <em>n</em> + 1, the value in the shortest deadlock trace: one process escapes and the other four spin immediately. That is a reachable value, not the largest one. <strong>Why 10 appears.</strong> It is 2<em>n</em>, which is the bound for option D, where the reset never happens even in round one.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>An 8-process barrier is implemented with the spin loop <code>while (process_arrived != 8);</code>. At most how many processes can be executing that spin at the same instant?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 7</p>
+            <p>The process that brings the counter to 8 finds the test already false, so it never enters the loop; it proceeds to the departure section. Every other process can be spinning, so the maximum is <em>n</em> &minus; 1 = 7.</p>
+            <p class="small">Measured here for <em>n</em> = 2 to 5: 1, 2, 3, 4. The bound is a derivation, not a measurement at <em>n</em> = 8.</p>
+            <p><strong>Why 8 appears.</strong> It counts the releasing process as a spinner. <strong>Why 6 appears.</strong> It also excludes the process currently inside the critical section of the departure block, which is a different moment &mdash; the question asks about the spin.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A two-phase barrier uses <code>arrival = 1</code>, <code>departure = 0</code> and <code>counter = 0</code>, with three processes. After all three have arrived and the last one has opened the exit, but before any process has left, what are the values of <code>counter</code> and <code>departure</code>?</p>
+            <ol class="choices">
+              <li>counter = 3, departure = 0</li>
+              <li>counter = 3, departure = 1</li>
+              <li>counter = 0, departure = 1</li>
+              <li>counter = 3, departure = 3</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The counter counts arrivals minus departures, so with three arrivals and no departures it is 3. The last arrival issues exactly one <code>V(departure)</code>, which releases one waiter, so <code>departure</code> is 1: the baton has been handed over and the first process has not yet taken it.</p>
+            <p><strong>Why A appears.</strong> It forgets the <code>V(departure)</code> the last arrival performs. <strong>Why C appears.</strong> It applies the invariant to the wrong moment: the counter reaches 0 only after all three have decremented. <strong>Why D appears.</strong> It assumes the exit is broadcast to everybody; here the baton is passed one process at a time, so <code>departure</code> is never more than 1.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>The naive centralized barrier decrements a shared count (initial <em>n</em>) and spins until the count is <em>n</em> again, the last arrival resetting it. Which statement is true?</p>
+            <ol class="choices">
+              <li>It is correct, because the decrement is atomic.</li>
+              <li>It is incorrect, and making the decrement atomic repairs it.</li>
+              <li>It is incorrect for two invocations, because a fast process can decrement the reset count before a slow process reads it.</li>
+              <li>It is incorrect only when <em>n</em> is greater than the number of processors.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>The last arrival sets the count back to <em>n</em>. A slow process is spinning for exactly that value. A fast process that has already left the barrier decrements it to <em>n</em> &minus; 1, and the slow process now waits for a value that has already been and gone. The search finds 18 deadlocked end states alongside 6 runs that do finish &mdash; the mixture that makes this bug so easy to miss.</p>
+            <p><strong>Why A fails.</strong> Atomicity is necessary and irrelevant here: every operation in the trace is already atomic. <strong>Why B fails.</strong> Same reason. <strong>Why D fails.</strong> The failure is a scheduling interleaving, not a shortage of processors; it reproduces with two processes.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small">Definitions, the three designs, the counts, the traps. If you remember one sentence, remember the one at the bottom of this card.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <p class="small"><strong>Barrier:</strong> no process passes until all <em>n</em> have arrived, and then all pass.</p>
+          <p class="small"><strong>Arrival gate:</strong> a protected counter that counts arrivals and releases at <em>n</em>.</p>
+          <p class="small"><strong>Departure gate:</strong> the part that re-arms the barrier for the next round.</p>
+          <p class="small"><strong>Spin:</strong> a busy wait. The process stays runnable and holds no resource.</p>
+          <p class="small" style="margin-bottom:0"><strong>Sense reversal:</strong> each process flips a private flag; the last arrival publishes the shared one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three designs, side by side</h3>
+          <p class="small"><strong>2006 code:</strong> resets a constant to 0. Correct once, deadlocks on the second invocation.</p>
+          <p class="small"><strong>Sense reversing:</strong> flips a shared boolean each round. Correct for repeated use; one shared word.</p>
+          <p class="small"><strong>Two phase:</strong> counts up to <em>n</em> and down to 0 with arrival and departure semaphores. Correct for repeated use; never resets anything.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The three differ only in how they answer &ldquo;which round is this&rdquo;. The first answers with a value that both rounds produce, which is the bug.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The counts</h3>
+          <p class="small">processes spinning at once: at most <strong>n &minus; 1</strong><br>
+          arrivals needed to release: <strong>n</strong><br>
+          largest counter, two invocations of the 2006 code: <strong>2n &minus; 1</strong><br>
+          largest counter under option D: <strong>2n</strong><br>
+          wake-ups issued by the last arrival in a two-phase barrier: <strong>1</strong>, then one per departure</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 2<em>n</em> &minus; 1 = <em>n</em> arrivals in round one plus <em>n</em> &minus; 1 in round two, because the last process is stuck at the spin. Option D reaches 2<em>n</em> because no reset happens at all.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The traps</h3>
+          <p class="small">1. One working trace is not a proof &mdash; the naive barrier finishes 6 runs and is still broken.</p>
+          <p class="small">2. A spinning process is runnable, so the OS cannot detect the deadlock.</p>
+          <p class="small">3. Atomicity does not fix a reused value.</p>
+          <p class="small" style="margin-bottom:0">4. <em>n</em> + 1 is the shortest deadlock value, not the maximum value.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The reading procedure</h3>
+          <p class="small">1. Find the counter and the process that resets it.</p>
+          <p class="small">2. Ask when that reset can be late.</p>
+          <p class="small">3. Ask what a stale read of the counter can see.</p>
+          <p class="small" style="margin-bottom:0">4. Try two invocations, not one.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The sentence to keep</h3>
+          <p>A barrier needs an arrival gate and a departure gate, and the departure gate must make round <em>k</em> + 1 distinguishable from round <em>k</em>.</p>
+          <p class="small muted" style="margin-bottom:0">That sentence answers the code questions, the counting questions and the option questions, and it tells you which of the four traps a wrong option has fallen into.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from, and what each source supports</h3>
+          <p class="small">Grouped by kind. Official documents and specifications are separated from textbooks and lecture notes, and community archives are separated from both. Every load-bearing claim in the lesson is traceable to one of these, and the claims that are this page&rsquo;s own computation are labelled as derivations rather than cited.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, gate2027.iitm.ac.in. Supports the Section 8 quotation used for the GATE relevance card, read on 2026-11-01.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE 2006 question paper.</strong> The text of the barrier implementation and both linked questions is taken from a public copy of the paper; the wording is quoted, and the answers given are the published keys. The paper numbers the pair 78 and 79.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Textbook and lecture notes</h3>
+          <p class="small"><strong>M. Scott, &ldquo;Scalable Synchronization&rdquo; pseudocode pages</strong>, University of Rochester. Source for the sense-reversing centralized barrier, its provenance (Hensgen, Finkel and Manber; Dimitrovsky), and the acquire/release annotations.</p>
+          <p class="small"><strong>Hensgen, Finkel and Manber, &ldquo;Two algorithms for barrier synchronization&rdquo;</strong> (1988). Source for the epoch/episode vocabulary, the reinitialization problem, and the statement that a correct barrier prevents two processes from executing in adjacent epochs.</p>
+          <p class="small"><strong>Wilkinson and Allen, <em>Parallel Programming</em>, chapter 6</strong> (UCSB course copy). Source for the arrival phase and departure phase of a counter barrier and the statement that a barrier may be used more than once.</p>
+          <p class="small" style="margin-bottom:0"><strong>UT Austin CS380P lecture notes on conditions and barriers</strong>, and <strong>Rice COMP522 lecture notes on locks and barriers</strong>. Sources for the two-phase semaphore barrier used in Example 5, for the two spins per barrier instance, and for the note that a fast thread can reach the next barrier before slow threads observe the reset.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Where the &ldquo;strawman&rdquo; and &ldquo;sense&rdquo; explanations come from</h3>
+          <p class="small"><strong>SFU CMPT 431 slides</strong> and <strong>UPenn CIS 601 notes</strong> both present the naive centralized barrier as explicitly wrong, then present sense reversal as the repair; they supply the phrasing used in scenes 7 and 8. The <strong>GHC OpenMP runtime appendix</strong> documents the same design in production code and states that the sense trick avoids the resetting race.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> These are teaching materials of differing ages; they agree on the mechanism, and the mechanism is what this lesson uses. No claim about GATE weightage is taken from any of them.</p>
+        </div>
+
+        <div class="card card--community">
+          <h3>Community archives, for the previous-year items only</h3>
+          <p class="small">GATE Overflow (the 2006 barrier pages, including the walk-through of the deadlock and the discussion of why option A fails), ExamSIDE (the 2006 paper, indexed as two separate questions), and a GATE quiz archive that reproduces both items. These were used to read the questions and their answer keys, not as authority for the theory.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The archives agree that the keys are B and B. They do not discuss whether option B survives a strict interleaving search; the finding in Example 4 is this page&rsquo;s own computation and is labelled as such.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Where this lesson stops</h3>
+          <p class="small">No audio file is shipped, so the caption timings are estimated from the timeline at a normal speaking rate rather than measured. No video file exists.</p>
+          <p class="small">The searches use three processes and two invocations. The counter-bound and spin-bound figures were measured for <em>n</em> from 2 to 5 and generalised by the derivations stated in the lesson, not measured at larger <em>n</em>.</p>
+          <p class="small">Tree barriers, dissemination barriers, tournament barriers and combining-tree barriers are named but not developed: they change the cost of a barrier, not its correctness, and they are outside the syllabus clause this lesson serves.</p>
+          <p class="small" style="margin-bottom:0">The syllabus is a topic list, not a depth specification. Nothing here claims a marks weight for this topic, and the 2006 items cited are examples that can be read, not a distribution.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>What is this page&rsquo;s own computation</h3>
+          <p class="small">Every state count, deadlock count, early-departure count, counter maximum and spin maximum in this lesson is produced by <code>lesson.js</code> in the browser and re-checked there before it is drawn: 416 and 1538 states for the 2006 barrier, 450 early departures under option A, 12 stalled states under option B, 2396 states for the sense barrier, 1669 and 7054 for the two-phase barrier with an atomic and a non-atomic counter.</p>
+          <p class="small" style="margin-bottom:0">They are labelled <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> because the reasoning is shown and executed, not because a source states them.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
