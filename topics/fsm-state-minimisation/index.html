@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FSM state minimisation — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">FSM state minimisation</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../sequential-circuits/index.html">Prerequisite: sequential circuits</a>
+      <a href="../boolean-algebra-and-minimisation/index.html">Related: Boolean minimisation</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> State minimisation of a finite-state machine: equivalent states, partition refinement, the minimum-state machine, and what the reduction does and does not save.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Decide whether two states of a completely specified machine are equivalent. Build the output partition, then refine it pass by pass until nothing splits. Read the minimum-state machine off the stable partition, and prove it behaves exactly like the original. Compute the flip-flop count before and after, and say honestly when nothing is saved.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>one question asked three ways</em>: which states are the same, how many states remain, and what that changes in hardware. Every number on this page is computed by the page, on three machines, and checked two further ways.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A by clause, with a caveat that is worth stating.</strong> Section 2 of the GATE 2027 CS syllabus, published by IIT Madras, reads: <em>&ldquo;Boolean algebra and minimization &ndash; algebraic technique, Karnaugh map, tabular method. Design of combinational and sequential circuits. Number representation and arithmetic (fixed and floating point).&rdquo;</em> The words <em>Design of &hellip; sequential circuits</em> are named verbatim, and state reduction is a step of that design flow.</p>
+          <p class="small">The caveat: the minimisation words in that sentence &mdash; algebraic, Karnaugh map, tabular &mdash; name the minimisation of a <em>Boolean function</em>, not the minimisation of a <em>state set</em>. State minimisation is therefore <strong>class B in its own right</strong>: not named as a clause, but the step the named design clause ends with. The lesson keeps that distinction rather than claiming more than the document says.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> A question catalogue lists 32 items on combinational and sequential circuits from 2011 onward and tags state equivalence and minimisation in 2025 and 2021. That is somebody's indexing of a collection, not official weightage, and not a forecast for 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../sequential-circuits/index.html">Sequential circuits: latches, flip-flops, counters and machines</a> &mdash; what a state is, Moore against Mealy, and why <em>n</em> states need the ceiling of log base 2 of <em>n</em> flip-flops.</li>
+            <li><a href="../relations-and-their-properties/index.html">Relations and their properties</a> &mdash; equivalence relations and the partitions they induce. State equivalence is an equivalence relation, and its classes are the states of the minimal machine.</li>
+            <li><a href="../sets-and-set-operations/index.html">Sets and set operations</a> &mdash; a partition is a set of non-empty disjoint sets whose union is the whole state set.</li>
+            <li>Reading a state table: one row per state, one column per input, each cell holding a next state and an output.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">No software is needed. The partition refinement, the exact pair search and the string comparison all run in the browser, and their results are printed on the canvas and under it.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A state is a promise, not a name.</strong> Two states are equivalent when every input string produces the same output sequence from both.</li>
+            <li><strong>Start from outputs.</strong> One input can only separate states whose output on it differs, so P0 groups states by their output vector.</li>
+            <li><strong>Refine by classes, not by states.</strong> Split a class when two members move to different <em>classes</em> on the same input.</li>
+            <li><strong>Stop when a whole pass changes nothing.</strong> Every pass only splits, so an early stop merges states that are not equivalent.</li>
+            <li><strong>Fewer states do not always mean fewer flip-flops.</strong> Eight states and five states both need three; four states need two.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate study time: 45&ndash;65 minutes, which is an estimate and not a measurement. Watch the Animation once straight through, then take Examples for the two paper items worked in full, Edge cases for where the algorithm stops applying, and Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">Captions are on by default and switch to Detailed, Keyword or Exam trap without restarting. The count of passing model checks is shown under the canvas; a check that failed would say so there rather than be hidden.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes in the order the reasoning needs them. <strong>1</strong> Two states with identical rows, and a table of strings that agrees from both. <strong>2</strong> The definition over every string, and the 1996 machine where different rows are still equivalent. <strong>3</strong> The 2025 paper machine's eight states bucketed by output vector into four classes. <strong>4</strong> The class {A,B,C,E} splitting into {A,C} and {B,E} by class vector. <strong>5</strong> The twin machine, where one pass gives three classes and the answer is four. <strong>6</strong> The reduced five-row table, and 4,088 string comparisons with no mismatch. <strong>7</strong> The flip-flop staircase, and why 8 &rarr; 5 saves nothing. <strong>8</strong> Moore against Mealy on the same behaviour, two states against three. <strong>9</strong> The three question shapes and the reachability check. <strong>10</strong> The four-line procedure and the five traps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: two shop assistants who answer the same way</h3>
+          <p class="small">A shop has two assistants at two tills. Asked for a refund, both say yes and send the customer to the manager's desk. Asked for a price check, both say no and send the customer to the same shelf. Every question produces the same answer and the same next destination. The shop does not need two people to cover those two tills; one would do, and no customer could tell the difference.</p>
+          <p class="small" style="margin-bottom:0">That is state equivalence, and the reason it matters is cost: one assistant, one state, one register. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The metaphor carries the definition and the saving. It does not carry the hard part, which is that two assistants can answer differently in the moment and still be interchangeable, because the <em>customers they send on</em> are interchangeable too. That is the 1996 counterexample, and it gets its own scene.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The vocabulary, every term in words</h3>
+          <p class="small"><strong>State table</strong> &mdash; one row per state, one column per input. A cell holds the next state and the output produced on that transition (Mealy), or the row holds a single output (Moore).</p>
+          <p class="small"><strong>Input string w</strong> &mdash; any finite sequence of inputs, including the empty string, which is written &epsilon; and has length zero.</p>
+          <p class="small"><strong>out(s, w)</strong> &mdash; the sequence of outputs printed when w is fed in, starting from state s.</p>
+          <p class="small"><strong>Equivalent states</strong> &mdash; p and q are equivalent when out(p, w) = out(q, w) for every string w.</p>
+          <p class="small"><strong>Distinguishing string</strong> &mdash; one string on which two states disagree. One witness proves they are not equivalent.</p>
+          <p class="small" style="margin-bottom:0"><strong>Partition</strong> &mdash; a grouping of the states into non-empty classes, no state in two classes. The classes of the equivalence relation are exactly the states of the minimal machine.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The definition, and the two directions of proof</h3>
+          <p class="formula">p &equiv; q   iff   out(p, w) = out(q, w)  for every input string w
+<span class="gloss">Read: p is equivalent to q exactly when the output sequence is the same from both, whatever string is fed in. The quantifier is over all strings, not over one row of the table.</span></p>
+          <p class="small">To prove two states <em>differ</em> you exhibit one distinguishing string, and that is a complete proof. To prove two states are <em>equivalent</em> you cannot test strings one at a time; you need an argument that covers all of them, which is what the algorithm supplies.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page does both: a brute-force comparison over every string up to length eight, which is evidence, and an exact search over the product graph of state pairs, which is a complete decision procedure.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The algorithm: partition refinement</h3>
+          <p class="small"><strong>P0.</strong> Group the states by their output vector, that is by the list of outputs they print on each input. States that disagree on some single input are separated by a string of length one, so they can never share a class.</p>
+          <p class="small"><strong>Refine.</strong> For each class, replace each member's next state by the <em>class</em> that next state belongs to. Two members stay together only if, for every input, their class vectors are identical. Split the class wherever they are not.</p>
+          <p class="small"><strong>Repeat</strong> until a whole pass changes nothing. The classes of that stable partition are the states of the minimal machine.</p>
+          <p class="small" style="margin-bottom:0"><strong>Read off.</strong> One row per class; the next-state entry is the class of the original next state; the output is the output of any member, which is well defined because the partition was built that way.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Why it terminates, and why it is exact</h3>
+          <p class="small">Each pass either changes nothing, in which case we stop, or adds at least one class, because splitting is the only move. There are at most <em>n</em> classes for <em>n</em> states and P0 already has at least one, so the number of passes is at most <em>n</em> &minus; 1.</p>
+          <p class="small">Exactness runs both ways. If two states survive together in the stable partition, an induction on string length shows no string separates them, so they are equivalent. If two states are in different classes, the pass that separated them found a string that tells them apart, so they are not equivalent.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both directions are checked on this page rather than asserted: the pass count against the bound, and the classes against an exact pair search that shares no code with the refinement loop.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Moore machines, and the one case this does not cover</h3>
+          <p class="small">In a Moore machine the output sits on the state rather than on the transition. P0 then groups states by a single output bit, so it has at most two classes, and every later step is identical. The one visible consequence is a real one: the same behaviour can need fewer states as a Mealy machine than as a Moore machine, because a Mealy machine may print the output on the transition that arrives.</p>
+          <p class="small" style="margin-bottom:0">The case this algorithm does <em>not</em> cover is an incompletely specified machine, where some next state or output is a don't-care. There two states are not equivalent or inequivalent but <em>compatible</em>, compatibility is not transitive, and the right object is a maximal compatible set. Every paper item in this family that could be verified here is completely specified, so partition refinement is enough for the exam, and this page says plainly where it stops.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A state is not a thing. It is a promise about what happens next.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two states that behave the same are one state</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A state is not a thing. It is a promise about what happens next.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked items, each with every pass written out</h3>
+          <p class="small muted" style="margin-bottom:0">The numbers are the ones the animation draws, and the page recomputes each of them on load. Each step names the rule it uses, so a wrong answer can be traced to the pass that produced it.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Example 1 &mdash; GATE CSE 2025 Set 1, Q59: eight states to five</h3>
+          <p class="small">The table, with the next state and the output for each value of the single input X:</p>
+          <p class="formula">state    X=0: next, out    X=1: next, out
+  A         F, 0               B, 0
+  B         D, 0               C, 0
+  C         F, 0               E, 0
+  D         G, 1               A, 0
+  E         D, 0               C, 0
+  F         F, 1               B, 1
+  G         G, 0               H, 1
+  H         G, 1               A, 0
+<span class="gloss">Question as published: the minimum number of states required to realise this FSM is ______. Answer in integer.</span></p>
+          <ol class="step-list small">
+            <li><strong>P0 by output vector.</strong> A, B, C, E print 00; D and H print 10; G prints 01; F prints 11. Four classes. <span class="why">Outputs are the only thing a string of length one can see.</span></li>
+            <li><strong>Refine {A,B,C,E}.</strong> A goes to F then B, which is class 3 then class 0. C goes to F then E, also class 3 then class 0. B goes to D then C, class 2 then class 0. E goes to D then C, the same. Two class vectors, so two classes: {A,C} and {B,E}. <span class="why">Replace each next state by its class before comparing.</span></li>
+            <li><strong>Refine {D,H}.</strong> D goes to G then A, and H goes to G then A. One class vector, so the pair survives. <span class="why">Two different next states in the same class do not separate anything.</span></li>
+            <li><strong>Second pass.</strong> A and C both go to class 3 then class 0; B and E both go to class 2 then class 0; D and H both go to class 4 then class 0. Nothing splits. <span class="why">Stable means a whole pass changes nothing.</span></li>
+            <li><strong>Count.</strong> Five classes, so <strong>five states</strong>. The page's exact pair search finds 25 of the 28 pairs distinguishable and exactly three equivalent: A with C, B with E, D with H.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Answering 4 from P0 alone. The class {A,B,C,E} does split, and that split is the whole question.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 &mdash; GATE CSE 1996, Q2.23: four states to three</h3>
+          <p class="formula">state    X=0: next, out    X=1: next, out
+  A         D, 0               B, 1
+  B         A, 0               C, 1
+  C         A, 0               B, 1
+  D         A, 1               C, 1
+<span class="gloss">Question as published: the number of states in the minimised machine will be 4, 3, 2 or 1.</span></p>
+          <ol class="step-list small">
+            <li><strong>P0 by output vector.</strong> A, B, C print 01; D prints 11. Two classes: {A,B,C} and {D}.</li>
+            <li><strong>Refine {A,B,C}.</strong> A goes to D then B, class 1 then class 0. B goes to A then C, class 0 then class 0. C goes to A then B, class 0 then class 0. So A separates from the pair, and {B,C} stays together.</li>
+            <li><strong>Second pass.</strong> B goes to class 0 then class 0; C goes to class 0 then class 0. Nothing splits. Three classes: {A}, {B,C}, {D}.</li>
+            <li><strong>Answer: three states.</strong> B and C have different rows &mdash; on input 1, B goes to C and C goes to B &mdash; and they are still the same state.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Why this is the useful example.</strong> It is the counterexample to &ldquo;same row means merge, different row means don't&rdquo;. The page confirms the merge independently: B and C agree on all 511 input strings up to length eight, and the exact pair search finds no distinguishing string at all.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 &mdash; the twin machine: two passes, seven states to four</h3>
+          <p class="small">A Moore machine with two inputs. On 0 it walks a chain; on 1 every state returns to A0. A3 is the only state whose output is 1, and the second chain B0 &rarr; B1 &rarr; B2 also ends at A3.</p>
+          <p class="formula">next on 0:  A0->A1  A1->A2  A2->A3  A3->A3
+             B0->B1  B1->B2  B2->A3
+next on 1:  every state -> A0
+output:     1 at A3, 0 at every other state</p>
+          <ol class="step-list small">
+            <li><strong>P0.</strong> Output 1 at A3 only, so two classes: the six output-0 states, and {A3}.</li>
+            <li><strong>Pass 1.</strong> A2 and B2 both go to A3, which is class 1; the rest go to class 0. Three classes: {A0,A1,B0,B1}, {A2,B2}, {A3}.</li>
+            <li><strong>Pass 2.</strong> A1 and B1 go to class 1; A0 and B0 go to class 0. Four classes: {A0,B0}, {A1,B1}, {A2,B2}, {A3}.</li>
+            <li><strong>Pass 3.</strong> No change, so stop. <strong>Four states</strong>, from seven.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>What it demonstrates.</strong> One pass gives three classes and the answer is four, so stopping early under-counts. The longest shortest distinguishing string here has length 3, which is exactly one more than the number of passes.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Example 4 &mdash; the reduced table of the 2025 machine, and what it costs</h3>
+          <p class="small">Five classes, so five rows. Each entry is the class of the original next state, and the output is the output of any member:</p>
+          <p class="formula">class       members   next on 0        next on 1        out 0, out 1
+q0          {A,C}     q3   (was F)       q1   (was B)      0, 0
+q1          {B,E}     q2   (was D)       q0   (was C)      0, 0
+q2          {D,H}     q4   (was G)       q0   (was A)      1, 0
+q3          {F}       q3   (was F)       q1   (was B)      1, 1
+q4          {G}       q4   (was G)       q2   (was H)      0, 1
+<span class="gloss">Sixteen next-state entries become ten. The table is well defined because every member of a class prints the same output and lands in one class.</span></p>
+          <p class="small">The page then runs every input string up to length eight from every one of the eight original states and compares with the reduced machine: <strong>4,088 comparisons, no mismatch</strong>. That is evidence, and the exact pair search is the proof.</p>
+          <p class="small" style="margin-bottom:0"><strong>The cost, computed.</strong> Eight states need three flip-flops and five states need three, so this reduction saves no register. The twin machine is the contrast: seven states need three and four need two, so there one register goes. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The count is the ceiling of log base 2 of the state count, and nothing else.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries: where each rule stops, and what changes when it does</h3>
+          <p class="small muted" style="margin-bottom:0">Each card states the condition a rule needs and what happens when it fails. These are the cases that separate a correct answer from an almost-correct one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Different rows do not mean different states</h3>
+          <p class="small">In the 1996 machine, B goes to A then C while C goes to A then B. The rows differ and the states are equivalent, because A and B are themselves interchangeable from that point on.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition that matters.</strong> Compare the classes of the next states, never the next states themselves. Row comparison is a sufficient test for a merge and never a necessary one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>One pass is enough on some machines and not on others</h3>
+          <p class="small">The 2025 machine stabilises after one pass, and the 1996 machine after one. The twin machine needs two, and one pass there reports three states where the answer is four.</p>
+          <p class="small" style="margin-bottom:0"><strong>The safe rule.</strong> Stop when a whole pass makes no change. The pass count is bounded by <em>n</em> &minus; 1, and on these machines it equals the longest shortest distinguishing string minus one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Fewer states do not always mean fewer flip-flops</h3>
+          <p class="small">Eight states and five states both need three flip-flops, so the 2025 reduction saves nothing in registers. Seven to four does save one, because it crosses from the 5&ndash;8 step to the 3&ndash;4 step.</p>
+          <p class="small" style="margin-bottom:0"><strong>What is always saved.</strong> Rows. Sixteen next-state entries become ten, and the next-state logic shrinks whether or not a register goes.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Unreachable states are not part of the behaviour</h3>
+          <p class="small">On the twin machine, starting at A0, only A0, A1, A2 and A3 can ever be reached: input 1 returns to A0 and input 0 walks forward, so the B chain is dead code. The reduced machine has exactly the four reachable classes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Which the question wants.</strong> If it asks about the table, count the table. If it asks about the machine, delete what cannot be reached first. The two answers coincide here, and they need not in general.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A don't-care entry puts the machine outside this algorithm</h3>
+          <p class="small">With a don't-care next state or output, two states become compatible rather than equivalent, and compatibility is not transitive. Three states can be pairwise compatible and not mergeable together.</p>
+          <p class="small" style="margin-bottom:0"><strong>What to do.</strong> Recognise the shape and say so. The object you need is a maximal compatible set, which is a different problem, and no verified paper item in this family is of that kind.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A Moore machine's minimum can exceed the Mealy minimum</h3>
+          <p class="small">Detect two consecutive ones: two states as a Mealy machine, three as a Moore machine. Both are minimal, and refinement splits neither.</p>
+          <p class="small" style="margin-bottom:0"><strong>The assumption to check.</strong> The word &ldquo;minimum&rdquo; is only meaningful once the machine type is fixed. A question that does not say which type has not been read carefully enough.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce a plausible wrong integer</h3>
+          <p class="small muted" style="margin-bottom:0">Each card gives the belief, why it is tempting, the smallest case that refutes it, and the rule to use instead. They are drawn from the shapes of the wrong answers this family of questions generates, not from a survey of learners.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. &ldquo;States with the same output are the same state&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> P0 is built from outputs, so outputs clearly matter, and on the 2025 machine four states do share one output vector.</p>
+          <p class="small"><strong>Refutation.</strong> In the 2025 machine A and B both print 00 and are not equivalent: the string 01 separates them. The output vector is the starting point, not the answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Group by outputs, then refine by where the states go.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. &ldquo;Different next states mean different states&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The next state is the visible difference in the table, and it feels like the definition of behaving differently.</p>
+          <p class="small"><strong>Refutation.</strong> GATE CSE 1996 Q2.23: B and C have different next states on input 1 and are equivalent, and the answer key is three states, not four.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Compare the classes the next states belong to, not the next states.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. &ldquo;One refinement pass is the algorithm&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Both paper items in this lesson need exactly one pass, so the habit is never punished by the papers people practise on.</p>
+          <p class="small"><strong>Refutation.</strong> The twin machine needs two: one pass gives three classes, and the answer is four. A paper can ask for a machine of that kind.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Repeat until a whole pass changes nothing.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. &ldquo;A smaller machine means fewer flip-flops&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> States are stored in flip-flops, so fewer states sounds like less hardware.</p>
+          <p class="small"><strong>Refutation.</strong> Eight states and five states both need three flip-flops. The ceiling of log base 2 is a step function, and a reduction inside one step saves no register.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Compute the ceiling before and after, and claim a saving only when it falls.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. &ldquo;The minimal machine is one of several choices&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> There are many ways to group a set, so a minimal grouping sounds like a matter of taste.</p>
+          <p class="small"><strong>Refutation.</strong> There is exactly one coarsest correct partition. The page computes it two independent ways, refinement and an exact pair search, and both give the same five classes on the 2025 machine.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The minimal machine is unique up to renaming its states.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. &ldquo;The algorithm works on any state table&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The tables in papers are complete, so the boundary is invisible until it is crossed.</p>
+          <p class="small"><strong>Refutation.</strong> With a don't-care entry, compatibility is not transitive, and the classes a partition produces need not be mergeable sets at all.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Check that every entry is specified before you run the passes. If one is not, the problem has changed.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Three question shapes, one algorithm</h3>
+          <p class="small muted" style="margin-bottom:0">Every item in this family hands you a machine and asks for one of three things. Identify which, and the work is the same four lines. The previous-year items quoted carry their year and question number, and each answer was recomputed here rather than copied from a key.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 &mdash; the minimum number of states</h3>
+          <p class="small">&ldquo;The minimum number of states required to realise this FSM is ______.&rdquo; Run the passes to stability and count the classes. Seen as GATE CSE 2025 Set 1 Q59, where eight states reduce to five.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> The answer cannot exceed the number of rows given, and cannot be below the number of classes P0 forces. On that item: at least 4, at most 8, answer 5.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 &mdash; which states are equivalent</h3>
+          <p class="small">&ldquo;Which of the following pairs can be merged?&rdquo; or &ldquo;the number of equivalent pairs is ______.&rdquo; Read the classes off the stable partition; a pair is equivalent exactly when the two states share a class.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> On the 2025 machine there are 28 pairs and exactly three equivalent ones. An answer naming a pair from an unstable partition is wrong however plausible it looks.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 &mdash; design, then minimise</h3>
+          <p class="small">A behavioural description is given, and the question asks for the number of states, sometimes of the minimum machine. Design first, expect one state too many, then minimise. GATE CSE 1996 Q2.23 is the pure form: four states given, three required.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check.</strong> A machine you have just designed is rarely minimal, so a design question with a state count in it is a minimisation question in disguise.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>The four-line procedure, written down once</h3>
+          <p class="small">Line one: group by output vector, which gives P0. Line two: inside each class, replace every next state by its class and split where the class vectors differ. Line three: repeat until a whole pass changes nothing, then count the classes. Line four: read the reduced table off the classes, one row per class.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why this order.</strong> Every error in this family is in line one, by starting from rows instead of outputs, or in line three, by stopping too early. Doing them in a fixed order makes the error visible at the step that caused it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps, by sight</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Comparing rows instead of classes.</li>
+            <li>Stopping after one pass.</li>
+            <li>Claiming a saved flip-flop when the ceiling did not fall.</li>
+            <li>Reading a Moore machine's minimum off a Mealy machine, or the reverse.</li>
+            <li>Running the passes on a table with don't-care entries.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The sanity checks that cost one line</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>The answer is a whole number between the count of P0 classes and the number of rows.</li>
+            <li>A reduction never creates states.</li>
+            <li>Two states a single input already separates can never be merged.</li>
+            <li>A flip-flop count is the ceiling of log base 2 of the state count, and it never exceeds the number of state bits the table was written with.</li>
+            <li>If your classes are not disjoint and do not cover every state, they are not a partition.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set &mdash; answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 and 2 are previous-year items with their year and question number, and every answer was recomputed by this page. Questions 3 to 7 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2025 Set 1 Q59</span></div>
+          <div class="q-body">
+            <p>Consider a finite state machine with one input X and one output f, given by this transition table. The minimum number of states required to realise this FSM is ______. (Answer in integer)</p>
+            <p class="formula">state   X=0: next, f    X=1: next, f
+  A        F, 0             B, 0
+  B        D, 0             C, 0
+  C        F, 0             E, 0
+  D        G, 1             A, 0
+  E        D, 0             C, 0
+  F        F, 1             B, 1
+  G        G, 0             H, 1
+  H        G, 1             A, 0</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 5</p>
+            <p>P0 by output vector is {A,B,C,E} with 00, {D,H} with 10, {G} with 01 and {F} with 11. One refinement pass splits {A,B,C,E} into {A,C} and {B,E}, because A and C go to class 3 then class 0 while B and E go to class 2 then class 0. The second pass changes nothing, so the classes are {A,C}, {B,E}, {D,H}, {F}, {G}.</p>
+            <p><strong>Why 4 appears.</strong> P0 counted and the refinement skipped. <strong>Why 6 appears.</strong> Splitting {D,H} because the two states reach different next states, when both reach the same classes.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 1996 Q2.23</span></div>
+          <div class="q-body">
+            <p>Consider the following state table for a sequential machine. The number of states in the minimised machine will be</p>
+            <p class="formula">state   X=0: next, out    X=1: next, out
+  A        D, 0               B, 1
+  B        A, 0               C, 1
+  C        A, 0               B, 1
+  D        A, 1               C, 1</p>
+            <ol class="choices">
+              <li>4</li>
+              <li>3</li>
+              <li>2</li>
+              <li>1</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B &mdash; 3 states</p>
+            <p>P0 is {A,B,C} with output 01 and {D} with output 11. The first pass separates A, which goes to class 1 then class 0, from B and C, which both go to class 0 then class 0. The second pass changes nothing, so the classes are {A}, {B,C}, {D}.</p>
+            <p><strong>Why 4 appears.</strong> B and C have different rows, so a row comparison keeps them apart. <strong>Why 2 appears.</strong> Merging all of {A,B,C} because the outputs agree, which the string 00 refutes: A and B print different sequences.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A Moore machine has two inputs and these transitions, with output 1 at A3 and 0 everywhere else. On input 1 every state returns to A0. On input 0 the transitions are A0&rarr;A1, A1&rarr;A2, A2&rarr;A3, A3&rarr;A3, B0&rarr;B1, B1&rarr;B2, B2&rarr;A3. What is the minimum number of states?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 4</p>
+            <p>P0 has two classes. Pass 1 separates {A2,B2}, which reach the one-output state, giving three classes. Pass 2 separates {A0,B0} from {A1,B1}, giving four. Pass 3 changes nothing: {A0,B0}, {A1,B1}, {A2,B2}, {A3}.</p>
+            <p><strong>Why 3 appears.</strong> One pass and no more, which is exactly the trap. <strong>Why 7 appears.</strong> No minimisation at all, although the two chains behave identically.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>For the eight-state machine of GATE CSE 2025 Set 1 Q59, which statements are CORRECT?</p>
+            <ol class="choices">
+              <li>A and C are equivalent states.</li>
+              <li>The minimum machine has five states.</li>
+              <li>Eight states and five states both require three flip-flops.</li>
+              <li>Every pair of the eight states is distinguishable.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and C</p>
+            <p>The page computes all three. The classes are {A,C}, {B,E}, {D,H}, {F}, {G}; the ceiling of log base 2 is 3 for both eight and five; and 25 of the 28 pairs are distinguishable, so three are not.</p>
+            <p><strong>Why D is false.</strong> A with C, B with E and D with H have no distinguishing string at all, which the exact pair search confirms.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>In the eight-state machine above, how many of the 28 unordered pairs of states are equivalent?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>A class of size k contributes k(k&minus;1)/2 equivalent pairs. Here the classes have sizes 2, 2, 2, 1, 1, so 1 + 1 + 1 = 3.</p>
+            <p><strong>Why 5 appears.</strong> Counting classes instead of pairs. <strong>Why 4 appears.</strong> Counting the class of size two twice, or adding the single states.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A Moore machine and a Mealy machine are both required to print 1 on the clock cycle in which the second of two consecutive 1s arrives. Which statement is correct?</p>
+            <ol class="choices">
+              <li>Both need two states, because the behaviour is the same.</li>
+              <li>The Mealy machine needs two states and the Moore machine needs three.</li>
+              <li>The Moore machine needs two states and the Mealy machine needs three.</li>
+              <li>Both need three states, because the output must be stored.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The Mealy machine prints on the transition into its second state, so two states suffice. The Moore machine must print from a state, and the state that carries output 1 is a third state. The page runs refinement on both and neither splits, so both counts are minimal.</p>
+            <p><strong>Why A tempts.</strong> It is true that the behaviour is the same, and false that the minimum is a property of the behaviour alone. <strong>Why C tempts.</strong> Reversing the machine types.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which one of the following is TRUE of the partition refinement used to minimise a completely specified machine?</p>
+            <ol class="choices">
+              <li>A refinement pass can merge two classes into one.</li>
+              <li>Two states in different classes of P0 can still be equivalent.</li>
+              <li>Two states that print different outputs on some input can never share a class.</li>
+              <li>The number of classes can fall as the passes proceed.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>A single input already separates them, so no later pass can put them together. That is exactly why P0 is the starting point rather than the answer.</p>
+            <p><strong>Why A and D are false.</strong> A pass only splits, so the class count is non-decreasing; the page checks this monotonicity on every machine. <strong>Why B is false.</strong> Different P0 classes means different output vectors, which means a distinguishing string of length one exists.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Everything needed for a question in this family, on one screen. If a line here is unfamiliar, the scene that explains it is named beside it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>out(s, w) &mdash; the output sequence printed from s on the string w (scene 2).</li>
+            <li>p &equiv; q when out(p, w) = out(q, w) for every w (scene 2).</li>
+            <li>Distinguishing string &mdash; one w on which a pair disagrees; one witness settles a pair (scene 2).</li>
+            <li>P0 &mdash; the classes of states with the same output vector (scene 3).</li>
+            <li>Refinement &mdash; split a class when two members reach different <em>classes</em> on the same input (scene 4).</li>
+            <li>Stable &mdash; a whole pass changes nothing (scene 5).</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The numbers on this page</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>2025 machine: 8 &rarr; 5 states, P0 has 4 classes, one pass, 3 of 28 pairs equivalent (scene 4).</li>
+            <li>1996 machine: 4 &rarr; 3 states, {B,C} merged, one pass (scene 2).</li>
+            <li>Twin machine: 7 &rarr; 4 states, two passes, P1 has 3 classes (scene 5).</li>
+            <li>Reduced 2025 table: 16 next-state entries &rarr; 10 (scene 6).</li>
+            <li>String comparison: 4,088 evaluations, 0 mismatches (scene 6).</li>
+            <li>Flip-flops: 8 and 5 both need 3; 7 needs 3 and 4 needs 2 (scene 7).</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The procedure in four lines</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Group by output vector: that is P0.</li>
+            <li>Inside each class, replace every next state by its class and split where the class vectors differ.</li>
+            <li>Repeat until a whole pass changes nothing, then count the classes.</li>
+            <li>Read the reduced table off the classes, one row per class.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, and the one-line check for each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Rows instead of classes &mdash; ask &ldquo;same class?&rdquo; at every comparison.</li>
+            <li>Stopping after one pass &mdash; require a full pass with no change.</li>
+            <li>Claiming a saved flip-flop &mdash; compute the ceiling on both sides.</li>
+            <li>Moore against Mealy &mdash; find the word in the question before computing.</li>
+            <li>Don't-cares &mdash; check that every entry is specified.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Three questions to answer from memory before you close this tab</h3>
+          <p class="small">A four-state machine reduces to three. How many flip-flops before and after? <em>(Two and two: the ceiling of log base 2 is 2 for both.)</em></p>
+          <p class="small">Two states print the same output on every input and reach different next states. Are they equivalent? <em>(Not necessarily: compare the classes of the next states, and check for a distinguishing string.)</em></p>
+          <p class="small" style="margin-bottom:0">A partition has four classes and the table has eight rows. What are the two bounds on the answer? <em>(At least 4, at most 8, and the answer is between them.)</em></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson is built on, and what it is not</h3>
+          <p class="small muted" style="margin-bottom:0">The syllabus claim was checked against the official document. The algorithm is the standard partition refinement, and the page re-derives its answers three ways rather than trusting a key. The previous-year items were read from public archives and their arithmetic was recomputed here, not copied.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official and academic</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> &mdash; <code>CS_GATE2027_Syllabus.pdf</code>. Section 2 read on 31 October 2026: <em>&ldquo;Boolean algebra and minimization &ndash; algebraic technique, Karnaugh map, tabular method. Design of combinational and sequential circuits. Number representation and arithmetic (fixed and floating point).&rdquo;</em> This supplies the class A / class B distinction drawn in the Overview.</li>
+            <li><strong>Partition refinement as an algorithm</strong> &mdash; the standard treatment is in Hopcroft and Ullman, <em>Introduction to Automata Theory</em>, and in Kohavi, <em>Switching and Finite Automata Theory</em>. Neither book was opened during this run, so they are named as the conventional home of the method rather than as sources consulted. Every step used here was re-derived and then checked in code.</li>
+            <li><strong>Course notes on state minimisation</strong> &mdash; university notes describing the same pass structure were read for the wording of the split rule. The page does not quote them.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Previous-year items</h3>
+          <p class="small">Each was read from a public archive of the paper, and every number was recomputed on this page.</p>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE CSE 2025 Set 1, Q59</strong> &mdash; eight-state FSM, minimum states. The answer 5 agrees with the published answer key, and the page's own refinement and pair search both produce five classes.</li>
+            <li><strong>GATE CSE 1996, Q2.23</strong> &mdash; four-state sequential machine, number of states in the minimised machine. Answer 3, with B and C merged.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Honest limits of this page</h3>
+          <p class="small">The two previous-year items are transcriptions from community archives, not scans of the official papers. The 2025 table is reproduced in full because two independent archives agree on it; the 1996 item is reproduced without its answer letters being re-verified beyond the recorded key.</p>
+          <p class="small">The state counts are computed, not measured: refinement, an exact pair search over all pairs, and a brute-force comparison on every string up to length eight. The third is evidence and the second is a proof, and the page labels them that way rather than calling all three proofs.</p>
+          <p class="small" style="margin-bottom:0">Incompletely specified machines are described but not computed, because they need maximal compatible sets and no verified paper item in this family is of that kind. No audio file exists: the narration is the browser's speech synthesis, and the subtitle timings are estimated from the timeline rather than measured from recorded speech. No video file exists either.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

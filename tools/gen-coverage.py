@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-10-31"  # the date this tracker was regenerated
+RUN_DATE = "2026-11-01"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -1059,6 +1059,73 @@ topics.append(topic(
         "analysis: one next-state equation per flip-flop, then tabulate and walk",
         "the 2017 Set 1 Q33 walk 11 01 10 11 and the clock-zero convention",
         "ring versus Johnson, latch versus flip-flop, setup versus hold, ripple versus synchronous",
+    ]))
+
+topics.append(topic(
+    "Digital Logic", "Sequential design",
+    "FSM state minimisation: equivalent states, partition refinement and the minimum-state machine",
+    ["state equivalence and the definition over every input string",
+     "the output partition P0",
+     "the refinement step and the class vector",
+     "stabilising the partition and reading the reduced table",
+     "the minimum-state machine and its uniqueness",
+     "Moore against Mealy state counts",
+     "the flip-flop count before and after",
+     "reachability, and incompletely specified machines"],
+    prereq=["Design of sequential circuits", "relations and their properties",
+            "sets and set operations", "Boolean algebra and minimisation"],
+    related=["Design of sequential circuits", "Boolean algebra and minimisation",
+             "regular expressions and finite automata", "Design of combinational circuits"],
+    importance="high",
+    evidence=("Section 2 of the GATE 2027 CS syllabus (IIT Madras, CS_GATE2027_Syllabus.pdf) names "
+              "'Design of combinational and sequential circuits' verbatim, and state reduction is the step that "
+              "design flow ends with; the minimisation words in the same sentence (algebraic, Karnaugh map, "
+              "tabular) name Boolean-function minimisation, not state minimisation, so this entry is class A by "
+              "clause and class B in its own right, and the lesson says so. Verified previous-year items used in "
+              "the lesson: GATE CSE 2025 Set 1 Q59 (eight-state FSM, minimum states = 5, agrees with the published "
+              "answer key) and GATE CSE 1996 Q2.23 (four-state machine, three states after minimisation). A question "
+              "catalogue lists 32 items on combinational and sequential circuits from 2011 onward and tags state "
+              "equivalence in 2025 and 2021; that is a community index, not a weightage figure."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="fsm-state-minimisation",
+    path="topics/fsm-state-minimisation/index.html",
+    execution=("2026-11-01: published; 55/55 model checks passed, geometry audit clean, 10 scenes, 40 caption cues, "
+               "captions derived from the timeline"),
+    microtopics=[
+        "a state is a promise about outputs, not a name",
+        "identical rows are sufficient for a merge and never necessary",
+        "equivalence quantified over every input string, including the empty one",
+        "out(s, w) as the output sequence printed from s on w",
+        "a distinguishing string is a complete proof that two states differ",
+        "one witness settles a pair; equivalence needs an argument over all strings",
+        "P0 groups states by their output vector, because one input sees only outputs",
+        "the classes of P0 are the 1-equivalent states",
+        "the refinement rule: same class vector for every input, or split",
+        "replace each next state by its class before comparing",
+        "two different next states in one class do not separate anything",
+        "the pass count is at most n - 1 for n states, since a pass splits or stops",
+        "stability means a whole pass changes nothing, not that one class looks settled",
+        "every pass only splits, so an early stop always merges non-equivalent states",
+        "the pass count equals the longest shortest distinguishing string minus one",
+        "the reduced table is well defined only when the partition is stable",
+        "the minimal machine is unique up to renaming its states",
+        "the flip-flop count is the ceiling of log base 2 of the state count",
+        "a reduction inside one power-of-two step saves no flip-flop: 8 -> 5 stays at 3",
+        "a reduction that crosses a step does save one: 7 -> 4 goes from 3 to 2",
+        "the next-state table always shrinks: 16 entries become 10 on the 2025 machine",
+        "Moore P0 is built from a single output bit, so it has at most two classes",
+        "the same behaviour needs 2 states as Mealy and 3 as Moore (detect 11)",
+        "both of those machines are already minimal, so the gap is the machine type",
+        "unreachable states contribute nothing to the behaviour",
+        "an incompletely specified machine gives compatible states, and compatibility is not transitive",
+        "don't-cares need a maximal compatible set, not a partition",
+        "GATE CSE 2025 Set 1 Q59: 8 states to 5, P0 = 4 classes, one pass",
+        "GATE CSE 1996 Q2.23: 4 states to 3, B and C equivalent although their rows differ",
+        "the twin machine: 7 states to 4, needing two passes where one pass reports 3",
+        "the 2025 reduced table reproduces the original on 4088 string evaluations with no mismatch",
+        "the refinement is cross-checked against an exact pair search on all 28 pairs",
+        "the three question shapes and the sanity check on each",
     ]))
 
 topics.append(topic(
