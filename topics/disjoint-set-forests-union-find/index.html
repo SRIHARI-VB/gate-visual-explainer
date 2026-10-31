@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Disjoint-set forests (union-find) — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Disjoint-set forests (union-find)</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../graph-traversals-mst-shortest-paths/index.html">Related: MST and shortest paths</a>
+      <a href="../best-average-worst-and-amortised-analysis/index.html">Prerequisite: amortised analysis</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Disjoint-set forests — the union-find structure: parent pointers, union by rank or by size, path compression, and the bounds that come from combining them.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Read a parent array and say which sets it defines; trace a sequence of unions and finds to a final array; state why the naive linking rule costs Θ(n) for one find; prove that union by rank bounds the height by ⌊log₂ n⌋; explain what path compression rewrites and what it must not touch; and give the four bounds — Θ(n), O(log n), O(m log n), O(m α(n)) — each with its assumption.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the data structure behind the cycle test in Kruskal's algorithm</em>, not as a general graph structure. It is not named in the syllabus; it is the mechanism that makes one named syllabus item — minimum spanning trees — run in the time the textbooks quote.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite for a syllabus topic, not named in it.</strong> Section 5 of the GATE 2027 CS syllabus (IIT Madras) reads: "Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths." The words "union-find" and "disjoint set" do not appear anywhere in the 2027 syllabus.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The structure is examined through those clauses rather than by name. <strong>GATE CSE 1992</strong> asked for the complexity of Kruskal's algorithm <em>when the edges are already sorted</em> — which removes the sort and leaves exactly the disjoint-set work. <strong>GATE CSE 1991</strong> asked for the complexity of Kruskal's algorithm outright.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Learners report two recurring confusions: that "amortised O(α(n))" means O(1), and that the parent array is determined by the unions alone. That is an observation about what gets asked, not a measured claim.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><a href="../arrays-stacks-queues/index.html">Arrays</a> — the whole structure is one array of n integers.</li>
+            <li><a href="../graph-representations/index.html">Graph representations</a> — components, cycles and spanning trees are the objects being tested.</li>
+            <li><a href="../graph-traversals-mst-shortest-paths/index.html">Traversals, MSTs and shortest paths</a> — where Kruskal appears, and the cycle test this lesson supplies.</li>
+            <li><a href="../best-average-worst-and-amortised-analysis/index.html">Amortised analysis</a> — the aggregate, accounting and potential methods, and why a sequence bound is not a per-operation bound.</li>
+            <li><a href="../asymptotic-complexity/index.html">Asymptotic complexity</a> — O, Ω and Θ, and what "tight" means.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Approximate learning time: 50 to 70 minutes, including the practice set. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>A partition is stored as a forest, and the root of each tree names its set.</li>
+            <li>Both operations cost hops, so the only thing that matters is the shape of the trees.</li>
+            <li>Union by rank keeps the height at most ⌊log₂ n⌋, and the bound is tight.</li>
+            <li>Path compression rewrites pointers on the way out of a find; it never changes a rank or a root.</li>
+            <li>Together they give O(m α(n)) for a sequence — a total, not a per-operation guarantee.</li>
+          </ol>
+        </div>
+
+        <div class="card span-2 card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, 300 seconds, one canvas. Scene 1 draws six elements, three unions and the resulting forest, so the parent array is seen before it is used. Scene 2 links the same eight elements in the worst direction and measures the chain: height 7, one find walking 7 hops. Scene 3 applies union by rank and draws the eight-element tree with its ranks, beside the table where a balanced merge attains ⌊log₂ n⌋ exactly at six sizes. Scene 4 runs one find with path compression on the chain and shows the array before and after, then the second find at one hop. Scene 5 puts the four implementations on the same 2,000-union sequence and measures 60.93, 3.31, 2.59 and 1.93 hops per operation. Scene 6 builds the Ackermann table from its own recursion and reads the inverse off it. Scene 7 runs Kruskal on a six-vertex graph, accepting five edges of total weight 14 and rejecting four. Scene 8 counts components two ways. Scene 9 names what the structure cannot do. Scene 10 reduces the topic to four questions.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: club memberships that only ever merge</h3>
+          <p class="small">Six people start in six clubs of one member each. A merger joins two clubs; nobody ever leaves, and no club ever splits. The only questions anyone asks are "which club is this person in?" and "are these two in the same club?" — never "who is in club three?" and never "how did they meet?"</p>
+          <p class="small">A cheap way to record this is to give every member a single note: <em>my club's president is …</em>. Then "which club?" means following the notes until someone is their own president. The whole design problem is that a careless merger can make that chain as long as the club.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The club is an analogy for the partition and the notes are the parent pointers. The definitions are in the next card.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definitions</h3>
+          <p class="small">A <strong>partition</strong> of a set S is a collection of non-empty subsets that are pairwise disjoint and whose union is S. Every element of S is in exactly one block.</p>
+          <p class="small"><strong>MAKE-SET(x)</strong> creates the block {x}. <strong>FIND(x)</strong> returns the representative of the block containing x. <strong>UNION(x, y)</strong> replaces the two blocks containing x and y by their union.</p>
+          <p class="small"><strong>Forest representation:</strong> each block is a rooted tree; each element x stores $$p[x]$$, its parent, and a root satisfies $$p[x] = x$$. FIND follows $$p$$ until a root.</p>
+          <p class="small"><strong>Rank</strong> $$r[x]$$ is an upper bound on the height of the subtree at x. <strong>Size</strong> $$s[x]$$ is the number of nodes in that subtree.</p>
+          <p class="small" style="margin-bottom:0"><strong>Union by rank:</strong> attach the root of smaller rank under the root of larger rank; on a tie increase the surviving root's rank by one. <strong>Path compression:</strong> during FIND, make every node on the path point at the root.</p>
+        </div>
+
+        <div class="card">
+          <h3>Symbols, in words</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>p[x]</strong> — the parent of x, one integer per element. If p[x] = x then x is a root and names its set.</li>
+            <li><strong>r[x]</strong> — the rank, an upper bound on the height below x. It only ever rises, and only for roots.</li>
+            <li><strong>s[x]</strong> — the size, the node count below x. Also only meaningful at a root.</li>
+            <li><strong>n</strong> — the number of elements; <strong>m</strong> — the number of operations in a sequence.</li>
+            <li><strong>α(n)</strong> — the inverse Ackermann function, defined in scene 6 from its own recursion.</li>
+            <li><strong>hop</strong> — one follow of a parent pointer. The unit of cost throughout, because it is what a find spends.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The two heuristics, and why they are independent</h3>
+          <p class="small"><strong>Union by rank</strong> acts at union time and changes only the direction of one link. It costs O(1) extra per union and needs one integer per element.</p>
+          <p class="small"><strong>Path compression</strong> acts at find time and changes many links. It costs one extra assignment per node on the path and needs nothing extra.</p>
+          <p class="small" style="margin-bottom:0">Neither depends on the other: either can be used alone, and each has its own bound. Using both is what produces α(n), and the two effects are not additive — the combination is better than the sum of the parts.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one-sentence version</h3>
+          <p class="small" style="margin-bottom:0">Store a partition as a forest of parent pointers; keep the trees shallow by attaching the shorter under the taller; flatten the path you just walked every time you look; then a sequence of m operations on n elements costs O(m α(n)), which is a statement about the sequence and not about any one operation.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Six elements, each alone in its own set. A union merges two sets. A find asks which set an element is in.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Are these two in the same group?</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Six elements, each alone in its own set. A union merges two sets. A find asks which set an element is in.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked examples, all computed on this page</h3>
+          <p class="small" style="margin-bottom:0">Each one names the operation first, then counts hops. The numbers on the Animation tab come from the same model, so the two agree by construction rather than by copying.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — the chain, and one find that walks it</h3>
+          <p class="small">Eight elements. Apply union(i, i+1) for i = 0 … 6 with the rule "the first root becomes a child of the second".</p>
+          <p class="small">The parent array is <code>1 2 3 4 5 6 7 7</code>, the height is 7, and find(0) walks exactly 7 hops — one per edge of the path. Every start node x costs 7 − x hops, checked here for all eight.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The cost of a find is the depth of its start node, so a sequence of unions that produces a path of length n − 1 makes one find Θ(n). At n = 64 the same call walks 63 hops, and ten such finds walk 630.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — eight elements, union by size, the array by hand</h3>
+          <p class="small">Unions in order: (0,1), (2,3), (4,5), (6,7), (0,2), (4,6), (0,4). On a tie the first argument's root stays on top.</p>
+          <p class="small">The final parent array is <code>0 0 0 2 0 4 4 6</code> and the sizes at the roots are 8 at node 0, with node 2 holding 2 and node 4 holding 4 before the last union. The height is 3.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Node 0 has children 1, 2 and 4; node 2 has child 3; node 4 has children 5 and 6; node 6 has child 7. Every non-root's chain ends at 0, which is why counting roots gives 1 and why the height is 3 rather than 7.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — one find with path compression</h3>
+          <p class="small">Start from the chain of Example 1. Call find(0).</p>
+          <p class="small">The walk costs the same 7 hops, and then every node on the path is rewritten to point at the root: the array becomes <code>7 7 7 7 7 7 7 7</code>. The second find(0) costs 1 hop.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> At n = 64, ten finds of the deepest node cost 72 hops with compression — 63 for the first, then one for each of the nine later ones — against 630 without it. Compression does not make the first query cheaper; it makes every later query on that path trivial.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — the same 2,000 unions through four implementations</h3>
+          <p class="small">256 elements, 2,000 union calls drawn from a fixed pseudo-random sequence, identical for each implementation. Hops per operation:</p>
+          <p class="small">no repair <strong>60.93</strong>; union by rank alone <strong>3.31</strong>; path compression alone <strong>2.59</strong>; both <strong>1.93</strong>.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> All four reject the same 1,745 unions and all four end with the same number of roots, so the sequence is identical work — only the shape differs. The ordering matches the four bounds; the absolute numbers are properties of this sequence, not of the structure.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Example 5 — Kruskal on six vertices and nine edges</h3>
+          <p class="small">Edges in weight order: B–C 2, D–E 2, C–D 3, E–F 3, A–B 4, A–C 4, B–D 5, D–F 6, C–E 6. For each edge, two finds decide; a union follows only when the roots differ.</p>
+          <p class="small"><strong>Accepted:</strong> B–C, D–E, C–D, E–F, A–B — five edges, total weight 14. <strong>Rejected:</strong> A–C, B–D, D–F, C–E — four edges, each rejected because its endpoints were already connected.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The run performs 2 × 9 = 18 finds and exactly n − 1 = 5 successful unions, and spends 12 pointer hops in total — the cost of the whole cycle testing on this graph. Sorting the nine edges, by contrast, needs about 9 log₂ 9 ≈ 28 comparisons, which is why the sort usually dominates the union-find work.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the picture stops being ordinary</h3>
+          <p class="small">Each card is a boundary of a definition or of a bound, with the condition it violates or the witness that shows the boundary. Every number is computed on the Animation tab.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 1 — a single find can still cost Θ(n) with compression on</h3>
+          <p class="small">Compression is applied at find time, so it cannot stop a later union from lengthening a path. Start from a chain, compress it, then link its root under a fresh element repeatedly: each new find can walk a fresh path.</p>
+          <p class="small" style="margin-bottom:0">So "path compression makes find fast" is false as a per-operation claim. The theorem is about a sequence: m finds and n − 1 unions cost O(m log n) with arbitrary linking (Tarjan and van Leeuwen, 1984).</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 2 — rank is an upper bound, and it is strict after compression</h3>
+          <p class="small">On the eight-element rank trace, the root has rank 3 and the true height is 3. After one find(7), the height is 2 and the root still has rank 3.</p>
+          <p class="small" style="margin-bottom:0">Rank is never decreased, because the untouched branches still have their old depth and the true height is not known cheaply. Height ≤ rank always; equality is not guaranteed.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 3 — union of an element with itself</h3>
+          <p class="small">UNION(x, x) finds the same root twice and changes nothing. It is not an error, and it must not decrement the set count.</p>
+          <p class="small" style="margin-bottom:0">This is the smallest instance of the rule that only a union of two <em>different</em> roots changes the partition: n − k sets remain after k successful unions.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 4 — the tie rule decides the array</h3>
+          <p class="small">When two roots have equal rank, either may stay on top. "Keep the first argument's root" and "keep the second" give different parent arrays for the same union sequence, both with the same height bound.</p>
+          <p class="small" style="margin-bottom:0">A question that asks for an array must state the rule; a question that asks for a bound need not. On this page every trace uses "the first argument's root stays on top", which is stated wherever an array appears.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 5 — n = 1 and the empty sequence</h3>
+          <p class="small">With one element there is one set, one root, and find costs zero hops. With zero operations the bound O(m α(n)) is 0, which is why the bound is written for m ≥ n in the classical statements: with very few operations, α(n) is not the interesting term.</p>
+          <p class="small" style="margin-bottom:0">The textbook form is: starting from an empty structure, any sequence of m ≥ n FIND and n − 1 UNION operations costs O(m α(n)).</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 6 — α(n) does grow, just unreachably slowly</h3>
+          <p class="small">With A(0,j) = j+1, A(k,0) = A(k−1,1) and A(k,j) = A(k−1, A(k,j−1)), the values A(k,1) are 2, 3, 5, 13 and 65,533.</p>
+          <p class="small" style="margin-bottom:0">So α(n) = 4 up to n = 65,533 and 5 from 65,534 up to at least 2^65536, a number of about 19,729 digits. It is bounded on every interval you can name and unbounded overall — both statements are true, and only the second is the theorem.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that survive a first reading</h3>
+          <p class="small">Each card states the wrong belief, why it tempts, the smallest witness against it, and the rule to use instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M1 — "union-find is O(1) per operation"</h3>
+          <p class="small"><strong>Why it tempts:</strong> every tutorial ends with "effectively constant", and α(n) is under 5 for anything you can store.</p>
+          <p class="small"><strong>Witness:</strong> α(n) is not a constant. It is 5 at n = 65,534 and rises again at unreachable sizes, so O(1) is false as a theorem even where it is true in practice.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> amortised O(α(n)) per operation, O(m α(n)) for a sequence. Say "effectively constant" only as a remark, never in place of the bound.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M2 — "rank is the height"</h3>
+          <p class="small"><strong>Why it tempts:</strong> before compression is switched on, they are equal — the eight-element trace has rank 3 and height 3.</p>
+          <p class="small"><strong>Witness:</strong> after one find(7) on that same trace, the height is 2 and the root's rank is still 3.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> rank is an upper bound on height, never decreased, and it is what the linking rule compares. Height is what a find actually walks.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M3 — "union by rank and union by size are the same"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both keep the trees shallow, both give O(log n), and courses use the names almost interchangeably.</p>
+          <p class="small"><strong>Witness:</strong> they break ties differently, so the same union sequence gives two different parent arrays — and a question that asks for an array has one right answer only after the rule is named.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> interchangeable for a bound, not interchangeable for an array.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M4 — "path compression alone gives α(n)"</h3>
+          <p class="small"><strong>Why it tempts:</strong> compression is the part you can see, and the visible flattening looks like the whole trick.</p>
+          <p class="small"><strong>Witness:</strong> compression with arbitrary linking leaves a single find at Θ(n) — the chain is still a legal sequence of unions — and its total bound is O(m log n), not O(m α(n)).</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> α(n) needs both. Union by rank bounds the height; compression removes the work that height would cost.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M5 — "the unions determine the parent array"</h3>
+          <p class="small"><strong>Why it tempts:</strong> a sequence of unions feels like a complete specification of the structure.</p>
+          <p class="small"><strong>Witness:</strong> with compression on, every find can rewire the paths the unions left behind, so the array depends on the order of the queries as well.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> without compression, the unions plus the tie rule determine the array. With compression, the full sequence of operations does.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M6 — "union-find detects cycles in any graph"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the cycle test is taught alongside Kruskal, and Kruskal is remembered as "the MST algorithm" without the word undirected.</p>
+          <p class="small"><strong>Witness:</strong> a → b and b → a is a directed cycle, and a union-find sees only that a and b are in one set — which is exactly what a spanning tree of the underlying undirected graph would say.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the test is valid for undirected graphs. Directed cycle detection needs a DFS colouring or a topological sort.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five shapes this topic takes on a paper</h3>
+          <p class="small">Each card names the shape, the reasoning it demands, and the wrong approach that produces a plausible option. Historical frequency is an observation about past papers, not a prediction for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>P1 — how many components remain</h3>
+          <p class="small"><strong>Shape:</strong> n labelled elements and a list of union operations; "the number of connected components after all the unions is".</p>
+          <p class="small"><strong>Reasoning:</strong> count the operations that merge two different sets and subtract from n. Eight calls on ten elements with one redundant call leave 10 − 7 = 3 sets.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> counting the calls instead of the merges, which gives 10 − 8 = 2.</p>
+        </div>
+
+        <div class="card">
+          <h3>P2 — the final parent array</h3>
+          <p class="small"><strong>Shape:</strong> a sequence of unions (sometimes with finds interleaved) and a stated linking rule; "the parent array is".</p>
+          <p class="small"><strong>Reasoning:</strong> apply the rule literally, root by root, and never skip a find. On a tie, follow the stated rule exactly, because the other tie rule gives a different array.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> drawing the trees from memory of the sets rather than from the pointers, which produces an array that is consistent with the partition but not with the sequence.</p>
+        </div>
+
+        <div class="card">
+          <h3>P3 — the bound, with the sort removed</h3>
+          <p class="small"><strong>Shape:</strong> the GATE 1992 item — "complexity of Kruskal's algorithm … if the edges are sorted is".</p>
+          <p class="small"><strong>Reasoning:</strong> delete the sorting term, leaving two finds and at most one union per edge. With union by rank and path compression that is O(m α(n)); with union by rank alone, O(m log n).</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> quoting O(m log m), which is the answer with the sort still in it. The question gave the sort away.</p>
+        </div>
+
+        <div class="card">
+          <h3>P4 — counting the operations inside Kruskal</h3>
+          <p class="small"><strong>Shape:</strong> a graph with n vertices and m edges; "the number of find and union operations performed" or "the number of edges rejected".</p>
+          <p class="small"><strong>Reasoning:</strong> two finds per edge examined, exactly n − 1 successful unions, and m − (n − 1) rejections if all m edges are examined. On six vertices and nine edges: 18 finds, 5 unions, 4 rejects.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> assuming m unions, or forgetting that the algorithm may stop after n − 1 accepted edges.</p>
+        </div>
+
+        <div class="card">
+          <h3>P5 — which heuristic matters for which question</h3>
+          <p class="small"><strong>Shape:</strong> a statement question — "which of the following is TRUE about disjoint sets with union by rank and path compression".</p>
+          <p class="small"><strong>Reasoning:</strong> test each option against the four rows: Θ(n), O(log n) and tight, O(m log n), O(m α(n)). Options about a single operation belong to the first or second row; options about a sequence belong to the third or fourth.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> accepting "O(1) amortised" because it is the phrase remembered from a tutorial.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The four questions, in the order to ask them</h3>
+          <p class="small">Which linking rule — naive, rank or size, and which tie rule? Is compression on, and if so what is the order of the finds? Am I counting hops for one operation or for a sequence, and what are n and m? Which of the four rows does the option list correspond to?</p>
+          <p class="small muted" style="margin-bottom:0">Every worked example and every practice question on this page is one instance of those four questions; nothing in the procedure needs the animation.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set</h3>
+          <p class="small">Nine questions: one is a verified past-paper item, eight are original practice written for this lesson. Answers are hidden until you reveal them one at a time; the mock-test switch hides them all and reveals them together.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode — hide every answer until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 1992, Q1(ix)</span> NAT</p>
+          <p class="small">Complexity of Kruskal's algorithm for finding the minimum spanning tree of an undirected graph containing n vertices and m edges if the edges are sorted is _______.</p>
+          <p class="small">Answer in the form O( … ), assuming union by rank with path compression.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: O(m α(n))</span></p>
+            <p class="small">The question removes the sort, so the only work left is the disjoint-set work: two finds and at most one union per edge, which is O(m α(n)) with both heuristics.</p>
+            <p class="small"><strong>Why other answers appear.</strong> With union by rank alone the run is O(m log n), and with neither heuristic O(m n); both are correct for a different implementation. Archives of this 1992 item disagree for exactly that reason, which is why the answer must name its assumption. The official key was not verified for this page.</p>
+            <p class="small" style="margin-bottom:0">The model checks the counts that make the bound: on the six-vertex graph the run performs 18 finds, 5 unions and 4 rejections, which is the O(m) factor multiplied by the per-operation cost.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Elements 0–7 start as singleton sets. The unions (0,1), (2,3), (4,5), (6,7), (0,2), (4,6), (0,4) are applied in order with union by size, and on a tie the first argument's root stays on top. The final parent array is</p>
+          <p class="small">(A) 0 0 0 2 0 4 4 6 &nbsp; (B) 0 0 0 0 0 0 0 0 &nbsp; (C) 0 1 2 3 4 5 6 7 &nbsp; (D) 0 0 2 2 0 4 6 6</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A</span></p>
+            <p class="small">After the four pairs the roots are 0, 2, 4 and 6, each holding two nodes. union(0,2) ties at size 2, so 0 stays on top and holds 4. union(4,6) ties, so 4 stays on top and holds 4. union(0,4) ties at size 4, so 0 stays on top and holds 8; node 4 points at 0, and nodes 5 and 6 stay under 4 with 7 under 6.</p>
+            <p class="small"><strong>B</strong> is what path compression on every element would give, and no find was made. <strong>C</strong> is the array before any union. <strong>D</strong> is what union by rank would give if the tie went the other way on the last union.</p>
+            <p class="small" style="margin-bottom:0">The height of A is 3, and the root holds all eight elements — both verified in the model.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">A disjoint-set forest uses union by rank and path compression. A root has rank 3. Which statement is TRUE?</p>
+          <p class="small">(A) Its tree has height exactly 3 &nbsp; (B) Its tree has height at most 3, and may be less &nbsp; (C) Its tree has height at least 3 &nbsp; (D) Its rank becomes 2 after a find passes through it</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Rank is an upper bound on height. Compression rewrites paths without touching ranks, so the height can fall below the rank: on the eight-element trace, find(7) takes the height from 3 to 2 while the root keeps rank 3.</p>
+            <p class="small"><strong>A</strong> holds only while no compression has happened. <strong>C</strong> is the wrong direction — a rank-3 root can be a star of height 1 after enough finds. <strong>D</strong> is false: compression never changes a rank.</p>
+            <p class="small" style="margin-bottom:0">The page checks height ≤ rank at all 64 nodes of a compressed tree, and checks that no rank changed.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MSQ</p>
+          <p class="small">Which of the following are TRUE for a disjoint-set forest on n elements?</p>
+          <p class="small">(I) Union by rank alone gives O(log n) per find, and this bound is tight.<br>
+             (II) Path compression alone gives O(1) amortised per operation.<br>
+             (III) Union by rank with path compression gives O(m α(n)) for a sequence of m operations.<br>
+             (IV) Without either heuristic a find can cost Θ(n).</p>
+          <p class="small">(A) I and IV only &nbsp; (B) I, III and IV only &nbsp; (C) II and III only &nbsp; (D) All four</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small"><strong>I</strong> is true and tight: the balanced merge attains exactly ⌊log₂ n⌋ at n = 2, 4, 8, 16, 32 and 64 on this page, so the bound cannot be improved to a constant while the linking rule is the only repair.</p>
+            <p class="small"><strong>II</strong> is false. Compression with arbitrary linking gives O(m log n) for a sequence and still allows a single Θ(n) find, because a later union can lengthen a path again (Tarjan and van Leeuwen, 1984).</p>
+            <p class="small"><strong>III</strong> is the classical bound, and <strong>IV</strong> is the chain of scene 2: 7 hops at n = 8, 63 at n = 64.</p>
+            <p class="small" style="margin-bottom:0">So A misses III, C misses I and IV and wrongly includes II, and D wrongly includes II.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">Ten elements start as singleton sets. The union calls (0,1), (2,3), (1,3), (4,5), (6,7), (8,9), (0,9), (1,2) are applied in order with union by rank and path compression. How many sets remain?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 3</span></p>
+            <p class="small">Seven of the eight calls merge two different sets; the last call, union(1,2), finds both already in one set and changes nothing. So the number of sets is 10 − 7 = 3.</p>
+            <p class="small">The second route gives the same number: count the elements that are their own parent, which is 3.</p>
+            <p class="small" style="margin-bottom:0">Neither the linking rule nor compression affects this count — only the number of successful merges does, which is why this question can be answered without drawing a single tree.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">A disjoint-set forest holds eight elements linked as the chain 0 → 1 → 2 → … → 7, where each arrow points from a node to its parent and 7 is the root. How many parent-pointer hops does find(0) make, and how many does the immediately following find(0) make if path compression is used?</p>
+          <p class="small">Give the two numbers in order.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 7 and 1</span></p>
+            <p class="small">The first find walks 0 → 1 → … → 7, which is seven edges, and then rewrites all seven nodes to point at 7, leaving the array 7 7 7 7 7 7 7 7. The second find is one hop.</p>
+            <p class="small"><strong>Trap:</strong> answering 7 and 7, which is what a reader who has not internalised that compression <em>leaves something behind</em> will write. The other trap is 6 and 1, from counting nodes instead of edges.</p>
+            <p class="small" style="margin-bottom:0">At n = 64 the same pair is 63 and 1, and ten finds cost 63 + 9 = 72 hops.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q7</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">In Kruskal's algorithm on a connected undirected graph with n vertices and m edges, every edge is examined and the disjoint-set operations are the only cost. Which statement about the operation counts is TRUE?</p>
+          <p class="small">(A) There are m finds and m unions &nbsp; (B) There are 2m finds and n − 1 successful unions &nbsp; (C) There are 2m finds and m − n + 1 successful unions &nbsp; (D) The counts depend on the edge weights</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Each edge costs two finds, one for each endpoint. Exactly n − 1 edges are accepted, because a spanning tree has n − 1 edges, and each accepted edge triggers one successful union. The remaining m − (n − 1) edges are rejected.</p>
+            <p class="small"><strong>A</strong> forgets the second find and assumes every edge merges. <strong>C</strong> swaps the roles of the counts: m − n + 1 is the number of rejections. <strong>D</strong> is false: the weights decide <em>which</em> edges are accepted, not how many operations run.</p>
+            <p class="small" style="margin-bottom:0">On the six-vertex graph: 18 finds, 5 unions, 4 rejections — measured.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q8</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Which task can a disjoint-set forest NOT perform, even with both heuristics?</p>
+          <p class="small">(A) Decide whether two vertices are in the same connected component after a series of edge insertions<br>
+             (B) List all the elements of the set containing a given element, in time proportional to that set's size<br>
+             (C) Detect that an edge would close a cycle in an undirected graph<br>
+             (D) Count the number of connected components remaining after a series of unions</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Parent pointers run upward only, so there is no way to walk from a root down to its members. Listing a set costs a scan of all n elements with a find on each. A member list kept per root and spliced on union restores the linear cost, but that is a second structure.</p>
+            <p class="small"><strong>A</strong>, <strong>C</strong> and <strong>D</strong> are exactly what the structure is for: a comparison of roots, a failed union, and a count of roots.</p>
+            <p class="small" style="margin-bottom:0">The same distinction rules out reconstructing the path between two connected vertices: the pointers are bookkeeping, not graph edges.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q9</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">With A(0,j) = j+1, A(k,0) = A(k−1,1) and A(k,j) = A(k−1, A(k,j−1)), and α(n) the smallest k ≥ 1 with A(k,1) ≥ n, which statement is TRUE?</p>
+          <p class="small">(A) α(n) = 1 for every n &nbsp; (B) α(n) ≤ 4 for n ≤ 65,533 and α(n) = 5 at n = 65,534 &nbsp; (C) α(n) grows like log n &nbsp; (D) α(n) is undefined for n above 2^65536</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">A(k,1) is 2, 3, 5, 13 and 65,533 for k = 0 to 4, computed from the recursion on this page. So α is 1 up to 3, 2 up to 5, 3 up to 13, 4 up to 65,533 and 5 from 65,534.</p>
+            <p class="small"><strong>A</strong> is the "effectively constant" trap in its strongest form. <strong>C</strong> confuses α with a logarithm: A(4,2) is already 2^65536 − 3, so α rises far more slowly than any logarithm. <strong>D</strong> is false — α is defined everywhere; it simply stays at 5 for an enormous interval.</p>
+            <p class="small" style="margin-bottom:0">The exact constant depends on the normalisation of A; the behaviour — growing more slowly than any function you would write down — does not.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One screen</h3>
+          <p class="small" style="margin-bottom:0">One representation, two heuristics, four bounds, and the four traps. Everything else is an instance of one of these.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Facts to keep</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>A partition is a forest; the root names the set; a root satisfies p[x] = x.</li>
+            <li>Cost is hops, so the shape is the whole subject.</li>
+            <li>Union by rank: attach the lower rank under the higher; a tie raises the survivor's rank by one.</li>
+            <li>Rank k ⇒ at least 2^k nodes, so rank ≤ ⌊log₂ n⌋, and the bound is attained by a balanced merge.</li>
+            <li>Path compression rewrites the path to the root; ranks and roots are untouched.</li>
+            <li>Height ≤ rank always, and strictly less after compression.</li>
+            <li>k successful unions on n elements leave n − k sets; count roots to check.</li>
+            <li>Kruskal: 2m finds, n − 1 unions, m − n + 1 rejects.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Numbers this page computed</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>chain at n = 8: height 7, find(0) = 7 hops, array 1 2 3 4 5 6 7 7</li>
+            <li>after compression: array 7 7 7 7 7 7 7 7, second find = 1 hop</li>
+            <li>n = 64: ten finds cost 630 hops without compression, 72 with it</li>
+            <li>rank ≤ ⌊log₂ n⌋ for n = 1…64: 0 violations; balanced merge attains it at 2, 4, 8, 16, 32, 64</li>
+            <li>eight-element size trace: array 0 0 0 2 0 4 4 6, height 3, root size 8</li>
+            <li>after find(7) with rank + compression: height 2, root rank 3</li>
+            <li>2,000 unions on 256 elements: 60.93 / 3.31 / 2.59 / 1.93 hops per operation; 1,745 rejected</li>
+            <li>A(k,1) = 2, 3, 5, 13, 65,533; α = 4 up to 65,533, 5 up to at least 2^65536</li>
+            <li>Kruskal on six vertices: weight 14, 18 finds, 5 unions, 4 rejects, 12 hops</li>
+            <li>ten elements, eight calls, seven merges: 3 sets, 3 roots</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>O(1) amortised is not the theorem; O(α(n)) is.</li>
+            <li>Amortised bounds a sequence, not a single operation.</li>
+            <li>Rank is not height once compression is on.</li>
+            <li>Union by rank and union by size give different arrays.</li>
+            <li>With compression, the queries are part of the input.</li>
+            <li>Compression alone does not give α(n).</li>
+            <li>Union-find detects cycles in undirected graphs only.</li>
+            <li>A failed union is the cycle test, not an error.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What the answer must state</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>the linking rule, including the tie rule</li>
+            <li>whether compression is on, and the order of the finds if it is</li>
+            <li>the unit: hops for one operation, or the total for a sequence</li>
+            <li>n and m, because every bound in this topic is stated in both</li>
+            <li>which of the four rows the claim belongs to</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Where this connects</h3>
+          <p class="small" style="margin-bottom:0">Backwards, to <a href="../graph-traversals-mst-shortest-paths/index.html">graph traversals, MSTs and shortest paths</a>, where Kruskal's algorithm is taught and this structure is the missing piece, and to <a href="../best-average-worst-and-amortised-analysis/index.html">best, average and worst case with amortised analysis</a>, which owns the aggregate, accounting and potential methods and the distinction between amortised and average. Sideways, to <a href="../graph-representations/index.html">graph representations</a> for the edges and weights the cycle test consumes, and to <a href="../arrays-stacks-queues/index.html">arrays</a>, since the whole structure is one array. Forwards, the same "merge and query" pattern appears in <a href="../greedy-algorithms/index.html">greedy algorithms</a>, where Kruskal is the canonical exchange argument, and in <a href="../counting-spanning-trees/index.html">counting spanning trees</a>, where the number of edges a spanning tree must take, n − 1, is the same n − 1 that bounds the unions here.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">Official syllabus first, then the textbook that defines the structure and its analysis, then course notes for the four bounds, then question archives for the past-paper wording. Community discussion is used to locate a question, never as proof of a fact.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official syllabus</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> (the CS syllabus PDF at gate2027.iitm.ac.in) — Section 5: "Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths." This is the clause the lesson sits under: the structure is not named, and the class B label comes from that absence.</p>
+          <p class="small" style="margin-bottom:0">The syllabus was fetched and read for this run; the quotation above is from that document, not from a coaching summary.</p>
+        </div>
+
+        <div class="card">
+          <h3>The textbook</h3>
+          <p class="small"><strong>CLRS, <em>Introduction to Algorithms</em>, Chapter 21 (Data Structures for Disjoint Sets)</strong> — the three operations, the linked-list representation and why it is weaker, the disjoint-set forest, union by rank, path compression, and the two lemmas behind the O(m α(n)) bound. The rank invariant used in scene 3 (a root of rank k holds at least 2^k nodes) is the textbook's Lemma 21.4.</p>
+          <p class="small" style="margin-bottom:0"><strong>CLRS, Chapter 21, exercise 21.3-3</strong> — the exercise that asks for a sequence taking Ω(m lg n) with union by rank only, which is why scene 5 calls the O(log n) bound tight rather than merely an upper bound.</p>
+        </div>
+
+        <div class="card">
+          <h3>Course material used as cross-checks</h3>
+          <p class="small"><strong>Princeton COS 423, <em>Union-Find</em> lecture notes</strong> — the six properties of link-by-rank, the proof that a root of rank k has at least 2^k nodes, the statement that path compression leaves ranks and roots unchanged, the Θ(n) chain witness, and the Tarjan–van Leeuwen 1984 theorem that path compression with naive linking costs O(m log n).</p>
+          <p class="small"><strong>University of South Carolina, <em>Disjoint Sets</em> lecture notes</strong> — the statement of O(m α(n)) for union by rank with path compression, attributed to CLRS 21.4, and the remark that α(n) ≤ 4 up to a bound far beyond any real input. This page computes its own thresholds instead of quoting that one, because the constant depends on the normalisation of A.</p>
+          <p class="small" style="margin-bottom:0"><strong>Historical bounds, for the table in scene 5</strong> — Fischer (1972) O(m log log n), Hopcroft and Ullman (1973) O(m log* n), Tarjan and van Leeuwen (1984) the tight O(m α(n)) for the combination. The lesson quotes only the two bounds it can also measure.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community material</h3>
+          <p class="small"><strong>GATE question archives and discussion threads</strong> — used to read the wording of the 1992 item ("Complexity of Kruskal's algorithm … if the edges are sorted") and the 1991 item, and to see that published answers to the 1992 question disagree between O(m), O(m log n) and O(m α(n)).</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The disagreement is itself the teaching point: the question is under-specified without an implementation, which is why Q1 on the Practice tab asks for the answer under a named one. This is an observation about the archives, not a claim about the official key.</p>
+        </div>
+
+        <div class="card">
+          <h3>What the page computes for itself</h3>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is copied. The page implements four disjoint-set forests and runs the same sequences through each, counting every parent-pointer follow; builds the Ackermann table from its own recursion and cross-checks it against closed forms; derives the α thresholds from that table; and runs Kruskal on a fixed six-vertex graph, verifying that the accepted edges form a spanning tree and that every rejected edge closes a cycle. Thirty-seven checks re-verify each of those numbers against its definition before the lesson is published, and their result is shown beside the canvas.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What could not be confirmed</h3>
+          <p class="small">The official answer key to GATE CSE 1992 Q1(ix) was not obtained. The question text is consistent across two independent archives; the published answers are not, and they differ by the implementation assumed. Q1 therefore states its assumption in the question and the answer explains the disagreement.</p>
+          <p class="small">The exact normalisation of the Ackermann function varies between texts, and with it the constant in "α(n) ≤ 4". This page defines A explicitly, computes the thresholds from that definition, and says so, rather than quoting a constant whose convention it cannot see.</p>
+          <p class="small" style="margin-bottom:0">No claim is made about how many marks this topic will carry in GATE CSE 2027, and no historical weightage is asserted. The measured hop counts belong to the specific sequences used here; what generalises is the row of bounds, which the page states with its assumptions.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
