@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Best, average, worst and amortised analysis — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Best, average, worst and amortised analysis</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../asymptotic-complexity/index.html">Prerequisite: asymptotic notation</a>
+      <a href="../exact-counts-across-topics/index.html">Related: exact counts</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Best, average and worst case, and amortised analysis — the four different quantities a "time complexity" question can be asking for, and how each is computed.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Say which quantity a question names and which it does not; explain why the average is always O of the worst and never necessarily Omega of it; compute an average only after stating its distribution; read the three cases off one distribution of 40,320 inputs; bound a sequence of operations without using probability; charge a dynamic table by the accounting and the potential method and get the same answer; and separate worst-case space from worst-case time.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the analysis half of Section 5's phrase "asymptotic worst case time and space complexity"</em> — the part that is about which inputs and which sequences a bound covers, rather than about the notation. The asymptotic notation lesson covers O, Omega and Theta and mentions the three cases in one scene; this page takes the cases and the amortised argument as its whole subject.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A, in the syllabus's own words.</strong> Section 5 of the GATE 2027 CS syllabus (IIT Madras) reads: "Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths." The phrase "worst case" and the word "space" are both named there.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The distinction has been asked directly: <strong>GATE CSE 2012 Q18</strong> (which relation between the average and the worst always holds) and <strong>GATE CSE 2024 Set 1 Q17</strong> (the worst case of a single-pass sortedness check is both O of N and Omega of N). Randomisation was asked as a worst-case question in <strong>GATE CSE 2001 Q1.14</strong>, and the worst-case count of arithmetic operations in <strong>GATE CSE 2021 Set 2 Q8</strong>.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Learners report the same three confusions repeatedly: that O means worst case, that amortised means average, and that an average is a fact about an algorithm rather than about an algorithm plus a distribution. That is an observation about what gets asked, not a measured claim.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><a href="../asymptotic-complexity/index.html">Asymptotic complexity and recurrences</a> — O, Omega and Theta as promises about inequalities, and the growth ladder. This lesson assumes them and does not re-derive them.</li>
+            <li><a href="../counting-and-combinatorics/index.html">Counting and combinatorics</a> — permutations, since "all inputs of size n" is a set whose size is n factorial.</li>
+            <li><a href="../recurrence-relations/index.html">Recurrence relations</a> — the harmonic number H(n) appears in the quicksort average.</li>
+            <li><a href="../arrays-stacks-queues/index.html">Arrays, stacks and queues</a> — the stack that MULTIPOP is defined on, and the dynamic array.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Approximate learning time: 55 to 75 minutes, including the practice set. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>Best, average and worst are three functions of n, not three estimates of one number.</li>
+            <li>The worst case is a maximum over inputs, so it is an adversary's answer and it needs an upper and a lower bound.</li>
+            <li>An average is a weighted average, so it is undefined until the weights are stated.</li>
+            <li>Amortised analysis bounds a sequence with no probability at all, and a single operation in that sequence can still be expensive.</li>
+            <li>Expected is over the algorithm's coins, average is over inputs, amortised is over a sequence. Only the first two are about one run.</li>
+          </ol>
+        </div>
+
+        <div class="card span-2 card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, 300 seconds, one canvas. Scene 1 draws insertion sort's three cases as three curves from one definition, then fixes the one relation that always holds between the average and the worst. Scene 2 plays the worst case as a game against an adversary on ten slots, and shows why the bound needs two halves. Scene 3 moves the average along a number line by changing the distribution while the best and the worst stay pinned. Scene 4 runs first-element quicksort on all 40,320 orderings of eight keys and plots the comparison count of each, so the three cases become three readings of one distribution. Scene 5 contrasts one MULTIPOP costing 50 with 102 operations costing 200. Scene 6 traces the cost of a doubling table, insertion by insertion, and puts a geometric growth against a fixed increment. Scene 7 runs the accounting and the potential method on the same eight insertions. Scene 8 separates worst-case space from worst-case time, and measures the recursion depth of quicksort both ways. Scene 9 places worst, average, expected and amortised side by side. Scene 10 reduces the topic to four questions and four traps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: one car, three speeds</h3>
+          <p class="small">Ask how fast a car is and you get a useless answer unless you say on which road. A straight empty highway gives its best speed; a mountain pass gives its worst; the average over a year of driving is a third number, and it depends on how much of the year you spent on each kind of road. The car did not change. The question did.</p>
+          <p class="small">Amortised analysis is a fourth question, and a different one again: not "how fast on one road" but "what did the whole year cost per kilometre". You can answer that without knowing anything about the weather — and that is exactly what makes it different from an average.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The car is an analogy for the quantifiers, not a definition. The definitions are in the next card.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definitions</h3>
+          <p class="small">Let the cost of an algorithm on an input x be $$c(x)$$, and let $$S_n$$ be the set of inputs of size n.</p>
+          <p class="small"><strong>Best case:</strong> $$B(n) = \min_{x \in S_n} c(x)$$.</p>
+          <p class="small"><strong>Worst case:</strong> $$W(n) = \max_{x \in S_n} c(x)$$.</p>
+          <p class="small"><strong>Average case:</strong> $$A(n) = \sum_{x \in S_n} p(x)\,c(x)$$ for a stated distribution p on $$S_n$$.</p>
+          <p class="small"><strong>Expected cost:</strong> for a randomised algorithm, the mean of $$c$$ over the algorithm's own random choices, for a fixed input.</p>
+          <p class="small" style="margin-bottom:0"><strong>Amortised cost:</strong> for a sequence of m operations with true costs $$c_1 \dots c_m$$, a value $$\hat{c}$$ such that $$\sum_{i=1}^{m} \hat{c}_i \ge \sum_{i=1}^{m} c_i$$ for every prefix of every sequence.</p>
+        </div>
+
+        <div class="card">
+          <h3>Symbols, in words</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>c(x)</strong> — the cost of running the algorithm on the one input x, counted in a named operation.</li>
+            <li><strong>S_n</strong> — every input of size n. For eight distinct keys that is 8 factorial, which is 40,320.</li>
+            <li><strong>p(x)</strong> — the probability of input x under a stated distribution. No distribution, no average.</li>
+            <li><strong>H(n)</strong> — the n-th harmonic number, the sum of 1/k for k from 1 to n. It is about ln n plus 0.577.</li>
+            <li><strong>Φ</strong> — a potential: a non-negative function of the data structure's state, used to charge operations.</li>
+            <li><strong>ĉ</strong> — an amortised (charged) cost, not a real one. The sum of the charges bounds the real total.</li>
+            <li><strong>auxiliary space</strong> — memory beyond the input; the recursion stack counts.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The four quantities, and what each one needs</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Worst case</strong> needs an input set and a proof of maximality: an upper bound over all inputs, and one input that reaches it.</li>
+            <li><strong>Average case</strong> needs a distribution over inputs. Without it the number is not defined.</li>
+            <li><strong>Expected</strong> needs a random source inside the algorithm, and a fixed input.</li>
+            <li><strong>Amortised</strong> needs a sequence of operations on one data structure, and a proof that no prefix of any sequence spends more than it is charged.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Two of these are properties of a single run (worst, average). Two are properties of many runs (expected, amortised). Keeping that split straight answers most of the questions.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>What this page computes for itself</h3>
+          <p class="small" style="margin-bottom:0">The numbers are not quoted. The page enumerates all 40,320 orderings of eight keys through first-element quicksort and counts comparisons for each, giving best 13, mean 16.9214 and worst 28, and it checks the mean against the closed form 2(n+1)H(n) − 4n. It enumerates all 720 orderings of six keys through insertion sort and checks the mean against n(n−1)/4 + n−1. It simulates the doubling table, the MULTIPOP stack, the binary counter, the two-stack queue and both amortisation methods, and it measures quicksort's recursion depth on sorted and on balanced input. Twenty-seven checks run before anything is drawn, and their result is shown beside the canvas.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Three questions about one algorithm: what is the cheapest run, the typical run, and the dearest run?</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Three functions, not three estimates</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Three questions about one algorithm. What is the cheapest run, the typical run, and the dearest run?</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked examples, all computed on this page</h3>
+          <p class="small" style="margin-bottom:0">Each one names the quantity first, then computes it. The numbers on the Animation tab come from the same model, so the two agree by construction rather than by copying.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — insertion sort, all three cases</h3>
+          <p class="small"><strong>Best.</strong> The input is sorted. Each key is compared once with its predecessor and never moves: n − 1 comparisons, so Θ(n).</p>
+          <p class="small"><strong>Worst.</strong> The input is reversed. Key i travels past all i − 1 earlier keys: 1 + 2 + … + (n − 1) = n(n − 1)/2, so Θ(n²).</p>
+          <p class="small"><strong>Average.</strong> Over all n! orderings equally likely, the expected number of inversions is n(n − 1)/4, and each inversion is one comparison. Each of the n − 1 inner loops also ends with one comparison, except when the element has walked to the front and the loop ends on the index instead; that happens H(n) − 1 times in expectation. So A(n) = n(n − 1)/4 + n − H(n), which is still Θ(n²).</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page checks the average by brute force over all 720 orderings of six keys: the enumeration gives 11.05 and the formula gives 7.5 + 6 − 2.45 = 11.05. The tempting version with n − 1 instead of n − H(n) gives 12.5, which the enumeration refutes.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — the three cases are one distribution</h3>
+          <p class="small">First-element quicksort on all 40,320 orderings of eight keys. Comparison counts range from 13 to 28. The mean is 16.9214 and the closed form 2(n+1)H(n) − 4n gives 16.9214 at n = 8.</p>
+          <p class="small"><strong>Best</strong> is the leftmost bar, 13. <strong>Worst</strong> is the rightmost, 28, reached by the sorted and reverse-sorted orderings — 128 of the 40,320, which is 8·7/2 twice over.</p>
+          <p class="small" style="margin-bottom:0"><strong>Average</strong> is the mean of the whole distribution, and it is not the middle: the median is 16 and the midrange is 20.5. The distribution has a long right tail, so the mean sits above the median.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — the average of linear search, as a function of the distribution</h3>
+          <p class="small">Ten slots. With probability p the key is present and equally likely at any position, so the conditional average is (n+1)/2 = 5.5; with probability 1 − p it is absent, costing 10.</p>
+          <p class="small">A(n) = p(n+1)/2 + (1 − p)n. At p = 1 that is 5.5, at p = 0.5 it is 7.75, at p = 0.2 it is 9.1.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Best stays 1 and worst stays 10 in all three rows. The average is the only quantity the distribution touches, and it can be moved from 1 to 10 without changing the algorithm.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — a doubling table, insertion by insertion</h3>
+          <p class="small">An insertion into a table with room costs 1. An insertion that finds the table full costs 1 plus the number of items already there, because they are all copied.</p>
+          <p class="small">The first ten costs are 1, 2, 3, 1, 5, 1, 1, 1, 9, 1: expensive exactly when the previous item count was a power of two.</p>
+          <p class="small" style="margin-bottom:0">Over 1,024 insertions the total is 2,047, which is 2n − 1, because the copy costs are the geometric series 1 + 2 + 4 + … + 512 = 1,023. So the amortised cost is 2 − 1/n, just under 2, while the dearest single insertion costs 513.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Example 5 — the same table charged two ways</h3>
+          <p class="small"><strong>Accounting.</strong> Charge every insertion 3. One unit pays for the insertion, two go to a bank. Running the sequence, the bank balance after each insertion is 2, 3, 3, 5, 3, 5, 7, 9, … and its minimum over 1,024 insertions is 0: the charge of 3 is tight and a charge of 2 would leave the bank negative.</p>
+          <p class="small" style="margin-bottom:0"><strong>Potential.</strong> Take Φ = 2·items − size. After each insertion Φ is 1, 2, 2, 4, 2, 4, 6, 8, …, never negative, and the amortised charge c + ΔΦ is at most 3. The telescoping sum of the charges is the total true cost plus the final potential minus the initial one, and since the potential never drops below 0, the charges dominate the true costs. Same answer, different route.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the three-case picture stops being ordinary</h3>
+          <p class="small">Each card is a boundary of the definitions, with the condition it violates or the witness that shows the boundary. Every number here is computed on the Animation tab.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 1 — the best case can be Theta of n and tell you nothing</h3>
+          <p class="small">Bubble sort with an early-exit flag is Θ(n) on sorted input and Θ(n²) on reversed input. Quoting "bubble sort is Θ(n)" is true of the best case and useless as a claim about the algorithm.</p>
+          <p class="small" style="margin-bottom:0">A best case is a lower bound on the cost over inputs, not an upper bound. It is never the answer to "how long does this take".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 2 — the average can equal the worst</h3>
+          <p class="small">For linear search with the key always absent, the average is n, the same as the worst. The inequality A ≤ W is not strict.</p>
+          <p class="small" style="margin-bottom:0">That is why the GATE 2012 relation is A = O(W) and not A = o(W): the little-o version fails on exactly this kind of example, where average and worst are the same order.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 3 — an amortised bound is not a per-operation bound</h3>
+          <p class="small">The doubling table has an amortised cost under 2 per insertion, and the 513th insertion still copies 512 items. Both sentences are true.</p>
+          <p class="small" style="margin-bottom:0">So an amortised bound answers "what does n of these cost", not "what does the next one cost". A real-time system that cannot tolerate a 513-unit pause needs a different structure, and the amortised bound does not tell it otherwise.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 4 — the growth must be geometric</h3>
+          <p class="small">Doubling gives an amortised cost of 2. Growing by a fixed ten gives a cost per insertion of 5.5 at n = 100, 10.5 at 200, 20.5 at 400 and 40.5 at 800 — linear in n, so no constant amortised bound exists.</p>
+          <p class="small" style="margin-bottom:0">The reason is arithmetic: with a geometric multiplier, the copies since the last growth are as many as the items copied; with a fixed increment they are not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 5 — a contraction can break the potential argument</h3>
+          <p class="small">If a table halves as soon as it drops below half full, then an insert-delete-insert-delete pattern at the boundary pays a full copy every other operation, and the amortised cost is Θ(n).</p>
+          <p class="small" style="margin-bottom:0">The repair is a gap between the two thresholds: grow when full, shrink only when a quarter full. Then half the items must be deleted before a contraction is possible, and the potential stays non-negative.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 6 — space has more than one meaning</h3>
+          <p class="small">Quicksort is "in place" because it needs no auxiliary array, and its recursion stack is still n deep on a sorted input with a first-element pivot. Measured: depth 8 at n = 8 on sorted input, 4 when the splits balance.</p>
+          <p class="small" style="margin-bottom:0">An answer should name the quantity: auxiliary array O(1), stack O(log n) expected and O(n) worst case, total O(n) in either reading. Merge sort trades that stack for n cells.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that survive a first reading</h3>
+          <p class="small">Each card states the wrong belief, why it tempts, the smallest witness against it, and the rule to use instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M1 — "O means worst case"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the textbooks that introduce O first use it for the worst case, and the two get welded together.</p>
+          <p class="small"><strong>Witness:</strong> a program that costs one comparison on every input is O of n, and its worst case is Θ(1). An upper bound says nothing about tightness or about which input it is for.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> O, Omega and Theta are about inequalities between functions. Worst, average and best are about which inputs. The two axes are independent.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M2 — "amortised means average"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are computed by adding costs and dividing by a count.</p>
+          <p class="small"><strong>Witness:</strong> the MULTIPOP sequence costs 200 for 102 operations, and that number is exact for every sequence — no probability appears anywhere in the argument.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> amortised is a worst-case bound on a sequence. Average is a mean over a distribution of inputs. One has an adversary and no coins; the other has coins and no adversary.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M3 — "the average case is the typical input"</h3>
+          <p class="small"><strong>Why it tempts:</strong> "average" suggests "what usually happens".</p>
+          <p class="small"><strong>Witness:</strong> quicksort's mean over all orderings is 16.92 at n = 8, and the median is 16 — but the midrange is 20.5, so three plausible readings of "typical" give three numbers.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the average case is the mean under a stated distribution. If no distribution is stated, the average case is undefined, not obvious.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M4 — "an amortised bound means every operation is cheap"</h3>
+          <p class="small"><strong>Why it tempts:</strong> "O of 1 amortised" reads like "O of 1".</p>
+          <p class="small"><strong>Witness:</strong> the 513th insertion into a doubling table costs 513 units while the amortised cost is under 2.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> an amortised bound is a statement about a total. Any individual operation may be as expensive as the whole sequence allows.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M5 — "randomisation removes the worst case"</h3>
+          <p class="small"><strong>Why it tempts:</strong> randomised quicksort has no bad input, which sounds like no bad case.</p>
+          <p class="small"><strong>Witness:</strong> a run of coin flips that picks the smallest remaining key every time still costs n², and GATE 2001 asked for exactly that answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> randomisation moves the bad case from "an input exists" to "a run of coins exists", and makes its probability small — 0.0032 at eight keys, 1.6 × 10⁻⁹ at sixteen.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M6 — "in place means constant space"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the usual gloss is "sorts within the array, without extra memory".</p>
+          <p class="small"><strong>Witness:</strong> quicksort's stack is n deep on a sorted input with a first-element pivot, measured as 8 at n = 8.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> in place means O(log n) extra space, or O(1) for the array. Say which quantity, and count the stack.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five shapes this topic takes on a paper</h3>
+          <p class="small">Each card names the shape, the reasoning it demands, and the wrong approach that produces a plausible option. Historical frequency is an observation about past papers, not a prediction for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>P1 — which relation between two quantities always holds</h3>
+          <p class="small"><strong>Shape:</strong> define W(n) and A(n), then offer four asymptotic relations and ask which is ALWAYS true. GATE CSE 2012 Q18 is the canonical item.</p>
+          <p class="small"><strong>Reasoning:</strong> every input costs at most W(n), so a weighted average of those costs is at most W(n). That gives A = O(W) with constant 1. Then check the other three against a witness: quicksort kills Omega and Theta, insertion sort kills little-o.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> answering A = Θ(W) because the two "usually" have the same order. Quicksort is the counterexample, and it is the algorithm the examiners had in mind.</p>
+        </div>
+
+        <div class="card">
+          <h3>P2 — the bound on a worst case, both halves</h3>
+          <p class="small"><strong>Shape:</strong> a single-pass or early-exit algorithm, then "the worst-case time complexity is" with options pairing O and Omega. GATE CSE 2024 Set 1 Q17 is of this shape.</p>
+          <p class="small"><strong>Reasoning:</strong> count the loop for the upper bound, then exhibit an input that defeats the early exit for the lower bound. An already-sorted input defeats a sortedness check, so the worst case is Θ(N).</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> "O(N) but not Omega(N)", which is the best case wearing the worst case's name.</p>
+        </div>
+
+        <div class="card">
+          <h3>P3 — a sequence of operations with an occasional expensive one</h3>
+          <p class="small"><strong>Shape:</strong> a data structure whose operation sometimes copies or pops everything, then "what is the amortised cost per operation" or "the total cost of n operations".</p>
+          <p class="small"><strong>Reasoning:</strong> bound the total over the sequence first, using the fact that each item is touched a bounded number of times, then divide. Doubling gives 2 per insertion; MULTIPOP gives at most 2 per operation.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> multiplying the dearest operation by the number of operations, which gives n² for a sequence that costs 2n.</p>
+        </div>
+
+        <div class="card">
+          <h3>P4 — the cost of a specific input</h3>
+          <p class="small"><strong>Shape:</strong> "how many comparisons does this sort make on the array 5, 3, 8, 1", or "the number of swaps for this input".</p>
+          <p class="small"><strong>Reasoning:</strong> this is c(x) for one x, and it is neither a case nor a bound. Trace the algorithm on that input and count; the answer is an exact number, often a NAT.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> answering with the asymptotic class of the algorithm. The question asked for a count, and a count is not an order of growth.</p>
+        </div>
+
+        <div class="card">
+          <h3>P5 — the space half of the syllabus phrase</h3>
+          <p class="small"><strong>Shape:</strong> "the worst-case space complexity of quicksort is", or a question about the recursion depth of a divide-and-conquer algorithm.</p>
+          <p class="small"><strong>Reasoning:</strong> decide whether the question means auxiliary space, stack space or total space, then find the worst input for that quantity. For quicksort the worst input is sorted, giving depth n.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> quoting O(log n) because that is the expected depth, and forgetting that the worst case is asked for.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The four questions, in the order to ask them</h3>
+          <p class="small">Name the quantity — worst, average, amortised or expected. Name the set it is over — all inputs, a distribution, a sequence, or the coins. Name the bound — O, Omega or Theta, and say which. Then check the trap: if the answer is an average, was a distribution given; if it is amortised, was the growth geometric; if it is space, which space.</p>
+          <p class="small muted" style="margin-bottom:0">Every worked example and every practice question on this page is one instance of those four questions; nothing in the procedure needs the animation.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set</h3>
+          <p class="small">Nine questions: four are verified past-paper items, five are original practice written for this lesson. Answers are hidden until you reveal them one at a time; the mock-test switch hides them all and reveals them together.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode — hide every answer until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2012, Q18</span> MCQ</p>
+          <p class="small">Let W(n) and A(n) denote respectively the worst-case and average-case running time of an algorithm executed on an input of size n. Which of the following is ALWAYS TRUE?</p>
+          <p class="small">(A) A(n) = Ω(W(n)) &nbsp; (B) A(n) = Θ(W(n)) &nbsp; (C) A(n) = O(W(n)) &nbsp; (D) A(n) = o(W(n))</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: C</span></p>
+            <p class="small">Every input of size n costs at most W(n), and an average is a weighted average of those costs with weights summing to one, so A(n) ≤ W(n) for every n. That is A(n) = O(W(n)) with c = 1 and n₀ = 1.</p>
+            <p class="small"><strong>A</strong> and <strong>B</strong> fail on quicksort: average n log n, worst case n², so A is not Ω(W). <strong>D</strong> fails on insertion sort, whose average and worst are both quadratic, so A is not little-o of W either.</p>
+            <p class="small" style="margin-bottom:0">The page checks both directions numerically: the ratio A/W is 0.604 at n = 8 and 4.7 × 10⁻⁵ at n = 2²⁰, so A is O(W) but not Ω(W) for quicksort.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2024 Set 1, Q17</span> MCQ</p>
+          <p class="small">Given an integer array of size N, we want to check if the array is sorted (in either ascending or descending order). An algorithm solves this problem by making a single pass through the array and comparing each element of the array only with its adjacent elements. The worst-case time complexity of this algorithm is</p>
+          <p class="small">(A) both O(N) and Ω(N) &nbsp; (B) O(N) but not Ω(N) &nbsp; (C) Ω(N) but not O(N) &nbsp; (D) neither O(N) nor Ω(N)</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A</span></p>
+            <p class="small">Upper half: one pass compares at most N − 1 adjacent pairs, so the cost is O(N) on every input. Lower half: an input that is already sorted never triggers an early exit, so the worst case performs all N − 1 comparisons, which is Ω(N). Together they give Θ(N), which satisfies both O(N) and Ω(N).</p>
+            <p class="small"><strong>B</strong> is the trap: it treats the early exit as if it could always be taken. <strong>C</strong> and <strong>D</strong> are simply wrong about the loop.</p>
+            <p class="small" style="margin-bottom:0">The general rule this question tests: a worst-case bound needs the adversarial input as a witness, and the sorted array is that witness.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2001, Q1.14</span> MCQ</p>
+          <p class="small">Randomised quicksort is an extension of quicksort where the pivot is chosen randomly. What is the worst-case complexity of sorting n numbers using randomised quicksort?</p>
+          <p class="small">(A) O(n) &nbsp; (B) O(n log n) &nbsp; (C) O(n²) &nbsp; (D) O(n!)</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: C</span></p>
+            <p class="small">Randomisation removes the bad input, not the bad run. There is a sequence of pivot choices that takes the smallest or largest remaining key every time, and on that sequence the cost is n². The worst case over all coin sequences is therefore still Θ(n²), written O(n²) in the option list.</p>
+            <p class="small"><strong>B</strong> is the expected cost, which is a different quantity. <strong>A</strong> is impossible for a comparison sort. <strong>D</strong> is not a bound anyone would claim.</p>
+            <p class="small" style="margin-bottom:0">The probability of that bad run is 2^(n−1)/n!: 0.0032 at n = 8 and 1.6 × 10⁻⁹ at n = 16, which is why the expected cost is what gets quoted in practice — and why quoting it as a guarantee is wrong.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2021 Set 2, Q8</span> MCQ</p>
+          <p class="small">What is the worst-case number of arithmetic operations performed by recursive binary search on a sorted array of size n?</p>
+          <p class="small">(A) Θ(√n) &nbsp; (B) Θ(log₂ n) &nbsp; (C) Θ(n²) &nbsp; (D) Θ(n)</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">The recurrence is T(n) = T(n/2) + Θ(1), which solves to Θ(log₂ n). The worst case is the key being absent or at the last position examined, and even then the array halves at every step, so the depth is ⌊log₂ n⌋ + 1.</p>
+            <p class="small"><strong>A</strong> and <strong>D</strong> describe a search that discards only part of the array. <strong>C</strong> is quadratic, which no halving search can be.</p>
+            <p class="small" style="margin-bottom:0">Note the wording: the worst-case number of operations, not the best. Binary search's best case is Θ(1) — the key at the middle — and that is exactly the kind of answer this question excludes.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">A linear search over 20 slots is given: the key is present with probability 0.5 and, when present, is equally likely to be in any slot. What is the average number of comparisons?</p>
+          <p class="small">(A) 10 &nbsp; (B) 10.5 &nbsp; (C) 15.25 &nbsp; (D) 20</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: C</span></p>
+            <p class="small">A = p(n+1)/2 + (1−p)n = 0.5 × 10.5 + 0.5 × 20 = 5.25 + 10 = 15.25. The page computes the same formula at n = 10, where p = 0.5 gives 7.75.</p>
+            <p class="small"><strong>A</strong> is the average only when the key is certainly present. <strong>B</strong> is (n+1)/2, the conditional average. <strong>D</strong> is the worst case, which the distribution has pulled most of the way towards but not reached.</p>
+            <p class="small" style="margin-bottom:0">The distribution has pulled the average 76 per cent of the way from the best case (1) to the worst (20), which is what a presence probability of one half buys.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">A dynamic table starts empty and doubles its size whenever an insertion finds it full. The i-th insertion costs 1 if there is room, and 1 plus the current item count if a doubling is needed. What is the total cost of the first 1,024 insertions?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 2047</span></p>
+            <p class="small">The doublings happen when the previous count is 1, 2, 4, 8, …, 512, and they copy 1, 2, 4, 8, …, 512 items, a geometric series summing to 1,023. The 1,024 insertions each pay 1 for the write, so the total is 1,024 + 1,023 = 2,047, which is 2n − 1.</p>
+            <p class="small" style="margin-bottom:0">The amortised cost is 2,047/1,024 = 1.999. The textbook bound 3n = 3,072 is safe and loose; the dearest single insertion in the sequence costs 513.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q7</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MSQ</p>
+          <p class="small">Which of the following statements about a stack with PUSH, POP and MULTIPOP are true?</p>
+          <p class="small">(A) One MULTIPOP can cost Θ(n). &nbsp; (B) A sequence of n operations costs O(n) in total. &nbsp; (C) The amortised cost of each operation is O(1). &nbsp; (D) The amortised bound implies every operation costs O(1).</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A, B, C</span></p>
+            <p class="small"><strong>A</strong> is true: with n items on the stack, MULTIPOP of n pops all of them. <strong>B</strong> is true by the aggregate argument: each item is pushed once and popped once, so the pops over any sequence are at most the pushes, and the total is at most 2n. <strong>C</strong> follows: 2n over n operations.</p>
+            <p class="small"><strong>D</strong> is the misconception. The page's sequence costs 200 units over 102 operations, and one of those operations cost 50 — an amortised bound says nothing about a single operation.</p>
+            <p class="small" style="margin-bottom:0">Note that B and C are worst-case statements about sequences: they hold for every sequence, with no probability anywhere.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q8</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">First-element quicksort is run on all 8! orderings of eight distinct keys, and comparisons are counted. Which statement is correct?</p>
+          <p class="small">(A) The mean is 20.5, the midpoint of 13 and 28. &nbsp; (B) The mean is 16 and equals the median. &nbsp; (C) The mean is 16.92 and exceeds the median, 16. &nbsp; (D) The mean equals the worst case, 28.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: C</span></p>
+            <p class="small">The mean over all 40,320 orderings is 16.9214, matching 2(n+1)H(n) − 4n = 18 × 2.7179 − 32. The median is 16: half the orderings use at most 16 comparisons.</p>
+            <p class="small"><strong>A</strong> confuses the mean with the midrange. <strong>B</strong> has the right median and the wrong mean. <strong>D</strong> is the worst case, which is 128 orderings out of 40,320.</p>
+            <p class="small" style="margin-bottom:0">The mean exceeds the median because the distribution has a long right tail: the expensive orderings are few but very expensive, and a mean feels them while a median does not.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q9</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Merge sort uses n extra cells and a recursion stack of depth log n. Quicksort with a first-element pivot uses no extra array, and on a sorted input its recursion goes n deep. Which pair states the worst-case space complexity of the two algorithms, counting the stack and excluding the input?</p>
+          <p class="small">(A) merge sort Θ(log n), quicksort Θ(log n) &nbsp; (B) merge sort Θ(n), quicksort Θ(n) &nbsp; (C) merge sort Θ(n), quicksort Θ(1) &nbsp; (D) merge sort Θ(n log n), quicksort Θ(log n)</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Merge sort's auxiliary array is n cells, which dominates its log n stack, so Θ(n). Quicksort's array use is constant but its stack is n frames on a sorted input — the page measures depth 8 at n = 8 — so Θ(n) as well.</p>
+            <p class="small"><strong>A</strong> is the expected case for quicksort and the wrong quantity for merge sort. <strong>C</strong> is the "in place means constant space" misconception. <strong>D</strong> overstates merge sort: the merge buffer is n, not n log n.</p>
+            <p class="small" style="margin-bottom:0">Both algorithms are Θ(n log n) in time; the space answers differ in where the n comes from, and both are Θ(n).</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One screen</h3>
+          <p class="small" style="margin-bottom:0">Four quantities, one inequality, two amortisation methods, and the four traps. Everything else is an instance of one of these.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Facts to keep</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Best is a minimum, worst is a maximum, average is a weighted mean under a stated distribution.</li>
+            <li>A(n) = O(W(n)) always, with constant 1. Not Θ, not Ω, not little-o.</li>
+            <li>Insertion sort: n − 1, n(n−1)/4 + n − H(n), n(n−1)/2.</li>
+            <li>Quicksort at n = 8 over all orderings: 13, 16.9214, 28; mean = 2(n+1)H(n) − 4n.</li>
+            <li>Doubling table: amortised 2 − 1/n; total 2n − 1; dearest single insertion n/2 + 1.</li>
+            <li>Accounting: charge 3, bank never negative. Potential: Φ = 2·items − size, charge ≤ 3.</li>
+            <li>Growth must be geometric; a fixed increment gives a Θ(n) amortised cost.</li>
+            <li>Randomised quicksort: expected n log n, worst case n², bad-run probability 2^(n−1)/n!.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Numbers this page computed</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>40,320 orderings of 8 keys; comparison counts 13 to 28</li>
+            <li>mean 16.9214 = 2(n+1)H(n) − 4n; median 16; midrange 20.5</li>
+            <li>720 orderings of 6 keys: insertion-sort mean 11.05 = n(n−1)/4 + n − H(n)</li>
+            <li>linear search at n = 10: 5.5, 7.75, 9.1 for p = 1, 0.5, 0.2</li>
+            <li>doubling: first costs 1,2,3,1,5,1,1,1,9,1; total for 1,024 = 2,047; dearest 513</li>
+            <li>fixed increment of 10: cost per insertion 5.5, 10.5, 20.5, 40.5 at n = 100…800</li>
+            <li>MULTIPOP: 200 units over 102 operations; dearest operation 50</li>
+            <li>binary counter: 2,047 bit flips for 1,024 increments</li>
+            <li>two-stack queue: 300 units over 200 operations, dearest dequeue 100</li>
+            <li>quicksort depth at n = 8: 8 on sorted input, 4 when balanced</li>
+            <li>bad-run probability: 0.00317 at n = 8, 1.57e−9 at n = 16</li>
+            <li>A/W ratio: 0.604 at n = 8, 4.7e−5 at n = 2²⁰</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>O is an upper bound, not a synonym for worst case.</li>
+            <li>Amortised is not average: no probability is involved.</li>
+            <li>An amortised bound is not a per-operation bound.</li>
+            <li>An average without a distribution is not a claim.</li>
+            <li>Randomisation changes the probability of the worst case, not its existence.</li>
+            <li>In place means O(log n) extra, not O(1) total; the stack counts.</li>
+            <li>An early exit does not lower the worst case; the input that never exits is still allowed.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What the answer must state</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>the quantity: worst, average, amortised or expected</li>
+            <li>the set it is over: inputs, a distribution, a sequence, or the coins</li>
+            <li>the bound: O, Ω or Θ, and which one the question asked for</li>
+            <li>the witness input for a worst case, and the adversarial sequence for an amortised bound</li>
+            <li>which space, when the question is about space</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Where this connects</h3>
+          <p class="small" style="margin-bottom:0">Backwards, to <a href="../asymptotic-complexity/index.html">asymptotic complexity</a>, which owns O, Omega and Theta and the growth ladder that these cases are measured in. Sideways, to <a href="../exact-counts-across-topics/index.html">exact counts</a>, which computes the comparison counts this lesson takes means of, and to <a href="../sorting-algorithms/index.html">sorting algorithms</a>, where the three cases of each sort are tabulated, and <a href="../hashing/index.html">hashing</a>, where expected cost replaces worst case. Forwards, to <a href="../dynamic-programming/index.html">dynamic programming</a> and <a href="../divide-and-conquer/index.html">divide and conquer</a>, whose analyses are recurrences over worst cases, and to <a href="../trees-bst-and-heaps/index.html">the data-structure lessons</a> where a dynamic array, a disjoint-set forest or a Fibonacci heap is analysed by the methods of scene 7. The randomised argument of scene 9 is the same reasoning as <a href="../probability-and-random-variables/index.html">probability and random variables</a>: state the distribution, then take the mean.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">Official syllabus and papers first, then the textbook that defines the three amortisation methods, then course material, then community archives for question wording. Community discussion is used to locate and read a question, never as proof of a fact.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official syllabus and papers</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> (the CS syllabus PDF at gate2027.iitm.ac.in) — Section 5: "Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths." This is the clause the lesson sits under, and it is quoted from the syllabus PDF, not from a coaching summary.</p>
+          <p class="small"><strong>GATE CSE 2024 Set 1, Q17</strong> — the single-pass sortedness check, with the official key A. The question text was read from the paper PDF; the key was confirmed against the official answer key as republished.</p>
+          <p class="small"><strong>GATE CSE 2012 Q18</strong> — W(n) and A(n) and the four relations. The wording and the answer C were read from a question archive.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE 2001 Q1.14</strong> (worst case of randomised quicksort) and <strong>GATE CSE 2021 Set 2 Q8</strong> (worst-case arithmetic operations in recursive binary search) — used as evidence that the distinction is asked, and for the shape of the questions.</p>
+        </div>
+
+        <div class="card">
+          <h3>The textbook</h3>
+          <p class="small"><strong>CLRS, <em>Introduction to Algorithms</em>, Chapter 17 (Amortized Analysis)</strong> — the definitions of aggregate, accounting and potential analysis; the MULTIPOP example with its 2n aggregate bound and the charges PUSH 2, POP 0, MULTIPOP 0; the dynamic table with cost 3 per insertion, the potential Φ = 2·num − size, and the contraction rule that halves only below a quarter full. Every one of those is reproduced on the Animation tab and checked by simulation.</p>
+          <p class="small" style="margin-bottom:0"><strong>CLRS, Chapter 7 (Quicksort)</strong> — the expected comparison count 2(n+1)H(n) − 4n for random pivots, which this page checks against a full enumeration of the 8! orderings rather than taking on trust.</p>
+        </div>
+
+        <div class="card">
+          <h3>Course material used as cross-checks</h3>
+          <p class="small"><strong>IIT Kharagpur, <em>Amortized analysis</em> lecture notes (Sourav)</strong> — the statement that an amortised analysis guarantees the average performance of each operation in the worst case, the three methods, the table of sizes and costs for doubling, and the note that the first insertion costs 2 rather than 3.</p>
+          <p class="small"><strong>Cornell CS 3110, <em>Amortized analysis and dynamic tables</em></strong> — the explicit warning that growth must be geometric, and that growing by a fixed increment gives a linear amortised cost. That warning is what scene 6 measures.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rutgers CLRS chapter 17 solutions</strong> — used to confirm the arithmetic of the potential method's charges, not as a primary source.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community material</h3>
+          <p class="small"><strong>GATE question archives</strong> — used to locate the 2012, 2021 and 2001 items, to read their wording and option lists, and to confirm the answers. Where an archive's numbering disagreed with another, only the year and the set are asserted.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The beliefs that "O means worst case", that "amortised means average" and that "the average case is the typical input" are reported repeatedly in discussion of this topic. That is an observation about what learners ask, not a measured claim.</p>
+        </div>
+
+        <div class="card">
+          <h3>What the page computes for itself</h3>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is copied. The page enumerates every input of a small problem — all 40,320 orderings of eight keys through first-element quicksort, all 720 orderings of six keys through insertion sort — and computes the minimum, maximum, mean and median comparison counts exactly. It simulates the doubling table, the fixed-increment table, the MULTIPOP stack, the binary counter and the two-stack queue, runs the accounting and potential methods over 1,024 insertions, and measures quicksort's recursion depth on sorted and on balanced input. Twenty-seven checks re-verify each of those numbers against its definition before the lesson is published, and their result is shown beside the canvas.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What could not be confirmed</h3>
+          <p class="small">The option lists of the 2001 and 2021 questions were taken from a single archive each. The wording and the answers agree with independent discussions, but the papers themselves were not opened, so treat the option ordering as reported rather than transcribed.</p>
+          <p class="small">The 2012 question's exact option punctuation differs between archives; the four relations are the same in all of them, and the answer C is consistent.</p>
+          <p class="small" style="margin-bottom:0">No claim is made about how many marks this topic will carry in GATE CSE 2027, and no historical weightage is asserted. The enumeration at eight keys is exact for eight keys only: the closed forms are what generalise, and the page checks the closed forms against the enumeration rather than assuming the small case proves the general one.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

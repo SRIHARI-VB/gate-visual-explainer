@@ -4202,6 +4202,7 @@ topics.append(topic(
         "objects outliving their call cannot live on the stack"]))
 
 _VERIFIED = {
+    "best-average-worst-and-amortised-analysis": "2026-10-31",
     "type-checking-and-type-systems": "2026-10-31",
     "runtime-environments-and-activation-records": "2026-10-31",
     "lu-decomposition": "2026-10-30",
@@ -4455,6 +4456,75 @@ topics.append(topic(
         "accepted but fails at run time: p[5] on array(4,int), which is incompleteness",
         "rejected but would have run: an unreachable incompatible branch, which is conservatism",
         "the four-step procedure and the three distinctions that decide the mark"]))
+
+topics.append(topic(
+    "Algorithms",
+    "Section 5: Analysis of algorithms (the analysis half of 'asymptotic worst case time and space complexity')",
+    "Best, average and worst case, and amortised analysis",
+    ["best, average and worst as three functions of n",
+     "the relation between A(n) and W(n) that always holds",
+     "the worst case as a maximum over inputs, with an upper and a lower bound",
+     "the average case as a weighted average, which needs a stated distribution",
+     "reading the three cases off one distribution of all inputs",
+     "amortised analysis of a sequence: the aggregate method",
+     "the accounting method and the bank balance",
+     "the potential method and the telescoping sum",
+     "geometric against arithmetic growth in a dynamic table",
+     "worst-case space against worst-case time: auxiliary space and the recursion stack",
+     "expected cost, and what randomisation does and does not remove"],
+    prereq=["asymptotic-complexity", "counting-and-combinatorics",
+            "recurrence-relations", "arrays-stacks-queues"],
+    related=["exact-counts-across-topics", "sorting-algorithms", "hashing",
+             "divide-and-conquer", "dynamic-programming",
+             "probability-and-random-variables", "trees-bst-and-heaps"],
+    importance="high",
+    evidence="Section 5 of the GATE 2027 CS syllabus reads 'Asymptotic worst case time and space complexity', "
+             "so both halves of the phrase are named. Verified past-paper items test the distinction directly: "
+             "GATE CSE 2012 Q18 (which relation between A(n) and W(n) always holds, answer A = O(W)), GATE CSE "
+             "2024 Set 1 Q17 (the worst case of a single-pass sortedness check is both O(N) and Omega(N), official "
+             "key A), GATE CSE 2001 Q1.14 (worst case of randomised quicksort is O(n^2)) and GATE CSE 2021 Set 2 "
+             "Q8 (worst-case arithmetic operations in recursive binary search). That is item evidence, not a "
+             "weightage claim.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="best-average-worst-and-amortised-analysis",
+    path="topics/best-average-worst-and-amortised-analysis/index.html",
+    execution="published 2026-10-31; 27/27 model checks pass; geometry audit clean over 10 scenes; "
+              "1201 frames drawn without error across 10 scenes",
+    microtopics=[
+        "best, average and worst are three functions of n, not three estimates of one number",
+        "A(n) = O(W(n)) always with constant 1, because an average is a weighted average of costs each at most W(n)",
+        "A(n) is not Omega(W(n)): quicksort averages n log n with an n^2 worst case, ratio 0.604 at n = 8 and 4.7e-5 at n = 2^20",
+        "A(n) is not o(W(n)): insertion sort has average and worst both quadratic",
+        "the worst case is a maximum over inputs, so it is a game against an adversary who sees the algorithm",
+        "a worst-case bound needs both halves: O from counting the loop, Omega from a witness input",
+        "GATE CSE 2024 Set 1 Q17: an early exit does not lower the worst case, answer both O(N) and Omega(N)",
+        "the average is undefined until a distribution is stated",
+        "linear search: A = p(n+1)/2 + (1-p)n, giving 5.5, 7.75 and 9.1 at n = 10 for p = 1, 0.5, 0.2",
+        "best <= average <= worst holds for every distribution, and is the only free fact",
+        "all 40,320 orderings of eight keys through first-element quicksort: best 13, mean 16.9214, worst 28",
+        "the mean equals 2(n+1)H(n) - 4n, checked against the enumeration to four places",
+        "the mean is not the median (16) and not the midrange (20.5); the right tail separates them",
+        "insertion sort average = n(n-1)/4 + n - H(n) = 11.05 at n = 6, checked over all 720 orderings",
+        "the tempting n(n-1)/4 + (n-1) = 12.5 is refuted by the enumeration",
+        "amortised analysis is a sequence claim with no probability in it",
+        "MULTIPOP: one operation costs 50, 102 operations cost 200, amortised just under 2",
+        "the aggregate method bounds the total and divides by the number of operations",
+        "doubling table: costs 1,2,3,1,5,1,1,1,9,1; 1,024 insertions cost 2,047 = 2n - 1; dearest 513",
+        "amortised 2 - 1/n, so the textbook 3n bound is safe and loose",
+        "geometric growth is what buys the constant: a fixed increment of 10 gives 5.5, 10.5, 20.5, 40.5 per operation",
+        "accounting method: charge 3, bank balance never negative, minimum balance 0",
+        "potential method: phi = 2*items - size, never negative, charge at most 3",
+        "why the two methods agree: the charges telescope to the true cost plus the final potential",
+        "a potential that can go negative proves nothing",
+        "contraction at half full gives a Theta(n) amortised cost; the repair is to halve only below a quarter",
+        "worst-case space is its own answer: merge sort n cells, quicksort none but a stack",
+        "quicksort recursion depth at n = 8: 8 on sorted input with a first-element pivot, 4 when balanced",
+        "in place means O(log n) extra space, not O(1) total",
+        "expected is over the algorithm's coins, average over inputs, amortised over a sequence",
+        "randomised quicksort: expected n log n, worst case still n^2 (GATE CSE 2001 Q1.14)",
+        "the bad run has probability 2^(n-1)/n!: 0.00317 at n = 8, 1.57e-9 at n = 16",
+        "the four questions to ask, and the four traps that decide the mark"]))
 
 _seen = set()
 _dedup = []
