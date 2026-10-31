@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wi-Fi: 802.11 CSMA/CA, DCF timing and the hidden terminal — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Wi-Fi: 802.11 CSMA/CA</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../link-layer-error-detection-mac-and-ethernet/index.html">Related: Ethernet and CSMA/CD</a>
+      <a href="../layering-switching-and-performance-metrics/index.html">Prerequisite: layering and performance</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Wi-Fi at the medium access layer: IEEE 802.11 CSMA/CA under the distributed coordination function, the inter-frame space ladder, the random backoff and its contention window, the airtime budget of one frame, the hidden terminal and its RTS/CTS repair, and the exposed terminal.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a variant, a payload size and a number of contending stations, compute the airtime of one frame, its goodput and the fraction of it that is overhead; state the probability that the first transmission collides; trace the contention window across retries; and decide whether a given set of positions produces a hidden terminal, an exposed terminal, or neither.</p>
+          <p><strong>GATE RELEVANCE: A.</strong> The phrase <em>Basics of Wi-Fi</em> is named verbatim in Section 10 of the GATE 2027 CS syllabus, in the Computer Networks section, between the application-layer protocols and network security. <span class="claim-chip claim-chip--verified">VERIFIED FACT</span></p>
+          <p><strong>PREREQUISITES:</strong> the layering idea and the performance metrics (throughput against goodput, from <a href="../layering-switching-and-performance-metrics/index.html">Layering, switching and performance metrics</a>); the data-link layer's job and CSMA/CD (from <a href="../link-layer-error-detection-mac-and-ethernet/index.html">Error detection, MAC and Ethernet</a>); and the elementary probability of a uniform draw over a finite set (from <a href="../probability-and-random-variables/index.html">Probability and random variables</a>).</p>
+          <p><strong>VISUALIZATION PLAN:</strong> ten scenes. A geometry scene shows that a collision happens at the receiver; a side-by-side scene shows why the Ethernet comparison is unavailable on radio; a reachability scene separates physical from virtual carrier sense; a proportional time axis shows the IFS ladder; a three-row timing diagram builds one frame's airtime term by term and checks it against a published table; a slot strip shows four backoff draws and the computed collision probabilities; a ladder chart shows the contention window doubling; two geometry scenes separate the hidden terminal from the exposed one; and a procedure scene turns all of it into four steps.</p>
+          <p class="small" style="margin-bottom:0">Approximate learning time: 70 to 90 minutes with the practice set. Every number on this page is computed in the page's own model, and 39 model checks run on load; the count is shown in the Animation tab.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five ideas worth keeping</h3>
+          <div class="step-list">
+            <div class="row"><strong>1.</strong> A radio cannot listen while it transmits, so collision detection is impossible and 802.11 avoids collisions instead.</div>
+            <div class="row"><strong>2.</strong> The only feedback is an acknowledgement. Silence after a frame means retry, and the reason is unknown.</div>
+            <div class="row"><strong>3.</strong> Waiting times create priority: SIFS 10 &lt; PIFS 30 &lt; DIFS 50 microseconds on 802.11b, with DIFS = SIFS + 2 x slot.</div>
+            <div class="row"><strong>4.</strong> The backoff turns contention into a lottery, and a collision is two stations drawing the same smallest number.</div>
+            <div class="row"><strong>5.</strong> Collisions are located at the receiver, which is why a station can be hidden from another and why listening harder cannot fix it.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>What this page computes, not asserts</h3>
+          <p class="small">The collision probability is computed twice: by enumerating every outcome for small windows, and by a closed form. They agree to 1e-12 on five cases. The airtime model reproduces the published 802.11b figures of 2,088,246 bps for a 256-byte frame and 1,153,625 bps for a 128-byte frame to within one part in ten thousand. The hidden-terminal layout is checked as a distance problem, not drawn from memory.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">MATHEMATICAL DERIVATION</span> the collision probability, the expected wait, the airtime sum, the break-even inequality and every distance on the canvas.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The assumptions this lesson works under</h3>
+          <p class="small">One basic service set with one access point; no rate adaptation, no frame aggregation, no fragmentation, no hidden third party beyond the layout drawn; carrier-sense range equal in both directions; propagation delay negligible against a slot; every frame sent at the basic rate. The textbook treatments differ on which of these they relax, and each relaxation changes a number, so a question that asks for a figure usually states them.</p>
+          <p class="small" style="margin-bottom:0">Where the syllabus says only <em>Basics of Wi-Fi</em>, the depth is an editorial choice: this page goes as deep as the DCF timing arithmetic and the two terminal problems, and stops before quality-of-service access categories, beamforming and the 802.11ax scheduling machinery. <span class="claim-chip claim-chip--interpretation">EDUCATIONAL INTERPRETATION</span></p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one-sentence version</h3>
+          <p style="margin-bottom:0">Wi-Fi cannot detect a collision, so it prevents them by waiting longer than everyone else and by drawing a random number, and it repairs the ones it cannot prevent with an acknowledgement, a doubling window, and an optional two-frame reservation.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition first: the room, not the wire</h3>
+          <p class="small">Picture a room with no chairperson and no agenda. Everyone who wants to speak must simply start, and the only rule is that a speaker waits a moment of silence before beginning. Two people can begin in the same instant and both become unintelligible, and neither of them will know, because each is busy talking. The listeners are the ones who suffer.</p>
+          <p class="small">Now add a second problem: the room is large, and two people at opposite ends can each hear the person in the middle without hearing each other. They will both decide the room is quiet. That is a hidden terminal, and no amount of listening fixes it, because the sound never arrives.</p>
+          <p class="small" style="margin-bottom:0">The fix people actually use is a short announcement before speaking: "I am about to say something long, please hold." The middle of the room repeats it, and now everyone who can hear the middle stays quiet. That announcement is RTS and CTS. <span class="claim-chip claim-chip--interpretation">EDUCATIONAL INTERPRETATION</span></p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal statement</h3>
+          <p class="small">The 802.11 distributed coordination function is a carrier-sense multiple-access scheme with collision avoidance. A station with a frame to send:</p>
+          <p class="small">(1) senses the medium; (2) if it is idle for a DIFS, draws a backoff from a uniform distribution over the whole numbers 0 to CW and counts it down one slot per idle slot, freezing the count while the medium is busy; (3) transmits when the count reaches zero; (4) waits for an ACK that the receiver sends after a SIFS; (5) if no ACK arrives, doubles the window as 2 CW + 1 up to CWmax, and returns to step 1.</p>
+          <p class="small" style="margin-bottom:0">After a successful exchange the window returns to CWmin. <span class="claim-chip claim-chip--verified">VERIFIED FACT</span> the procedure is stated this way in the IEEE 802.11 medium access control clause, and summarised in the IETF mapping draft and in university course notes.</p>
+        </div>
+
+        <div class="card">
+          <h3>Every symbol, in words</h3>
+          <div class="step-list">
+            <div class="row"><strong>slot</strong> the unit of the backoff countdown: 20 microseconds on 802.11b, 9 on 802.11a and 802.11g.</div>
+            <div class="row"><strong>SIFS</strong> the short inter-frame space, 10 microseconds on 802.11b: how long a station waits before an immediate reply such as an ACK or a CTS.</div>
+            <div class="row"><strong>PIFS</strong> SIFS plus one slot, 30 microseconds: the access point's priority when it takes the channel.</div>
+            <div class="row"><strong>DIFS</strong> SIFS plus two slots, 50 microseconds: the wait before an ordinary data frame may contend.</div>
+            <div class="row"><strong>CW</strong> the contention window, the largest backoff a station may draw; it starts at 31 on 802.11b and at 15 on 802.11a and g, and is capped at 1023.</div>
+            <div class="row"><strong>backoff</strong> the number of slots drawn at random from 0 to CW; the station transmits when it reaches zero.</div>
+            <div class="row"><strong>NAV</strong> the network allocation vector, a countdown set from the duration field of an overheard frame; the medium counts as busy while it runs.</div>
+            <div class="row"><strong>RTS / CTS</strong> request to send, 20 bytes, and clear to send, 14 bytes: a short reservation exchange that makes hidden stations fall silent.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Why the shape is forced</h3>
+          <p class="small">Three constraints, and each removes a design option.</p>
+          <div class="step-list">
+            <div class="row"><strong>Half duplex.</strong> A radio cannot transmit and receive on the same channel at once, so it cannot compare what it sent with what it hears. Collision detection is out.</div>
+            <div class="row"><strong>Collisions are spatial.</strong> Interference happens where two signals meet, which is at the receiver. The sender may be nowhere near it, so even a full-duplex radio would not necessarily hear the damage.</div>
+            <div class="row"><strong>No coordinator.</strong> There is no central scheduler in ordinary infrastructure mode, so access must be decided by a rule every station can run alone and identically.</div>
+          </div>
+          <p class="small" style="margin-bottom:0">Avoidance, randomisation and acknowledgement are what remain. <span class="claim-chip claim-chip--derivation">MATHEMATICAL DERIVATION</span> from those three constraints, in the sense that each of the three mechanisms repairs a specific consequence of them.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Where this sits in the syllabus graph</h3>
+          <p class="small" style="margin-bottom:0">Section 10 names layering, LAN technologies (Ethernet), IPv4/IPv6, routing, TCP/UDP and congestion control, the application protocols, <strong>basics of Wi-Fi</strong>, and network security. This lesson is the Wi-Fi clause, and it depends on the Ethernet lesson for the carrier-sense vocabulary and on the performance-metrics lesson for the difference between a rate and a goodput. It is the prerequisite for nothing else in the syllabus, but it explains the latency and loss behaviour that the transport-layer lesson's congestion control reacts to. <span class="claim-chip claim-chip--verified">VERIFIED FACT</span> the clause list is quoted from the published GATE 2027 CS syllabus.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">One radio channel, three stations: A, the access point, and C. Only one of them may transmit at a time.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One channel, three stations, and no one can hear their own collision</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">One radio channel, three stations. Only one of them may transmit at a time.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked examples</h3>
+          <p class="small" style="margin-bottom:0">Five examples, in the order they build. Every intermediate figure is printed, because the marks in this topic are lost in the arithmetic, not in the idea. All five are original practice, worked from the same model the animation uses.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — the airtime of a 1500-byte frame</h3>
+          <div class="step-list">
+            <div class="row"><strong>Given.</strong> 802.11b, 11 Mbps, long preamble, mean backoff of 16 slots, payload 1500 bytes.</div>
+            <div class="row"><strong>Fixed parts.</strong> DIFS 50 + backoff 16 x 20 = 320 + preamble and header 192, so 562 microseconds before any data.</div>
+            <div class="row"><strong>Data.</strong> (1500 + 28) x 8 / 11 Mbps = 1111.3 microseconds. The 28 bytes are the MAC header and the checksum.</div>
+            <div class="row"><strong>Reply.</strong> SIFS 10 + preamble and header 192 + ACK 14 x 8 / 11 Mbps = 10.2, so 212.2 microseconds.</div>
+            <div class="row"><strong>Total.</strong> 562 + 1111.3 + 212.2 = 1885.5 microseconds.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><span class="verdict">Goodput = 12,000 bits / 1885.5 microseconds = 6.365 Mbps, which is 57.9 percent of 11 Mbps.</span> The overhead is 774.2 microseconds, and it is the same 774.2 for every payload size, which is the single most useful fact on this page.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — the same frame, six sizes</h3>
+          <table class="small" style="width:100%; border-collapse:collapse">
+            <tr><th style="text-align:left">Payload</th><th style="text-align:right">Airtime</th><th style="text-align:right">Goodput</th><th style="text-align:right">Efficiency</th></tr>
+            <tr><td>64 B</td><td style="text-align:right">841.1 us</td><td style="text-align:right">0.609 Mbps</td><td style="text-align:right">5.5 %</td></tr>
+            <tr><td>128 B</td><td style="text-align:right">887.6 us</td><td style="text-align:right">1.154 Mbps</td><td style="text-align:right">10.5 %</td></tr>
+            <tr><td>256 B</td><td style="text-align:right">980.7 us</td><td style="text-align:right">2.088 Mbps</td><td style="text-align:right">19.0 %</td></tr>
+            <tr><td>512 B</td><td style="text-align:right">1166.9 us</td><td style="text-align:right">3.510 Mbps</td><td style="text-align:right">31.9 %</td></tr>
+            <tr><td>1024 B</td><td style="text-align:right">1539.3 us</td><td style="text-align:right">5.322 Mbps</td><td style="text-align:right">48.4 %</td></tr>
+            <tr><td>1500 B</td><td style="text-align:right">1885.5 us</td><td style="text-align:right">6.365 Mbps</td><td style="text-align:right">57.9 %</td></tr>
+            <tr><td>2304 B</td><td style="text-align:right">2470.2 us</td><td style="text-align:right">7.462 Mbps</td><td style="text-align:right">67.8 %</td></tr>
+          </table>
+          <p class="small" style="margin-bottom:0">Read the first and last columns together: the airtime grows by 1629.1 microseconds while the goodput more than doubles. The efficiency is a function of the payload, not of the rate. <span class="claim-chip claim-chip--derivation">MATHEMATICAL DERIVATION</span> computed by the page's model from the seven-term sum.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — will these two collide?</h3>
+          <p class="small">Four stations draw backoffs from 0 to 31. The draws are 4, 9, 10 and 14.</p>
+          <div class="step-list">
+            <div class="row"><strong>Minimum.</strong> 4, drawn by the first station only.</div>
+            <div class="row"><strong>Verdict.</strong> No collision: the first station transmits, the others freeze at 9, 10 and 14.</div>
+            <div class="row"><strong>Counter-case.</strong> Draws 4, 4, 10, 14 would collide, because the minimum is attained twice.</div>
+            <div class="row"><strong>Harmless case.</strong> Draws 4, 10, 10, 14 do not collide on the first attempt, even though two stations share a number.</div>
+          </div>
+          <p class="small" style="margin-bottom:0"><span class="verdict">The rule is "the smallest value is attained exactly once", not "all values are distinct".</span> The two rules differ from three stations upward, and the difference is 0.281 in the three-station, CW-3 case.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — hidden, exposed, or neither</h3>
+          <p class="small">Range 60 metres. A at −45, the access point at 0, C at +45, D at +95, all on one line.</p>
+          <div class="step-list">
+            <div class="row"><strong>A to AP.</strong> 45 m, within range, so A hears the access point.</div>
+            <div class="row"><strong>C to AP.</strong> 45 m, within range.</div>
+            <div class="row"><strong>A to C.</strong> 90 m, beyond range. Both reach the access point and neither reaches the other, so A and C are a hidden pair.</div>
+            <div class="row"><strong>C to D.</strong> 50 m, within range, and D is 95 m from the access point, so C to D would not disturb the access point's reception.</div>
+            <div class="row"><strong>Consequence.</strong> If the access point is receiving from A and C wants to send to D, C hears the medium busy and defers although it would not have collided: that is the exposed terminal.</div>
+          </div>
+          <p class="small" style="margin-bottom:0">The page checks all six pairwise distances rather than trusting the picture, and reports that exactly one hidden pair exists in this layout. <span class="claim-chip claim-chip--derivation">MATHEMATICAL DERIVATION</span></p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Example 5 — is RTS/CTS worth it here?</h3>
+          <p class="small">The handshake costs RTS 206.6 + SIFS 10 + CTS 202.2 + SIFS 10 = 428.7 microseconds, paid on every frame. A collision on the data wastes the data time. So the handshake pays only if</p>
+          <p class="formula">p(collision) &gt; 428.7 / data_time</p>
+          <p class="small">For a 1500-byte frame the data time is 1111.3 microseconds, so the threshold is 0.386. For a 2304-byte frame it is 0.253. For a 1024-byte frame it is 0.560. For a 256-byte frame the data time is only 206.5 microseconds, less than the handshake itself, so the threshold exceeds 1 and no collision rate justifies it.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">MATHEMATICAL DERIVATION</span> from a stated simplified model: it ignores the ACK timeout, and it ignores that RTS frames can collide with each other. Both omissions make the handshake look better than it is, which is why the real standard makes RTS optional and driven by a size threshold rather than by a probability.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: more stations than slots does not force a collision</h3>
+          <p class="small">The pigeonhole instinct says that with 5 stations drawing from 4 values, two must share, so the first transmission must collide. It does not follow: the collision needs two stations at the <em>minimum</em>. The draw 0, 1, 1, 2, 3 has a unique minimum, so the station that drew 0 transmits alone.</p>
+          <p class="small" style="margin-bottom:0">Computed: with 5 stations and CW = 3, the collision probability is 0.5215, not 1. <span class="claim-chip claim-chip--derivation">MATHEMATICAL DERIVATION</span> the closed form sums over the minimum, and the brute-force enumeration over all 1024 outcomes agrees.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: one station, and no contention at all</h3>
+          <p class="small">With k = 1 the collision probability is exactly 0, and the expected wait is the mean of 0 to CW, which is CW/2 = 15.5 slots, or 310 microseconds at CW = 31. A single station still waits: the random backoff applies even when nothing else is transmitting.</p>
+          <p class="small" style="margin-bottom:0">That is why a lone station's goodput is below the arithmetic maximum, and why the published single-client 802.11b figures use a backoff of half a window rather than zero.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: the same question on a different variant</h3>
+          <p class="small">A question that says "Wi-Fi" without a variant does not have one answer. The slot time is 20 microseconds on 802.11b and 9 on 802.11a and g, so the same 16-slot backoff is 320 microseconds on b and 144 on a. DIFS follows the slot time: 50, 34 and 28 respectively.</p>
+          <p class="small" style="margin-bottom:0">The contention window also differs: CWmin is 31 on 802.11b and 15 on 802.11a and g, which nearly doubles the collision probability at eight stations, from 12.04 to 23.18 percent. State the variant, or state the assumption you are making.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a station that hears nothing is not safe</h3>
+          <p class="small">Silence is evidence about the sender's neighbourhood, not about the receiver's. In the layout drawn, A hears silence and transmits, and its frame is destroyed at the access point by C's frame, which A could never have heard.</p>
+          <p class="small" style="margin-bottom:0">The correct rule: carrier sense is a necessary condition for a safe transmission, never a sufficient one. That asymmetry is the whole content of the hidden-terminal problem.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge: a frame smaller than the handshake</h3>
+          <p class="small">Below about 500 bytes of payload the RTS/CTS handshake costs more than the data it protects. At 256 bytes the data is 206.5 microseconds and the handshake is 428.7, so the break-even probability exceeds 1: the handshake can never pay.</p>
+          <p class="small" style="margin-bottom:0">This is not a defect in the analysis; it is the reason the standard exposes an RTS threshold in bytes, and the reason vendors ship it disabled. It is also a warning about treating "RTS/CTS solves the hidden terminal" as an unconditional statement.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge: three mutually hidden stations</h3>
+          <p class="small">With three stations pairwise out of range of each other and all in range of the access point, the pairwise analysis still finds each pair hidden, but the repair behaves differently: the CTS silences only the stations that hear it, so a third station out of the CTS's range is still free to collide.</p>
+          <p class="small" style="margin-bottom:0">The general statement is that a reservation protects a neighbourhood, not a network. Anything outside the receiver's range is unprotected, which is why multi-hop wireless needs more than 802.11's MAC.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Edge: the NAV and physical silence are not the same thing</h3>
+          <p class="small">A station whose NAV is running will not transmit even though its radio hears nothing, and a station whose NAV has expired may still find the medium physically busy. Both are "busy", and a question that asks why a station deferred can have either answer.</p>
+          <p class="small" style="margin-bottom:0">The NAV is a promise made by another station's header, and it can be wrong: if the frame it described is lost, the NAV still runs to its full duration, which is a real cost of virtual carrier sense.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Edge: what an ACK timeout cannot distinguish</h3>
+          <p class="small">A missing ACK is produced identically by a collision, by interference from a non-802.11 source, by a signal too weak at the receiver, and by a corrupted frame. The station doubles its window in all four cases.</p>
+          <p class="small" style="margin-bottom:0">So an increase in retransmissions is not evidence of contention, and a question that asks what a station should conclude from a retry has no correct answer beyond "retry with a larger window".</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>"Wi-Fi detects a collision and aborts the frame"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Ethernet does exactly that, and the two protocols share the words carrier sense and multiple access, so the third term is assumed to match.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> A station transmits a full 1500-byte frame, hears nothing wrong, and only after the ACK timeout of tens of microseconds learns that something failed. There was no abort: the frame was spent in full.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> 802.11 avoids collisions and infers failure from a missing ACK. The "CA" is the difference, and it exists because a radio cannot listen while it transmits.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The collision probability is 1 over CW plus 1"</h3>
+          <p class="small"><strong>Why it tempts.</strong> It is the formula in most textbook treatments, and it is exactly right for two stations.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Three stations, CW = 3. The formula gives 0.25; the truth is 0.34375. At CW = 31 with eight stations the formula's two-station value is 0.0313 while the truth is 0.1204.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> A collision is two or more stations attaining the smallest draw. Compute one minus the probability that the minimum is attained exactly once, by summing over every possible minimum.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"A collision means two stations drew the same number"</h3>
+          <p class="small"><strong>Why it tempts.</strong> It is the natural reading of "random backoff prevents collisions", and for two stations it coincides with the truth.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Draws 4, 10, 10, 14: two stations share the value 10 and nothing collides, because both are still counting when the station at 4 transmits.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Only a repeated <em>minimum</em> collides. The all-distinct formula gives 0.625 where the truth is 0.34375 at three stations and CW = 3.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"SIFS, PIFS and DIFS are arbitrary constants to memorise"</h3>
+          <p class="small"><strong>Why it tempts.</strong> They are given as numbers in every table, and the table is easy to copy.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Quote 802.11b's DIFS of 50 microseconds for an 802.11a link and the arithmetic is wrong by 16 microseconds, because 802.11a's SIFS is 16 and its slot 9, giving 34.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> DIFS = SIFS + 2 x slot and PIFS = SIFS + slot. Derive the two, memorise the slot time and SIFS, and the ladder follows for any variant.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"RTS/CTS solves the hidden terminal completely"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Every textbook draws the three-node picture with the arrows and stops there, and the arrows do fix that picture.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Two stations send RTS in the same slot and both RTS frames are lost, so no CTS is sent and the collision still happened, only with shorter frames. A station outside the CTS's range is unprotected in exactly the original way.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The handshake reduces the cost of a collision and covers the receiver's neighbourhood. It removes neither the collision nor the problem outside that neighbourhood.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"An 11 Mbps link carries 11 Mbps of data"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The number is printed on the box, and the overheads are invisible.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> A 256-byte frame on 802.11b takes 980.7 microseconds and delivers 2048 bits, which is 2.088 Mbps: 19 percent of the nominal rate. A 64-byte frame delivers 5.5 percent.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Payload bits divided by total airtime is the goodput, and the efficiency is set by the payload size because the 774.2 microseconds of overhead is fixed.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this clause gets examined, and what the answer must show</h3>
+          <p class="small" style="margin-bottom:0">The syllabus names <em>Basics of Wi-Fi</em> without further detail, so the examinable surface is the standard's medium access behaviour rather than any particular product. <span class="claim-chip claim-chip--unverified">UNVERIFIED CLAIM</span> No past GATE item on this clause was confirmed against an official paper for this page, so no question below is labelled a PYQ. The five patterns are drawn from the syllabus wording and from how the same mechanics appear in standard textbook problem sets; treat them as the shapes to expect, not as evidence of frequency.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 1 — the airtime or efficiency calculation</h3>
+          <p class="small"><strong>What it asks.</strong> Given a variant, a rate and a payload, find the time to send one frame, or the goodput, or the efficiency.</p>
+          <p class="small"><strong>Reasoning it demands.</strong> The seven-term sum, in the right order, with the preamble paid twice and the MAC header included in the payload charge.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Payload bits divided by the rate, which is the transmission time of the data alone and not the airtime of the exchange. It is always too optimistic, and it is the single most frequent error in this topic.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 2 — the backoff and the contention window</h3>
+          <p class="small"><strong>What it asks.</strong> The window after n failures; the mean or worst-case wait; the probability of a collision for a stated number of stations; the number of slots the winner waited.</p>
+          <p class="small"><strong>Reasoning it demands.</strong> The rule 2 CW + 1 up to the cap, the mean CW/2, and the smallest-value event for the probability.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Applying 1/(CW+1) to k stations, or forgetting the cap and letting the window grow past 1023.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 3 — the hidden and exposed terminal classification</h3>
+          <p class="small"><strong>What it asks.</strong> Given positions and a range, say which pairs are hidden, whether a collision occurs, and whether a proposed fix helps.</p>
+          <p class="small"><strong>Reasoning it demands.</strong> Two reachability tests per pair: does each reach the receiver, and do they reach each other. The classification follows from the two answers.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Deciding from the picture, or assuming that "out of range of the access point" is what hidden means. Both stations in a hidden pair are usually close to the access point.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 4 — the frame-exchange timeline</h3>
+          <p class="small"><strong>What it asks.</strong> Which frame may be sent at which gap; why the ACK cannot be pre-empted; how long a station must stay silent after hearing a CTS.</p>
+          <p class="small"><strong>Reasoning it demands.</strong> The IFS ordering, and the fact that the duration in the header sets the NAV independently of what is heard afterwards.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Treating SIFS and DIFS as interchangeable waits, which loses the priority argument and usually the marks with it.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Pattern 5 — the conceptual comparison</h3>
+          <p class="small"><strong>What it asks.</strong> Why 802.11 does not use CSMA/CD; what an ACK is for; what the NAV is; what RTS/CTS does and does not fix.</p>
+          <p class="small"><strong>Reasoning it demands.</strong> One physical fact (half duplex) and one geometric fact (collisions are located at the receiver), then the mechanism each one forces.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Answering "because wireless is unreliable". Reliability is what the ACK handles; the reason collision detection is impossible is that the transmitter is deaf.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set</h3>
+          <p class="small">Eight questions, all original practice written for this lesson; none is presented as a past-paper item. Answers are hidden until you reveal them one at a time, and each solution says why the other options are wrong. The mock-test switch hides them all until you submit.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode — hide every answer until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">An 802.11b station sends a 1024-byte payload at 11 Mbps with the long preamble, a mean backoff of 16 slots, and the standard IFS values. Give the total airtime of the exchange in microseconds, to one decimal place.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 1539.3 microseconds</span></p>
+            <p class="small">DIFS 50 + backoff 320 + preamble and header 192 + data (1024 + 28) x 8 / 11 Mbps = 765.1 + SIFS 10 + preamble and header 192 + ACK 10.2 = 1539.3. The goodput is 8192 bits / 1539.3 microseconds = 5.322 Mbps, which is 48.4 percent of the rate.</p>
+            <p class="small" style="margin-bottom:0">The two traps are charging the payload without the 28 bytes of MAC header and checksum, and charging the ACK without its own preamble and header. Either omission shortens the total by roughly 190 or 25 microseconds.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Four stations contend on 802.11b with CW = 31 at the first attempt. Which is closest to the probability that the first transmission collides?</p>
+          <p class="small">(A) 0.031 &nbsp; (B) 0.062 &nbsp; (C) 0.120 &nbsp; (D) 0.250</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B, 0.0615</span></p>
+            <p class="small">A collision is two or more stations attaining the smallest of four uniform draws from 0 to 31. Summing over the minimum gives 0.0615.</p>
+            <p class="small"><strong>A</strong> is the two-station value 1/32, which is the formula most people recall. <strong>C</strong> is the eight-station value, 0.1204. <strong>D</strong> is the all-distinct answer for a four-value window, which is the wrong event entirely.</p>
+            <p class="small" style="margin-bottom:0">The page computes this both by closed form and by enumerating every outcome for small windows, and the two agree to 1e-12.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MSQ</p>
+          <p class="small">Which of the following are true of the 802.11 distributed coordination function? Select all that apply.</p>
+          <p class="small">(A) A station that finds the medium idle for a DIFS transmits immediately, with no backoff. &nbsp; (B) The backoff counter is frozen while the medium is busy and resumes when it is idle again. &nbsp; (C) The contention window doubles after every unsuccessful attempt, up to 1023. &nbsp; (D) A station can distinguish a collision from a corrupted frame by inspecting the channel.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B and C</span></p>
+            <p class="small"><strong>B</strong> is the pause-and-resume rule, which is what makes the countdown fair. <strong>C</strong> is the rule 2 CW + 1 capped at 1023: 31, 63, 127, 255, 511, 1023.</p>
+            <p class="small"><strong>A</strong> is false: a backoff is drawn even when the medium is found idle, which is why a single station still averages 15.5 slots of waiting. <strong>D</strong> is false: there is no collision signal at all, only the absence of an ACK, which interference and a weak signal produce identically.</p>
+            <p class="small" style="margin-bottom:0">Note that C is about the window, not about the wait: the mean wait doubles with it, from 310 microseconds to 10,230.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Stations A and C are each 45 m from an access point with a 60 m range, and 90 m from each other. Both have a frame for the access point and both carrier-sense an idle medium. What happens?</p>
+          <p class="small">(A) Neither transmits, because each senses the other. &nbsp; (B) Both transmit, and the frames collide at the access point. &nbsp; (C) Both transmit, and both frames arrive intact because the access point can separate them. &nbsp; (D) The access point's CTS prevents the collision.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">This is the hidden terminal: each is inside the access point's range and outside the other's, so neither carrier-senses the other, and both frames overlap at the receiver. Neither station can detect the loss; both discover it only when no ACK arrives.</p>
+            <p class="small"><strong>A</strong> would need A to C to be within 60 m. <strong>C</strong> is false: overlapping transmissions on one channel sum, and a receiver cannot separate two unsynchronised frames. <strong>D</strong> confuses the repair with the default: a CTS is sent only in response to an RTS, and RTS is optional and off by default.</p>
+            <p class="small" style="margin-bottom:0">The page checks the three distances rather than assuming the geometry.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">On 802.11b, a station's frame fails four times in a row and succeeds on the fifth attempt. Give the contention window used on the fourth attempt.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 255</span></p>
+            <p class="small">The window before the first attempt is 31. After one failure it is 2 x 31 + 1 = 63, after two 127, after three 255. So the fourth attempt runs with CW = 255, whose mean wait is 255/2 x 20 = 2550 microseconds.</p>
+            <p class="small" style="margin-bottom:0">Two slips to avoid: counting the first attempt as "after one failure", which shifts every rung by one, and applying the cap early. The cap of 1023 is reached on the sixth attempt, not the fourth.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Why can 802.11 not use collision detection, as Ethernet does?</p>
+          <p class="small">(A) Because wireless links are unreliable and frames are often corrupted. &nbsp; (B) Because a station cannot usefully receive while it transmits, and the collision may occur where it cannot be heard. &nbsp; (C) Because the access point is a single point of failure. &nbsp; (D) Because the standard reserves detection for the point coordination function.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Two independent reasons, and both are needed. Half duplex means the receiver is deaf to anything weaker than the station's own transmission; and the interference happens at the receiver, which may be out of the sender's range entirely.</p>
+            <p class="small"><strong>A</strong> confuses the repair with the cause: unreliability is handled by the ACK, and detection fails for a physical reason. <strong>C</strong> is about topology, not about the physical layer. <strong>D</strong> invents a mechanism: no 802.11 coordination function performs collision detection.</p>
+            <p class="small" style="margin-bottom:0">The reliable one-line answer: a radio cannot listen while it shouts, and the collision is somewhere else anyway.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q7</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MSQ</p>
+          <p class="small">Which statements about RTS/CTS in 802.11 are true? Select all that apply.</p>
+          <p class="small">(A) A station that hears a CTS defers for the duration carried in it. &nbsp; (B) RTS/CTS removes the exposed-terminal problem. &nbsp; (C) RTS and CTS frames can themselves collide. &nbsp; (D) For small frames the handshake can cost more than the data it protects.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A, C and D</span></p>
+            <p class="small"><strong>A</strong> is virtual carrier sense: the duration field sets the NAV. <strong>C</strong> is the reason the problem is reduced rather than removed. <strong>D</strong> is arithmetic: the handshake is 428.7 microseconds, while a 256-byte frame's data is only 206.5.</p>
+            <p class="small"><strong>B</strong> is false, and it is the most common error in the topic. RTS/CTS makes stations quieter, which if anything makes the exposed-terminal loss larger, not smaller.</p>
+            <p class="small" style="margin-bottom:0">Notice that D is why the standard exposes an RTS threshold in bytes: the handshake is worth its cost only above a size, and the size is where the threshold comes from.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q8</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">A 256-byte frame is sent on 802.11b at 11 Mbps. Which is closest to the fraction of the airtime that carries payload?</p>
+          <p class="small">(A) 19 percent &nbsp; (B) 48 percent &nbsp; (C) 58 percent &nbsp; (D) 79 percent</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A, 19.0 percent</span></p>
+            <p class="small">The airtime is 980.7 microseconds and the payload is 2048 bits, giving 2.088 Mbps, which is 19.0 percent of 11 Mbps. Of the 980.7 microseconds, 774.2 carry no payload.</p>
+            <p class="small"><strong>B</strong> is the 1024-byte figure. <strong>C</strong> is the 1500-byte figure. <strong>D</strong> is the overhead fraction, not the payload fraction: it is the complement of the answer, and it is the number that makes the point.</p>
+            <p class="small" style="margin-bottom:0">The page reproduces the published 2,088,246 bps for this exact frame to within one part in ten thousand, so the 19.0 percent is not an estimate.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero">
+          <h3>The constants, by variant</h3>
+          <table class="small" style="width:100%; border-collapse:collapse">
+            <tr><th style="text-align:left"></th><th style="text-align:right">802.11b</th><th style="text-align:right">802.11g</th><th style="text-align:right">802.11a</th></tr>
+            <tr><td>slot</td><td style="text-align:right">20 us</td><td style="text-align:right">9 us</td><td style="text-align:right">9 us</td></tr>
+            <tr><td>SIFS</td><td style="text-align:right">10 us</td><td style="text-align:right">10 us</td><td style="text-align:right">16 us</td></tr>
+            <tr><td>DIFS</td><td style="text-align:right">50 us</td><td style="text-align:right">28 us</td><td style="text-align:right">34 us</td></tr>
+            <tr><td>CWmin</td><td style="text-align:right">31</td><td style="text-align:right">15</td><td style="text-align:right">15</td></tr>
+            <tr><td>CWmax</td><td style="text-align:right">1023</td><td style="text-align:right">1023</td><td style="text-align:right">1023</td></tr>
+          </table>
+          <p class="small" style="margin-bottom:0">Derive, do not memorise: DIFS = SIFS + 2 x slot, PIFS = SIFS + slot.</p>
+        </div>
+
+        <div class="card">
+          <h3>The formulas</h3>
+          <p class="formula">airtime = DIFS + (CW/2) x slot + PHY + (L + 28) x 8 / R + SIFS + PHY + 14 x 8 / R</p>
+          <p class="small">with PHY = 192 microseconds of long preamble and header on 802.11b, L the payload in bytes, R the rate in bits per second.</p>
+          <p class="formula">P(no collision) = sum over t of k (1/n) ((n - t - 1)/n)^(k-1), with n = CW + 1</p>
+          <p class="small">and the expected idle slots before the winner starts is the sum over t of ((n - t)/n)^k.</p>
+          <p class="formula">E[wait] = CW/2 slots; CW after n failures = min(2^n x 31 + (2^n - 1), 1023)</p>
+          <p class="small" style="margin-bottom:0">The ladder: 31, 63, 127, 255, 511, 1023, with mean waits of 310, 630, 1270, 2550, 5110 and 10,230 microseconds.</p>
+        </div>
+
+        <div class="card">
+          <h3>The efficiency table to check against</h3>
+          <p class="small">802.11b, 11 Mbps, long preamble, 16-slot backoff:</p>
+          <p class="small" style="margin-bottom:0"><strong>64 B</strong> 841.1 us / 0.609 Mbps / 5.5 %<br>
+          <strong>128 B</strong> 887.6 us / 1.154 Mbps / 10.5 %<br>
+          <strong>256 B</strong> 980.7 us / 2.088 Mbps / 19.0 %<br>
+          <strong>512 B</strong> 1166.9 us / 3.510 Mbps / 31.9 %<br>
+          <strong>1024 B</strong> 1539.3 us / 5.322 Mbps / 48.4 %<br>
+          <strong>1500 B</strong> 1885.5 us / 6.365 Mbps / 57.9 %<br>
+          <strong>2304 B</strong> 2470.2 us / 7.462 Mbps / 67.8 %</p>
+        </div>
+
+        <div class="card">
+          <h3>The decision procedure</h3>
+          <div class="step-list">
+            <div class="row"><strong>Hidden?</strong> Do both reach the receiver, and neither reach the other? Then hidden. It costs correctness.</div>
+            <div class="row"><strong>Exposed?</strong> Does the sender hear a transmission it would not have collided with? Then exposed. It costs throughput.</div>
+            <div class="row"><strong>Collision?</strong> Is the smallest backoff attained more than once? Then yes; a repeat above the minimum is harmless.</div>
+            <div class="row"><strong>Deferred why?</strong> Physical sense (energy heard) or virtual sense (NAV running). Both are "busy", and the reasons differ.</div>
+            <div class="row"><strong>Which wait?</strong> ACK and CTS at SIFS, the access point at PIFS, ordinary data at DIFS, and then the backoff.</div>
+          </div>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five traps</h3>
+          <div class="step-list">
+            <div class="row">Quoting the raw rate as the throughput, or dividing payload bits by the rate alone.</div>
+            <div class="row">Using 1/(CW+1) for more than two stations.</div>
+            <div class="row">Treating a repeated backoff value as a collision when it is not the minimum.</div>
+            <div class="row">Answering a numeric question without fixing the variant: slot, SIFS and CWmin all change.</div>
+            <div class="row">Claiming RTS/CTS fixes the exposed terminal, or that it removes collisions entirely.</div>
+          </div>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Three sentences to write in an exam</h3>
+          <p class="small">Wi-Fi cannot detect collisions because a radio cannot receive while it transmits and because the interference occurs at the receiver, so 802.11 avoids collisions by an IFS ladder plus a random backoff and repairs failures with an ACK and a doubling window.</p>
+          <p class="small" style="margin-bottom:0">A hidden terminal is a station the sender cannot hear but the receiver can; an exposed terminal is a station that defers although it would not have collided. RTS/CTS fixes the first at the cost of a fixed handshake, and does nothing for the second.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official and standards</h3>
+          <ul class="src-list small">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras.</strong> Supports the classification: Section 10 names "Basics of Wi-Fi" verbatim, in the Computer Networks section. Read for this lesson; the clause is the whole of the scope statement.</li>
+            <li><strong>IEEE 802.11-2012, clause 9 and the PHY timing tables.</strong> The normative source for DIFS = SIFS + 2 x slot, the SIFS and slot values, CWmin and CWmax, and the DCF procedure. Quoted here through two independent secondary summaries rather than read directly.</li>
+            <li><strong>IETF draft, Guidelines for DiffServ to IEEE 802.11 Mapping (Szigeti and Baker).</strong> Supports the slot, SIFS, DIFS and contention-window values and the DIFS identity, and the access-category windows. <span class="claim-chip claim-chip--verified">VERIFIED FACT</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook-level and university material</h3>
+          <ul class="src-list small">
+            <li><strong>Princeton COS 463, "Sharing the Wireless Medium".</strong> Supports the hidden and exposed terminal framing, "collisions are spatially located at the receiver", the RTS/CTS and NAV mechanism, and the observation that RTS/CTS is not the default in practice.</li>
+            <li><strong>CMU 15-441, "IEEE 802.11 MAC Protocol: CSMA/CA".</strong> Supports the sender and receiver procedure, the ACK rationale, and the overhead-versus-benefit argument for RTS/CTS.</li>
+            <li><strong>York University, "IEEE 802.11 Medium Access Control".</strong> Supports the physical and virtual carrier sense distinction, the backoff pause-and-resume rule, CWmin = 31 for 802.11b, and the list of DCF disadvantages.</li>
+            <li><strong>Gorry Fairhurst, CSMA/CA course notes, University of Aberdeen.</strong> Supports the DCF timer vocabulary and the contention-window doubling and reset behaviour.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The quantitative check</h3>
+          <ul class="src-list small">
+            <li><strong>Cisco, "Maximum Throughput Calculations for 802.11b WLAN".</strong> Supplies the seven-term airtime formula and the published figures of 1,153,625 bps for a 128-byte packet and 2,088,246 bps for a 256-byte packet with a long preamble. This page computes 1,153,625.6 and 2,088,246.2 from its own model, which is the external check on the arithmetic. <span class="claim-chip claim-chip--verified">VERIFIED FACT</span></li>
+            <li><strong>Duda, "Understanding the Performance of 802.11 Networks".</strong> Supports CWmin = 31 for 802.11b and 15 for 802.11g, the mean backoff of CW/2 slots, and the freeze-and-resume behaviour.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What this research did not cover</h3>
+          <p class="small">No past GATE question on the Wi-Fi clause was confirmed against an official paper, so none is labelled a PYQ and no frequency claim is made. The IEEE standard itself was not read directly; its values are quoted through the secondary summaries above, which agree with each other on every number used here. Quality of service, 802.11ax scheduling, beamforming, rate adaptation and mesh routing are outside this lesson, as are the specific RTS threshold defaults of any vendor.</p>
+          <p class="small" style="margin-bottom:0">Where a figure is an assumption rather than a standard value, it is stated as one: the 16-slot mean backoff, the 192 microseconds of long preamble, and the omission of propagation delay. <span class="claim-chip claim-chip--community">COMMUNITY OBSERVATION</span> the claim that RTS/CTS is disabled by default in practice comes from the Princeton course notes, not from a measurement made here.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
