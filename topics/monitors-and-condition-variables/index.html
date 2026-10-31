@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitors and condition variables — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Monitors and condition variables</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../synchronisation-and-deadlock/index.html">Prerequisite: synchronisation and deadlock</a>
+      <a href="../counting-semaphores-and-the-bounded-buffer/index.html">Related: counting semaphores</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The monitor and its condition variables &mdash; what the lock gives for free, what a condition variable is (a queue with no value), the three operations <code>wait</code>, <code>signal</code> and <code>broadcast</code>, the Hoare and Mesa scheduling rules, and the monitor construction built from semaphores.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a monitor program, say whether its waits are correct and why, decide whether an <code>if</code> or a <code>while</code> is required, decide whether a <code>signal</code> or a <code>broadcast</code> is required, count the threads asleep on each condition variable and waiting for the lock, and read the standard semaphore construction well enough to fill in its two blanks. Explain the difference between <code>V(semaphore)</code> and <code>signal(condition&nbsp;variable)</code> in one sentence each.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>the waiting half of concurrency</em>: the prerequisite lesson builds mutual exclusion, semaphores and the classical problems; this one owns the monitor as a language construct, its condition variables, and the two scheduling rules. The bounded buffer is re-derived here in monitor form because that is where the counting questions live.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> Section 8 of the GATE 2027 CS syllabus, published by IIT Madras, reads: <em>&ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>Class A by area, class B by name.</strong> &ldquo;Monitor&rdquo; and &ldquo;condition variable&rdquo; are not phrases in that sentence; &ldquo;concurrency and synchronization&rdquo; is. Monitors are the standard language-level content of that clause and the standard subject of its harder questions.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Question archives index items on monitors in 1990 and 2006. Those are individual questions that can be read and re-solved, not a weightage figure, and nothing here forecasts 2027.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Prerequisites, and what is assumed</h3>
+          <p class="small">The critical-section problem, mutual exclusion, progress and bounded waiting, and the plain semaphore with P and V are built in <a href="../synchronisation-and-deadlock/index.html">Synchronisation and Deadlock</a>. The counting semaphore and the three-counter bounded buffer are in <a href="../counting-semaphores-and-the-bounded-buffer/index.html">Counting Semaphores and the Bounded Buffer</a>.</p>
+          <p class="small">This lesson assumes you can read <code>P(S)</code> as &ldquo;take one, or block&rdquo; and <code>V(S)</code> as &ldquo;give one back, or wake one&rdquo;, and nothing more. Every quantity it uses is defined here before it is used.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--assumption">Assumption</span> Unless a question says otherwise, the semantics used here are <strong>Mesa</strong>: a signal makes the waiter runnable and the signaller keeps the lock. Every claim about <code>while</code> depends on that one sentence, and it is stated again wherever it is used.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, 300 seconds. The failure of exclusion alone is drawn as a room with one door and two threads (scene 1). The four parts of a monitor, and the two queues inside it, follow (scenes 2&ndash;3). The six-row difference between a semaphore and a condition variable is the centre of the lesson (scene 4), then the two scheduling rules and their context-switch cost (scene 5). Two searches carry the two claims that cannot be settled by reading: the <code>if</code> against <code>while</code> search over every interleaving (scene 6) and the <code>signal</code> against <code>broadcast</code> search over a pool of free space (scene 7). The semaphore construction is then executed against all four of its candidate answers (scene 8), the monitor bounded buffer is written out with its four counts (scene 9), and the reading procedure closes (scene 10).</p>
+          <p class="small" style="margin-bottom:0">Every number on the canvas is computed by the page&rsquo;s own model in <code>lesson.js</code> &mdash; a statement-level monitor simulator plus a breadth-first search over interleavings &mdash; and re-checked against its definition. The check results are printed under the canvas, not hidden.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <p class="small">1. A monitor is a lock plus named queues; the lock is inserted by the compiler.</p>
+          <p class="small">2. A condition variable is a queue with <em>no value</em>: a signal with no waiter is lost.</p>
+          <p class="small">3. <code>wait</code> releases the lock and always blocks; <code>signal</code> wakes one waiter if there is one.</p>
+          <p class="small">4. Mesa wakes you without a guarantee, so the predicate is re-tested in a <code>while</code> loop.</p>
+          <p class="small" style="margin-bottom:0">5. Broadcast is always correct; signal is correct when one change satisfies every waiter on that variable.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a room with one door and a waiting bench</h3>
+          <p class="small">Picture a room with one door and one key. Only the person holding the key is inside. That is the monitor, and the key is the lock. Now add a bench outside, labelled with a reason: &ldquo;waiting for a seat&rdquo;, &ldquo;waiting for a table&rdquo;. A person who gets inside and finds the thing they wanted is not there leaves the key on the hook, sits on the bench with the matching label, and sleeps. Somebody who makes that thing true walks past the bench and taps one sleeper on the shoulder.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The key is the lock; a bench is a condition variable; a tap is a signal. The bench has no counter on it &mdash; it is a queue of people, and that is the whole difference from a semaphore, which is a stack of tokens.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Monitor, precisely</h3>
+          <p class="small">A <strong>monitor</strong> is a module with three properties: its data is private; its exported procedures are the only way in; and at most one thread executes inside any of those procedures at any moment.</p>
+          <p class="small">The exclusion is enforced by a lock that the compiler inserts at procedure entry and exit. It is per monitor instance, and in Java it is reentrant: a thread already inside may call another procedure of the same monitor without blocking.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The construct was proposed independently by Hoare (1974) and Brinch Hansen (1973). Hoare&rsquo;s paper also defines the scheduling rule now called Hoare semantics.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Condition variable, precisely</h3>
+          <p class="small">A <strong>condition variable</strong> <code>cv</code> is a queue of threads, associated with one monitor, on which a thread may wait for a condition to become true. It stores nothing else: no value, no count, no flag.</p>
+          <p class="formula">wait(cv)      atomically: release the lock, join cv&rsquo;s queue, sleep
+              on waking:  re-acquire the lock, then return
+signal(cv)    if cv&rsquo;s queue is non-empty, make one waiter runnable
+              otherwise do nothing at all
+broadcast(cv) make every waiter on cv runnable</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Because <code>signal</code> has no effect when the queue is empty, the number of wake-ups a thread receives is at most the number of signals sent while it was queued. A signal sent before the wait is not counted. That single inequality is the source of every &ldquo;lost wake-up&rdquo; bug in this lesson.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The discipline: test under the lock, then wait</h3>
+          <p class="small">The condition you wait for is a fact about the monitor&rsquo;s data, so it can only be read while holding the lock. The wait releases the lock. Therefore the test must sit inside the monitor, immediately before the wait, and must be repeated after every wake-up.</p>
+          <p class="formula">while (!P) wait(cv);     // Mesa: required
+if (!P) wait(cv);        // Hoare only</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--assumption">Assumption</span> The <code>while</code> form is correct under both semantics. The <code>if</code> form is correct only under Hoare, where the signaller hands over control and no thread can enter between the signal and the waiter resuming.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The two scheduling rules, and what each promises</h3>
+          <p class="small"><strong>Hoare</strong> (signal and urgent wait): the signaller hands the lock and the processor to one waiter, which runs immediately; the signaller is parked, usually on a semaphore called <code>next</code>, and resumes when the waiter leaves or waits again. <strong>Mesa</strong> (signal and continue): the signaller keeps the lock and keeps running; the waiter becomes runnable and competes for the lock like everyone else.</p>
+          <p class="formula">Hoare:  after wait returns, the predicate P is guaranteed true
+Mesa:   after wait returns, only the monitor invariant is guaranteed
+
+cost:   Hoare adds 2 context switches per signal that finds a waiter
+        Mesa  adds 0</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Mesa semantics are named after the Xerox Mesa system, whose designers (Lampson and Redell, 1980) chose them because Hoare&rsquo;s rule needs extra process switches and a perfectly reliable signalling mechanism. Java, POSIX condition variables, C# and Go all follow Mesa.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed by the same model.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A monitor lets one thread inside at a time. That is mutual exclusion, and it comes free.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Why one lock is not enough</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A monitor lets exactly one thread execute inside it at a time. That part is automatic.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked examples, each one computed by this page</h3>
+          <p class="small">Example 1 is the interleaving that breaks an <code>if</code>. Example 2 is the pool of free space where one signal cannot reach the right waiter. Example 3 is the semaphore construction of a Hoare monitor, run against all four of its candidate answers. Example 4 is the bounded buffer in monitor form with its four counts. Every number quoted was produced by the search in <code>lesson.js</code> and re-checked before it was drawn.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The searches are complete for the programs they model: every reachable state of every interleaving is visited, so &ldquo;no run does X&rdquo; is a statement about all runs of that program, not about a sample.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Example 1 &mdash; the <code>if</code> that removes an item which is not there</h3>
+          <p class="small">Program: one producer, two consumers, one slot, two condition variables <code>notFull</code> and <code>notEmpty</code>. <code>insert</code> waits on <code>notFull</code> while the buffer is full; <code>remove</code> waits on <code>notEmpty</code> while it is empty. The only difference between the two versions is what follows the wait: <code>while</code> re-tests, <code>if</code> goes straight on.</p>
+          <p class="small">The search visits <strong>78</strong> states with <code>while</code> and finds <strong>0</strong> in which an item is taken from an empty buffer. With <code>if</code> it visits <strong>92</strong> states and finds <strong>6</strong> such states, in which the counter reaches &minus;1.</p>
+          <div class="step-list">
+            <li><strong>C1</strong> tests <code>count == 0</code>, which is true, and waits on <code>notEmpty</code>. The lock is released. <span class="muted">&mdash; a waiter, not a runner</span></li>
+            <li><strong>P</strong> tests <code>count == 1</code>, which is false, adds an item so <code>count</code> is 1, signals <code>notEmpty</code>, which wakes C1, and leaves the monitor. <span class="muted">&mdash; C1 is runnable, and holds nothing</span></li>
+            <li><strong>C2</strong> enters, tests <code>count == 0</code>, which is now false, takes the item so <code>count</code> is 0, signals <code>notFull</code> with nobody waiting, and leaves. <span class="muted">&mdash; legal: C2 competed for the lock and won</span></li>
+            <li><strong>C1</strong> resumes inside its <code>if</code>, takes an item, and <code>count</code> becomes &minus;1. <span class="muted">&mdash; the predicate was never re-tested</span></li>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Why this is not a scheduling accident.</strong> Nothing in the trace is unusual: a woken thread is not preferred, and the monitor makes no promise about who enters next. The <code>while</code> version survives the same interleaving because its fourth step is a test, which fails, and the thread waits again.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Example 2 &mdash; ten free units, two needs, one signal</h3>
+          <p class="small">A pool holds 10 free units. <code>W16</code> waits for 16 units, <code>W6</code> waits for 6, both on the same condition variable <code>cv</code>. A thread frees 10 units and signals once. Both waiters use <code>while</code>, so neither is wrong in itself.</p>
+          <div class="step-list">
+            <li>W16 tests <code>avail &lt; 16</code>, true, and waits on <code>cv</code>.</li>
+            <li>W6 tests <code>avail &lt; 6</code>, true, and waits on <code>cv</code>.</li>
+            <li>Free adds 10, so <code>avail</code> is 10, and signals <code>cv</code>, which wakes <strong>W16</strong>.</li>
+            <li>W16 re-tests: 10 is less than 16, so it waits again. The wake-up is spent.</li>
+            <li>W6 is still asleep, and 10 is at least 6, so its condition is <em>already true</em>. No thread remains that could signal it.</li>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Measured.</strong> Under <code>signal</code> the search finds exactly <strong>1</strong> terminal state in which a thread sleeps with a false wait condition. Under <code>broadcast</code> it finds <strong>0</strong>. This is the storage allocator from the Mesa paper, reduced to three threads.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 &mdash; the monitor built from semaphores</h3>
+          <p class="small">The construction uses <code>mutex</code> (1) for the body, <code>x_sem</code> (0) for a waiter, <code>next</code> (0) for a signaller, and the counters <code>x_count</code> and <code>next_count</code>. Every procedure body is wrapped as <code>P(mutex); &hellip;; if (next_count &gt; 0) V(next); else V(mutex);</code>. Then:</p>
+          <p class="formula">x.wait:   x_count++; if (next_count&gt;0) V(next); else V(mutex);
+          E1;  x_count--;
+
+x.signal: if (x_count&gt;0) { next_count++; E2; P(next); next_count--; }</p>
+          <p class="small">The page runs each candidate pair against the same two-thread scenario and reports whether both threads finish:</p>
+          <p class="small"><strong>A</strong> <code>P(x_sem), V(next)</code> &mdash; stalls: the waiter is never released.<br>
+             <strong>B</strong> <code>V(next), P(x_sem)</code> &mdash; stalls: the signaller parks on <code>x_sem</code> before releasing it.<br>
+             <strong>C</strong> <code>P(next), V(x_sem)</code> &mdash; stalls: both threads park on <code>next</code>.<br>
+             <strong>D</strong> <code>P(x_sem), V(x_sem)</code> &mdash; finishes.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The waiter parks on <code>x_sem</code>, so the only way it can run is a <code>V(x_sem)</code>. Only <code>x.signal</code> can be expected to issue that release, so <code>E2</code> must be <code>V(x_sem)</code>; and because the waiter must not proceed before it has parked, <code>E1</code> must be <code>P(x_sem)</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 &mdash; the bounded buffer in monitor form</h3>
+          <p class="formula">monitor Buffer
+  int count = 0;  const int N;
+  condition notFull, notEmpty;
+
+  insert(x):  while (count == N) wait(notFull);
+              put x;  count++;
+              signal(notEmpty);
+
+  remove():   while (count == 0) wait(notEmpty);
+              take x;  count--;
+              signal(notFull);</p>
+          <p class="small">Four counts answer almost every question about this program:</p>
+          <p class="small">items in the buffer, at most <strong>N</strong>; producers asleep, at most <strong>P</strong>; consumers asleep, at most <strong>C</strong>; threads asleep across both queues, at most <strong>P + C</strong>. Threads inside the monitor: exactly <strong>1</strong>.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A producer sleeps only while <code>count == N</code>, so all sleeping producers are waiting on the same fact and are released by the same <code>signal(notFull)</code>; the queue can hold every producer. When <code>N = 1</code> a producer and a consumer are never asleep at the same instant, because <code>count == 1</code> excludes <code>count == 0</code>. With <code>N &gt; 1</code> they can be, so both bounds are needed.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rules stop applying, and what breaks when they do</h3>
+          <p class="small">Each card names the boundary, the exact condition that fails, and the smallest case that shows it. Read these before the misconceptions: several of them are the counterexample a misconception needs.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Signal before wait is lost, and nothing records it</h3>
+          <p class="small">If a producer signals while the consumer has not yet queued, the signal does nothing. The consumer then waits and sleeps for ever. This is the smallest lost-wakeup and it needs only two threads.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition that fails:</strong> the signal must be sent after the waiter has queued. That is why the test and the wait are both inside the monitor: the signaller must hold the lock to signal, so it cannot signal between the test and the wait.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An unconditional wait with no test</h3>
+          <p class="small"><code>wait(cv)</code> with no predicate around it is correct only if the event is guaranteed to happen exactly once and cannot already have happened. In a buffer it is wrong: a consumer may wait when an item is already present, and sleep through it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition that fails:</strong> the event is repeatable, or it may precede the wait. Write the predicate, not the event.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Calling wait or signal without the lock</h3>
+          <p class="small">These operations are defined only for a thread holding the monitor lock. In Java the attempt throws <code>IllegalMonitorStateException</code>; in C and C++ with POSIX condition variables it is undefined behaviour, which is worse because it may appear to work.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it matters here:</strong> without the lock, the test and the wait can be separated, and the previous card&rsquo;s failure returns.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>One condition variable, two predicates</h3>
+          <p class="small">Sharing a condition variable between two different predicates forces <code>broadcast</code>. With <code>signal</code> the wake can reach a waiter whose predicate is still false, that waiter re-waits, and the wake-up is gone.</p>
+          <p class="small" style="margin-bottom:0"><strong>The repair:</strong> one condition variable per predicate, which is what makes <code>signal</code> correct; or keep the shared variable and broadcast.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The <code>if</code> is correct under Hoare, and only there</h3>
+          <p class="small">Under Hoare semantics the signaller hands over, so no thread can enter between the signal and the waiter resuming, and the predicate is still true. That is exactly the assumption the <code>if</code> needs.</p>
+          <p class="small" style="margin-bottom:0"><strong>What to check:</strong> does the question say <em>immediate</em>, <em>urgent wait</em>, or <em>hands over</em>? If it does, an <code>if</code> may be intended. If it names Java, POSIX, C# or Go, it is Mesa and the <code>if</code> is a bug.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Spurious wake-ups: the wake may not come from a signal</h3>
+          <p class="small">POSIX condition variables and Java&rsquo;s <code>Object.wait</code> both permit a thread to return from a wait with no signal, no notify and no timeout. This is documented, not a defect.</p>
+          <p class="small" style="margin-bottom:0"><strong>Consequence:</strong> the loop is not merely a defence against a misdelivered signal; it is the mechanism that makes an unexplained wake-up harmless. A program with <code>if</code> can proceed on a wake-up that carries no information at all.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Two monitors, one condition variable: not allowed</h3>
+          <p class="small">A condition variable is bound to one lock. Many condition variables may share one lock &mdash; that is the normal design &mdash; but one condition variable may not serve two locks, because the test it protects would then be unprotected.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where it bites:</strong> a question with two monitor objects and one condition variable is showing an error, and the answer is usually that the queues must be split.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Reentrancy, and nested entry</h3>
+          <p class="small">Java&rsquo;s monitor lock is reentrant: a thread inside a synchronized method may call another synchronized method of the same object without blocking. A simple semaphore-based implementation is not, and would deadlock on the same program.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where it appears:</strong> in questions that ask whether a recursive monitor procedure can deadlock. On a reentrant lock the answer is no; on a plain binary semaphore it is yes.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Deadlock, starvation and a lost wake-up are three different things</h3>
+          <p class="small"><strong>Deadlock:</strong> a cycle of threads each waiting for a resource the next holds. <strong>Starvation:</strong> the system progresses but one thread never gets its turn. <strong>Lost wake-up:</strong> a specific signal was consumed by the wrong waiter, and no thread can ever issue another.</p>
+          <p class="small" style="margin-bottom:0"><strong>How to tell them apart in a question:</strong> a lost wake-up always shows a waiter whose condition is visibly satisfied while it waits, and no runnable thread that could signal it. That is the state Example 2 prints.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>What a monitor does not give you</h3>
+          <p class="small">A monitor gives mutual exclusion and a waiting mechanism. It gives no fairness: which waiter a signal picks is unspecified, and which thread gets the lock next is unspecified. It gives no priority, no deadline and no ordering between entry attempts.</p>
+          <p class="small" style="margin-bottom:0"><strong>Consequence for questions:</strong> any option that says a signal wakes &ldquo;the longest waiting&rdquo; thread is asserting something the construct does not promise. Java documents the choice as arbitrary.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that are wrong, and the smallest thing that refutes each</h3>
+          <p class="small">Each card gives the belief as it is usually stated, why it is tempting, a counterexample small enough to check by hand, and the rule that replaces it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. &ldquo;signal on a condition variable is like V on a semaphore&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The operations share their names, and both wake a sleeping thread when one is available.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> One consumer waits on <code>cv</code>; a producer signals twice with no waiter, then a consumer waits. With a semaphore of initial value 0 the two <code>V</code>s leave the value at 2 and the later <code>P</code> passes. With a condition variable both signals are lost and the later <code>wait</code> blocks for ever.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> A semaphore has a value and therefore a memory; a condition variable has only a queue. Deposits are remembered, knocks are not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. &ldquo;wait on a condition variable is like P on a semaphore&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> P blocks the caller, and wait blocks the caller.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> <code>P(S)</code> with <code>S = 5</code> returns immediately. <code>wait(cv)</code> with a non-empty queue, an empty queue, or any other state still blocks. There is no state of a condition variable in which wait does not block.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> P is a test-and-decrement; wait is an unconditional suspension. The decision to wait belongs to the code around it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. &ldquo;the condition variable holds the condition, so I can test it&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> It is called a <em>condition</em> variable, and the loop reads <code>while (notEmpty) &hellip;</code> in some notes.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> There is nothing to read. A condition variable is a queue of threads; it has no value, no boolean and no count. In Java the object you synchronize on is a real object, which makes the confusion easier, but the condition is still a field you wrote.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> The condition is a predicate over the monitor&rsquo;s data. The condition variable is the name of the queue you sleep on while that predicate is false.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. &ldquo;a signal hands control to the waiter&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Most textbooks draw Hoare monitors, and under Hoare the statement is true.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> In Java, <code>notify()</code> moves a thread out of the wait set; the notifier keeps the lock and keeps running, and the notified thread must compete for the lock afterwards. Java&rsquo;s own documentation says the awakened thread &ldquo;enjoys no reliable privilege or disadvantage&rdquo; in getting it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Under Mesa a signal is a hint. Under Hoare it is a handover. Read which one the question means before deciding what follows.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. &ldquo;if is fine because the condition was true when I checked&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The check was under the lock, so it was a correct check at that moment.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Example 1: three statements after C1 sleeps, the item is gone, and C1&rsquo;s <code>if</code> removes an item from an empty buffer. The search finds six such states out of ninety-two, so this is not an exotic corner.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> The lock makes the check-and-act atomic only while you hold it. A wait gives it up, so the check must be repeated after the wait returns.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. &ldquo;broadcast is the wasteful version of signal&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Waking threads that cannot proceed sounds like wasted work, and signal is cheaper when it is right.</p>
+          <p class="small"><strong>Minimal counterexample.</strong> Example 2: with one condition variable serving two different needs, <code>signal</code> leaves a thread asleep whose condition is already true, and the program stops with the resource available. <code>broadcast</code> finishes, and the search finds no stalling state at all.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Broadcast is always correct when the wait is in a loop. Signal is an optimisation that is correct only when one change satisfies every waiter on that variable.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The five question shapes this topic produces</h3>
+          <p class="small">Each card names the shape, the reasoning it demands, and the approach that loses the mark. Verified previous-year items are named with their year and paper; nothing is called a PYQ on resemblance alone.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 &mdash; fill in the semaphore construction</h3>
+          <p class="small">The construction is given with two blanks, one in <code>x.wait</code> and one in <code>x.signal</code>, and four candidate pairs. The reasoning is entirely about which thread parks where.</p>
+          <p class="small"><strong>Method.</strong> Find the semaphore the waiter parks on. The signal must release that same one, and it must do so before the signaller parks itself. That fixes both blanks at once, and the order fixes which is P and which is V.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Recognising the textbook figure. Questions permute the letter names, and a remembered figure gives the wrong letters.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 &mdash; match a construct to its name</h3>
+          <p class="small">A matching question pairs terms with their characteristic property. For monitors the pairing is <em>wait/signal</em> with <em>Hoare&rsquo;s monitor</em>, as against <em>critical region</em> with <em>mutual exclusion</em>.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 1990 asks for exactly this match, and the answer key pairs <code>Wait/Signal</code> with <code>Hoare&rsquo;s monitor</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Pairing wait/signal with mutual exclusion, because both involve a critical region. Mutual exclusion is the property of the critical region; wait and signal are the monitor&rsquo;s waiting mechanism.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 &mdash; is this program correct, and if not why</h3>
+          <p class="small">A monitor program with one defect: an <code>if</code> instead of a <code>while</code>, a signal before the change, a signal with no waiter, or two predicates on one condition variable.</p>
+          <p class="small"><strong>Method.</strong> Find every <code>wait</code>. For each one ask: what predicate justifies it, is that predicate tested under the lock, and is it re-tested after the wait? Then ask whether the signal that should release it can arrive when nobody is queued.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Tracing one convenient interleaving and declaring the program correct. One working schedule proves nothing; the search in Example 1 needed three threads and eleven statements to break the <code>if</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 &mdash; count the threads in each queue</h3>
+          <p class="small">Questions asking how many threads can be inside the monitor, asleep on a condition variable, waiting for the lock, or blocked in total.</p>
+          <p class="small"><strong>Method.</strong> Inside the monitor is always one. Asleep on a condition variable is bounded by the number of threads that can wait on that predicate. Blocked in total is the sum, because a thread is in exactly one place.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Counting semaphore values. A condition variable has no value to be negative, so the &ldquo;magnitude of a negative value&rdquo; rule from the semaphore lesson does not transfer.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Shape 5 &mdash; Hoare or Mesa, and what follows</h3>
+          <p class="small">A statement question: which of these is true of monitors. The options usually differ on whether the signaller blocks, whether the waiter runs immediately, whether an <code>if</code> suffices, or how many context switches a signal costs.</p>
+          <p class="small"><strong>Method.</strong> Find the word that settles the semantics. <em>Immediately</em>, <em>urgent wait</em>, <em>hands over</em> mean Hoare: two context switches, predicate guaranteed on return, <code>if</code> sufficient. <em>Keeps the lock</em>, <em>notify</em>, <em>notifyAll</em>, <em>spurious wake-up</em> mean Mesa: no extra switches, predicate not guaranteed, <code>while</code> required.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach.</strong> Answering for &ldquo;monitors in general&rdquo;. There is no such thing: the scheduling rule is part of the definition, and a question that does not name it expects the one its named system uses.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set &mdash; answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 and 2 are previous-year items with their year and paper. Questions 3 to 7 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given, and every numeric answer here was recomputed by this page&rsquo;s model.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 1990</span></div>
+          <div class="q-body">
+            <p>Match the pairs.</p>
+            <p class="small"><strong>List I:</strong> (a) Critical region &nbsp; (b) Wait/Signal &nbsp; (c) Working set &nbsp; (d) Deadlock<br>
+            <strong>List II:</strong> (p) Hoare&rsquo;s monitor &nbsp; (q) Mutual exclusion &nbsp; (r) Principle of locality &nbsp; (s) Circular wait</p>
+            <ol class="choices">
+              <li>(a)-(q), (b)-(p), (c)-(r), (d)-(s)</li>
+              <li>(a)-(p), (b)-(q), (c)-(r), (d)-(s)</li>
+              <li>(a)-(q), (b)-(r), (c)-(p), (d)-(s)</li>
+              <li>(a)-(s), (b)-(p), (c)-(r), (d)-(q)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A &mdash; (a)-(q), (b)-(p), (c)-(r), (d)-(s)</p>
+            <p>A critical region is the code that must be executed with mutual exclusion. Wait and signal are the operations of a condition variable, which is the waiting mechanism of Hoare&rsquo;s monitor. A working set is defined by the principle of locality. Deadlock requires a circular wait among its four conditions.</p>
+            <p><strong>Why B is tempting.</strong> It swaps the first two, pairing the critical region with Hoare&rsquo;s monitor, because a monitor does provide exclusion. But exclusion is the property of the critical region, and wait/signal is what the monitor adds beyond it. <strong>Why C and D fail.</strong> Neither working set nor deadlock has anything to do with monitors; C pairs the working set with a monitor, and D pairs the critical region with circular wait.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE IT 2006 Q57</span></div>
+          <div class="q-body">
+            <p>The wait and signal operations of a monitor are implemented using semaphores as follows. <code>x</code> is a condition variable, <code>mutex</code> is a semaphore initialised to 1, <code>x_sem</code> is initialised to 0, <code>x_count</code> is the number of processes waiting on <code>x_sem</code> and is initially 0, <code>next</code> is initialised to 0, and <code>next_count</code> is initially 0. Every procedure visible outside the monitor is wrapped as <code>P(mutex); &hellip;body&hellip;; if (next_count &gt; 0) V(next); else V(mutex);</code>.</p>
+            <p class="small">Each <code>x.wait</code> becomes: <code>x_count = x_count + 1; if (next_count &gt; 0) V(next); else V(mutex); <strong>E1</strong>; x_count = x_count &minus; 1;</code></p>
+            <p class="small">Each <code>x.signal</code> becomes: <code>if (x_count &gt; 0) { next_count = next_count + 1; <strong>E2</strong>; P(next); next_count = next_count &minus; 1; }</code></p>
+            <p>For a correct implementation of the monitor, E1 and E2 are respectively</p>
+            <ol class="choices">
+              <li>P(x_sem), V(next)</li>
+              <li>V(next), P(x_sem)</li>
+              <li>P(next), V(x_sem)</li>
+              <li>P(x_sem), V(x_sem)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: D &mdash; P(x_sem), V(x_sem)</p>
+            <p>The waiter releases the monitor lock and then parks on <code>x_sem</code>, so E1 must be <code>P(x_sem)</code>. Only <code>x.signal</code> can be expected to release it, so E2 must be <code>V(x_sem)</code>. Running all four pairs on this page against the same scenario confirms it: A, B and C each leave at least one thread blocked with nothing that could release it, and only D finishes.</p>
+            <p><strong>Why A fails.</strong> It releases <code>next</code> instead of <code>x_sem</code>, so the waiter sleeps for ever. <strong>Why B fails.</strong> It parks the signaller on <code>x_sem</code> before releasing anything, so both threads end up on the same semaphore with nobody to signal. <strong>Why C fails.</strong> It parks the waiter on <code>next</code>, which is exactly where the signaller is about to park, and neither releases the other.</p>
+            <p class="small"><strong>Provenance note.</strong> GATE Overflow indexes this item as GATE IT 2006 Q57; another public archive indexes the same text as GATE CSE 2006 Q39. The two 2006 papers shared items, so both attributions appear. The wording and the answer are the same in both.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following statements about condition variables under Mesa semantics are true?</p>
+            <ol class="choices">
+              <li>A signal with no waiter has no effect.</li>
+              <li>A thread returning from <code>wait</code> may find its predicate false.</li>
+              <li><code>wait</code> releases the monitor lock and re-acquires it before returning.</li>
+              <li>Replacing <code>signal</code> by <code>broadcast</code> can make a correct program incorrect.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, C</p>
+            <p>A is the defining property: the construct stores nothing, so the signal is lost. B is what Mesa semantics promise &mdash; the waiter is made runnable and competes for the lock, so another thread may change the data first. C is the definition of <code>wait</code>, and the re-acquisition is what makes the code after it protected.</p>
+            <p><strong>Why D is false.</strong> Broadcast wakes more threads than necessary, and every extra wake-up is absorbed by the <code>while</code> loop re-testing the predicate. Waking a thread whose predicate is false is always harmless; failing to wake one whose predicate is true is the failure. So broadcast never turns a correct program incorrect, which is why it is the safe default.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A monitor implements a bounded buffer with capacity 4 and two condition variables, <code>notFull</code> and <code>notEmpty</code>. There are 3 producer threads and 2 consumer threads, each in a loop. What is the maximum number of threads that can be blocked at the same time, counting both those asleep on a condition variable and any waiting for the monitor lock? (Threads inside the monitor are not counted as blocked.)</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 4</p>
+            <p>At most 3 producers can be asleep on <code>notFull</code>, and at most 2 consumers on <code>notEmpty</code>, so at most 5 could be asleep in principle. But a thread asleep on a condition variable has released the lock, and a thread waiting for the lock is only blocked while another thread holds it &mdash; exactly one. So the total blocked is at most 5, and the question asks for the maximum achievable.</p>
+            <p><strong>The exact count for capacity 4.</strong> Producers sleep only when the buffer is full, <code>count = 4</code>; consumers sleep only when it is empty, <code>count = 0</code>. Those are mutually exclusive, so the two queues cannot both be non-empty: at most 3 producers asleep, or at most 2 consumers asleep, never both. Adding the one thread that may be waiting for the lock gives 3 + 1 = 4.</p>
+            <p><strong>Why 5 appears.</strong> It adds the two bounds without noticing that <code>count = 4</code> and <code>count = 0</code> cannot both hold. <strong>Why 6 appears.</strong> It adds every thread. <strong>Why 3 appears.</strong> It counts only the larger of the two queues and forgets the lock waiter.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A monitor <code>M</code> has one condition variable <code>cv</code> and a counter <code>count</code>. Threads A and B each execute <code>while (count == 0) wait(cv); count--;</code>, and thread C executes <code>count = count + 1; signal(cv);</code> exactly once. Under Mesa semantics, which statement is true?</p>
+            <ol class="choices">
+              <li>Both A and B are guaranteed to complete.</li>
+              <li>Exactly one of A and B completes and the other blocks for ever, and this is correct behaviour.</li>
+              <li>Exactly one of A and B completes and the other blocks for ever, which shows that a <code>signal</code> was the wrong choice here.</li>
+              <li>Neither A nor B can complete, because <code>signal</code> does not release the lock.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>One item is added and one signal is sent, so exactly one waiter is woken and one item is removed. The other waiter's predicate is still true &mdash; the buffer is empty again &mdash; so it stays asleep, correctly. Nothing is broken: there was only ever one item for two consumers.</p>
+            <p><strong>Why C is the trap.</strong> It sounds like Example 2 and is not. In Example 2 the leftover waiter's predicate was <em>false</em> (10 units were free and it needed 6), so it should have proceeded and could not. Here the leftover waiter's predicate is <em>true</em> (the buffer is empty), so it should be asleep. A signal that leaves a correctly-sleeping waiter is not a lost wake-up.</p>
+            <p><strong>Why A fails.</strong> One item cannot satisfy two consumers. <strong>Why D fails.</strong> Under Mesa the signaller keeps the lock and releases it on exit from the monitor, so the woken waiter does get it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A monitor procedure issues <code>signal(cv)</code> 5 times, and on 3 of those occasions the condition variable has at least one waiter. Under Hoare semantics, how many context switches do these signals add, over and above the switches the same program would take under Mesa semantics?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 6</p>
+            <p>Hoare semantics add two context switches per signal that actually finds a waiter: one to hand control to the waiter, one to hand it back when the waiter leaves or waits again. Signals that find no waiter do nothing under either semantics. So the count is 2 &times; 3 = 6, and under Mesa the same three signals add 0.</p>
+            <p><strong>Why 10 appears.</strong> It counts all five signals, including the two that found nobody. <strong>Why 3 appears.</strong> It counts one switch per successful signal and forgets the hand-back. <strong>Why 0 appears.</strong> It has read the question as asking for the Mesa figure.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A monitor has two condition variables <code>notFull</code> and <code>notEmpty</code>, used by producers and consumers respectively. Which of the following are true?</p>
+            <ol class="choices">
+              <li>With two condition variables, <code>signal</code> is sufficient and <code>broadcast</code> is not needed.</li>
+              <li>With a single condition variable shared by both predicates, <code>broadcast</code> is required for correctness.</li>
+              <li>A thread can be asleep on both condition variables at the same time.</li>
+              <li>Holding the lock while calling <code>signal</code> is required.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, D</p>
+            <p>A: with one condition variable per predicate, every waiter on <code>notFull</code> is a producer, and one freed slot satisfies whichever of them is woken. B: with one shared variable a signal can reach the wrong kind of waiter, and Example 2 is that failure measured. D: the condition variable is bound to the monitor lock, and both <code>wait</code> and <code>signal</code> are defined only for a thread holding it.</p>
+            <p><strong>Why C is false.</strong> A thread asleep on a condition variable has already released the lock and is on exactly one queue. To sleep on a second it would have to be running, which it is not. A thread is in exactly one of: running inside the monitor, waiting for the lock, asleep on one condition variable, or runnable.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small">Definitions, the six-row table, the two rules, the counts and the traps. If you remember one sentence, remember the one at the bottom of this card.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <p class="small"><strong>Monitor:</strong> private data, exported procedures, one implicit per-instance lock, and condition variables.</p>
+          <p class="small"><strong>Condition variable:</strong> a queue of threads bound to one lock, with no value of any kind.</p>
+          <p class="small"><strong>wait(cv):</strong> atomically release the lock, join the queue, sleep; on waking re-acquire the lock, then return.</p>
+          <p class="small"><strong>signal(cv):</strong> make one waiter runnable if there is one; do nothing otherwise.</p>
+          <p class="small"><strong>broadcast(cv):</strong> make every waiter on <code>cv</code> runnable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Hoare:</strong> signaller hands over lock and CPU. <strong>Mesa:</strong> signaller keeps them.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Semaphore against condition variable</h3>
+          <p class="small">value? &mdash; semaphore yes, condition variable no<br>
+          take &mdash; P decrements and blocks at 0; wait always blocks<br>
+          give &mdash; V increments or wakes one; signal wakes one or is lost<br>
+          give with no waiter &mdash; remembered / lost<br>
+          take with nothing available &mdash; blocks only at 0 / always blocks<br>
+          outside a monitor &mdash; legal / illegal</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Each row follows from the first: with no stored value there is nothing to increment, nothing to test, and nothing to remember.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The rules, and the assumption behind each</h3>
+          <p class="small"><strong>Test under the lock, then wait.</strong> Assumes the lock is what protects the predicate.</p>
+          <p class="small"><strong>Re-test in a while loop.</strong> Assumes Mesa semantics. Under Hoare an <code>if</code> suffices.</p>
+          <p class="small"><strong>Signal after the change, inside the monitor.</strong> Assumes a lost signal cannot be recovered, which is true of every condition variable.</p>
+          <p class="small"><strong>Broadcast when one variable serves two predicates.</strong> Assumes the loop absorbs the extra wake-ups, which it does.</p>
+          <p class="small" style="margin-bottom:0"><strong>One lock, many condition variables; never one condition variable, many locks.</strong></p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The counts</h3>
+          <p class="small">threads inside the monitor: <strong>1</strong><br>
+          context switches added by a Hoare signal that finds a waiter: <strong>2</strong>; by a Mesa signal: <strong>0</strong><br>
+          items in a monitor buffer of N slots: at most <strong>N</strong><br>
+          producers asleep: at most <strong>P</strong>; consumers asleep: at most <strong>C</strong><br>
+          asleep on both queues, N = 1: <strong>P + C</strong>, and never one of each at once</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The last line holds because a producer sleeps only when <code>count = N</code> and a consumer only when <code>count = 0</code>, and those exclude each other when N = 1.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The four traps</h3>
+          <p class="small">1. Treating <code>signal</code> as a stored permission. It is not; there is no value.</p>
+          <p class="small">2. Treating <code>wait</code> as conditional. It is unconditional.</p>
+          <p class="small">3. Treating a wake-up as a promise. Under Mesa it is a hint.</p>
+          <p class="small" style="margin-bottom:0">4. Treating <code>broadcast</code> as waste. It is the safe default.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The sentence to keep</h3>
+          <p>A monitor gives mutual exclusion for free, a condition variable gives waiting, and every wait is re-tested in a loop, because under Mesa a signal is a hint and not a guarantee.</p>
+          <p class="small muted" style="margin-bottom:0">That sentence answers the definition questions, the code questions and the counting questions, and it tells you which of the four traps a wrong option has fallen into.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from, and what each source supports</h3>
+          <p class="small">Grouped by kind. Official documents and specifications are separated from textbooks and lecture notes, and community archives are separated from both. Every load-bearing claim in the lesson is traceable to one of these, and the claims that are this page&rsquo;s own computation are labelled as derivations rather than cited.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, gate2027.iitm.ac.in. Supports the Section 8 quotation used for the GATE relevance card, read on 2026-11-01.</p>
+          <p class="small"><strong>Java SE <code>Object.wait</code> and <code>notify</code> documentation</strong>, docs.oracle.com. Supports the statement that a wait must be called in a loop, that spurious wake-ups are permitted, and that a notified thread &ldquo;enjoys no reliable privilege&rdquo; in re-acquiring the lock.</p>
+          <p class="small" style="margin-bottom:0"><strong>Java <code>Condition</code> documentation</strong>, docs.oracle.com. Supports the same three claims for <code>await</code> and <code>signalAll</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Textbook and original papers</h3>
+          <p class="small"><strong>C. A. R. Hoare, &ldquo;Monitors: An Operating System Structuring Concept&rdquo; (1974).</strong> Supports the definition of the monitor and the scheduling rule now called Hoare semantics.</p>
+          <p class="small"><strong>B. Lampson and D. Redell, &ldquo;Experience with Processes and Monitors in Mesa&rdquo; (1980)</strong>, available from Stanford and Wisconsin course reading lists. Supports Mesa semantics, the while-loop rule, the statement that a notify is a hint, the broadcast rule, and the variable-size storage allocator used as Example 2.</p>
+          <p class="small" style="margin-bottom:0"><strong>Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em></strong>, the monitor chapter. The semaphore construction in Example 3 follows the textbook&rsquo;s figure, which is the construction the 2006 question quotes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>University lecture notes</h3>
+          <p class="small">Used for the Hoare against Mesa comparison, the context-switch cost, and the confirmation that mainstream systems are Mesa: UMass Amherst (Shenoy, &ldquo;What&rsquo;s wrong with semaphores?&rdquo;), UC San Diego (Voelker, semaphores and monitors), University of Washington (Arvind, monitors recap), and Cambridge (Hoare and Mesa signalling disciplines).</p>
+          <p class="small" style="margin-bottom:0">SEI CERT rule <strong>THI03-J</strong>, &ldquo;Always invoke wait() and await() methods inside a loop&rdquo;, is the source for the list of four reasons the loop is needed: a third thread in the middle, a misdelivered notification, an arbitrary wake order, and spurious wake-ups.</p>
+        </div>
+
+        <div class="card card--community">
+          <h3>Community archives, for the previous-year items only</h3>
+          <p class="small">GATE Overflow (item pages for the 1990 match-the-pairs question and for the 2006 monitor construction), ExamSIDE (the 1990 paper), solutionsadda (the 1990 answer key), and PYQBox (a question index that lists the 2006 construction under the CSE paper). These were used to read the questions and their answer keys, not as authority for the theory.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The two archives disagree about which 2006 paper the construction appeared in; both attributions are reported in the practice question rather than one being chosen silently. No weightage figure is taken from any of these sites.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Where this lesson stops</h3>
+          <p class="small">No audio file is shipped, so the caption timings are estimated from the timeline at a normal speaking rate rather than measured. No video file exists.</p>
+          <p class="small">The searches use three threads and a handful of statements. They are complete for the programs they model, and they say nothing about larger systems beyond the bounds derived separately and labelled as derivations.</p>
+          <p class="small" style="margin-bottom:0">The syllabus is a topic list, not a depth specification. Nothing here claims a marks weight for this topic, and the historical items cited are examples that can be read, not a distribution.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>What is this page&rsquo;s own computation</h3>
+          <p class="small">The state counts (78 and 92), the violation counts (0 and 6), the stalling-state counts (1 and 0), the interleaving traces, and the four verdicts on the semaphore construction are all produced by <code>lesson.js</code> in the browser and re-checked there before they are drawn.</p>
+          <p class="small" style="margin-bottom:0">They are labelled <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> because the reasoning is shown and executed, not because a source states them.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
