@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atomic instructions and the locks built from them — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Atomic instructions and the locks built from them</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../synchronisation-and-deadlock/index.html">Prerequisite: synchronisation and deadlock</a>
+      <a href="../readers-writers-and-dining-philosophers/index.html">Related: the classical problems</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The hardware instructions that make a lock possible &mdash; test-and-set, swap, compare-and-swap and fetch-and-add &mdash; and the locks built from each of them, including the two that put a queue behind the lock so that nobody starves.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Say what each instruction returns and what it stores, and why the word &ldquo;indivisible&rdquo; carries the whole argument. Build a lock from each instruction and decide mutual exclusion, progress and bounded waiting for it. Find the reachable state in which the published GATE 2012 fetch-and-add lock has nobody inside and can never be taken again. Read the waiting-array algorithm's exit scan and say why the wait is at most <em>n</em> &minus; 1. Count the failed attempts a spinner makes.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>the layer under semaphores</em>: the synchronisation lesson builds semaphores and Peterson's algorithm in software, and this lesson supplies the one indivisible step they all rest on, plus the queue that turns a correct lock into a fair one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> Section 8 of the GATE 2027 CS syllabus, published by IIT Madras, reads: <em>&ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>Class A by area, class B by name.</strong> &ldquo;Test-and-set&rdquo; is not a phrase in the syllabus; &ldquo;concurrency and synchronization&rdquo; is. These instructions are the standard content of that clause, and the lesson teaches them as its worked instances.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Question archives index items on this family in 2002, 2006, 2009 and 2012. Those are individual questions that can be read and re-solved, not a weightage figure, and nothing here forecasts 2027.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Prerequisites</h3>
+          <p class="small"><strong>The critical-section problem.</strong> The section, the entry and exit code, and the three requirements &mdash; mutual exclusion, progress, bounded waiting. The <a href="../synchronisation-and-deadlock/index.html">synchronisation lesson</a> defines all of them; this lesson uses them without redefining them.</p>
+          <p class="small"><strong>Interleaving.</strong> That a switch may occur between any two machine steps, so many orders of the same statements are legal. Scene 1 depends entirely on this.</p>
+          <p class="small" style="margin-bottom:0"><strong>Semaphores, lightly.</strong> That <code>wait</code> and <code>signal</code> block rather than spin. Scene 9 contrasts the two designs and needs the word, not the arithmetic.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Visualisation plan</h3>
+          <p class="small"><strong>Scene 1</strong> shows the failure of a lock built from an ordinary read and write. <strong>Scenes 2&ndash;5</strong> introduce the four instructions one at a time and draw each lock's word through its values, so the return value that admits or refuses is visible at the moment it happens. <strong>Scene 6</strong> traces the published 2012 lock to the state where it strands itself. <strong>Scenes 7&ndash;8</strong> add the two queues. <strong>Scenes 9&ndash;10</strong> count the cost and collect the properties.</p>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is drawn from a remembered value: every state count, every stranded value and every bar comes from the search in <code>lesson.js</code>, and 51 assertions re-check them against their definitions.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: one door, one key, and a note on the door</h3>
+          <p class="small">A room may hold one person at a time. The cheap way to enforce that is a note on the door: read the note, and if it says free, write &ldquo;taken&rdquo; and go in. Reading the note and writing on it are two separate acts, and in the gap between them somebody else can read the same word &ldquo;free&rdquo;. That is the whole problem, and no amount of careful coding fixes it, because the gap is in the hardware.</p>
+          <p class="small" style="margin-bottom:0">The fix is a door that will only let you read the note and write on it as one movement &mdash; a turnstile you cannot be interrupted inside. That is what test-and-set and its three cousins are. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The turnstile carries the idea; the arithmetic in scene 9 is what makes it a cost rather than a metaphor.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four instructions, in words</h3>
+          <p class="small"><strong>test-and-set</strong> &mdash; returns what the word held, and stores 1, as one step.</p>
+          <p class="small"><strong>swap</strong> &mdash; exchanges the contents of two words, as one step, and returns nothing.</p>
+          <p class="small"><strong>compare-and-swap</strong> &mdash; returns what the word held, and stores a new value <em>only if</em> the word still held the expected value.</p>
+          <p class="small" style="margin-bottom:0"><strong>fetch-and-add</strong> &mdash; returns what the word held, and adds a value to it, as one step. The ticket lock is built on this one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The lock each one builds</h3>
+          <p class="formula">test-and-set:      while (TAS(&amp;lock)) ;
+swap:              key = 1;
+                   do { swap(&amp;lock, &amp;key); } while (key);
+compare-and-swap:  while (CAS(&amp;lock, 0, 1) != 0) ;
+release (all):     lock = 0;</p>
+          <p class="small" style="margin-bottom:0">The three acquire loops are the same idea with a different instruction. The release is identical in all three, and it is a plain store, because writing one word cannot be half done.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Why one word is enough for the release</h3>
+          <p class="small">A store of a single aligned word is indivisible at the hardware level: no observer can see the word half written. So the release needs no special instruction, and every lock on this page releases with <code>lock = 0</code>.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The asymmetry is worth stating plainly: the <em>acquire</em> needs an indivisible read-modify-write because it must know whether it won, and the <em>release</em> does not, because it does not need to know anything.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>What a search can and cannot settle here</h3>
+          <p class="small">Each process is a small state machine, the shared word is part of the state, and a step is one statement. So the set of reachable states is finite, and walking it is a complete decision procedure for &ldquo;can two processes ever be inside together&rdquo; &mdash; not a sample of schedules. That is how every count on this page was produced.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> What the search does <em>not</em> settle is fairness, because &ldquo;can a process wait for ever&rdquo; is a statement about infinite schedules. For that this page does two honest things instead: it exhibits an explicit schedule in which one process loses every race, and it checks the exit scan of the queued algorithm on every waiting vector, which is what bounds the wait.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Two processes, one shared flag, and a section only one may enter.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A lock cannot be built from an ordinary read and write</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Two processes want the same critical section, and one shared word is supposed to keep them apart.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Example 1 &mdash; the naive lock, with the schedule that breaks it</h3>
+          <p class="small">Two processes, one flag, and the lock written as a test and then a store. The enumeration of every interleaving gives 52 reachable states, and exactly one of them has both processes inside.</p>
+          <p class="formula">step   process   action        flag   inside
+ 1      P0        reads flag      0      -
+ 2      P1        reads flag      0      -
+ 3      P0        stores 1        1      -
+ 4      P1        stores 1        1      -
+ 5      P0        enters          1      P0
+ 6      P1        enters          1      P0, P1   &lt;- the violation</p>
+          <p class="small" style="margin-bottom:0">The flag reads one from step 3 onward and is never wrong. What is wrong is that both processes took their decision from the value in step 1 and 2, and the write in step 4 destroyed no information that either of them used. This is why the repair has to be at the instruction level.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 &mdash; the test-and-set lock, traced</h3>
+          <p class="formula">process  TAS returns  lock after  verdict
+P0       0            1           enters
+P1       1            1           spins
+P2       1            1           spins
+P0 release: lock = 0
+P1 or P2: next TAS returns 0, enters</p>
+          <p class="small" style="margin-bottom:0">Three processes each running the loop twice give 135 reachable states, and no state has two inside. The largest number inside at any reachable state is one, which is the requirement, and the word only ever holds 0 or 1 because only those two values are ever stored into it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 &mdash; the same instruction, written out</h3>
+          <p class="small">Split test-and-set into <code>A1: y = *x; A2: *x = 1; A3: return y;</code> and the same search reports the same violation as the naive lock, because the three statements are exactly the load, the store and the return that the naive flag lock performed.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The two programs have the same reachable-state count, 52, and the same single violating state. That equality is the cleanest statement of the point: the code is not what changed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 &mdash; the swap lock, cell by cell</h3>
+          <p class="formula">attempt 1:  lock 0, key 1  ->  lock 1, key 0   enter
+attempt 1:  lock 1, key 1  ->  lock 1, key 1   retry
+attempt 2:  lock 1, key 1  ->  lock 1, key 1   retry
+release:    lock 0</p>
+          <p class="small" style="margin-bottom:0">The search gives 425 states and no violation, and a second invariant holds at every state: a process is inside exactly when its private key reads zero. The extra states over test-and-set come from the private register being part of the state, not from any difference in the lock.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 5 &mdash; compare-and-swap as a lock and as an increment</h3>
+          <p class="small">As a lock: 135 states, no violation, identical to test-and-set. As an increment: two threads, a thousand each, with one stale read per round.</p>
+          <p class="formula">plain   count = count + 1       loses the update on a stale read
+CAS     do { old = count; }
+        while (!CAS(&amp;count, old, old+1));
+        1000 retries, total exactly 2000</p>
+          <p class="small" style="margin-bottom:0">A retry is not a failure of the counter: it means somebody else succeeded, so the value advanced anyway. That is why the total lands exactly and the retries cost only time.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Example 6 &mdash; the published fetch-and-add lock, and the state that strands it</h3>
+          <p class="small">The GATE 2012 code loops while the returned value is non-zero and sets the word back to one inside the loop. The search over two processes gives 318 states. One of them has nobody inside and the word at one, and from that state the forward search visits 46 further states without ever entering the section.</p>
+          <p class="formula">P1: fetch-and-add returns 1, word becomes 2
+P1: switched out before its body runs
+P0: releases, word = 0
+P1: body runs, word = 1        nobody inside, word held
+P1: fetch returns 1 again, body stores 1, for ever</p>
+          <p class="small" style="margin-bottom:0">Note what is <em>not</em> wrong. Mutual exclusion is never violated: the search reports no state with two inside. The defect is that a release is overwritten, so the lock is held by nobody and can never be acquired. That is why the answer to the paper's question is &ldquo;the implementation fails&rdquo; rather than &ldquo;it works but starves&rdquo;.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 7 &mdash; the waiting array, on paper</h3>
+          <p class="formula">waiting = [false, true, false]
+P0 exits, i = 0
+scan: j = 1, waiting[1] is true -> clear it
+lock stays 1; P1 leaves its loop
+because waiting[1] is now false</p>
+          <p class="small" style="margin-bottom:0">The exiting process does not store zero when somebody is waiting. It hands the lock over by clearing one flag, and the chosen process leaves its loop on the flag test alone. The scan is checked on all 256 combinations of process and waiting vector for two to five processes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 8 &mdash; the spin arithmetic</h3>
+          <p class="formula">processes arriving together   failed attempts
+P0                             0
+P1                             1
+P2                             2
+...
+P(n-1)                         n-1
+total = n(n-1)/2               n=4: 6   n=8: 28</p>
+          <p class="small" style="margin-bottom:0">The first process makes no failed attempt and the last makes <em>n</em> &minus; 1. Both totals above are computed on this page rather than quoted, and the closed form is checked against the count for eight processes.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample span-2">
+          <h3>Boundary 1 &mdash; one process, and a lock that is never contended</h3>
+          <p class="small">With one process the loop runs once, returns zero, and the process enters. Every property holds trivially and no test on this page can distinguish a correct lock from a broken one, because the failure needs a second process to be switched in at the wrong moment. That is why questions in this family always name the number of processes.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The searches here use two processes for the naive and fetch-and-add programs and three for the rest, because two is the smallest number that can exhibit a violation and three is the smallest that can exhibit a queue.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 2 &mdash; the release is not a no-op if it is not a plain store</h3>
+          <p class="small">Every lock here releases by storing zero. The moment the release becomes a read-modify-write &mdash; because it also counts something, or checks something &mdash; it acquires the same gap the acquire had, and needs its own protection. The readers&ndash;writers solutions in the sibling lesson are exactly that case: the count is read, changed and written back under a separate mutex.</p>
+          <p class="small" style="margin-bottom:0">The test to apply: does the exit code depend on the current value of a shared word? If yes, it is a critical section of its own.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 3 &mdash; a uniprocessor hides most of this</h3>
+          <p class="small">On one core, mutual exclusion can be had by disabling interrupts around the section, and the naive flag lock fails only if a switch occurs inside the two statements &mdash; which a scheduler may well do. Disabling interrupts does not work across processors, and it does not stop a second core writing the same word, so the instructions on this page exist for the multiprocessor case.</p>
+          <p class="small" style="margin-bottom:0">A question that says &ldquo;the scheduler may switch at any point&rdquo; allows the naive failure on one core; a question about several cores needs an atomic instruction whatever the scheduler does.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 4 &mdash; compare-and-swap and the ABA problem</h3>
+          <p class="small">Compare-and-swap checks a value, not an identity. If a word goes A, then B, then back to A between the read and the instruction, the instruction sees the expected value and succeeds even though the world changed twice. That is harmless for a lock word, which only holds zero and one, and it is not harmless for a pointer in a lock-free list.</p>
+          <p class="small" style="margin-bottom:0">So the standard advice &mdash; &ldquo;use compare-and-swap for lock-free structures&rdquo; &mdash; comes with an assumption about what the word means, and the assumption is the part a question can test.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 5 &mdash; the ticket counters wrap</h3>
+          <p class="small">The dispenser only ever increases, so a fixed-width counter must wrap eventually. The comparison <code>now_serving == t</code> survives a wrap because it is an equality; a comparison of the form <code>now_serving &lt; t</code> does not, because the order of unsigned numbers breaks at the wrap.</p>
+          <p class="small" style="margin-bottom:0">The repair is a wrap-safe difference, comparing <code>t - now_serving</code> as a signed quantity. It is a defect of the comparison and not of the ticket idea, and it is worth naming separately because the idea is right and the code is not.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 6 &mdash; test-and-test-and-set is not a different lock</h3>
+          <p class="small">Spinning on a read and calling the instruction only when the read says free changes the traffic and nothing else: the same 28 failed attempts for eight processes, the same starvation, the same absence of a queue. It is an optimisation, not a repair.</p>
+          <p class="small" style="margin-bottom:0">The trap is to replace the instruction with the read. A read loop alone has the gap of scene 1 and admits two processes; the instruction must still be the one that decides.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 1 &mdash; &ldquo;a correct lock must be fair&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> Since the plain test-and-set lock gives mutual exclusion and cannot deadlock, it is a correct solution and therefore starvation-free.</p>
+          <p class="small"><strong>Why it is wrong.</strong> Correctness in this problem is three separate promises. The plain lock gives the first two and not the third: the computed schedule admits P0 and P2 six times while P1 fails six times. Deadlock-freedom and starvation-freedom are different properties, and a paper can ask for either one.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix in your head.</strong> Answer the property that was asked. &ldquo;Correct&rdquo; without a named property is not an answer here, and this is precisely the structure of the GATE 2009 item in the next tab.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 2 &mdash; &ldquo;the flag was wrong&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> In the naive lock the flag must have held a wrong value, or the two processes could not both have entered.</p>
+          <p class="small"><strong>Why it is wrong.</strong> At the violating state the flag reads one, which is correct: somebody is inside. What failed is the <em>decision</em>, which each process took from an older value of the flag. A shared word cannot carry information about a decision that has already been made from a stale copy.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix.</strong> Say where the switch was, not what the value was. The exam answer is a schedule, not a number.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 3 &mdash; &ldquo;atomic means fast&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> An atomic instruction is a quick one, so a spin lock built on it is cheap.</p>
+          <p class="small"><strong>Why it is wrong.</strong> Atomicity is a promise about indivisibility, not about time. An atomic instruction that touches a shared cache line can cost far more than an ordinary one, and a spinner issues it repeatedly: 28 failed attempts for eight processes, each one a write to the shared line.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix.</strong> Separate the two questions. Does the code need indivisibility? Yes. Is the resulting loop cheap? That is scene 9, and the answer depends on the number of cores.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 4 &mdash; &ldquo;bounded waiting means nobody waits&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> A fair lock admits a process immediately, or at least in arrival order with no wait.</p>
+          <p class="small"><strong>Why it is wrong.</strong> Bounded waiting says there is a bound on how many other admissions may happen first &mdash; <em>n</em> &minus; 1 here. A process can wait for every other process to go once and still satisfy the definition. What is forbidden is an unbounded wait, not a wait.</p>
+          <p class="small" style="margin-bottom:0"><strong>The tell.</strong> If an option says &ldquo;no process ever waits&rdquo;, it is stronger than the definition and is therefore the wrong option.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 5 &mdash; &ldquo;one atomic instruction is enough&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> If the code contains an atomic instruction, the lock must be right.</p>
+          <p class="small"><strong>Why it is wrong.</strong> The GATE 2012 lock contains one and still fails, because an ordinary statement sits inside the loop beside it and can overwrite a release. The atomicity of the instruction says nothing about the statements around it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix.</strong> Ask what else runs between the instruction and the section. That is the second question of the reading order in the Revision tab, and it is the one this family tests most often.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 6 &mdash; &ldquo;the ticket lock has no contention&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> Because the ticket lock is fair, the waiters must be queued by the operating system rather than spinning.</p>
+          <p class="small"><strong>Why it is wrong.</strong> The ticket lock is a spin lock with a queue expressed in two counters. Every waiter still runs and still reads the display, which is exactly what makes it expensive under heavy contention.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix.</strong> Fairness and blocking are separate axes: a ticket lock is fair and spinning, a semaphore is unfair-ish and blocking. Scene 9 puts the two costs side by side.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The four question shapes in this family</h3>
+          <p class="small"><strong>Shape 1 &mdash; fill the blanks.</strong> Complete <code>enter_CS</code> and <code>leave_CS</code> for a given instruction. Solve by asking what the instruction returns and which value admits you.</p>
+          <p class="small"><strong>Shape 2 &mdash; name the property that fails.</strong> &ldquo;Deadlock-free? Starvation-free? FIFO?&rdquo; Solve by checking the three requirements in order and saying which one breaks.</p>
+          <p class="small"><strong>Shape 3 &mdash; find the flaw in a proposed lock.</strong> Usually a statement that is not atomic, or a body that overwrites a release. Solve by asking what else runs between the instruction and the section.</p>
+          <p class="small" style="margin-bottom:0"><strong>Shape 4 &mdash; count.</strong> The number of failed attempts, the number of processes in the system, the largest number inside. Solve from the arithmetic, then check against the code.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Verified previous-year items</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 2009, Q33.</strong> <code>enter_CS(X) { while (test-and-set(X)); }</code> and <code>leave_CS(X) { X = 0; }</code>, with X initialised to 0, and four statements to judge: deadlock-free, starvation-free, FIFO order, more than one process inside. The answer is &ldquo;I only&rdquo;.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 2012, Q32.</strong> <code>AcquireLock(L) { while (Fetch_And_Add(L,1)) L = 1; }</code> with <code>ReleaseLock(L) { L = 0; }</code>, and four options about overflow, a non-zero value when the lock is available, correct-but-starving, and correct without starvation. The answer is the second: the lock can read non-zero when it is in fact available.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 2006, Q61.</strong> The atomic <code>fetch-and-set x, y</code> used to implement P and V on a binary semaphore, asking which of four statements is true. The answer is that the implementation may not work if context switching is disabled inside P.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 2002, Q18-b.</strong> TEST-AND-SET given as three C lines, asking for the enter and leave functions, whether the solution is deadlock-free and starvation-free, and an example showing that mutual exclusion fails when the instruction is not atomic.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>How the 2009 item is answered</h3>
+          <p class="small">Take the four statements in order and check each against a definition rather than a feeling. Mutual exclusion: the winner takes X from 0 to 1 and every loser reads 1, so no. More than one inside is false. Deadlock: the release stores 0 and some waiter's next call then returns 0, so no deadlock &mdash; true. Starvation: nothing orders the waiters, and the schedule in scene 7 shows one process losing six times, so not starvation-free. FIFO: nothing records an arrival order, so false.</p>
+          <p class="small" style="margin-bottom:0">One statement true, three false, which is option A. The value of the exercise is the method: each option is a property, and each property has a definition you can test the code against.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps that survive a careless check</h3>
+          <p class="small"><strong>Trap 1.</strong> Reading <code>while (cond) L = 1;</code> as an empty loop. There is no semicolon, so the assignment is the body.</p>
+          <p class="small"><strong>Trap 2.</strong> Saying the 2012 lock &ldquo;works correctly but starves&rdquo;. It does not work: the release can be lost.</p>
+          <p class="small"><strong>Trap 3.</strong> Awarding FIFO to any lock with an atomic instruction. Order needs a recorded arrival, and only the ticket lock and the waiting array have one.</p>
+          <p class="small"><strong>Trap 4.</strong> Answering &ldquo;yes&rdquo; to starvation-free because the code cannot deadlock.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap 5.</strong> Assuming the answer changes with the instruction. Swap, test-and-set and compare-and-swap give the same three properties; only the loop and the queue change them.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Cross-topic connections worth carrying</h3>
+          <p class="small"><strong>Semaphores rest on these.</strong> A <code>wait</code> that must decrement and test indivisibly is the same problem as the acquire here, and the standard implementations are a spin lock on this page or the disabling of interrupts. The <a href="../synchronisation-and-deadlock/index.html">synchronisation lesson</a> treats the semaphore as a given; this lesson is what makes it a given.</p>
+          <p class="small" style="margin-bottom:0"><strong>And on to the classical problems.</strong> The readers&ndash;writers solutions and the dining philosophers table in the <a href="../readers-writers-and-dining-philosophers/index.html">sibling lesson</a> are built from semaphores, so a defect there is usually a defect of ordering, while a defect here is a defect of indivisibility. Knowing which layer a question is at is half the answer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set &mdash; answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1, 2 and 4 are previous-year items with their year and question number. Questions 3, 5, 6 and 7 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given, and every numeric answer here was recomputed by this page's model.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2009 Q33</span></div>
+          <div class="q-body">
+            <p>The <code>enter_CS()</code> and <code>leave_CS()</code> functions for a critical section are realised with test-and-set as <code>void enter_CS(X) { while (test-and-set(X)); }</code> and <code>void leave_CS(X) { X = 0; }</code>. X is a memory location initialised to 0. Consider:</p>
+            <p>I. the solution is deadlock-free &nbsp; II. the solution is starvation-free &nbsp; III. processes enter in FIFO order &nbsp; IV. more than one process can be inside at the same time</p>
+            <p>Which of the above statements is TRUE?</p>
+            <ol class="choices">
+              <li>I only</li>
+              <li>I and II</li>
+              <li>II and III</li>
+              <li>IV only</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A &mdash; I only</p>
+            <p>The winner takes X from 0 to 1 and every other process reads 1 and spins, so IV is false. The release stores 0, so some waiter's next call returns 0 and enters: no deadlock, I is true. Nothing records arrival order, so III is false, and the schedule in scene 7 shows one process losing six races in a row, so II is false.</p>
+            <p><strong>Why B is tempting.</strong> &ldquo;No deadlock&rdquo; feels like &ldquo;everybody gets in eventually&rdquo;. It is not: a process can lose every race while others cycle, which is starvation without deadlock.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2012 Q32</span></div>
+          <div class="q-body">
+            <p><code>Fetch_And_Add(X,i)</code> is atomic: it reads X, adds i, and returns the old value. It is used as</p>
+            <p class="formula">AcquireLock(L){ while (Fetch_And_Add(L,1)) L = 1; }
+ReleaseLock(L){ L = 0; }</p>
+            <p>with L an unsigned integer initialised to 0. This implementation</p>
+            <ol class="choices">
+              <li>fails as L can overflow</li>
+              <li>fails as L can take on a non-zero value when the lock is actually available</li>
+              <li>works correctly but may starve some processes</li>
+              <li>works correctly without starvation</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>A waiting process fetches 1 and leaves the word at 2, then is switched out before its body runs. The holder releases, storing 0. The waiter resumes and its body stores 1, so the word is 1 with nobody inside, and every later fetch returns non-zero. That is a non-zero value while the lock is available, which is exactly option B, and it is the state this page's search finds.</p>
+            <p><strong>Why C is wrong.</strong> It does not work correctly; the release is lost and the lock can never be taken again. <strong>Why A is a weaker answer.</strong> The body restores 1 after every attempt, so overflow needs an enormous number of processes to be switched out at the same instant; the failure in B needs one switch. <strong>Why D is wrong twice over.</strong></p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Eight processes reach a test-and-set spin lock at the same moment, and each holds the critical section for exactly one time unit while every spin attempt also costs one time unit. Counting only the attempts that fail, how many failed attempts are made in total?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 28</p>
+            <p>The first process in fails 0 times, the second 1, the third 2, and the eighth 7. The sum is 0 + 1 + ... + 7 = 28, which is n(n &minus; 1)/2 with n = 8. The page computes both the count and the closed form and checks that they agree.</p>
+            <p><strong>Why 8 appears.</strong> Counting processes instead of failed attempts. <strong>Why 36 appears.</strong> Using n(n + 1)/2, which counts the successful attempt of each process as a failure.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2006 Q61</span></div>
+          <div class="q-body">
+            <p>The atomic <code>fetch-and-set x, y</code> unconditionally sets x to 1 and fetches the old value of x into y, with no intervening access to x. It is used as</p>
+            <p class="formula">void P(binary_semaphore *s){ unsigned y; unsigned *x = &amp;(s-&gt;value);
+  do { fetch-and-set x, y; } while (y); }
+void V(binary_semaphore *s){ s-&gt;value = 0; }</p>
+            <p>Which one of the following is true?</p>
+            <ol class="choices">
+              <li>The implementation may not work if context switching is disabled in P</li>
+              <li>Instead of fetch-and-set, a pair of normal load and store can be used</li>
+              <li>The implementation of V is wrong</li>
+              <li>The code does not implement a binary semaphore</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p>With switching disabled inside P, a process that fails the test loops for ever and never yields, so the process that could execute V never runs and the wait never ends. Context switching is what lets the release happen.</p>
+            <p><strong>Why B is wrong.</strong> A plain load and store is two steps, and two processes can both read 0 and both enter &mdash; the gap of scene 1. <strong>Why C is wrong.</strong> Storing 0 is the correct release. <strong>Why D is wrong.</strong> Only one process is ever inside, so it is a binary semaphore.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following are true of the bounded-waiting algorithm that keeps <code>waiting[n]</code> and spins on test-and-set?</p>
+            <ol class="choices">
+              <li>A process waits for at most n &minus; 1 admissions by other processes.</li>
+              <li>The exiting process stores 0 into the lock whenever any process is waiting.</li>
+              <li>The chosen process leaves its loop because its waiting flag was cleared.</li>
+              <li>It removes the need for an atomic instruction.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and C</p>
+            <p>Each exit clears exactly one raised flag, the nearest going round, so at most n &minus; 1 admissions precede any given waiter: A is true. The loop condition is <code>waiting[i] &amp;&amp; key</code>, so clearing the flag ends the loop without the instruction: C is true. The exiting process stores 0 only when nobody is waiting, so B is false, and the spin still uses test-and-set, so D is false.</p>
+            <p><strong>Why B is tempting.</strong> It looks like the ordinary release. Storing 0 with a waiter present reopens the race the array was added to close, and the chosen waiter could lose again.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A ticket lock has <code>next_ticket</code> = 9 and <code>now_serving</code> = 6 at some instant. How many processes are inside or waiting for this lock?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>Every ticket from 6 up to 8 has been handed out and not yet served, so three processes hold tickets 6, 7 and 8. One of them is inside and two are waiting, and <code>next_ticket &minus; now_serving</code> = 9 &minus; 6 = 3 counts all three.</p>
+            <p><strong>Why 2 appears.</strong> Reading the difference as the queue length only, which forgets the process inside. <strong>Why 9 appears.</strong> Reading the dispenser alone, which counts every ticket ever issued.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Two locks are built on the same instruction, one as <code>while (TAS(&amp;lock));</code> and one as <code>key = 1; do { swap(&amp;lock,&amp;key); } while (key);</code>. Which statement is exactly right?</p>
+            <ol class="choices">
+              <li>Both give mutual exclusion; neither bounds the wait.</li>
+              <li>The swap version gives mutual exclusion and the test-and-set version does not.</li>
+              <li>Both give mutual exclusion and both bound the wait.</li>
+              <li>Neither gives mutual exclusion, because the release is not atomic.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p>The two searches report no state with two processes inside &mdash; 135 states for test-and-set and 425 for swap &mdash; and neither loop records arrival order, so neither bounds the wait. The extra states in the swap search come from the private key register being part of the state.</p>
+            <p><strong>Why D is wrong.</strong> Writing one word is indivisible, so a plain store is a correct release; the acquire is the part that needed the instruction.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--takeaway span-2">
+          <h3>The sheet</h3>
+          <p class="small"><strong>test-and-set.</strong> Returns the old word, stores 1, indivisibly. Lock: <code>while (TAS(&amp;lock));</code>. Mutual exclusion and progress hold; bounded waiting does not.</p>
+          <p class="small"><strong>swap.</strong> Exchanges two words, indivisibly, no return value. Lock: <code>key = 1; do { swap(&amp;lock,&amp;key); } while (key);</code>. Same three properties as test-and-set.</p>
+          <p class="small"><strong>compare-and-swap.</strong> Returns the old word and stores the new one only if the word still held the expected value. Lock: expect 0, ask for 1. Also makes an increment atomic.</p>
+          <p class="small"><strong>fetch-and-add.</strong> Returns the old word and adds. Used by the ticket lock, and misused by the 2012 lock whose body stores 1 inside the loop.</p>
+          <p class="small" style="margin-bottom:0"><strong>The two queued locks.</strong> <code>waiting[n]</code> plus the exit scan, and the ticket lock's two counters. Both bound the wait by <em>n</em> &minus; 1; neither stops the spinning.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The numbers, computed here</h3>
+          <p class="formula">naive read-then-store      52 states,  1 with two inside
+test-and-set lock         135 states,  0 violations
+swap lock                 425 states,  0 violations
+compare-and-swap lock     135 states,  0 violations
+fetch-and-add (2012)      318 states, 1 stranded state
+ticket lock              1201 states,  0 violations
+waiting array            2352 states,  0 violations
+exit scan                 256 cases, always nearest flag
+spin cost n=4 / n=8           6 / 28
+CAS counter           2000 exact, 1000 retries</p>
+          <p class="small" style="margin-bottom:0">Every figure above is printed on the canvas from the same computation the 51 checks verify.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Decision procedure for any question here</h3>
+          <p class="small"><strong>1.</strong> Which instruction is atomic, and what does it return?</p>
+          <p class="small"><strong>2.</strong> What else runs between that instruction and the section?</p>
+          <p class="small"><strong>3.</strong> Does anything record arrival order?</p>
+          <p class="small"><strong>4.</strong> How many processes, and what is each one doing at the instant named?</p>
+          <p class="small" style="margin-bottom:0"><strong>5.</strong> Answer with the property that was asked, not with &ldquo;correct&rdquo; or &ldquo;incorrect&rdquo;.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas to keep</h3>
+          <p class="small">Failed attempts with <em>n</em> processes arriving together: <em>n</em>(<em>n</em> &minus; 1)/2.</p>
+          <p class="small">Processes inside or waiting on a ticket lock: <code>next_ticket &minus; now_serving</code>.</p>
+          <p class="small">Wait bound for a queued lock: <em>n</em> &minus; 1 admissions.</p>
+          <p class="small" style="margin-bottom:0">Lock word values: 0 free, 1 held. Nothing else is ever stored by any acquire on this page except by the 2012 body.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Five sentences worth memorising, and their exact scope</h3>
+          <p class="small">&ldquo;The acquire needs an atomic read-modify-write; the release does not.&rdquo; &mdash; scope: a release that stores a constant. A release that also counts needs its own lock.</p>
+          <p class="small">&ldquo;test-and-set and swap give the same three properties.&rdquo; &mdash; scope: the same loop with no queue. Adding a queue changes the third property.</p>
+          <p class="small">&ldquo;A negative result of a failed acquire means somebody holds it.&rdquo; &mdash; scope: not in the 2012 lock, where a non-zero value can mean nobody holds it.</p>
+          <p class="small">&ldquo;The ticket lock is fair.&rdquo; &mdash; scope: with a wrap-safe comparison of the two counters.</p>
+          <p class="small" style="margin-bottom:0">&ldquo;Bounded waiting allows a wait.&rdquo; &mdash; scope: always; it forbids only an unbounded one.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small"><strong>Official syllabus.</strong> GATE 2027 CS syllabus, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, Section 8, read verbatim: &ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo; That sentence supports the class-A-by-area claim and nothing more; none of the four instructions is named in it.</p>
+          <p class="small"><strong>Previous-year items.</strong> GATE CSE 2009 Q33, GATE CSE 2012 Q32, GATE CSE 2006 Q61 and GATE CSE 2002 Q18-b, each read from public question archives that reproduce the paper text and its answer. These are community reproductions of official papers, not scans of the papers themselves, so the year and number are given and the wording is quoted as reproduced. Every number in a solution was recomputed here rather than copied from a key.</p>
+          <p class="small"><strong>Standard references.</strong> The test-and-set and swap locks and the bounded-waiting algorithm with <code>waiting[n]</code> are the standard treatment of the critical-section problem in operating-systems texts (Silberschatz and Galvin; Tanenbaum). Compare-and-swap and fetch-and-add are the standard read-modify-write instructions of multiprocessor architectures. The ticket lock is the standard fair spin lock. None of those books was opened during this run, so they are named as the conventional home of the material rather than as sources consulted.</p>
+          <p class="small" style="margin-bottom:0"><strong>Community discussions.</strong> Public solution threads on the 2009, 2012 and 2006 items were read to see which wrong options attract students, and the disagreement on the 2012 item over overflow against a lost release is reported as a community observation. Those threads are somebody's reasoning, not authority, and nothing in this lesson rests on them: every claim was recomputed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>What was verified, and how</h3>
+          <p class="small"><strong>Mutual exclusion.</strong> Decided by a complete breadth-first search over every interleaving, with each process running its loop twice and then stopping so the state space is finite. The invariant is asserted at every reachable state, and the naive program is included as a control that must fail.</p>
+          <p class="small"><strong>The 2012 defect.</strong> Decided by a second search from the candidate state: if no forward state has anybody inside, the lock cannot be taken again. The search also reports the mutual-exclusion count, which is zero, so the defect is distinguished from a double entry.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wait bound.</strong> The exit scan is checked against its definition on all 256 combinations of process and waiting vector for two to five processes, and the ticket invariant (whoever is inside holds the displayed ticket) is checked at every reachable state.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Where this lesson stops</h3>
+          <p class="small">No audio file is shipped, so the caption timings are estimated from the timeline at a normal speaking rate rather than measured. No video file exists.</p>
+          <p class="small">The searches cover two or three processes with two passes each. They are complete for those programs, and they say nothing about larger systems beyond the arithmetic that is derived separately and labelled as a derivation.</p>
+          <p class="small" style="margin-bottom:0">The syllabus is a topic list, not a depth specification. Nothing here claims a marks weight for this topic, and the historical items cited are examples that can be read, not a distribution.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
