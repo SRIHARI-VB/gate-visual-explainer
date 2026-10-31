@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Type checking and type systems — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Type checking and type systems</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Prerequisite: parsing and SDT</a>
+      <a href="../runtime-environments-and-activation-records/index.html">Related: activation records</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Type checking and type systems — the semantic-analysis phase that decides whether every operation in a program is applied to values it can accept, and the type algebra that decision rests on.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Say where the checker sits and what it consumes and produces; build the type expression for a declaration; decide type equality two ways, structurally and by name, and say which one C uses and where; separate static from strong; read a typing rule and find the node where no rule fires; count which pairs are assignable under strict and under coercing rules; resolve an overloaded call; and explain why one mistake should produce one message and not four.</p>
+          <p class="small muted" style="margin-bottom:0">I read the topic as <em>one question asked at every node</em> — are these operands of a kind this operation accepts — plus the type algebra that makes the question answerable. The page computes every number it shows and reports how many of its own checks passed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A, through the phrase the syllabus uses.</strong> The GATE CS syllabus names type checking as part of the analysis phase, and every standard compiler-design syllabus that follows it (NPTEL's Compiler Design course, the IIT and university course outlines) lists "type checking" as a week or a module of its own, next to syntax-directed translation and before runtime environments.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The phase fact has been asked at least twice on CSE papers twenty years apart: <strong>GATE CSE 2018, Q8</strong> ("type checking is done before parsing" is the false statement) and <strong>GATE CSE 2021 Set 1, Q36</strong> (what one SDT for declarations can type-check).</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 2026 Set 1</strong> carried an MSQ comparing two SDDs for declarations. Class A means a question is inside the boundary, not that one is guaranteed. No marks distribution is claimed for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis, parsing and syntax-directed translation</a> — attributes, S-attributed and L-attributed definitions, evaluation order. This lesson assumes all of it.</li>
+            <li><a href="../c-fundamentals/index.html">C fundamentals</a> — declarations, integer and floating types, the assignment conversion rules.</li>
+            <li><a href="../sets-and-set-operations/index.html">Sets and relations</a> — equivalence and partition, which is exactly what type equivalence is.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Approximate learning time: 50 to 70 minutes, including the practice set. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>One question per node: are these operands acceptable to this operator?</li>
+            <li>A type expression is a tree of constructors; the array length and the field names are part of it.</li>
+            <li>Structural equivalence ignores the record tag; name equivalence is the tag. A typedef adds no type.</li>
+            <li>Equality is not compatibility. Assignability is one-directional; coercion is the compiler inserting the widening.</li>
+            <li>One mistake, one message: the error type matches everything so the walk can finish.</li>
+          </ol>
+        </div>
+
+        <div class="card span-2 card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, 300 seconds, one canvas. Scene 1 places the checker in the pipeline and sets the 2018 and 1998 phase questions beside it. Scene 2 builds four type expressions and counts their nodes, then separates a type expression from a syntax tree. Scene 3 walks two type expressions together: the tag is skipped, the field name is not, and a cyclic type terminates by marking pairs. Scene 4 partitions nine declarations twice, by structure (5 classes) and by name (7), and counts 34 agreeing pairs against 2 differing ones. Scene 5 puts static-against-dynamic and strong-against-weak on two axes. Scene 6 reads three typing rules as premises over a conclusion. Scene 7 counts 3 of 9 assignable pairs strictly and 4 of 9 with widening, then resolves three overloaded calls. Scene 8 walks one expression tree, poisons the error, and counts 1 message against 4. Scene 9 covers declarations, arity and return types, with the 2021 and 2026 questions. Scene 10 exhibits the two witnesses for sound-but-incomplete and reduces the topic to four steps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a plug that only fits one socket</h3>
+          <p class="small">Every operation in a program is a socket with a shape, and every value is a plug with a shape. Adding two integers is a socket for integers; adding an integer and a string is a plug that does not fit. Nothing about the characters <code>x + b</code> is malformed — a parser is perfectly happy with it. What is missing is a shape that matches.</p>
+          <p class="small">The type checker is the part of the compiler that holds up each plug against its socket and says yes or no. To do that it needs two things: a written-down shape for every value, which is the type expression, and a rule for every socket, which is the type system.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The socket is an analogy, not a definition. The definition is in the next card, and it is the one to quote.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition</h3>
+          <p class="small"><strong>Type checking</strong> is the activity of ensuring that the operands of an operator are of compatible types, where a <strong>compatible</strong> type is one that is either legal for the operator or allowed by the language to be implicitly converted to a legal type. That implicit conversion is a <strong>coercion</strong>.</p>
+          <p class="small">A <strong>type system</strong> is a set of rules assigning a type to each expression and statement of the language. A rule has premises above a line and one judgment below it. The judgment is written $$e : T$$ and read "expression e has type T".</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The first paragraph is the standard wording, used in compiler-course material on type checking; the rule form is the one used throughout Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em>, chapter 6.</p>
+        </div>
+
+        <div class="card">
+          <h3>Symbols, in words</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>e : T</strong> — "expression e has type T".</li>
+            <li><strong>array(n, T)</strong> — an array of n elements, each of type T.</li>
+            <li><strong>pointer(T)</strong> — a pointer to something of type T.</li>
+            <li><strong>record((x × int) …)</strong> — a record whose field x has type int, and so on.</li>
+            <li><strong>(T1 × T2) → T</strong> — a function from parameters T1 and T2 to result T.</li>
+            <li><strong>type_error</strong> — the type a failing rule returns; it matches every type.</li>
+            <li><strong>⊑</strong> — "widens to": int ⊑ float means an int may be used where a float is wanted.</li>
+            <li><strong>typedef</strong> — a synonym declaration. It adds a spelling, not a type.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The relations, and which are symmetric</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead><tr><th style="text-align:left;padding:4px 6px">Relation</th><th style="text-align:left;padding:4px 6px">Asks</th><th style="text-align:left;padding:4px 6px">Symmetric?</th></tr></thead>
+            <tbody>
+              <tr><td style="padding:4px 6px">identical</td><td style="padding:4px 6px">are these the same type</td><td style="padding:4px 6px">yes</td></tr>
+              <tr><td style="padding:4px 6px">assignable</td><td style="padding:4px 6px">may a value of this type go there</td><td style="padding:4px 6px"><strong>no</strong></td></tr>
+              <tr><td style="padding:4px 6px">coercible</td><td style="padding:4px 6px">may the compiler convert silently</td><td style="padding:4px 6px"><strong>no</strong></td></tr>
+              <tr><td style="padding:4px 6px">structurally equal</td><td style="padding:4px 6px">same shape, recursively</td><td style="padding:4px 6px">yes</td></tr>
+              <tr><td style="padding:4px 6px">name equal</td><td style="padding:4px 6px">same name, tag included</td><td style="padding:4px 6px">yes</td></tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin:8px 0 0">The two asymmetric relations are where marks are lost: a question about assignment is a compatibility question, and an equality test answers a different one.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The conditions each statement carries</h3>
+          <p class="small">Structural equivalence here compares records by <strong>field name and field type</strong>, in the product form the textbook uses. A language that compares records by field types alone has a different relation, and a question that assumes it must say so. Name equivalence here treats a <strong>typedef as a synonym</strong>, so it adds no type; a language where every declaration creates a fresh type would count differently. The overload rule needs an <strong>exactness</strong> test, not just applicability, or every two-candidate call looks resolvable. And "strongly typed" is <strong>defined differently by different authors</strong> — the guarantee reading is used here, and a question that supplies its own definition overrides it.</p>
+          <p class="small" style="margin-bottom:0">Each of these is a place where a correct-looking answer is wrong. The Edge cases tab takes them one at a time, with the computed number attached.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A type checker asks one question at every operation: are these values of a kind this operation accepts?</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Where the type checker sits, and what it is asked</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A type checker asks one question at every operation: are these values of a kind this operation accepts?</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked example 1 — nine declarations, partitioned twice</h3>
+          <p class="small">Two synonyms of int (<code>Meters</code>, <code>Seconds</code>), three records (<code>point</code>, <code>vec</code>, <code>pt2</code>) and four pointer types (<code>int *</code>, <code>Meters *</code>, <code>struct point *</code>, <code>struct vec *</code>).</p>
+          <ol class="step-list small" style="margin:0">
+            <li><strong>Structure.</strong> The tag is not compared, so <code>point</code> and <code>vec</code> are one class, and so are the two pointers to them. The synonyms are one class because both are int, and the two <code>int *</code> spellings are one class. Five classes in total.</li>
+            <li><strong>Name.</strong> Every record now stands alone, and every pointer to a record stands alone with it. The synonyms still merge, because a typedef adds no type, and the two <code>int *</code> spellings still merge. Seven classes.</li>
+            <li><strong>The two counts.</strong> Thirty-six unordered pairs. Thirty-four agree, two differ: <code>point / vec</code> and <code>pointp / vecp</code>.</li>
+            <li><strong>Containment.</strong> Every name class sits inside a structural class, never the other way round. Name equivalence refines structural equivalence, and the page checks the containment on all nine.</li>
+            <li><strong>C.</strong> Two structs with the same members and different tags are different types, so C behaves like the name partition on records and like the structural one everywhere else.</li>
+          </ol>
+          <p class="small muted" style="margin:8px 0 0">Every number above is recomputed by the page: the classes by partition, the pair counts by enumeration, and the containment by testing each class against every structural class.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 2 — thirteen programs, two modes</h3>
+          <p class="small">A tiny language with int, float, bool, str, arrays, pointers and one function <code>f : (int × float) → bool</code>. The checker is run twice: once allowing widening (coercing) and once allowing only equality (strict).</p>
+          <p class="small">Accepted both ways: <code>x + 1</code>, <code>p[i]</code>, <code>*r</code>, <code>f(1, 2.0)</code>. Rejected both ways: <code>x + b</code> (arithmetic on a bool), <code>if x then 1 else 2</code> (condition not bool), <code>p[y]</code> (subscript is a float), <code>*q</code> (q is not a pointer), <code>f(1)</code> (arity), <code>x = 2.5</code> (narrowing is not a coercion).</p>
+          <p class="small" style="margin-bottom:0">Accepted only when widening is allowed: <code>if b then 1 else 2.0</code>, <code>f(1, 2)</code>, <code>y = 2</code>. The two modes therefore disagree on exactly three of the thirteen, and the page reports which three. <code>x = 2.5</code> stays rejected in both, because float to int is a narrowing and needs a cast.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 3 — one mistake, four operators above it</h3>
+          <p class="small">Take <code>((x + z) * 2 - 3) / 4</code> with <code>x : int</code> and <code>z : bool</code>. Six nodes: the two leaves, and the four operators.</p>
+          <ol class="step-list small" style="margin:0">
+            <li><code>x + z</code>: int plus bool. The premise "both numeric" fails, so the node gets type_error. That is the one real mistake.</li>
+            <li><code>(…)*2</code>: the left child is type_error. Under the poison rule type_error matches anything, so no new message; the node passes the error up.</li>
+            <li><code>… - 3</code> and <code>… / 4</code>: the same, so still one message.</li>
+            <li>Switch the poison off and type_error matches nothing. Now the multiplication, the subtraction and the division each fail in turn, and the compiler prints four messages that all trace back to one mistake.</li>
+          </ol>
+          <p class="small muted" style="margin:8px 0 0">Computed on the page: 1 message with the poison, 4 without, a difference of exactly 3. This is why <code>type_error</code> is a type and not an exception.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 4 — three calls against two overloads</h3>
+          <p class="small">Overloads: <code>f(int, float)</code> and <code>f(float, int)</code>. A call is applicable when every argument widens to its parameter; among applicable candidates an exact match wins.</p>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><code>f(1, 2.0)</code> — the first overload matches exactly. One applicable, one exact: chosen.</li>
+            <li><code>f(1, 2)</code> — the first needs a widening on argument 2, the second a widening on argument 1. Two applicable, none exact: <strong>ambiguous</strong>.</li>
+            <li><code>f(1, b)</code> with <code>b : bool</code> — bool widens to nothing, so neither candidate is applicable: an error, not an ambiguity.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">The distinction matters in a question: "no match" and "ambiguous" are different diagnostics, and a language may not break an ambiguity by preferring the first declaration.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rules stop, and what happens there</h3>
+          <p class="small">Each card is a boundary case with the condition it violates or the witness that shows the boundary. Numbers are computed on the Animation tab.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 1 — accepted, and still wrong at run time</h3>
+          <p class="small"><code>p[5]</code> where <code>p : array(4, int)</code>. The indexing rule asks two things: the base is an array, the subscript is an int. Both hold, so the checker accepts and gives the expression type int. The fifth element of a four-element array does not exist.</p>
+          <p class="small" style="margin-bottom:0">This is <strong>incompleteness</strong>, not a bug: the subscript is a value, and a value is not known at compile time. What a static checker guarantees is one-directional — it does not accept programs that <em>always</em> fail, but it does accept some that fail on some inputs.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 2 — rejected, and would have run</h3>
+          <p class="small"><code>if true then x = 1 else x = "s"</code> with <code>x : int</code>. The branches are int and str, incompatible, so the if-rule fails and the program is rejected. But the condition is the literal <code>true</code>: the else branch is unreachable, so no type error could ever occur.</p>
+          <p class="small" style="margin-bottom:0">This is the price of deciding before execution. A checker that looked at reachability would accept more programs and cost more; a checker that does not is <strong>conservative</strong>. Both facts are computed on the page rather than asserted.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 3 — a cyclic type</h3>
+          <p class="small"><code>struct node { int info; struct node *next; }</code>. Its type graph has a cycle, so a naive structural comparison never terminates. The standard repair marks each pair already under comparison and treats a repeated pair as provisionally equal.</p>
+          <p class="small" style="margin-bottom:0">Two independently built <code>node</code> types are structurally equal and name-equal; a third with the tag <code>other</code> is name-unequal to them. The page runs all three comparisons and checks that the walk ends.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 4 — the array length</h3>
+          <p class="small"><code>array(10, int)</code> and <code>array(20, int)</code> are different types under both schemes, because the length is one of the two components the comparison must check.</p>
+          <p class="small" style="margin-bottom:0">A question that treats them as the same type is treating the length as a run-time property. It is not one in this type system, which is why passing a ten-element array to a parameter declared as twenty elements is a type error and not a bounds error.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 5 — narrowing is not a coercion</h3>
+          <p class="small">On the widening chain char, short, int, long, float, double, a conversion to the right is a narrowing. <code>x = 2.5</code> with <code>x : int</code> is rejected in both modes the page runs, because allowing it silently would let a checker accept a program that loses information.</p>
+          <p class="small" style="margin-bottom:0">A cast, <code>x = (int) 2.5</code>, is accepted — the checker stops asking, which is exactly why a cast is the hole that makes a statically checked language not strongly typed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 6 — bool is not an integer here</h3>
+          <p class="small">In this lesson's toy language bool is its own type: it coerces to nothing and no arithmetic accepts it. That is a design decision, and it is the one most questions assume.</p>
+          <p class="small" style="margin-bottom:0">C differs: it has no boolean arithmetic of its own, and its <code>_Bool</code> promotes to int in most expressions. Read the language a question names before answering. Nothing on this page claims C's promotion rules; they belong to the C lessons.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Boundary 7 — what a type checker cannot decide</h3>
+          <p class="small">It cannot decide an index against a length computed at run time, a division by a value that may be zero, a downcast that is safe on this input, or whether an unreachable branch is unreachable in general. Those need either a run-time check or a proof, and a type checker has neither.</p>
+          <p class="small" style="margin-bottom:0">This is the honest limit to state in an answer: the type system is a <em>decidable approximation</em> of the property "no operation ever meets a wrong type", and every decidable approximation of a non-trivial property is either sound and incomplete or complete and unsound.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five beliefs that survive a first reading</h3>
+          <p class="small">Each card states the wrong belief, why it tempts, the smallest witness against it, and the rule to use instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M1 — "type checking happens before parsing"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the type checker is described early in many courses, and declarations appear at the top of a file, so it feels like a first pass.</p>
+          <p class="small"><strong>Witness:</strong> the checker's input is a syntax tree. There is no tree before the parser runs.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> lexical, then syntax, then semantic analysis, of which type checking is part. <span class="claim-chip claim-chip--verified">Verified fact</span> GATE CSE 2018, Q8 marks the "before parsing" statement as the false one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M2 — "static and strong are the same word"</h3>
+          <p class="small"><strong>Why it tempts:</strong> most languages people meet first are both.</p>
+          <p class="small"><strong>Witness:</strong> C is statically checked and not strongly typed — a union or an unchecked cast lets a value of one type be read as another. Python is dynamically checked and catches the same misuse.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> "when is it checked" and "is every error caught" are two questions with four answers.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M3 — "a typedef creates a new type"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the declaration looks like a definition, and it does introduce a name.</p>
+          <p class="small"><strong>Witness:</strong> on this page <code>Meters</code> and <code>Seconds</code> are one class under <em>both</em> schemes, and <code>int *</code> and <code>Meters *</code> are one class too.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a synonym adds a spelling. A record, union or class declaration is what adds a type.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M4 — "structural equivalence ignores field names"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the sentence "same structure" is usually stated without saying what counts as structure.</p>
+          <p class="small"><strong>Witness:</strong> <code>record((x × int))</code> and <code>record((u × int))</code> are not structurally equal here, because the product carries the label.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> state which form you are using. The tag is skipped; the field name is not, in the standard product form.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M5 — "a type error is reported at every node it touches"</h3>
+          <p class="small"><strong>Why it tempts:</strong> each operator really does fail if you test it in isolation.</p>
+          <p class="small"><strong>Witness:</strong> the same six-node tree gives 4 messages without the poison and 1 with it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the lowest failing node is the mistake; everything above it is a consequence. The error type matches everything so the walk can continue and find the <em>other</em> independent mistakes.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M6 — "ambiguous and no-match overloads are the same failure"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both produce a compile error.</p>
+          <p class="small"><strong>Witness:</strong> <code>f(1, 2)</code> has two applicable candidates and is ambiguous; <code>f(1, b)</code> has none and is a no-match.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> applicability first, exactness second. An ambiguity may not be broken by declaration order.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six shapes this topic takes on a paper</h3>
+          <p class="small">Each card names the category, the reasoning it demands, and the wrong approach that produces a plausible option. Historical frequency is an observation about past papers, not a prediction for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>P1 — the phase question</h3>
+          <p class="small"><strong>Shape:</strong> which phase reports this error, or which statement about the phases is false.</p>
+          <p class="small"><strong>Reasoning:</strong> map the error to the information it needs. A malformed token is lexical; a bad derivation is syntactic; a name that is not declared, or a type that does not fit, is semantic.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> deciding by where the error text appears in the source. Declarations at the top of a file have nothing to do with the phase order.</p>
+        </div>
+
+        <div class="card">
+          <h3>P2 — what an SDD or SDT can check</h3>
+          <p class="small"><strong>Shape:</strong> a printed definition, and a question about what it can or cannot type-check.</p>
+          <p class="small"><strong>Reasoning:</strong> trace one attribute assignment at a time and ask whether the information needed is available at that point. If an identifier's type is set to a constant regardless of its declaration, the scheme cannot distinguish two types.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> judging by the grammar. The grammar is identical for a scheme that checks and one that does not; the difference is in the semantic rules.</p>
+        </div>
+
+        <div class="card">
+          <h3>P3 — S-attributed against L-attributed, for a declaration</h3>
+          <p class="small"><strong>Shape:</strong> which of the two definitions is S-attributed, or which attributes each uses.</p>
+          <p class="small"><strong>Reasoning:</strong> a synthesized attribute is computed from children only; an inherited one takes a value from the parent or a left sibling. A definition that passes a type down a list uses an inherited attribute and is therefore not S-attributed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> assuming a left-recursive grammar is S-attributed. Left recursion makes an S-attributed definition easy; it does not make it automatic.</p>
+        </div>
+
+        <div class="card">
+          <h3>P4 — type equivalence and what C does</h3>
+          <p class="small"><strong>Shape:</strong> are these two declarations the same type, under structural or name equivalence.</p>
+          <p class="small"><strong>Reasoning:</strong> write both type expressions, compare constructors, sizes and components, then ask whether the record tags differ. In C, records are nominal and everything else is structural.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> answering by the field lists alone, which merges two different structs.</p>
+        </div>
+
+        <div class="card">
+          <h3>P5 — assignability and coercion counts</h3>
+          <p class="small"><strong>Shape:</strong> how many of the assignments in a list are legal, or which one needs a cast.</p>
+          <p class="small"><strong>Reasoning:</strong> decide the direction. Widening is silent, narrowing needs a cast, and a non-numeric type converts to nothing. Count with the rule written down, not by intuition about "compatible".</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> treating compatible as symmetric, which makes float to int as legal as int to float.</p>
+        </div>
+
+        <div class="card">
+          <h3>P6 — the count of messages, or the number of errors</h3>
+          <p class="small"><strong>Shape:</strong> how many type errors a compiler reports for a given program.</p>
+          <p class="small"><strong>Reasoning:</strong> count the <em>lowest</em> failing nodes, then check whether the failures are independent. Two independent mistakes in different subtrees give two messages; one mistake under four operators gives one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> counting every node whose type ends up as error, which counts consequences as mistakes.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The four-step procedure, in the order to use it</h3>
+          <p class="small">First, build the type expression for every declaration and write it down. Second, walk the tree bottom-up applying one rule per node, and mark the lowest failing nodes. Third, check the statement rules separately — scope, arity, parameter and result types. Fourth, keep equality and compatibility apart, and state which one the question is asking. If a question is about C specifically, apply C's rule: structural except for struct and union.</p>
+          <p class="small muted" style="margin-bottom:0">The page's thirteen programs and its two partitions are the worked instances of these four steps; nothing in the procedure needs the animation.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set</h3>
+          <p class="small">Nine questions: two reproduce verified past-paper items, seven are original practice written for this lesson. Answers are hidden until you reveal them one at a time; the mock-test switch hides them all and reveals them together.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode — hide every answer until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2018, Q8</span> MCQ</p>
+          <p class="small">Which one of the following statements is FALSE?</p>
+          <p class="small">(A) Context-free grammar can be used to specify both lexical and syntax rules. &nbsp; (B) Type checking is done before parsing. &nbsp; (C) High-level language programs can be translated to different intermediate representations. &nbsp; (D) Arguments to a function can be passed using the program stack.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Type checking is part of semantic analysis, and semantic analysis consumes the parse tree, so it cannot precede parsing. (A) is true because every regular language is context-free, so one CFG can describe tokens and phrases. (C) and (D) are standard.</p>
+            <p class="small" style="margin-bottom:0">The trap is that (B) is not merely imprecise: it is the intended false statement, and the official key confirms it. A learner who thinks "declarations are checked early, so maybe before parsing" picks (A) or (C) instead.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2021 Set 1, Q36</span> MCQ</p>
+          <p class="small">A grammar admits a series of declarations followed by expressions, with semantic actions: <code>D → int ID {record ID.lexeme as int}</code>, <code>D → bool ID {record as bool}</code>, <code>E → E1 + E2 {check E1.type = E2.type = int; E.type := int}</code>, <code>E → !E1 {check E1.type = bool; E.type := bool}</code>, <code>E → ID {set E.type := int}</code>. Which choice is correct?</p>
+          <p class="small">(A) The actions type-check any syntactically correct program. (B) They type-check syntactically correct integer declarations and integer expressions. (C) They type-check syntactically correct boolean declarations and boolean expressions. (D) The actions lead to an infinite loop.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">The rule <code>E → ID</code> assigns type int to every identifier expression, whatever was declared. So a boolean variable used as an operand of <code>!</code> looks like an int and the check <code>E1.type = bool</code> fails even for a correct program; and <code>b + 1</code> with <code>b</code> boolean is not caught either. The integer half works, because there the constant int is the right answer.</p>
+            <p class="small"><strong>A</strong> fails on the boolean cases. <strong>C</strong> fails because the identifier rule never yields bool, so no boolean expression can be validated. <strong>D</strong> is unrelated: the actions terminate.</p>
+            <p class="small" style="margin-bottom:0">The general lesson: an SDT can only check what its semantic rules carry. If the identifier rule discards the declared type, no later rule can recover it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">With <code>struct point {int x, y;}</code> and <code>struct vec {int x, y;}</code>, which statement is true under structural equivalence with records written as products of field name and field type?</p>
+          <p class="small">(A) the two types are equivalent, and the tags are irrelevant &nbsp; (B) the two types are not equivalent, because the tags differ &nbsp; (C) they are equivalent only if the fields are renamed &nbsp; (D) they are equivalent only in C</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A</span></p>
+            <p class="small">Both type expressions are <code>record((x × int) × (y × int))</code>. The record name is not part of that expression, so the two are structurally equal — the page computes this and places them in one class.</p>
+            <p class="small"><strong>B</strong> describes name equivalence, which is the other scheme. <strong>C</strong> inverts the rule: renaming a field <em>breaks</em> structural equality here. <strong>D</strong> is false: C is the language that treats records nominally, so C would say these are different.</p>
+            <p class="small" style="margin-bottom:0">Watch the wording: "structurally equivalent" and "the same type in C" have different answers for this pair.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Which one of these is a <em>coercion</em> and not a cast?</p>
+          <p class="small">(A) <code>int i = (int) 3.7;</code> &nbsp; (B) <code>float f = 3;</code> &nbsp; (C) <code>int *p = (int *) q;</code> &nbsp; (D) <code>char c = (char) 300;</code></p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">int widens to float, so the compiler inserts the conversion itself and the source says nothing. That is a coercion.</p>
+            <p class="small"><strong>A</strong> and <strong>D</strong> narrow, and both are written by the programmer, so both are casts. <strong>C</strong> reinterprets a pointer and is also written out.</p>
+            <p class="small" style="margin-bottom:0">The distinction is not "which one is safe" but "who wrote the conversion". A cast is the programmer taking responsibility, which is why the type checker stops asking after it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MSQ</p>
+          <p class="small">A language has types int, float, bool and the widening rule int ⊑ float only. Which statements are true?</p>
+          <p class="small">(A) exactly 4 of the 9 ordered pairs over the three types are assignable &nbsp; (B) float is assignable to int &nbsp; (C) bool is assignable to int &nbsp; (D) the assignable relation is not symmetric</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A and D</span></p>
+            <p class="small">The legal pairs are int→int, int→float, float→float and bool→bool: four. The page enumerates all nine and reports 4, against 3 under strict equality only.</p>
+            <p class="small"><strong>B</strong> is a narrowing and needs a cast. <strong>C</strong> is false because bool is not numeric here, so it widens to nothing.</p>
+            <p class="small" style="margin-bottom:0"><strong>D</strong> is true because int→float is legal and float→int is not: assignability is one-directional, and that is the single most useful fact about it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">A checker reports one message per failing node and uses a <code>type_error</code> that matches every type. The expression <code>((a + b) * 2 - 3) / 4</code> has <code>a : int</code> and <code>b : bool</code>. How many messages does it report?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 1</span></p>
+            <p class="small">Only <code>a + b</code> fails. The three operators above it receive a <code>type_error</code> operand, which matches anything, so they produce no new message.</p>
+            <p class="small" style="margin-bottom:0">Without the poison the same tree reports 4, and the page computes both numbers on the Animation tab. If a question says the checker reports every node whose type is error, answer 4; read which rule the question states.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q7</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">A program is rejected by the type checker although it would have executed without a type error. Which term describes this?</p>
+          <p class="small">(A) the checker is unsound &nbsp; (B) the checker is incomplete &nbsp; (C) the language is not strongly typed &nbsp; (D) the program is not well typed</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Rejecting a program that cannot go wrong is incompleteness: the checker fails to accept something it could have. The witness on this page is the unreachable else branch with an incompatible type.</p>
+            <p class="small"><strong>A</strong> is the opposite failure: accepting a program that does go wrong, which is the <code>p[5]</code> witness. <strong>C</strong> is about guarantees across the language, not about one program. <strong>D</strong> is circular: "not well typed" means rejected by the rules, which is what we are explaining.</p>
+            <p class="small" style="margin-bottom:0">Keeping these two words in the right order is worth a mark on its own: sound means never accepts a bad program; complete means never rejects a good one.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q8</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">Overloads <code>f(int, float)</code> and <code>f(float, int)</code> exist. What does the call <code>f(1, 2)</code> do under the rule "applicable first, then exact"?</p>
+          <p class="small">(A) calls the first overload &nbsp; (B) calls the second overload &nbsp; (C) is ambiguous and rejected &nbsp; (D) is rejected because no overload applies</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: C</span></p>
+            <p class="small">Both candidates apply: the first needs int→float on argument 2, the second needs int→float on argument 1. Neither is an exact match, so no rule chooses between them.</p>
+            <p class="small"><strong>A</strong> and <strong>B</strong> would require breaking the tie by declaration order, which is not a rule. <strong>D</strong> confuses ambiguity with no-match; the no-match case is <code>f(1, b)</code> with a boolean argument.</p>
+            <p class="small" style="margin-bottom:0">The page resolves all three calls and prints how many candidates were applicable for each.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q9</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">Nine declarations: two synonyms of int, three distinct records, and four pointer types — <code>int *</code>, <code>Meters *</code>, <code>struct point *</code>, <code>struct vec *</code>, where <code>point</code> and <code>vec</code> have identical fields. How many equivalence classes does <em>structural</em> equivalence give over the nine?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 5</span></p>
+            <p class="small">{Meters, Seconds}, {point, vec}, {pt2}, {int *, Meters *}, {struct point *, struct vec *}. The tag is not compared, so each record merges with its lookalike, and each pointer follows its pointee.</p>
+            <p class="small" style="margin-bottom:0">Name equivalence would give 7 on the same nine, because the records and their pointers stop merging. If the question says "name", the answer changes; that is the whole difference between the two schemes.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One screen</h3>
+          <p class="small" style="margin-bottom:0">The phase fact, the two equivalences, the three relations, the poison rule and the two failures of a static checker. Everything else is an instance of one of these.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Facts to keep</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Type checking is semantic analysis: after parsing, before intermediate code.</li>
+            <li>A type expression is a tree: base type, or array, pointer, record, function.</li>
+            <li>Structural: tag ignored, field name compared. Name: tag compared.</li>
+            <li>A typedef adds a spelling, not a type.</li>
+            <li>C: structural, except struct and union, where the tag is the identity.</li>
+            <li>Static asks when; strong asks whether every error is caught.</li>
+            <li>Widening may be coerced; narrowing needs a cast.</li>
+            <li>type_error matches everything, so one mistake gives one message.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Numbers this page computed</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>sizes: array(10,int) 2, pointer(char) 2, a two-field record 3, a two-parameter function 4</li>
+            <li>nine declarations: 5 structural classes, 7 name classes</li>
+            <li>36 unordered pairs: 34 agree, 2 differ</li>
+            <li>assignable: 3 of 9 strictly, 4 of 9 with widening</li>
+            <li>thirteen programs: 3 verdicts change between strict and coercing</li>
+            <li>one mistake: 1 message with the poison, 4 without</li>
+            <li>p[5] on a four-element array: accepted, out of bounds</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>"Before parsing" is the false statement, not a near miss.</li>
+            <li>Compatible is not symmetric.</li>
+            <li>Counting declarations as types over-counts a typedef.</li>
+            <li>Renaming a field breaks structural equality.</li>
+            <li>Ambiguous is not the same as no-match.</li>
+            <li>An accepted program can still fail; a rejected one can still be fine.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What the answer must state</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>which equivalence scheme you used</li>
+            <li>which relation the question asks: identical, assignable or coercible</li>
+            <li>whether the question's language is C or the toy language of this page</li>
+            <li>which definition of "strongly typed" you are applying</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Where this connects</h3>
+          <p class="small" style="margin-bottom:0">Backwards, to <a href="../lexical-analysis-parsing-and-sdt/index.html">lexical analysis, parsing and syntax-directed translation</a>: the checker is an SDD, and the attribute machinery is that lesson's. Sideways, to <a href="../c-fundamentals/index.html">C fundamentals</a>, which owns C's actual conversion rules, and to <a href="../runtime-environments-and-activation-records/index.html">runtime environments</a>, which consume the types to size each slot in an activation record. Forwards, to code generation, where the type decides which machine operation is emitted and how wide it is. The relations themselves are the <a href="../relations-and-their-properties/index.html">relations</a> of discrete mathematics: type equivalence is an equivalence relation, and its classes are a partition.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">Official syllabus and papers first, then textbooks and course notes, then community material. Community discussion is used for question wording and known confusions, never as proof of a fact.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official and past papers</h3>
+          <p class="small"><strong>GATE 2018 CS question paper, Q8</strong> — the four statements, of which "type checking is done before parsing" is the false one. Read in the paper's own text, and cross-checked against the official answer key as reproduced by question archives.</p>
+          <p class="small"><strong>GATE CSE 2021 Set 1, Q36</strong> — the SDT for int and bool declarations, with answer B. The option text and the answer were cross-checked across two independent archives.</p>
+          <p class="small"><strong>GATE CSE 2026 Set 1</strong> — the MSQ comparing two SDDs for declarations. Two archives print this item with different question numbers, so the lesson quotes the year and set only.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE CS syllabus</strong> — the analysis-phase wording that places type checking inside semantic analysis, and the Compiler Design clauses this lesson sits under.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and course material</h3>
+          <p class="small"><strong>Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em>, 2nd edition, chapter 6</strong> — type expressions and type constructors, the record as a product of field name and type, type systems and typing rules, static and dynamic checking, type equivalence by name and by structure, coercions, overloading and polymorphic functions, and the specification of a simple type checker including the error type.</p>
+          <p class="small"><strong>NPTEL, Compiler Design (IIT Kharagpur)</strong> — week 7 is "Type Checking and Symbol Tables", which is where this lesson sits in that course's order.</p>
+          <p class="small" style="margin-bottom:0"><strong>CMU 15-411/611 lecture on typechecking</strong> — types as a set of values with operations, name against structural equivalence with the Pascal and C examples, and the note that strongly typed is not the same as statically typed. Used for the definitions and the four-box grid.</p>
+        </div>
+
+        <div class="card">
+          <h3>Course notes used as cross-checks</h3>
+          <p class="small"><strong>University of Washington CSE 401, static semantics</strong> — structural equivalence as recursive comparison of constructors, name equivalence for class and struct types, and the note that a typedef introduces another name rather than a new type.</p>
+          <p class="small"><strong>University of Western Ontario CS447, type equivalence</strong> — the two schemes stated as trees, the recursive-type problem and the marking repair, and the statement that C uses structural equivalence except for records, where it uses name equivalence.</p>
+          <p class="small" style="margin-bottom:0"><strong>Compilers-course notes on type checking</strong> — the definition used verbatim in the Build-up tab: type checking is ensuring the operands of an operator are of compatible types, and a coercion is the implicit conversion that makes one compatible.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community material</h3>
+          <p class="small"><strong>GATE question archives</strong> — used to locate the 2018, 2021 and 2026 items and to read the option text. Where two archives disagree on a question number, the lesson says so rather than choosing one.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The "static equals strong" conflation and the "typedef creates a type" miscount are both reported repeatedly in discussion of this topic. That is an observation about what learners ask, not a measured claim.</p>
+        </div>
+
+        <div class="card">
+          <h3>What the page computes for itself</h3>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is copied. The page implements type expressions and their sizes, structural equivalence with a cycle repair, name equivalence, the two partitions and their pair count, the widening relation, assignability under two rules, overload resolution, and a syntax-directed checker over thirteen programs in two modes. It then re-verifies each computed value against its definition: 40 checks, all of which must pass before the lesson is published.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What could not be confirmed</h3>
+          <p class="small">The 1998 item ("type checking is normally done during ...") is quoted from a question archive; the 1998 paper itself was not opened for this lesson, so treat its exact wording as reported rather than transcribed.</p>
+          <p class="small">The 2026 Set 1 declaration question appears under two different question numbers in two archives. Only the year and the set are asserted.</p>
+          <p class="small" style="margin-bottom:0">No claim is made about how many marks this topic will carry in GATE CSE 2027, and no historical weightage is asserted. The toy language of this lesson is not C: its bool is not numeric, its widening chain is declared rather than inherited, and C's actual integer promotions belong to the C lessons.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
