@@ -4319,6 +4319,7 @@ topics.append(topic(
         "objects outliving their call cannot live on the stack"]))
 
 _VERIFIED = {
+    "readers-writers-and-dining-philosophers": "2026-11-01",
     "wifi-csma-ca-and-hidden-terminals": "2026-10-31",
     "best-average-worst-and-amortised-analysis": "2026-10-31",
     "type-checking-and-type-systems": "2026-10-31",
@@ -4766,6 +4767,79 @@ topics.append(topic(
         "a window of 21 needs 5 sequence bits under GBN and 6 under SR",
         "buffers: W at the sender and 1 at the receiver, against W at both ends",
         "efficiency cannot distinguish the protocols; only retransmission behaviour can"]))
+
+topics.append(topic(
+    "Operating Systems", "Section 8: concurrency and synchronization (classical problems)",
+    "Readers–writers and dining philosophers",
+    ["the readers–writers rules: a writer is alone, readers share, admission is fair",
+     "first solution: readcount, rmutex, wsem",
+     "reader preference and writer starvation",
+     "second solution: readTry and writer preference",
+     "the third problem, and what fairness costs",
+     "counting: maximum inside, semaphore count, negative values",
+     "dining philosophers: five forks, two per meal",
+     "the all-left deadlock and the four conditions",
+     "the exhaustive state search and the single stuck state",
+     "repairs: room of n-1, asymmetric ordering, waiter or monitor"],
+    prereq=["synchronisation-and-deadlock", "processes-threads-and-ipc"],
+    related=["synchronisation-and-deadlock", "transactions-and-concurrency-control",
+             "cpu-scheduling", "file-systems"],
+    importance="high",
+    evidence=("Official GATE 2027 CS syllabus, IIT Madras, Section 8: 'System calls, processes, threads, "
+              "inter-process communication, concurrency and synchronization. Deadlock.' Concurrency and "
+              "synchronization are named verbatim; readers-writers and dining philosophers are not named, so "
+              "the topic is class A by area and class B by name. Verifiable items in this family: GATE CSE 1996 "
+              "Q2.19 (dining philosophers, which pickup order avoids deadlock), GATE CSE 2000 Q20 (readers-writers "
+              "with one binary semaphore and busy waiting, three blanks) and GATE CSE 1987 Q8a (a proposed "
+              "readers-writers solution; give the variable values, the starvation directions, and why it is "
+              "incorrect). These are individual questions read in public archives, not a weightage figure."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="readers-writers-and-dining-philosophers",
+    path="topics/readers-writers-and-dining-philosophers/index.html",
+    execution=("2026-11-01: published; 52/52 model checks passed, geometry audit clean, 10 scenes, 40 caption cues, "
+               "captions derived from the timeline"),
+    microtopics=[
+        "readers and writers contend over a shared value; philosophers contend over an order",
+        "safety is rules 1 and 2; fairness is rule 3, and rule 3 is what every version changes",
+        "one mutex satisfies rules 1 and 2 and destroys the only advantage of the problem",
+        "only the reader that raises the count from 0 to 1 takes wsem",
+        "only the reader that lowers the count from 1 to 0 signals wsem",
+        "every other reader passes without touching the writer semaphore",
+        "trace: readcount 1, 2, then wsem -1 when the writer arrives",
+        "trace: readcount 4 with wsem still -1, so the writer waits on four readers",
+        "the writer is released only when readcount reaches 0",
+        "a steady arrival of readers starves the writer: 20 inside, 0 writers",
+        "the first reader holds rmutex while it waits on wsem, so later readers queue on rmutex",
+        "writer first: 1 reader queued on wsem and 19 on rmutex, none inside",
+        "reader preference is the specification of the first problem, not a coding error",
+        "readTry: the first waiting writer closes the gate and the last writer opens it",
+        "trace: readTry 0 and wmutex -1 with writecount 1 while the writer waits",
+        "a later reader blocks at the gate: readTry -1, one blocked reader",
+        "writer preference starves readers, exactly as reader preference starves writers",
+        "the third problem starves neither, and pays with a queue semaphore",
+        "maximum readers inside is every reader process; maximum writers is one",
+        "first solution uses two semaphores and one integer; the second uses four and two",
+        "value after m waits and p signals from s is s - m + p",
+        "a negative value of magnitude k means k queued processes",
+        "the clamping convention gives different numbers, so read which one the question uses",
+        "each fork is a binary semaphore; each philosopher runs the identical program",
+        "symmetry is the defect: all five can finish their first wait before anyone finishes the second",
+        "a preemption after the first wait is enough, so one core reaches the deadlock",
+        "a philosopher has four situations, so the table has at most 4^n states",
+        "fork ownership is derived from the labels, so a state is one label per philosopher",
+        "naive code: 573 reachable states, exactly one stuck",
+        "the stuck state is all five holding the first fork, and its wait-for graph is a 5-cycle",
+        "at most two philosophers eat: two meals need four forks, three need six",
+        "the eating ceiling comes from the forks, not from the code",
+        "a room of n-1 permits: 491 states, none stuck",
+        "a room of n permits is the original problem: 573 states, one stuck",
+        "asymmetric ordering: 492 states, none stuck",
+        "the waiter or monitor removes hold-and-wait, so no fork is held while waiting",
+        "every repair removes one condition and none makes anyone eat sooner",
+        "deadlock means nothing proceeds; starvation means one class is never chosen",
+        "bounded waiting is a third promise, and it is the one usually broken",
+        "read any such question: shared variables, their guards, matching signals, then counts"]))
 
 _seen = set()
 _dedup = []

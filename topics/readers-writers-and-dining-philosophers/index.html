@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Readers–writers and dining philosophers — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Readers–writers and dining philosophers</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../synchronisation-and-deadlock/index.html">Prerequisite: synchronisation and deadlock</a>
+      <a href="../transactions-and-concurrency-control/index.html">Related: shared and exclusive locks</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The two classical synchronisation problems: readers and writers over one shared value, and dining philosophers over a ring of forks. Both solutions, both failures, and the counting questions built on them.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Trace the first readers–writers solution step by step and say exactly which statement admits a second reader. State which class starves in each of the three versions of that problem and why. Trace the dining philosophers deadlock, prove by exhaustive search that it is the only stuck state of the naive code, and check three repairs against the same search. Distinguish deadlock from starvation from unbounded waiting, and answer the counting questions without guessing.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>two shapes of contention</em>: one resource with two rules about sharing, and a ring of resources with an ordering problem. Every number on this page is computed here by a semaphore simulator and a state-space search, and 52 model checks re-verify those numbers against their definitions.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> Section 8 of the GATE 2027 CS syllabus, published by IIT Madras, reads: <em>&ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo;</em> Concurrency and synchronization are named verbatim, and both problems on this page are the standard instances of that clause.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>Class A by area, class B by name.</strong> Neither &ldquo;readers and writers&rdquo; nor &ldquo;dining philosophers&rdquo; appears as a phrase in the syllabus. What appears is the area they belong to. The lesson therefore teaches them as the worked instances of the named clause, not as named clauses themselves.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Question archives index items on this family in 1987, 1996, 1997 and 2000. Those are individual questions that can be read, not a weightage figure, and nothing here forecasts 2027.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Prerequisites</h3>
+          <p class="small">Before this lesson, these should be comfortable:</p>
+          <p class="small"><strong>Semaphores.</strong> What <code>wait</code> and <code>signal</code> do, including the negative-value convention. The lesson restates it, but the <a href="../synchronisation-and-deadlock/index.html">synchronisation and deadlock</a> lesson builds it.</p>
+          <p class="small"><strong>The three requirements.</strong> Mutual exclusion, progress, bounded waiting &mdash; named and used here, defined there.</p>
+          <p class="small"><strong>The four deadlock conditions.</strong> Mutual exclusion, hold and wait, no preemption, circular wait. This lesson instantiates all four rather than proving the theorem again.</p>
+          <p class="small" style="margin-bottom:0"><strong>Interleaving.</strong> That a switch may happen between any two machine steps, so several orders of the same statements are legal.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Visualisation plan</h3>
+          <p class="small"><strong>Scenes 1&ndash;2</strong> separate the two problems and show why one mutex is safe but serial. <strong>Scenes 3&ndash;5</strong> run the two readers–writers solutions as an animation of the semaphore values themselves, so the admission decision is visible at the moment it happens. <strong>Scene 6</strong> collects the counts. <strong>Scenes 7&ndash;8</strong> build the philosophers table and then show the exhaustive search, with the single stuck state named. <strong>Scenes 9&ndash;10</strong> check the three repairs and fix the reading procedure.</p>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is drawn from a remembered value: the trace table, the state counts and the maximum number eating are all produced by the code in <code>lesson.js</code> and re-checked by 52 assertions.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a noticeboard and a table of forks</h3>
+          <p class="small">A department noticeboard can be read by any number of people at once. Reading does not spoil the notice, so nobody needs to queue. But if someone is changing the notice, nobody may read it and no second person may change it, because a half-changed notice misleads everyone. That is the readers–writers problem: the resource is the same for both, but the rules about sharing are not.</p>
+          <p class="small" style="margin-bottom:0">Now a table with five people and five forks, one between each pair, and each person needing both neighbours' forks to eat. Nobody is competing over a value; they are competing over <em>order</em>. If all five reach left at once, each holds one fork and each waits for a fork the next person is holding, and the table stops. That is the dining philosophers problem. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The two images carry the two failure modes: one problem fails by unfairness, the other by a cycle.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The vocabulary, every term in words</h3>
+          <p class="small"><strong>Critical section</strong> &mdash; the part of a process that touches the shared resource.</p>
+          <p class="small"><strong>readcount</strong> &mdash; an integer holding how many readers are inside. It is shared, so it needs its own lock.</p>
+          <p class="small"><strong>rmutex</strong> &mdash; a binary semaphore, initially 1, held only while <code>readcount</code> is changed.</p>
+          <p class="small"><strong>wsem</strong> (also called <code>wmutex</code> or <code>db</code>) &mdash; the permission to write. Held by a writer while writing, and held by the <em>first</em> reader while any reader is inside.</p>
+          <p class="small"><strong>readTry</strong> &mdash; the gate added in the second solution; the first waiting writer closes it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Preference</strong> &mdash; which class is served first when both are waiting. Reader preference, writer preference, or neither.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three rules of readers–writers</h3>
+          <p class="small"><strong>1. A writer is alone.</strong> No reader and no second writer is inside while a writer writes.</p>
+          <p class="small"><strong>2. Readers share.</strong> Any number of readers may be inside together.</p>
+          <p class="small"><strong>3. Admission is fair.</strong> A process that asks eventually gets in.</p>
+          <p class="small" style="margin-bottom:0">Rules 1 and 2 are safety and are easy. Rule 3 is fairness and is where every version differs. A solution can satisfy 1 and 2 perfectly and still starve one class for ever, which is why the exam asks &ldquo;which process may starve&rdquo; rather than &ldquo;is this correct&rdquo;.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The first solution, and the one line that matters</h3>
+          <p class="formula">Reader:
+  wait(rmutex); readcount++;
+  if (readcount == 1) wait(wsem);
+  signal(rmutex);
+  READ
+  wait(rmutex); readcount--;
+  if (readcount == 0) signal(wsem);
+  signal(rmutex);
+
+Writer:
+  wait(wsem); WRITE; signal(wsem);</p>
+          <p class="small" style="margin-bottom:0">The whole design is the conditional: <em>only</em> the reader that raises the count from 0 to 1 takes <code>wsem</code>, and <em>only</em> the reader that lowers it from 1 to 0 gives it back. Every other reader passes without touching the writer semaphore. That single idea is what buys concurrency, and it is also what starves writers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The second solution, in one sentence</h3>
+          <p class="small">Add a gate. Every reader takes <code>readTry</code> on the way in and gives it back at once; the first writer to arrive takes <code>readTry</code> and holds it until the last writer leaves. A waiting writer therefore blocks new readers, and the class that can starve flips from writers to readers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The computed trace on this page: reader one leaves <code>wmutex</code> at 0; writer one takes <code>readTry</code> to 0 and blocks on <code>wmutex</code>, which falls to &minus;1; reader two then blocks on <code>readTry</code>, which falls to &minus;1. The gate is shut while the writer waits, and that is the whole mechanism.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Dining philosophers: the setup</h3>
+          <p class="formula">fork[5] = {1,1,1,1,1};
+philosopher(i):
+  think();
+  wait(fork[i]);            // left
+  wait(fork[(i+1) % 5]);    // right
+  eat();
+  signal(fork[(i+1) % 5]);
+  signal(fork[i]);</p>
+          <p class="small" style="margin-bottom:0">Five processes, five locks, and one identical program. The symmetry is the defect: because every philosopher reaches the same way, an interleaving exists in which all five finish their first wait before anyone finishes the second.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Why a finite search settles the questions</h3>
+          <p class="small">A philosopher is, at any moment, in one of four situations: thinking and holding nothing, waiting for his first fork, holding his first fork and waiting for the second, or eating. Which philosopher holds which fork is determined by those four labels, so a state of the whole table is just five labels. That gives at most four to the fifth, which is 1024 states, and most of those are unreachable.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Walking every reachable state from &ldquo;all five thinking&rdquo; is therefore a complete decision procedure, not a sample: 573 states are reachable in the naive solution, exactly one of them has no legal move, and that one is all five holding the first fork. The same search finds no stuck state at all in the asymmetric and room-of-four repairs. The maximum number eating at once, over every reachable state, is 2.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">One shared value, two kinds of user: many readers, one writer.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two different problems hide inside one word</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Two problems sit inside the word synchronisation, and they are not the same problem.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Example 1 &mdash; the first solution, traced with the values kept</h3>
+          <p class="small">The arrivals are R1, R2, W1, R3, R4. Every row below is produced by running the code against a semaphore simulator, with the safety invariant checked after every statement.</p>
+          <p class="formula">arrival   readcount   rmutex   wsem   readers in   writer
+  R1          1          1        0         1        &mdash;
+  R2          2          1        0         2        &mdash;
+  W1          2          1       -1         2        queued
+  R3          3          1       -1         3        queued
+  R4          4          1       -1         4        queued</p>
+          <p class="small" style="margin-bottom:0">Read the third row carefully. The writer's <code>wait(wsem)</code> takes the value from 0 to &minus;1 and queues it, and nothing else changes: no reader leaves, no reader is affected. The fourth and fifth rows are the starvation mechanism &mdash; two more readers enter while the writer's value stays at &minus;1. When all four readers leave, <code>readcount</code> reaches 0 and the last one signals <code>wsem</code>, which wakes the writer.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 &mdash; the subtle detail: who holds rmutex while blocked</h3>
+          <p class="small">Take the other order: the writer arrives first, then twenty readers.</p>
+          <p class="formula">W1 arrives:  wsem 1 -> 0, W1 writes
+R1 arrives:  rmutex 1 -> 0, readcount 1,
+             wait(wsem) 0 -> -1, R1 blocks
+             (R1 still holds rmutex)
+R2..R20:     block on rmutex, value -19</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The computed result: zero readers inside, one reader queued on <code>wsem</code>, nineteen queued on <code>rmutex</code>. The first reader holds <code>rmutex</code> while it waits, so no later reader can even reach the count. This is the detail that makes the solution safe in this order, and it is the detail a question tests when it asks what happens if the writer gets in first.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 &mdash; the second solution, traced</h3>
+          <p class="formula">arrival   readTry   wmutex   writecount   readcount
+  R1          1         0          0            1
+  W1          0        -1          1            1
+  R2         -1        -1          1            1</p>
+          <p class="small">Reader one passes the gate, takes <code>wmutex</code> (0) and reads. Writer one is the first writer, so it takes <code>readTry</code> (0) and then blocks on <code>wmutex</code> (&minus;1). Reader two now waits at the gate, which falls to &minus;1.</p>
+          <p class="small" style="margin-bottom:0">After reader one leaves and the writer finishes, <code>readTry</code> is signalled and the queued reader enters: the computed state at the end is one reader inside and no writer. The gate reopens only when the <em>last</em> writer leaves, which is why a steady stream of writers starves readers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 &mdash; the search on the naive table</h3>
+          <p class="formula">reachable states            573
+states with no legal move      1
+the stuck state       hold, hold, hold, hold, hold
+most philosophers eating       2
+upper bound, 4^5            1024</p>
+          <p class="small">The one stuck state is the configuration the animation builds: every philosopher holds his left fork and waits for the right one, which his neighbour holds. Its wait-for graph is a cycle of five, which is the independent second check on the same claim.</p>
+          <p class="small" style="margin-bottom:0">Two philosophers eating is the ceiling, and the reason is arithmetic: two meals hold four forks, and a third meal needs two more when only one is left. So the answer to &ldquo;maximum philosophers eating at once&rdquo; is 2, whatever the scheduling.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 5 &mdash; the same search on the repairs</h3>
+          <p class="formula">model                    states   stuck   max eating
+  naive, left first          573      1         2
+  room semaphore = 4         491      0         2
+  asymmetric, odd right      492      0         2
+  room semaphore = 5         573      1         2</p>
+          <p class="small" style="margin-bottom:0">Two things are worth reading off this table. The repairs remove the deadlock without raising the number of philosophers who can eat, because the forks &mdash; not the code &mdash; set that ceiling. And a room semaphore initialised to 5 is not a repair at all: it reproduces the naive table exactly, 573 states and one stuck state, which is the check that the repair is the <em>n&minus;1</em> and not the room idea in general.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Example 6 &mdash; semaphore arithmetic you will be asked for</h3>
+          <p class="small">A counting semaphore starts at <em>s</em>. After <em>m</em> waits and <em>p</em> signals its value is <em>s &minus; m + p</em>. Under the standard definition a negative value of magnitude <em>k</em> means <em>k</em> processes are queued. So on the first readers–writers trace, with <code>wsem</code> starting at 1 and one writer waiting while readers hold it, the value is &minus;1 and exactly one process is queued on it.</p>
+          <p class="small" style="margin-bottom:0">This is where conventions bite: some texts clamp the value at 0 and keep the queue separately. Both are used, the numbers differ, and the question usually tells you which one it means. The simulator on this page uses the negative-value convention, which is the one that makes &ldquo;how many are waiting&rdquo; a reading of the number rather than a separate count.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample span-2">
+          <h3>Boundary 1 &mdash; a room semaphore of 5 is not a repair</h3>
+          <p class="small">The repair is <em>n &minus; 1</em>, not &ldquo;a room&rdquo;. Initialise the room to 5 on a five-philosopher table and the search returns the naive result exactly: 573 reachable states and one stuck state. The permit count is what removes the possibility of all five competing; a permit for everyone removes nothing.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> With <em>k</em> permits and <em>k &lt; n</em>, at least one philosopher is outside the pickup phase, so at least one fork is free for its neighbour. With <em>k = n</em> every philosopher may hold one fork at once, which is precisely the deadlock configuration.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 2 &mdash; one philosopher, and two</h3>
+          <p class="small">With one philosopher and one fork, the code asks for the same fork twice: <code>wait(fork[0])</code> succeeds and <code>wait(fork[1 mod 1])</code> is <code>wait(fork[0])</code> again, so the philosopher blocks for ever on his own fork. The general statement &ldquo;five philosophers, five forks&rdquo; hides this: the ring needs at least two forks to make sense of &ldquo;left&rdquo; and &ldquo;right&rdquo;.</p>
+          <p class="small" style="margin-bottom:0">With two philosophers and two forks, both reach left, both hold one fork, and both wait for the other. That is the smallest instance of the same deadlock, and it is worth being able to draw in one line.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 3 &mdash; zero readers is a state you must handle</h3>
+          <p class="small">The condition <code>if (readcount == 0) signal(wsem)</code> is what releases the writer. Drop it, or test it before the decrement, and the writer is never released: the system deadlocks with every reader gone and every writer blocked. The order is decrement, test, signal &mdash; in that order, on the shared count.</p>
+          <p class="small" style="margin-bottom:0">The matching boundary on the way in is <code>if (readcount == 1)</code>, tested <em>after</em> the increment. Testing before the increment makes every reader believe it is first, so every reader takes <code>wsem</code>, and the readers serialise &mdash; safe, and back to one mutex.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 4 &mdash; asymmetric ordering with an even number of philosophers</h3>
+          <p class="small">The odd/even rule removes the cycle for any ring, because the first-fork choices no longer form a closed loop: some philosophers reach clockwise and some anticlockwise. With an even number of philosophers the split is even, and the argument is the same; with an odd number one side has one more philosopher, and the argument is also the same. What breaks is not the rule but the assumption that all forks are requested in index order.</p>
+          <p class="small" style="margin-bottom:0">A cleaner statement of the same repair: number the forks and require every philosopher to take the <em>lower-numbered</em> fork first. That is the resource-ordering rule used for real locks, and it is the version to quote if a question asks for the general principle rather than the parity trick.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Boundary 5 &mdash; starvation is not deadlock, and the difference is visible</h3>
+          <p class="small">In the reader-preference trace, readers keep entering and the writer never does. Nothing is stuck: at every moment some process is running and making progress. A deadlock has no such moment. The two therefore differ in the repair as well &mdash; a deadlock is removed by breaking a cycle or removing hold-and-wait, while starvation is removed by changing the admission rule, which is exactly what <code>readTry</code> does.</p>
+          <p class="small" style="margin-bottom:0">The matching statement for philosophers: the room and asymmetric repairs remove deadlock and leave starvation possible, because a philosopher can still be unlucky about which neighbour eats. Removing deadlock and removing starvation are two different jobs, and a question that asks for one is not asking for the other.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 1 &mdash; &ldquo;the first solution is wrong because writers can starve&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> Since a writer can wait for ever, the code must be incorrect.</p>
+          <p class="small"><strong>Why it is wrong.</strong> The first readers–writers problem is <em>defined</em> as: no reader waits unless a writer already holds the section. That definition forces reader preference, and reader preference allows writer starvation. The code is a correct solution to the first problem and a wrong one to the third. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The trace on this page shows the writer released exactly when <code>readcount</code> reaches 0, which is the specified behaviour.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix in your head.</strong> Answer the question that was asked: which problem, then which property. &ldquo;Correct&rdquo; without a named property is not an answer here.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 2 &mdash; &ldquo;a negative semaphore value is an error&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> A value of &minus;1 means something went wrong, or that the semaphore is &ldquo;over-signalled&rdquo;.</p>
+          <p class="small"><strong>Why it is wrong.</strong> Under the standard definition <code>wait</code> decrements first and blocks if the value went negative, so the magnitude is the number of queued processes. Minus one means one process waiting, which is normal and is what the exam asks for.</p>
+          <p class="small" style="margin-bottom:0"><strong>Watch the other convention.</strong> Some texts clamp at 0 and keep the queue separately. Both exist, and the numeric answers differ, so read which one the question uses before computing.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 3 &mdash; &ldquo;only one process may be in a critical section&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> A critical section always holds one process, so three readers inside is a violation.</p>
+          <p class="small"><strong>Why it is wrong.</strong> Mutual exclusion is a property of the <em>problem</em>, not of the words &ldquo;critical section&rdquo;. Here the requirement is that a writer is alone, which permits any number of readers together. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> In the computed trace four readers are inside at once with no writer, and the safety invariant never fires.</p>
+          <p class="small" style="margin-bottom:0"><strong>The tell.</strong> If a question says readers may read together, the answer to &ldquo;maximum processes inside&rdquo; is not 1.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 4 &mdash; &ldquo;the monitor solution is starvation-free&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> Because a monitor grants both forks or neither, nobody can starve.</p>
+          <p class="small"><strong>Why it is wrong.</strong> The monitor removes <em>hold and wait</em>, so it removes deadlock. It does not order the requests, so an unlucky philosopher can be passed over repeatedly while his neighbours alternate. Deadlock-freedom and starvation-freedom are different properties, and the monitor gives only the first.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix.</strong> Fairness needs a queue &mdash; a FIFO waiter, or a fair semaphore. That is an extra design decision, not a consequence of the monitor.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 5 &mdash; &ldquo;a single processor prevents the philosophers deadlock&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> With one core, two philosophers cannot hold forks at the same time, so the deadlock needs a multicore machine.</p>
+          <p class="small"><strong>Why it is wrong.</strong> A preemption between <code>wait(fork[i])</code> and <code>wait(fork[i+1])</code> is enough. Each philosopher completes his first wait and is then switched out; the forks are held across the switch because they are held by the process, not by the core. The search that finds the stuck state assumes nothing about parallelism &mdash; only that any interleaving is possible.</p>
+          <p class="small" style="margin-bottom:0"><strong>The tell.</strong> Any question that says &ldquo;the scheduler may switch at any point&rdquo; allows this interleaving on one core.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 6 &mdash; &ldquo;more forks fix the philosophers&rdquo;</h3>
+          <p class="small"><strong>The belief.</strong> Adding a sixth fork, or a second fork per philosopher, removes the deadlock.</p>
+          <p class="small"><strong>Why it is wrong.</strong> Extra forks change the arithmetic of how many can eat, not the ordering rule that creates the cycle. The cycle exists because every philosopher requests in the same order; six forks with the same rule still admit a configuration where a set of philosophers each holds one fork and waits for the next.</p>
+          <p class="small" style="margin-bottom:0"><strong>What does fix it.</strong> Break the cycle (asymmetric or resource ordering), remove hold-and-wait (waiter or monitor), or cap the competitors at <em>n &minus; 1</em>. Each names a condition, which is what the question usually wants.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The four question shapes in this family</h3>
+          <p class="small"><strong>Shape 1 &mdash; complete the code.</strong> Blanks in a readers–writers solution: which statement goes in each box. Solve by asking what the box must guarantee, not by recalling the text.</p>
+          <p class="small"><strong>Shape 2 &mdash; state the values.</strong> &ldquo;Twelve readers are reading and thirty-one writers are waiting; give the value of every shared variable and semaphore.&rdquo; Solve by running the code, keeping a table, and reading negative values as queue lengths.</p>
+          <p class="small"><strong>Shape 3 &mdash; name the failure.</strong> Which class may starve, or which of the four conditions is removed by a given repair. Solve by naming the condition, then the class.</p>
+          <p class="small" style="margin-bottom:0"><strong>Shape 4 &mdash; count.</strong> The largest number of processes inside at once, the maximum number eating, the number of semaphores. Solve from the resource arithmetic, then check against the code.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Verified previous-year items</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 1996, Q2.19 (MCQ).</strong> &ldquo;A solution to the Dining Philosophers Problem which avoids deadlock is to&rdquo; &mdash; four options about pickup order. The paper's answer is the option in which one particular philosopher picks up the left fork before the right while all others pick up the right before the left: breaking the symmetry breaks the cycle.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 2000, Q20.</strong> A readers–writers solution using one binary semaphore <code>mutex</code> and counters <code>R</code> and <code>W</code> with busy waiting, with three blanks to fill. The point of the item is that the writer must loop while <code>R &gt; 0</code> or <code>W != 0</code>.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 1987, Q8a.</strong> A proposed readers–writers solution with counters <code>ar, aw, rr, rw</code> and semaphores <code>mutex, reading, writing</code>, asking for the variable values with 12 readers and 31 writers, whether either class can starve the other, and why the solution is incorrect.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>How the 1987 shape is answered</h3>
+          <p class="small">Read the procedure off the code rather than the numbers: <code>grantread</code> releases a reader only while <code>aw = 0</code>, so a waiting writer stops new readers, while <code>grantwrite</code> checks <code>rr</code> and not <code>ar</code>, so writers are admitted while readers are still inside.</p>
+          <p class="small" style="margin-bottom:0">That asymmetry is the answer to all three parts: readers do not starve writers because the gate closes for readers as soon as a writer waits; writers can starve readers because nothing stops a second writer; and the solution is incorrect because two writers can be inside together. This is a shape to practise on any proposed solution, not a fact to memorise.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps that survive a careless check</h3>
+          <p class="small"><strong>Trap 1.</strong> Marking the single-mutex readers–writers code correct. It is safe and it violates rule 2.</p>
+          <p class="small"><strong>Trap 2.</strong> Answering &ldquo;one&rdquo; to &ldquo;maximum processes in the critical section&rdquo; on a readers–writers question.</p>
+          <p class="small"><strong>Trap 3.</strong> Calling writer starvation a deadlock. Nothing is stuck; the writer is simply never chosen.</p>
+          <p class="small"><strong>Trap 4.</strong> Answering &ldquo;five&rdquo; to the maximum number eating at once. Two forks per meal, five forks, so two.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap 5.</strong> Saying a repair &ldquo;prevents deadlock&rdquo; without naming the condition it removes, when the question asks for the condition.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Cross-topic connections worth carrying</h3>
+          <p class="small"><strong>Shared and exclusive locks.</strong> A readers–writers lock is a database shared/exclusive lock, and the same starvation arguments appear in concurrency control: a transaction that keeps taking shared locks keeps an exclusive waiter out. The <a href="../transactions-and-concurrency-control/index.html">transactions lesson</a> treats the lock manager; this lesson supplies the fairness analysis.</p>
+          <p class="small" style="margin-bottom:0"><strong>Resource ordering.</strong> The asymmetric philosophers repair is the general rule for real lock hierarchies: acquire in one global order so no cycle can form. The <a href="../synchronisation-and-deadlock/index.html">deadlock lesson</a> proves the four conditions; this lesson shows the repair in action and the exhaustive search that checks it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set &mdash; answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 and 2 are previous-year items with their year and question number. Questions 3 to 7 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper and question number are given, and every numeric answer here was recomputed by this page's model.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 1996 Q2.19</span></div>
+          <div class="q-body">
+            <p>A solution to the Dining Philosophers Problem which avoids deadlock is to</p>
+            <ol class="choices">
+              <li>ensure that all philosophers pick up the left fork before the right fork</li>
+              <li>ensure that all philosophers pick up the right fork before the left fork</li>
+              <li>ensure that one particular philosopher picks up the left fork before the right fork, and that all other philosophers pick up the right fork before the left fork</li>
+              <li>None of the above</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>Options A and B keep the code symmetric, and symmetry is exactly what allows all five to hold one fork at once. Option C breaks the symmetry: one philosopher reaches the other way, so the first-fork choices no longer form a closed loop, and the cycle of waiting cannot be completed. The search on this page confirms the mechanism on the parity form of the same rule: 492 reachable states, none stuck.</p>
+            <p><strong>Why D is tempting.</strong> Option C does not make anyone eat sooner and does not by itself guarantee fairness, so a reader may think it &ldquo;does not solve the problem&rdquo;. The question asks only about deadlock, and C removes it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2000 Q20 &mdash; adapted</span></div>
+          <div class="q-body">
+            <p>A readers–writers solution uses one binary semaphore <code>mutex</code> initialised to 1, with counters <code>R</code> (readers present) and <code>W</code> (a writer present), and busy waiting. The reader does:</p>
+            <p class="formula">L1: wait(mutex);
+    if (W == 0) { R = R + 1; signal(mutex); }
+    else { signal(mutex); goto L1; }
+    ... read ...
+    wait(mutex); R = R - 1; signal(mutex);</p>
+            <p>The writer loops at <code>L2</code> until it may enter. Which condition must its test check, if it is to be admitted only when the section is empty?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: it must loop while <code>R &gt; 0</code> or <code>W != 0</code>.</p>
+            <p>The writer may enter only when no reader is present and no writer is present. So the test at <code>L2</code> is the negation of that: keep waiting if either is non-zero. Once it passes, it sets <code>W = 1</code> and releases <code>mutex</code>, and the reader's test on <code>W</code> then keeps new readers out.</p>
+            <p><strong>Why <code>R &gt; 0</code> alone is wrong.</strong> Two writers would both pass the test and both enter, so a second writer meets the first. <strong>Why the reader's test is on <code>W</code> only.</strong> A reader may enter beside other readers, so <code>R</code> is not a bar to it. <strong>The trap.</strong> This solution uses busy waiting, so it is not the semaphore-blocking form on this page; the condition is the same, the mechanism is not.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>In the first readers–writers solution (<code>readcount</code>, <code>rmutex</code>, <code>wsem</code>), suppose two readers are reading, then one writer arrives and blocks, then two more readers arrive and enter. Give the value of <code>readcount</code> and of <code>wsem</code> at that moment.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: readcount = 4, wsem = &minus;1</p>
+            <p>Each arriving reader increments the count: 2, then 3, then 4. Only the reader that took the count from 0 to 1 touched <code>wsem</code>, and it is still held, so the writer's wait took it to &minus;1 and it stays there. The minus one is one queued writer.</p>
+            <p><strong>Why 0 appears.</strong> Reading &ldquo;a writer is waiting&rdquo; as &ldquo;a writer holds the section&rdquo;, which would be the value while writing. <strong>Why &minus;2 appears.</strong> Counting the new readers as also waiting on <code>wsem</code>; they never touch it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following are true of the dining philosophers solution that lets at most four philosophers attempt the pickup at once?</p>
+            <ol class="choices">
+              <li>It removes the possibility of a deadlock.</li>
+              <li>It raises the maximum number of philosophers eating at once to three.</li>
+              <li>It leaves starvation possible.</li>
+              <li>It works by removing the circular-wait condition.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and C</p>
+            <p>The search on this page finds no stuck state among the 491 reachable states, so A is true. The ceiling stays at two, because two meals need four forks and a third needs six, so B is false. The permit does not order the requests, so an unlucky philosopher can still be passed over: C is true. And the condition removed is the possibility that all five compete, not circular wait as such &mdash; the room prevents the cycle from forming rather than forbidding it: D is the tempting wrong answer.</p>
+            <p><strong>Why D is arguable and still wrong.</strong> Textbooks sometimes say the room &ldquo;breaks circular wait&rdquo;. Precisely, it makes the deadlock configuration unreachable, which is a statement about reachability; naming the condition it removes is the safer answer when the options distinguish the two.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Six philosophers sit round a table with six forks, one between each pair, running the naive left-then-right code. What is the largest number of philosophers who can be eating at the same time?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>Each meal holds two forks and no fork serves two meals, so the number eating is at most the number of forks divided by two, rounded down: six forks, three meals. The arrangement exists: philosophers 0, 2 and 4 hold forks 0 and 1, forks 2 and 3, and forks 4 and 5 respectively, so three eat together. The general answer is the floor of n over 2, which is 2 for five philosophers and 3 for six.</p>
+            <p><strong>Why 6 appears.</strong> Counting philosophers instead of forks. <strong>Why 2 appears.</strong> Carrying the five-philosopher answer across without redoing the arithmetic.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>In the second readers–writers solution with <code>readTry</code>, which process can be starved, and by what?</p>
+            <ol class="choices">
+              <li>A writer, by a steady stream of readers</li>
+              <li>A reader, by a steady stream of writers</li>
+              <li>Both, by each other</li>
+              <li>Neither, because the gate makes the solution fair</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The first writer to arrive takes <code>readTry</code> and holds it until the last writer leaves. A stream of writers keeps <code>readTry</code> held, so new readers queue at the gate: the computed trace ends with one blocked reader and no reader inside. Writers are therefore protected, and readers are the class that can starve.</p>
+            <p><strong>Why A appears.</strong> That is the first solution's failure, not this one's. <strong>Why D appears.</strong> The gate changes who is preferred; it does not add a queue with a bound, so it does not make either class safe.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A system is running the naive dining philosophers code with five philosophers. Which statement is exactly right?</p>
+            <ol class="choices">
+              <li>A deadlock is possible and a deadlock is also reachable from every execution</li>
+              <li>Exactly one reachable state is a deadlock, and it is all five holding the first fork</li>
+              <li>No deadlock is possible because a philosopher releases a fork when it cannot get the second</li>
+              <li>The deadlock needs at least two processors</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The exhaustive search on this page enumerates 573 reachable states and finds exactly one with no legal move, the state where every philosopher holds his first fork. That makes a deadlock possible and unique among reachable states.</p>
+            <p><strong>Why A appears.</strong> &ldquo;Reachable from every execution&rdquo; is far too strong: most interleavings never deadlock. <strong>Why C appears.</strong> This code never releases a held fork; that is a different solution (try-lock and back off). <strong>Why D appears.</strong> A preemption after the first wait is enough on one processor.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--takeaway span-2">
+          <h3>The sheet</h3>
+          <p class="small"><strong>Readers–writers, first solution.</strong> <code>readcount</code> plus <code>rmutex</code> plus <code>wsem</code>. First reader takes <code>wsem</code>, last reader releases it, everyone else passes. Readers share; a writer is alone. Writers can starve. Two semaphores and one integer.</p>
+          <p class="small"><strong>Readers–writers, second solution.</strong> Add <code>readTry</code>; the first waiting writer closes it and the last writer opens it. Writers are protected; readers can starve. Four semaphores and two integers.</p>
+          <p class="small"><strong>Third problem.</strong> Neither class starves. Paid for with a queue semaphore that every process passes through, which gives up both preferences.</p>
+          <p class="small" style="margin-bottom:0"><strong>Dining philosophers.</strong> Five forks, two per meal, so at most two eat. The naive left-then-right code has exactly one stuck state: all five holding the first fork. Three repairs: a room of <em>n &minus; 1</em>, asymmetric or resource ordering, and a waiter or monitor that never holds one fork while waiting.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The numbers, computed here</h3>
+          <p class="formula">naive table      573 reachable, 1 stuck, 2 eating
+room of 4        491 reachable, 0 stuck, 2 eating
+asymmetric       492 reachable, 0 stuck, 2 eating
+room of 5        573 reachable, 1 stuck, 2 eating
+upper bound      4^5 = 1024 states
+
+first solution:  readcount 4, wsem -1, 4 readers in
+second solution: readTry -1, wmutex -1, writecount 1</p>
+          <p class="small" style="margin-bottom:0">Every figure above is printed on the canvas from the same computation that the 52 checks verify.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Decision procedure for any question here</h3>
+          <p class="small"><strong>1.</strong> Name the problem: readers–writers, or philosophers. They have different failures.</p>
+          <p class="small"><strong>2.</strong> Name the version, if readers–writers: reader preference, writer preference, or fair.</p>
+          <p class="small"><strong>3.</strong> List the shared variables and find the semaphore guarding each.</p>
+          <p class="small"><strong>4.</strong> Match every <code>wait</code> to its <code>signal</code>, and check every path reaches it.</p>
+          <p class="small"><strong>5.</strong> Ask which class can be bypassed, then count.</p>
+          <p class="small" style="margin-bottom:0"><strong>6.</strong> If it asks about deadlock, name the condition removed, not just the verdict.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas to keep</h3>
+          <p class="small">Semaphore value after <em>m</em> waits and <em>p</em> signals, from <em>s</em>: <em>s &minus; m + p</em>.</p>
+          <p class="small">Blocked processes on a semaphore: the magnitude of a negative value, <em>|value|</em> when the value is below zero.</p>
+          <p class="small">Maximum philosophers eating: the floor of <em>n</em> divided by 2, from two forks per meal.</p>
+          <p class="small">Permits that remove the philosophers deadlock: <em>n &minus; 1</em>, never <em>n</em>.</p>
+          <p class="small" style="margin-bottom:0">States of the philosophers table: at most 4<sup>n</sup>, since each philosopher has four situations.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Five sentences worth memorising, and their exact scope</h3>
+          <p class="small">&ldquo;Only the first reader takes <code>wsem</code> and only the last gives it back.&rdquo; &mdash; scope: the first solution; not true of the second.</p>
+          <p class="small">&ldquo;A negative semaphore value is the number waiting.&rdquo; &mdash; scope: the decrement-first convention only.</p>
+          <p class="small">&ldquo;The room repair is <em>n &minus; 1</em>.&rdquo; &mdash; scope: it removes the deadlock, and does not remove starvation.</p>
+          <p class="small">&ldquo;Asymmetric ordering breaks the cycle.&rdquo; &mdash; scope: any ring, provided the rule is genuinely asymmetric.</p>
+          <p class="small" style="margin-bottom:0">&ldquo;A monitor removes hold-and-wait.&rdquo; &mdash; scope: it removes deadlock, not starvation, and not contention.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition span-2">
+          <h3>What this lesson was built from</h3>
+          <p class="small"><strong>Official syllabus.</strong> GATE 2027 CS syllabus, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>. Section 8 was read verbatim: &ldquo;System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.&rdquo; That sentence supports the class-A-by-area claim and nothing more; the two problems are not named in it.</p>
+          <p class="small"><strong>Previous-year items.</strong> GATE CSE 1996 Q2.19 (dining philosophers, pickup order) and GATE CSE 2000 Q20 (readers–writers with one binary semaphore and busy waiting), both read from public question archives that reproduce the paper text; GATE CSE 1987 Q8a (a proposed readers–writers solution with counters and three semaphores) from the same kind of archive. These are community reproductions of official papers, not the papers themselves, so the year and number are given and the wording is quoted as reproduced.</p>
+          <p class="small"><strong>Standard references.</strong> The readers–writers problems are attributed to Courtois, Heymans and Parnas (1971) and the three versions are the standard statement of the family. The dining philosophers problem is attributed to Dijkstra; the monitor solution with a per-philosopher state array and a <code>test</code> procedure is the version in Tanenbaum's operating-systems text; the <em>n &minus; 1</em> permits repair is the one attributed to Stallings. The asymmetric and resource-ordering repairs are standard in the same literature.</p>
+          <p class="small" style="margin-bottom:0"><strong>Community discussions.</strong> Public solution threads on these papers were read to see which wrong options attract students. Those threads are somebody's reasoning, not authority, and nothing in this lesson rests on them alone: every number was recomputed by the code in <code>lesson.js</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>What was verified, and how</h3>
+          <p class="small"><strong>Semaphore behaviour.</strong> Restated as code and checked: five assertions on <code>wait</code>, <code>signal</code>, the negative value and the <em>s &minus; m + p</em> formula.</p>
+          <p class="small"><strong>Both readers–writers traces.</strong> Executed statement by statement with a resume-on-wake simulator; the safety invariant (never a writer with a reader, never two writers) is asserted after every statement of every script.</p>
+          <p class="small" style="margin-bottom:0"><strong>Philosophers claims.</strong> Decided by breadth-first search over every reachable state, with fork ownership derived from the state rather than stored separately, and the deadlock claim cross-checked by an independent wait-for graph cycle count.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Where this lesson stops</h3>
+          <p class="small">No audio file is shipped, so the caption timings are estimated from the timeline at a normal speaking rate rather than measured. No video file exists.</p>
+          <p class="small">The syllabus is a topic list, not a depth specification. Nothing here claims a marks weight for this topic, and the historical items cited are examples that can be read, not a distribution.</p>
+          <p class="small" style="margin-bottom:0">The search covers five philosophers and the three repairs named. It does not prove anything about rings of other sizes; the counting rule for those is derived separately from the fork arithmetic and is stated as a derivation, not as a search result.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
