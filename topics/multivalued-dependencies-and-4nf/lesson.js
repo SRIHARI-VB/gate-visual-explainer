@@ -780,12 +780,12 @@ function drawAnomaly(t) {
   var band = [];
   for (var i = 0; i < rows.length; i++) band.push(i < 4 ? ACCDIM : null);
   tbl(P, 40, 76, cols, rows, { rowFill: band, rh: 20 });
-  label(P, 40, 62, 'EMPLOYEE, CHILD, SALARY, YEAR  \u2014  8 rows, 2 employees', { size: 11.5, bold: true, color: INK });
+  label(P, 40, 60, 'EMPLOYEE, CHILD, SALARY, YEAR  \u2014  8 rows, 2 employees', { size: 11, bold: true, color: INK });
 
   if (p > 0.35) {
-    P.arrow(330, 150, 388, 150, { stroke: ACC, sw: 2 });
-    label(P, 334, 130, 'split on', { size: 11, color: ACC, bold: true });
-    label(P, 334, 168, 'Employee ->> Child', { size: 11, color: ACC, mono: true });
+    P.arrow(356, 150, 392, 150, { stroke: ACC, sw: 2 });
+    label(P, 356, 132, 'split', { size: 9.5, color: ACC, bold: true });
+    label(P, 40, 272, 'Employee ->> Child', { size: 11, color: ACC, mono: true });
   }
   if (p > 0.5) {
     var c2 = [{ name: 'Employee', w: 104 }, { name: 'Child', w: 92 }];
@@ -794,16 +794,16 @@ function drawAnomaly(t) {
     var c3 = [{ name: 'Employee', w: 104 }, { name: 'Salary', w: 62 }, { name: 'Year', w: 54 }];
     tbl(P, 620, 76, c3, [['Pythagoras', '20K', 1976], ['Pythagoras', '25K', 1977],
                          ['Gauss', '40K', 1976], ['Gauss', '50K', 1976]], { rh: 20 });
-    label(P, 396, 62, '4 rows', { size: 11.5, bold: true, color: VAL });
-    label(P, 620, 62, '4 rows', { size: 11.5, bold: true, color: VAL });
+    label(P, 396, 60, '4 rows', { size: 11.5, bold: true, color: VAL });
+    label(P, 620, 60, '4 rows', { size: 11.5, bold: true, color: VAL });
   }
   if (p > 0.7) {
     panel(P, 40, 300, 380, 128, { fill: SURF2 });
     label(P, 54, 314, 'What the flat table costs', { size: 12.5, bold: true, color: INK });
     label(P, 54, 338, 'c children and s salary-years need  c \u00d7 s  rows.', { size: 12, color: INK });
     label(P, 54, 360, 'c = 3, s = 2  \u2192  6 rows, where 3 + 2 = 5 would do.', { size: 12, color: INK });
-    label(P, 54, 382, 'The saving is exactly (c\u22121)(s\u22121) \u2212 1, so it is 0 at c = s = 2.', { size: 12, color: DIM });
-    label(P, 54, 404, 'That is why the 8-row table above shows no saving at all.', { size: 12, color: DIM });
+    label(P, 54, 382, 'The saving is (c\u22121)(s\u22121) \u2212 1, so it is 0 at c = s = 2.', { size: 12, color: DIM });
+    label(P, 54, 404, 'That is why the 8-row table saves nothing at all.', { size: 12, color: DIM });
 
     panel(P, 440, 300, 420, 128, { fill: INVALIDDIM });
     label(P, 454, 314, 'And no functional dependency is broken', { size: 12.5, bold: true, color: INK });
@@ -834,16 +834,16 @@ function drawDefinition(t) {
   if (p > 0.4) {
     label(P, 60, 152, 'For every x and every two z, z\u2032 that both appear with x:', { size: 12, color: INK });
     label(P, 60, 176, 'Y(x, z)  =  Y(x, z\u2032)', { size: 15, bold: true, color: ACC, mono: true });
-    label(P, 60, 200, 'where Y(x, z) is the set of Y-values in the relation alongside that x and z.', { size: 11.5, color: DIM });
+    label(P, 60, 200, 'where Y(x, z) is the set of Y-values alongside that x and z.', { size: 11.5, color: DIM });
   }
   if (p > 0.55) {
     panel(P, 500, 140, 360, 110, { fill: SURF2 });
     label(P, 514, 152, 'The same statement, as a swap', { size: 12, bold: true, color: INK });
     label(P, 514, 174, 't1 = ( x , y1 , z1 )', { size: 12.5, mono: true, color: INK });
     label(P, 514, 192, 't2 = ( x , y2 , z2 )', { size: 12.5, mono: true, color: INK });
-    label(P, 640, 174, '\u21d2', { size: 16, bold: true, color: ACC });
-    label(P, 664, 174, '( x , y2 , z1 )', { size: 12.5, mono: true, color: VAL });
-    label(P, 664, 192, '( x , y1 , z2 )', { size: 12.5, mono: true, color: VAL });
+    label(P, 668, 174, '\u21d2', { size: 16, bold: true, color: ACC });
+    label(P, 686, 174, '( x , y2 , z1 )', { size: 12.5, mono: true, color: VAL });
+    label(P, 686, 192, '( x , y1 , z2 )', { size: 12.5, mono: true, color: VAL });
     label(P, 514, 216, 'must also be in the relation \u2014 both of them.', { size: 11, color: DIM });
     label(P, 514, 236, 'This forces rows to exist. An FD only forbids rows.', { size: 11, color: DIM });
   }
@@ -895,7 +895,7 @@ function drawReplication(t) {
   }
   if (p > 0.8) {
     label(P, 40, 320, 'Why it matters for the exam', { size: 12.5, bold: true, color: INK });
-    label(P, 40, 344, 'Reading X ->> Y as "X determines Y" turns a set into a value, and every 4NF answer built on it is wrong.', { size: 12, color: INK });
+    label(P, 40, 344, 'Reading X ->> Y as "X determines Y" turns a set into a value, and every answer built on it is wrong.', { size: 12, color: INK });
     label(P, 40, 366, 'The safe reading: X fixes the whole collection of Y-values, whatever else is fixed alongside it.', { size: 12, color: DIM });
     label(P, 40, 396, 'Note the arrow: ->> is the multivalued arrow, and it is never a typo for ->.', { size: 12, color: WARN });
   }
@@ -906,38 +906,38 @@ function drawTheorem1(t) {
   var p = prog(t);
   head(P, "Fagin's theorem: an MVD is exactly a lossless two-way split",
        'X ->> Y  holds  \u21d4  r  is the join of its XY and XZ projections');
-  label(P, 40, 66, 'Before: 8 rows, the dependency holds', { size: 11.5, bold: true, color: VAL });
-  tbl(P, 40, 80, [{ name: 'Employee', w: 96 }, { name: 'Child', w: 88 }, { name: 'Salary', w: 56 }, { name: 'Year', w: 46 }],
+  label(P, 30, 66, 'Before: 8 rows, the dependency holds', { size: 11.5, bold: true, color: VAL });
+  tbl(P, 30, 80, [{ name: 'Employee', w: 96 }, { name: 'Child', w: 88 }, { name: 'Salary', w: 56 }, { name: 'Year', w: 46 }],
     MODEL.EMP.map(function (r) { return [r[0], r[1], String(r[2]) + 'K', r[3]]; }), { rh: 18, size: 10.5 });
 
   if (p > 0.3) {
-    P.arrow(340, 170, 400, 170, { stroke: ACC, sw: 2 });
-    label(P, 344, 150, 'delete one tuple', { size: 10.5, color: WARN, bold: true });
-    label(P, 344, 186, '(Gauss, Greta, 50K, 1976)', { size: 10, color: WARN, mono: true });
+    P.arrow(320, 160, 344, 160, { stroke: ACC, sw: 2 });
+    label(P, 30, 254, 'delete one tuple', { size: 11, color: WARN, bold: true });
+    label(P, 30, 272, '(Gauss, Greta, 50K, 1976) removed', { size: 10, color: WARN, mono: true });
   }
   if (p > 0.45) {
-    label(P, 410, 66, 'After: 7 rows, the dependency is dead', { size: 11.5, bold: true, color: BAD });
-    tbl(P, 410, 80, [{ name: 'Employee', w: 96 }, { name: 'Child', w: 88 }, { name: 'Salary', w: 56 }, { name: 'Year', w: 46 }],
+    label(P, 350, 66, 'After: 7 rows, the dependency is dead', { size: 11.5, bold: true, color: BAD });
+    tbl(P, 350, 80, [{ name: 'Employee', w: 96 }, { name: 'Child', w: 88 }, { name: 'Salary', w: 56 }, { name: 'Year', w: 46 }],
       MODEL.EMP_T.map(function (r) { return [r[0], r[1], String(r[2]) + 'K', r[3]]; }), { rh: 18, size: 10.5 });
   }
   if (p > 0.62) {
-    panel(P, 700, 80, 170, 170, { fill: INVALIDDIM });
-    label(P, 712, 92, 'Children of Gauss', { size: 11.5, bold: true, color: INK });
-    label(P, 712, 116, 'at 40K:', { size: 11, color: DIM });
-    label(P, 712, 134, '{ Gwendolyn, Greta }', { size: 11.5, mono: true, color: INK });
-    label(P, 712, 162, 'at 50K:', { size: 11, color: DIM });
-    label(P, 712, 180, '{ Gwendolyn }', { size: 11.5, mono: true, color: BAD, bold: true });
-    label(P, 712, 206, 'The two sets differ,', { size: 11, color: BAD });
-    label(P, 712, 224, 'so Employee ->> Child fails.', { size: 11, color: BAD });
+    panel(P, 660, 80, 200, 170, { fill: INVALIDDIM });
+    label(P, 672, 92, 'Children of Gauss', { size: 11.5, bold: true, color: INK });
+    label(P, 672, 116, 'at 40K:', { size: 11, color: DIM });
+    label(P, 672, 134, '{ Gwendolyn, Greta }', { size: 11.5, mono: true, color: INK });
+    label(P, 672, 162, 'at 50K:', { size: 11, color: DIM });
+    label(P, 672, 180, '{ Gwendolyn }', { size: 11.5, mono: true, color: BAD, bold: true });
+    label(P, 672, 206, 'The two sets differ,', { size: 11, color: BAD });
+    label(P, 672, 224, 'so Employee ->> Child fails.', { size: 11, color: BAD });
   }
   if (p > 0.8) {
-    panel(P, 40, 290, 830, 128, { fill: SURF2 });
-    label(P, 54, 302, 'And the join fails at the same moment \u2014 that is the theorem', { size: 12.5, bold: true, color: INK });
-    label(P, 54, 328, MODEL.thm1Cases.toLocaleString() + ' cases tested on three attributes; the MVD held in 2,668 of them.', { size: 12, color: INK });
-    label(P, 54, 350, 'In exactly those 2,668, projecting onto XY and XZ and joining back returned the original relation.', { size: 12, color: INK });
-    label(P, 54, 372, 'In the other 2,198 it did not. Not one case disagreed.', { size: 12, color: INK });
-    tick(P, 68, 400, true);
-    label(P, 86, 394, 'MVD and lossless two-way split are the same statement, so 4NF decomposition needs no join test.', { size: 12, color: VAL, bold: true });
+    panel(P, 30, 290, 830, 128, { fill: SURF2 });
+    label(P, 44, 302, 'And the join fails at the same moment \u2014 that is the theorem', { size: 12.5, bold: true, color: INK });
+    label(P, 44, 328, MODEL.thm1Cases.toLocaleString() + ' cases tested on three attributes; the MVD held in 2,668 of them.', { size: 12, color: INK });
+    label(P, 44, 350, 'In exactly those 2,668, projecting onto XY and XZ and joining back returned the original.', { size: 12, color: INK });
+    label(P, 44, 372, 'In the other 2,198 it did not. Not one case disagreed.', { size: 12, color: INK });
+    tick(P, 58, 400, true);
+    label(P, 76, 394, 'MVD and lossless two-way split are the same statement, so that split needs no join test.', { size: 12, color: VAL, bold: true });
   }
 }
 
@@ -962,15 +962,15 @@ function drawFourNF(t) {
     label(P, 54, 186, 'R( Employee, Child, Salary )', { size: 13, mono: true, bold: true, color: INK });
     label(P, 54, 212, 'FDs:  none', { size: 12, mono: true, color: DIM });
     label(P, 54, 232, 'MVDs: Employee ->> Child', { size: 12, mono: true, color: ACC });
-    label(P, 54, 254, 'Keys, by closure over the empty FD set: one key, {Employee, Child, Salary}.', { size: 11, color: DIM });
+    label(P, 54, 254, 'Keys: one key, {Employee, Child, Salary}.', { size: 11, color: DIM });
   }
   if (p > 0.62) {
     panel(P, 460, 150, 400, 118, { fill: SURF });
     label(P, 474, 162, 'The two verdicts, computed', { size: 12.5, bold: true, color: INK });
     tick(P, 488, 194, true);
-    label(P, 504, 188, 'BCNF: every non-trivial FD has a superkey on the left. There are none.', { size: 11.5, color: INK });
+    label(P, 504, 188, 'BCNF: no non-trivial FD at all, so it holds.', { size: 11.5, color: INK });
     tick(P, 488, 228, false);
-    label(P, 504, 222, '4NF: Employee ->> Child is non-trivial and Employee is not a superkey.', { size: 11.5, color: INK });
+    label(P, 504, 222, '4NF: the MVD is non-trivial and Employee is no key.', { size: 11.5, color: INK });
     label(P, 474, 254, 'So this schema is in BCNF and not in 4NF.', { size: 12, bold: true, color: BAD });
   }
   if (p > 0.8) {
@@ -979,7 +979,7 @@ function drawFourNF(t) {
     label(P, 54, 326, 'The superkey test in 4NF is computed from the functional dependencies only.', { size: 12, color: INK });
     label(P, 54, 348, 'An MVD never adds an attribute to a closure, so it never creates a key.', { size: 12, color: INK });
     label(P, 54, 370, 'Treating Employee ->> Child as if it determined Child invents a key, and the schema then looks fine.', { size: 12, color: WARN });
-    label(P, 54, 396, 'Fagin, 1977: 4NF is strictly stronger than BCNF, and every schema can be split into 4NF without loss.', { size: 11.5, color: DIM });
+    label(P, 54, 396, 'Fagin, 1977: 4NF is strictly stronger than BCNF, and every schema splits into 4NF without loss.', { size: 11.5, color: DIM });
   }
 }
 
@@ -987,47 +987,46 @@ function drawFourNF(t) {
 function drawDecompose(t) {
   var p = prog(t);
   head(P, 'The 4NF decomposition: split on the MVD, and count what it saves',
-       'Restaurant ->> Variety | Area  \u2014  every attribute is in the only key, so BCNF had nothing to say');
+       'Every attribute is in the only key, so BCNF had nothing to say');
   var cols = [{ name: 'Restaurant', w: 86 }, { name: 'Variety', w: 74 }, { name: 'Area', w: 82 }];
-  tbl(P, 36, 76, cols, MODEL.PIZZA.map(function (r) { return [r[0], r[1], r[2]]; }), { rh: 17, size: 10.5 });
-  label(P, 36, 62, '12 rows', { size: 11.5, bold: true, color: BAD });
+  tbl(P, 30, 76, cols, MODEL.PIZZA.map(function (r) { return [r[0], r[1], r[2]]; }), { rh: 16, size: 10.5 });
+  label(P, 30, 60, '12 rows  \u00b7  Restaurant ->> Variety | Area', { size: 10.5, bold: true, color: INK });
 
   if (p > 0.3) {
-    P.arrow(292, 170, 348, 170, { stroke: ACC, sw: 2 });
-    label(P, 300, 150, 'Restaurant ->> Variety', { size: 10.5, color: ACC, mono: true });
-    label(P, 300, 186, 'split into', { size: 10.5, color: ACC, bold: true });
+    P.arrow(278, 170, 344, 170, { stroke: ACC, sw: 2 });
+    label(P, 278, 152, 'split into', { size: 10, color: ACC, bold: true });
   }
   if (p > 0.42) {
-    tbl(P, 358, 76, [{ name: 'Restaurant', w: 86 }, { name: 'Variety', w: 74 }],
-      MODEL.pizV.map(function (r) { return [r[0], r[1]]; }), { rh: 17, size: 10.5 });
-    label(P, 358, 62, '6 rows', { size: 11.5, bold: true, color: VAL });
-    tbl(P, 560, 76, [{ name: 'Restaurant', w: 86 }, { name: 'Area', w: 82 }],
-      MODEL.pizA.map(function (r) { return [r[0], r[1]]; }), { rh: 17, size: 10.5 });
-    label(P, 560, 62, '6 rows', { size: 11.5, bold: true, color: VAL });
-    panel(P, 740, 76, 130, 118, { fill: SURF2 });
-    label(P, 752, 88, 'Join them back:', { size: 10.5, color: DIM });
-    label(P, 752, 110, 'exactly 12 rows', { size: 12, bold: true, color: VAL });
-    label(P, 752, 132, 'lossless, because', { size: 10.5, color: DIM });
-    label(P, 752, 150, 'the MVD holds', { size: 10.5, color: DIM });
-    label(P, 752, 174, 'Checked on the page,', { size: 10, color: FAINT });
-    label(P, 752, 188, 'not asserted.', { size: 10, color: FAINT });
+    tbl(P, 350, 76, [{ name: 'Restaurant', w: 86 }, { name: 'Variety', w: 74 }],
+      MODEL.pizV.map(function (r) { return [r[0], r[1]]; }), { rh: 16, size: 10.5 });
+    label(P, 350, 60, '6 rows', { size: 11.5, bold: true, color: VAL });
+    tbl(P, 530, 76, [{ name: 'Restaurant', w: 86 }, { name: 'Area', w: 82 }],
+      MODEL.pizA.map(function (r) { return [r[0], r[1]]; }), { rh: 16, size: 10.5 });
+    label(P, 530, 60, '6 rows', { size: 11.5, bold: true, color: VAL });
+    panel(P, 712, 76, 148, 118, { fill: SURF2 });
+    label(P, 724, 88, 'Join them back:', { size: 10.5, color: DIM });
+    label(P, 724, 110, 'exactly 12 rows', { size: 11.5, bold: true, color: VAL });
+    label(P, 724, 132, 'lossless, because', { size: 10.5, color: DIM });
+    label(P, 724, 150, 'the MVD holds', { size: 10.5, color: DIM });
+    label(P, 724, 174, 'Checked on the page,', { size: 10, color: FAINT });
+    label(P, 724, 188, 'not asserted.', { size: 10, color: FAINT });
   }
   if (p > 0.66) {
-    panel(P, 36, 288, 400, 130, { fill: INVALIDDIM });
-    label(P, 50, 300, 'A new variety for A1, in the flat table', { size: 12.5, bold: true, color: INK });
-    label(P, 50, 326, 'one row per delivery area  \u2192  3 rows', { size: 12, color: BAD, bold: true });
-    label(P, 50, 350, 'Do it for two areas only and the MVD breaks:', { size: 11.5, color: INK });
-    label(P, 50, 370, 'the table is no longer a legal instance.', { size: 11.5, color: INK });
-    tick(P, 62, 398, false);
-    label(P, 78, 392, 'The page checks this and reports the violation.', { size: 11, color: BAD });
+    panel(P, 30, 288, 400, 130, { fill: INVALIDDIM });
+    label(P, 44, 300, 'A new variety for A1, in the flat table', { size: 12.5, bold: true, color: INK });
+    label(P, 44, 326, 'one row per delivery area  \u2192  3 rows', { size: 12, color: BAD, bold: true });
+    label(P, 44, 350, 'Do it for two areas only and the MVD breaks:', { size: 11.5, color: INK });
+    label(P, 44, 370, 'the table is no longer a legal instance.', { size: 11.5, color: INK });
+    tick(P, 56, 400, false);
+    label(P, 74, 394, 'The page checks this and reports the violation.', { size: 11, color: BAD });
   }
   if (p > 0.8) {
-    panel(P, 456, 288, 404, 130, { fill: SURF2 });
-    label(P, 470, 300, 'The same update, after the split', { size: 12.5, bold: true, color: INK });
-    label(P, 470, 326, 'one row in the varieties table  \u2192  1 row', { size: 12, color: VAL, bold: true });
-    label(P, 470, 350, 'There is no area to forget, because area is in the other table.', { size: 11.5, color: INK });
-    label(P, 470, 374, 'Row totals here are 12 and 6 + 6: this instance is a complete product,', { size: 11, color: DIM });
-    label(P, 470, 392, 'so the saving shows up on the update, not in the count.', { size: 11, color: DIM });
+    panel(P, 450, 288, 410, 130, { fill: SURF2 });
+    label(P, 464, 300, 'The same update, after the split', { size: 12.5, bold: true, color: INK });
+    label(P, 464, 326, 'one row in the varieties table  \u2192  1 row', { size: 12, color: VAL, bold: true });
+    label(P, 464, 350, 'There is no area to forget; area is in the other table.', { size: 11.5, color: INK });
+    label(P, 464, 374, 'Totals are 12 and 6 + 6: this instance is a complete product,', { size: 11, color: DIM });
+    label(P, 464, 392, 'so the saving shows up on the update, not in the count.', { size: 11, color: DIM });
   }
 }
 
@@ -1042,13 +1041,12 @@ function drawRules(t) {
   });
   tbl(P, 36, 74, [{ name: '#', w: 26 }, { name: 'implication', w: 470 }, { name: 'verdict', w: 70 }, { name: 'witness', w: 84 }],
     rows, { rh: 24, size: 11.5, mono: false });
-  var col = [null, null, null, null];
-  MODEL.IMPL.forEach(function (q, i) { col[i] = q.witness === null ? VAL : BAD; });
 
   if (p > 0.45) {
     panel(P, 700, 74, 164, 124, { fill: SURF2 });
     label(P, 712, 86, 'Valid implications', { size: 11, color: DIM });
-    P.text(P, 782, 104, String(MODEL.IMPL.filter(function (q) { return q.witness === null; }).length), { size: 30, bold: true, color: ACC, align: 'center' });
+    P.text(782, 104, String(MODEL.IMPL.filter(function (q) { return q.witness === null; }).length),
+      { size: 30, bold: true, color: ACC, align: 'center' });
     label(P, 782, 146, 'out of 4  \u2192  answer 2', { size: 11.5, color: INK, align: 'center', bold: true });
     label(P, 782, 170, 'over all 256 instances', { size: 10, color: FAINT, align: 'center' });
     label(P, 782, 184, 'and 20,000 random ones', { size: 10, color: FAINT, align: 'center' });
@@ -1058,13 +1056,13 @@ function drawRules(t) {
     label(P, 50, 228, 'Why (i) fails \u2014 the witness is the whole cube', { size: 12, bold: true, color: INK });
     label(P, 50, 252, 'all 8 tuples of {0,1}\u00b3: every A with every (B,C)', { size: 11.5, mono: true, color: INK });
     label(P, 50, 274, 'A ->> B \u2713    A ->> C \u2713    A \u2192 B \u2717', { size: 12, mono: true, color: BAD, bold: true });
-    label(P, 50, 296, 'Two independent facts are the opposite of a functional dependency.', { size: 11, color: DIM });
+    label(P, 50, 296, 'Two independent facts are the opposite of an FD.', { size: 11, color: DIM });
   }
   if (p > 0.7) {
     panel(P, 456, 216, 404, 96, { fill: INVALIDDIM });
     label(P, 470, 228, 'Why (iii) fails', { size: 12, bold: true, color: INK });
     label(P, 470, 252, 'on R(A,B,C), A ->> BC is trivial: A \u222a BC is everything.', { size: 11.5, color: INK });
-    label(P, 470, 274, '4 tuples: two A-values, each with its own B, two C-values each.', { size: 11.5, color: INK });
+    label(P, 470, 274, '4 tuples: two A-values, each with its own B, two C-values.', { size: 11.5, color: INK });
     label(P, 470, 296, 'Both premises hold and A \u2192 C does not.', { size: 11.5, color: BAD, bold: true });
   }
   if (p > 0.85) {
@@ -1072,7 +1070,7 @@ function drawRules(t) {
     label(P, 50, 334, 'The rules that do hold, and why', { size: 12.5, bold: true, color: INK });
     label(P, 50, 358, '(ii)  A\u2192B, A\u2192C  \u21d2  A\u2192BC by union, then A->>BC by replication.', { size: 11.5, mono: true, color: VAL });
     label(P, 50, 378, '(iv)  A\u2192BC  \u21d2  A\u2192C by decomposition, then A->>C by replication.', { size: 11.5, mono: true, color: VAL });
-    label(P, 50, 400, 'Union and decomposition apply to MVDs with the same left side too; what fails is changing the arrow.', { size: 11.5, color: DIM });
+    label(P, 50, 400, 'Union and decomposition apply to MVDs too; what fails is changing the arrow.', { size: 11.5, color: DIM });
   }
 }
 
@@ -1080,45 +1078,44 @@ function drawRules(t) {
 function drawChase(t) {
   var p = prog(t);
   head(P, 'The chase: the lossless-join test once there are three fragments',
-       'R(A, B, C, D) with A ->> B. One row per fragment; a row that ends fully distinguished proves losslessness.');
-  label(P, 36, 66, 'Good:  { AB , ACD }', { size: 12, bold: true, color: VAL });
-  var sym = function (s) { return s; };
-  tbl(P, 36, 80, [{ name: 'A', w: 60 }, { name: 'B', w: 60 }, { name: 'C', w: 60 }, { name: 'D', w: 60 }],
+       'R(A, B, C, D) with A ->> B. A row that ends fully distinguished proves losslessness.');
+  label(P, 36, 64, 'Good:  { AB , ACD }', { size: 12, bold: true, color: VAL });
+  tbl(P, 36, 78, [{ name: 'A', w: 60 }, { name: 'B', w: 60 }, { name: 'C', w: 60 }, { name: 'D', w: 60 }],
     [['a', 'b', 'c\u2081', 'd\u2081'], ['a', 'b\u2081', 'c', 'd']],
-    { rh: 22, size: 12, mono: true, rowColor: [INK, INK] });
+    { rh: 22, size: 12, mono: true });
   if (p > 0.3) {
-    label(P, 40, 140, 'row 1: AB', { size: 10, color: FAINT });
-    label(P, 40, 162, 'row 2: ACD', { size: 10, color: FAINT });
-    label(P, 300, 96, 'A ->> B on the two rows', { size: 10.5, color: ACC });
-    label(P, 300, 114, 'adds the swapped row', { size: 10.5, color: ACC });
-    P.arrow(300, 132, 300, 152, { stroke: ACC, sw: 1.5 });
-    panel(P, 300, 156, 250, 24, { fill: ACCDIM });
-    label(P, 308, 162, 'a  b  c  d    \u2190 fully distinguished', { size: 11.5, mono: true, color: VAL, bold: true });
-    tick(P, 566, 168, true);
-    label(P, 580, 162, 'lossless', { size: 12, bold: true, color: VAL });
+    label(P, 284, 100, 'row 1 = AB', { size: 10, color: FAINT });
+    label(P, 284, 122, 'row 2 = ACD', { size: 10, color: FAINT });
+    label(P, 352, 96, 'A ->> B on the two rows', { size: 10.5, color: ACC });
+    label(P, 352, 114, 'adds the swapped row', { size: 10.5, color: ACC });
+    P.arrow(420, 130, 420, 148, { stroke: ACC, sw: 1.5 });
+    panel(P, 352, 152, 250, 24, { fill: ACCDIM });
+    label(P, 360, 158, 'a  b  c  d   \u2190 all distinguished', { size: 11.5, mono: true, color: VAL, bold: true });
+    tick(P, 620, 164, true);
+    label(P, 634, 158, 'lossless', { size: 12, bold: true, color: VAL });
   }
   if (p > 0.55) {
-    label(P, 36, 206, 'Bad:  { AB , AC , AD }', { size: 12, bold: true, color: BAD });
-    tbl(P, 36, 220, [{ name: 'A', w: 44 }, { name: 'B', w: 44 }, { name: 'C', w: 44 }, { name: 'D', w: 44 }],
+    label(P, 36, 196, 'Bad:  { AB , AC , AD }', { size: 12, bold: true, color: BAD });
+    tbl(P, 36, 210, [{ name: 'A', w: 44 }, { name: 'B', w: 44 }, { name: 'C', w: 44 }, { name: 'D', w: 44 }],
       [['a', 'b', 'c\u2081', 'd\u2081'], ['a', 'b\u2081', 'c', 'd\u2081'], ['a', 'b\u2082', 'c\u2082', 'd']],
       { rh: 18, size: 10.5, mono: true });
-    label(P, 36, 296, 'chase runs to ' + MODEL.chase.three.rows + ' rows, adding ' + MODEL.chase.three.added + ', and no row is fully distinguished.',
-      { size: 11.5, color: BAD });
-    tick(P, 46, 320, false);
-    label(P, 62, 314, 'lossy', { size: 12, bold: true, color: BAD });
+    label(P, 36, 292, 'chase runs to ' + MODEL.chase.three.rows + ' rows, adding ' + MODEL.chase.three.added + '; no row is fully distinguished.',
+      { size: 10.5, color: BAD });
+    tick(P, 46, 318, false);
+    label(P, 62, 312, 'lossy', { size: 12, bold: true, color: BAD });
   }
   if (p > 0.75) {
-    panel(P, 380, 206, 480, 118, { fill: INVALIDDIM });
-    label(P, 394, 218, 'And the damage, in rows', { size: 12, bold: true, color: INK });
-    label(P, 394, 242, 'a 4-tuple instance satisfying A ->> B:', { size: 11.5, color: INK });
-    label(P, 394, 262, '{ (a,b1,c1,d1) (a,b2,c2,d2) (a,b1,c2,d2) (a,b2,c1,d1) }', { size: 10.5, mono: true, color: INK });
-    label(P, 394, 286, 'join of its AB, AC and AD projections  \u2192  8 tuples', { size: 11.5, color: BAD, bold: true });
-    label(P, 394, 308, 'Four tuples in, eight out: the join invents four rows.', { size: 11, color: DIM });
+    panel(P, 430, 196, 440, 120, { fill: INVALIDDIM });
+    label(P, 444, 208, 'And the damage, in rows', { size: 12, bold: true, color: INK });
+    label(P, 444, 232, 'a 4-tuple instance satisfying A ->> B:', { size: 11.5, color: INK });
+    label(P, 444, 252, '{ (a,b1,c1,d1) (a,b2,c2,d2) (a,b1,c2,d2) (a,b2,c1,d1) }', { size: 10.5, mono: true, color: INK });
+    label(P, 444, 276, 'join of its AB, AC and AD projections  \u2192  8 tuples', { size: 11.5, color: BAD, bold: true });
+    label(P, 444, 298, 'Four tuples in, eight out: the join invents four rows.', { size: 11, color: DIM });
   }
   if (p > 0.9) {
-    label(P, 36, 350, 'The two-fragment shortcut (shared attributes must determine a whole fragment) does not generalise to three.', { size: 11.5, color: WARN });
-    label(P, 36, 372, 'FDs unify symbols; MVDs add the swapped row; repeat to a fixpoint; read the answer off the tableau.', { size: 11.5, color: INK });
-    label(P, 36, 394, '{AB, CD} shares nothing, so the chase adds no row at all: also lossy.', { size: 11.5, color: DIM });
+    label(P, 36, 340, 'The two-fragment shortcut (shared attributes must determine a whole fragment) does not generalise to three.', { size: 11.5, color: WARN });
+    label(P, 36, 362, 'FDs unify symbols; MVDs add the swapped row; repeat to a fixpoint; read the answer off the tableau.', { size: 11.5, color: INK });
+    label(P, 36, 384, '{AB, CD} shares nothing, so the chase adds no row at all: also lossy.', { size: 11.5, color: DIM });
   }
 }
 
