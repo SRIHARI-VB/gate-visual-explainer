@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Floating-point arithmetic — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Floating-point arithmetic</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../number-representation-and-arithmetic/index.html">Prerequisite: number representation</a>
+      <a href="../arithmetic-algorithms-booth-division-cla/index.html">Related: fixed-point arithmetic</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Floating-point arithmetic — what happens when two stored floating-point numbers are added, subtracted, multiplied or divided, and where the information leaves on the way.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Name the four steps of every floating-point operation and say which one loses information; subtract two exponents and predict the number of bits that will be discarded; round to p bits under nearest-ties-to-even and say why a guard bit changes the answer from 0.5 to 0.25; account for 0.1 + 0.2 to the last bit; work the three-digit example GATE set in 2004 in both groupings; add two IEEE singles given as hex and re-encode the sum; and state the four traps that decide the mark.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the half of "number representation and arithmetic" that the representation lesson does not cover</em>. Decoding bits is one skill; operating on them is another, and the syllabus names both. The page computes every number it shows and reports how many of its own checks passed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A, in the syllabus's own words.</strong> Section 2 of the GATE 2027 CS syllabus (IIT Madras) reads: "Boolean algebra and minimization – algebraic technique, Karnaugh map, tabular method. Design of combinational and sequential circuits. Number representation and arithmetic (fixed and floating point)." Floating-point <em>arithmetic</em> is named there, next to the representation.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> It has been asked as arithmetic, not only as decoding: <strong>GATE CSE 2004, Q28</strong> (two groupings of three numbers in three-digit floating-point arithmetic with rounding, answer 9.51 and 10.0), <strong>GATE CSE 2023, Q45</strong> (the product of two IEEE single registers), <strong>GATE CSE 2025 Set 2, Q49</strong> and <strong>GATE CSE 2026 Set 1, Q36</strong> (sums and relations among hex registers).</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Decoding alone appears far more often — 2012 Q7, 2017 Set 2 Q12, 2021 Set 2 Q4, 2022 Q41, 2024 Set 2 Q14, 2026 Set 2 Q34. Class A means the question is inside the boundary, not that one is guaranteed. No marks distribution is claimed for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><a href="../number-representation-and-arithmetic/index.html">Number representation and arithmetic</a> — the IEEE single and double layouts, the bias, the hidden one, denormals, infinity and NaN. This lesson assumes all of it and does not re-derive it.</li>
+            <li><a href="../boolean-algebra-and-minimisation/index.html">Boolean algebra</a> — reading a bit field and a shift, which is what alignment is.</li>
+            <li><a href="../c-fundamentals/index.html">C fundamentals</a> — <code>float</code> and <code>double</code> as C types, and why printing one shows fewer digits than it holds.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Approximate learning time: 50 to 70 minutes, including the practice set. That figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small" style="margin:0;padding-left:18px">
+            <li>A format is a grid whose spacing doubles with every step of the exponent.</li>
+            <li>Every operation is align, add, normalise, round — and the alignment is where bits die.</li>
+            <li>One operation, one rounding: the standard's promise, paid for with guard, round and sticky bits.</li>
+            <li>Subtracting nearly equal numbers amplifies whatever error is already there.</li>
+            <li>Addition here is commutative and not associative, so the order is part of the answer.</li>
+          </ol>
+        </div>
+
+        <div class="card span-2 card--recessed">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, 300 seconds, one canvas. Scene 1 places the four steps beside a toy format and draws the eight values between 1 and 2. Scene 2 shifts an addend off the end of the grid and counts four bits lost. Scene 3 rounds three values into four bits and sets the five IEEE modes side by side. Scene 4 reproduces the guard-digit failure, 2 minus 1.75 in three bits, and shows the error fall from 100 per cent to zero. Scene 5 decodes 0.1 and 0.2 in double, adds them and accounts for a residue of exactly 2 to the minus 54. Scene 6 makes a single-precision difference collapse to zero and a quadratic root wrong by a quarter. Scene 7 works both groupings of the 2004 question in three-digit decimal, then reproduces non-associativity in double. Scene 8 adds exponent fields to multiply two registers and walks off both ends of the range. Scene 9 converts widths into decimal digits and decodes the 2025 and 2026 registers. Scene 10 reduces the topic to one procedure and four traps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a ruler whose marks get further apart</h3>
+          <p class="small">A fixed-point format is a ruler with evenly spaced marks. A floating-point format is a ruler whose marks double their spacing every time you move one block to the right: fine near zero, coarse far away. Adding two lengths on such a ruler is easy when they sit on the same block and awkward when one is tiny: the tiny one has to be moved onto the coarse block, and moving it can push it past the last mark.</p>
+          <p class="small">That is the whole topic. The four steps of an operation are: put both lengths on one block (align), add them, move the answer back to its proper block (normalise), and snap it to the nearest mark (round). Only the first step can destroy information, and only the last step decides what the answer looks like.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The ruler is an analogy for spacing, not a definition. The definition is in the next card.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition</h3>
+          <p class="small">A <strong>binary floating-point format</strong> is a set of numbers of the form $$(-1)^s \times 1.f \times 2^{e}$$ where s is one bit, f is p&nbsp;−&nbsp;1 fraction bits, and e ranges over a finite set of exponents. The <strong>precision</strong> p is the number of significand bits, one before the point and p&nbsp;−&nbsp;1 after it.</p>
+          <p class="small">For any two neighbouring representable values near $$2^{k}$$ the gap is $$2^{k-p+1}$$. That gap is the <strong>unit in the last place</strong>, and every error in this lesson is a whole number of them.</p>
+          <p class="small"><strong>The standard's promise:</strong> each operation is performed as if it first produced a result correct to infinite precision, and then rounded that result once, according to the rounding mode in force.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The promise is quoted from IEEE 754-1985 §4 and §5, which say the intermediate result is "correct to infinite precision and with unbounded range" and is then rounded; IEEE 754-2019 keeps the same rule.</p>
+        </div>
+
+        <div class="card">
+          <h3>Symbols, in words</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>p</strong> — significand bits: 24 for single, 53 for double.</li>
+            <li><strong>f</strong> — the stored fraction: p&nbsp;−&nbsp;1 bits, with the leading one implied.</li>
+            <li><strong>e</strong> — the unbiased exponent, stored as a biased field.</li>
+            <li><strong>ulp</strong> — unit in the last place: the gap to the next representable value.</li>
+            <li><strong>guard bit</strong> — the first bit dropped during alignment.</li>
+            <li><strong>round bit</strong> — the second bit dropped.</li>
+            <li><strong>sticky bit</strong> — one if anything beyond those two was non-zero.</li>
+            <li><strong>ties to even</strong> — at an exact halfway point, take the neighbour whose last bit is 0.</li>
+            <li><strong>ε</strong> — machine epsilon: the gap between 1 and the next value, 2^(1−p).</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The four steps, and what each can cost</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li><strong>Align.</strong> Shift the smaller significand right by the exponent difference. Bits that fall off the end are gone. <em>This is the only step that destroys information.</em></li>
+            <li><strong>Add.</strong> Integer addition of the aligned significands. Exact, apart from the shift already performed.</li>
+            <li><strong>Normalise.</strong> Shift left or right until exactly one bit sits before the point, adjusting the exponent.</li>
+            <li><strong>Round.</strong> Once, to p bits, in the mode in force. Two roundings in a row is the classic way a hand calculation disagrees with the machine.</li>
+          </ul>
+          <p class="small muted" style="margin:8px 0 0">Multiplication has no alignment step at all: the significands multiply into a range of [1, 4), so a single normalisation shift finishes the job.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The toy format this page computes in</h3>
+          <p class="small" style="margin-bottom:0">Four significand bits and exponents from −3 to 3. It is a real floating-point system, not a rounding of one: the same four steps, the same tie rule, the same absorption, only narrow enough that every bit is visible on a 900-pixel canvas. Its spacing at 1 is 0.125 and it has 8 values between 1 and 2, which the page computes from the definition rather than quoting. The three-digit decimal format of the 2004 paper is implemented the same way, because decimal digits make the alignment visible without a binary conversion.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The last lesson turned bits into numbers. This one operates on them: align, add, normalise, round.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Arithmetic is four steps, and representation is none of them</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The last lesson turned bits into numbers. This one operates on them. Align, add, normalise, round.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked examples, all computed on this page</h3>
+          <p class="small" style="margin-bottom:0">Each one is worked to the last bit, with the step that costs the information named. The numbers on the Animation tab come from the same model.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — one addition in four bits</h3>
+          <p class="small"><strong>Compute</strong> 1.000&nbsp;×&nbsp;2⁰ + 1.000&nbsp;×&nbsp;2⁻⁴ in a four-bit format.</p>
+          <p class="small"><strong>Step 1.</strong> Exponents 0 and −4, difference 4. Shift the addend right four places: 0.0001&nbsp;×&nbsp;2⁰. The format keeps three fraction bits, so all four of those bits are past the grid.</p>
+          <p class="small"><strong>Step 2.</strong> 1.000 + 0.000 = 1.000. <strong>Step 3.</strong> Already normalised. <strong>Step 4.</strong> No rounding needed.</p>
+          <p class="small" style="margin-bottom:0">Answer 1.000, with 4 bits discarded. The exact sum, 1.0625, is a tie between 1.000 and 1.125 and rounds to 1.000 anyway — so the two routes agree here, and the page checks both.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — the guard digit, 2.00 − 1.75</h3>
+          <p class="small">In three significand bits, 2 is 1.00&nbsp;×&nbsp;2¹ and 1.75 is 1.11&nbsp;×&nbsp;2⁰. Aligning gives 0.111&nbsp;×&nbsp;2¹, which needs a fourth fraction bit.</p>
+          <p class="small"><strong>Without a guard bit</strong> that bit is dropped, the subtrahend becomes 1.5, and the answer is 0.5. The true answer is 0.25, so the error is 100 per cent.</p>
+          <p class="small" style="margin-bottom:0"><strong>With one guard bit</strong> the answer is exactly 0.25. <span class="claim-chip claim-chip--verified">Verified fact</span> This is the standard textbook demonstration of the guard digit; it appears in the Clemson computer-arithmetic notes used as a source for this lesson.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — 0.1 + 0.2, accounted for</h3>
+          <p class="small">0.1 stores as <code>0x3FB999999999999A</code> and 0.2 as <code>0x3FC999999999999A</code>. Their sum is <code>0.30000000000000004</code>. The stored 0.3 is <code>0x3FD3333333333333</code>, whose value is 0.2999999999999999889.</p>
+          <p class="small" style="margin-bottom:0">The two are neighbouring grid points, one unit apart, and the residue is exactly $$2^{-54}$$ = 5.551115123125783 × 10⁻¹⁷. Nothing unpredictable happened: the sum of the two nearest doubles to 0.1 and 0.2 is nearer to the upper neighbour of 0.3, and the standard rounds to it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — two IEEE singles, added and re-encoded</h3>
+          <p class="small"><code>X = 0x35C00000</code>: sign 0, exponent field 107, so e = −20; significand 1.5. Value 1.5&nbsp;×&nbsp;2⁻²⁰.</p>
+          <p class="small"><code>Y = 0x34A00000</code>: exponent field 105, so e = −22; significand 1.25. Value 1.25&nbsp;×&nbsp;2⁻²².</p>
+          <p class="small">Align to 2⁻²⁰: 1.5 + 0.3125 = 1.8125 = 1.1101₂. Exponent unchanged, fraction 1101 followed by zeros.</p>
+          <p class="small" style="margin-bottom:0">Answer <code>0x35E80000</code>, which the page computes with the machine's own single-precision addition and then checks. The fraction bits <em>1101</em> start at the top of the 23-bit field, so the field is <code>0x680000</code> — writing <code>0xD00000</code> is the slip this example exists to prevent.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Example 5 — the 2004 paper's question, both groupings</h3>
+          <p class="small">Evaluate (113. + −111.) + 7.51 and 113. + (−111. + 7.51) in three-digit floating-point arithmetic with rounding.</p>
+          <p class="small"><strong>Left.</strong> 113 − 111 = 2.00, exact in three digits. Then 2.00 + 7.51 = <strong>9.51</strong>, exact: the exponents agree, so nothing is shifted.</p>
+          <p class="small" style="margin-bottom:0"><strong>Right.</strong> −111 + 7.51: the exponent gap is 2, so the addend must fit three digits at the larger exponent, and 0.0751&nbsp;×&nbsp;10² becomes 0.08&nbsp;×&nbsp;10². The sum is −103, and 113 − 103 = <strong>10.0</strong>. Same three numbers, same rule at every step, a different last digit — the answer the paper gives is 9.51 and 10.0.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the arithmetic stops being ordinary</h3>
+          <p class="small">Each card is a boundary of the format, with the condition it violates or the witness that shows the boundary. Every number here is computed on the Animation tab.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 1 — overflow goes to infinity, not to the largest number</h3>
+          <p class="small">In single precision, 10³⁸ × 10 gives <code>+Infinity</code>, not 3.4028235 × 10³⁸. Under round to nearest, any value at least half a gap beyond the largest finite number rounds to infinity, even though a finite number is nearer.</p>
+          <p class="small" style="margin-bottom:0">Under the directed modes the answer is different: toward zero gives the largest finite number, toward +∞ gives infinity. This is the one place where the rounding mode changes whether an overflow happens at all.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 2 — underflow to zero, and the denormals that delay it</h3>
+          <p class="small">10⁻³⁸ ÷ 10⁸ gives <code>0</code> in single precision. Between the smallest normal (1.1754944 × 10⁻³⁸) and zero lie the denormals, which trade significand bits for exponent range; below the smallest denormal there is nothing but zero.</p>
+          <p class="small" style="margin-bottom:0">Denormals are why $$x - y = 0$$ implies $$x = y$$ in IEEE arithmetic. Without them, two distinct small numbers would subtract to zero, which is exactly the failure the earlier formats had.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 3 — signed zero, and why 1/−0 is not an error</h3>
+          <p class="small">IEEE has +0 and −0, which compare equal but divide differently: 1/+0 is +∞ and 1/−0 is −∞. A sum of two opposite numbers gives +0 under round to nearest, and −0 under round toward −∞.</p>
+          <p class="small" style="margin-bottom:0">Consequence for a question: "x equals zero" and "x is the zero bit pattern" are different tests. In C, <code>x == 0</code> is true for both signed zeros.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 4 — NaN is not infinity, and it spreads</h3>
+          <p class="small">An exponent field of all ones with a non-zero fraction is a NaN; with a zero fraction it is an infinity. Any operation with a NaN operand produces a NaN, and a NaN compares false against everything, including itself.</p>
+          <p class="small" style="margin-bottom:0">That is why <code>x != x</code> is the standard portable test for NaN, and why "the largest representable value" questions that offer the all-ones exponent are testing whether you know the difference.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 5 — two roundings are not one</h3>
+          <p class="small">The promise is one rounding per operation. If a computation rounds to extended precision and then to single — as the x87 stack did by default — the result can differ from the single-precision answer by a unit in the last place, and the difference is not a bug in either step.</p>
+          <p class="small" style="margin-bottom:0">In a hand calculation the same trap appears as rounding an intermediate value "to be safe". Round once, at the end of each operation, and nowhere else.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 6 — the tie is decided by bits, not by magnitude</h3>
+          <p class="small">1.0625 is exactly halfway between 1.000 and 1.125, and ties go to the even last digit, so it rounds to 1.000 — down, although it is "half up" in the school sense. At 1.1875, halfway between 1.125 and 1.250, the even neighbour is 1.250, so the same rule rounds <em>up</em>.</p>
+          <p class="small" style="margin-bottom:0">The rule is unbiased over many ties, which is why it was chosen; a rule that always rounded halves upward would drift.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that survive a first reading</h3>
+          <p class="small">Each card states the wrong belief, why it tempts, the smallest witness against it, and the rule to use instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M1 — "floating point is decimal with a movable point"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the exponent looks like a decimal scale factor, and printed values look decimal.</p>
+          <p class="small"><strong>Witness:</strong> 0.1 has no finite binary expansion, so it cannot be stored exactly at any width. 0.5 and 0.25 can, because their denominators are powers of two.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the grid is binary. A decimal fraction is exact only if its denominator divides a power of two.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M2 — "the printed 0.1 is the stored 0.1"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the language prints the shortest decimal that round-trips, so the residue is hidden.</p>
+          <p class="small"><strong>Witness:</strong> the stored double is 0.1000000000000000055511151231257827, and the page prints all of it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> printing is a conversion with its own rounding. The stored value is the bit pattern, not the digits you see.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M3 — "the order of additions cannot matter"</h3>
+          <p class="small"><strong>Why it tempts:</strong> real addition is associative, and the algebra we are taught is too.</p>
+          <p class="small"><strong>Witness:</strong> (0.1 + 0.2) + 0.3 = 0.6000000000000001, while 0.1 + (0.2 + 0.3) = 0.6. And 9.51 against 10.0 on the 2004 paper.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> floating-point addition is commutative and not associative. The grouping is part of the answer.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M4 — "halfway rounds up"</h3>
+          <p class="small"><strong>Why it tempts:</strong> that is the rule from school arithmetic, and it is what many calculators do.</p>
+          <p class="small"><strong>Witness:</strong> 1.0625 into four bits gives 1.000, not 1.125; the tie goes to the even last digit.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the default is nearest, ties to even. Half-up is not an IEEE binary mode at all.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M5 — "more precision removes the cancellation"</h3>
+          <p class="small"><strong>Why it tempts:</strong> double survives (10⁸ + 1) − 10⁸ where single gives zero, so more bits seem to solve it.</p>
+          <p class="small"><strong>Witness:</strong> the naive quadratic root is wrong by 25 per cent in double precision, on a formula whose operands are exactly representable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> precision delays cancellation; it does not remove it. The repair is algebraic — rewrite the expression — not numeric.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>M6 — "a float can hold any integer, and comparing floats is safe"</h3>
+          <p class="small"><strong>Why it tempts:</strong> 2²⁴ and 2⁵³ are large numbers, and integers below them really are exact.</p>
+          <p class="small"><strong>Witness:</strong> 16777217 stores as 16777216 in single precision. And two routes to the same real number usually give neighbouring doubles, so <code>==</code> answers a question nobody asked.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> integers are exact only up to 2^p. Compare floats with a tolerance, and say whether it is absolute or relative.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five shapes this topic takes on a paper</h3>
+          <p class="small">Each card names the shape, the reasoning it demands, and the wrong approach that produces a plausible option. Historical frequency is an observation about past papers, not a prediction for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>P1 — decode two registers, operate, re-encode</h3>
+          <p class="small"><strong>Shape:</strong> two or three IEEE single values given in hex; find the sum, the product, or which relation among them holds. GATE CSE 2022 Q41, 2023 Q45, 2025 Set 2 Q49, 2026 Set 1 Q36 all have this shape.</p>
+          <p class="small"><strong>Reasoning:</strong> decode each value to (sign, exponent, significand), do the arithmetic on the values, then re-encode with the four steps. A sum of two values with the same exponent is exact; a product needs the exponent fields added minus the bias.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> adding the hex integers. <code>0x35C00000 + 0x34A00000</code> as integers is 0x6A600000, which is not the sum of the values.</p>
+        </div>
+
+        <div class="card">
+          <h3>P2 — arithmetic in a stated small format with rounding</h3>
+          <p class="small"><strong>Shape:</strong> "evaluate in three-digit floating-point arithmetic with rounding", two groupings. GATE CSE 2004 Q28 is the canonical item.</p>
+          <p class="small"><strong>Reasoning:</strong> align first, keeping only the digits the format allows at the larger exponent; round after every operation, not once at the end; then compare the groupings.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> computing both expressions exactly and answering 9.51 and 9.51. The paper's options include that pair, and it is the option the arithmetic exists to exclude.</p>
+        </div>
+
+        <div class="card">
+          <h3>P3 — the largest or smallest value for a given layout</h3>
+          <p class="small"><strong>Shape:</strong> a bit-field diagram, then "choose the largest floating-point number". GATE CSE 2021 Set 2 Q4 and 2024 Set 2 Q14 are of this shape.</p>
+          <p class="small"><strong>Reasoning:</strong> the largest finite value has the largest exponent field <em>below</em> all-ones, and an all-ones fraction. The smallest positive normal has exponent field 1 and a zero fraction. The all-ones exponent is reserved.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> picking the option with the most ones. That is a NaN, not the largest number.</p>
+        </div>
+
+        <div class="card">
+          <h3>P4 — representability and exactness</h3>
+          <p class="small"><strong>Shape:</strong> which of these decimals can be represented exactly; how many values a format has; what a width costs in decimal digits.</p>
+          <p class="small"><strong>Reasoning:</strong> a value is exact when its denominator is a power of two and its significand fits in p bits. Widths convert to digits by multiplying by log₁₀ 2, which the page computes as 7.22 and 15.95.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> counting decimal digits from the number of bits, which over-counts by a factor of about 3.3.</p>
+        </div>
+
+        <div class="card">
+          <h3>P5 — the effect of a rounding mode or a guard bit</h3>
+          <p class="small"><strong>Shape:</strong> "what is the result with truncation", or a question about why an extra bit is kept.</p>
+          <p class="small"><strong>Reasoning:</strong> name the mode, then apply it to the exact result. For a guard bit, run the alignment twice — once with the extra position, once without — and report the difference.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wrong approach:</strong> assuming the mode changes only the last digit. Toward zero on a negative value truncates the magnitude, which is not the same as rounding down.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The four-step procedure, in the order to use it</h3>
+          <p class="small">Write both operands as sign, exponent and significand, and subtract the exponents first — that number is the shift, and therefore the number of bits at risk. Shift the smaller significand, keeping a guard bit and a sticky bit, and add. Normalise, then round once. Re-encode and check the regime: normal, denormal, infinity or NaN, and whether the exponent left the range. If the question gives hex, decode before you touch anything; if it gives a small decimal format, round after each operation.</p>
+          <p class="small muted" style="margin-bottom:0">Every worked example and every practice question on this page is one instance of those four steps; nothing in the procedure needs the animation.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set</h3>
+          <p class="small">Nine questions: two are verified past-paper items, seven are original practice written for this lesson. Answers are hidden until you reveal them one at a time; the mock-test switch hides them all and reveals them together.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode — hide every answer until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2004, Q28</span> MCQ</p>
+          <p class="small">What is the result of evaluating the following two expressions using three-digit floating-point arithmetic with rounding?<br>(113. + −111.) + 7.51 &nbsp;&nbsp; and &nbsp;&nbsp; 113. + (−111. + 7.51)</p>
+          <p class="small">(A) 9.51 and 10.0 respectively &nbsp; (B) 10.0 and 9.51 respectively &nbsp; (C) 9.51 and 9.51 respectively &nbsp; (D) 10.0 and 10.0 respectively</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A</span></p>
+            <p class="small">Left grouping: 113 − 111 = 2.00 exactly, then 2.00 + 7.51 = 9.51, exact because the exponents agree. Right grouping: −111 + 7.51 needs the addend at exponent 2, where three digits hold only 0.08 × 10², so the sum is −103 and 113 − 103 = 10.0.</p>
+            <p class="small"><strong>B</strong> reverses the two, which is the answer you get by assuming the left grouping is the lossy one. <strong>C</strong> is what an exact computation gives, and it is the option that ignores the three-digit rule entirely. <strong>D</strong> would need the first grouping to lose the 0.51, which it does not.</p>
+            <p class="small" style="margin-bottom:0">The page computes both groupings in a three-digit decimal format and checks the pair against 9.51 and 10.0.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="claim-chip claim-chip--verified">PYQ — GATE CSE 2026 Set 1, Q36</span> MCQ</p>
+          <p class="small">X = 0x35C00000 and Y = 0x34A00000 are IEEE 754 single-precision values. Let Z = X + Y. Which value is Z?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 0x35E80000</span></p>
+            <p class="small">X is 1.5 × 2⁻²⁰ and Y is 1.25 × 2⁻²². Aligning to 2⁻²⁰ gives 1.5 + 0.3125 = 1.8125 = 1.1101₂, so the exponent field stays 107 and the fraction field is 1101 followed by zeros, which is 0x680000 — hence 0x35E80000.</p>
+            <p class="small" style="margin-bottom:0">The lesson states its own computed result rather than reproducing the paper's option list, which was not available to it. The distractors on such a question are usually a lost hidden one (0x35D00000), an exponent field off by one, or the integer sum 0x6A600000.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">In a floating-point format with a four-bit significand, what is 1.000 × 2⁰ + 1.000 × 2⁻⁴, computed with alignment to the format's grid and no guard bits?</p>
+          <p class="small">(A) 1.000 &nbsp; (B) 1.001 &nbsp; (C) 1.0625 &nbsp; (D) 1.125</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A</span></p>
+            <p class="small">The exponent difference is 4 and the grid keeps three fraction bits, so all four bits of the addend fall past the end and it is absorbed. The sum is 1.000, with 4 bits discarded.</p>
+            <p class="small"><strong>C</strong> is the exact sum, which the format cannot hold: it lies halfway between 1.000 and 1.125. <strong>D</strong> is the neighbour above, which would be chosen only under a rounding rule that always rounds ties up. <strong>B</strong> is 1.125 written carelessly.</p>
+            <p class="small" style="margin-bottom:0">The exact-then-round route also gives 1.000 here, by the tie rule, so both models agree; the page checks that they do.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">In three significand bits, evaluate 2.00 − 1.75 without a guard bit, then with one guard bit. Which pair is correct?</p>
+          <p class="small">(A) 0.5 and 0.25 &nbsp; (B) 0.25 and 0.25 &nbsp; (C) 0.5 and 0.5 &nbsp; (D) 0.25 and 0.5</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: A</span></p>
+            <p class="small">Without the guard bit the aligned subtrahend loses its final one and becomes 1.5, so the answer is 0.5 — an error of 100 per cent against the true 0.25. With one guard bit the subtraction is exact and the answer is 0.25.</p>
+            <p class="small"><strong>B</strong> assumes the alignment is harmless. <strong>C</strong> assumes the guard bit does nothing. <strong>D</strong> inverts the effect.</p>
+            <p class="small" style="margin-bottom:0">The lesson to carry: the error is created in the alignment, before any rounding rule runs.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">Round 1.0625 into a four-bit significand under IEEE's default rounding mode. Give the result as a decimal.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 1.0</span></p>
+            <p class="small">1.0625 is 1.0001₂, exactly halfway between 1.000 and 1.125. The default mode is nearest, ties to even, and 1.000 has the even last digit, so the result is 1.000.</p>
+            <p class="small" style="margin-bottom:0">Under ties-away-from-zero the answer would be 1.125; under truncation, 1.000. A question that names no mode means the default, which is ties to even.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MSQ</p>
+          <p class="small">In IEEE double precision, which of the following are true?</p>
+          <p class="small">(A) 0.1 is stored exactly. &nbsp; (B) 0.1 + 0.2 ≠ 0.3. &nbsp; (C) (0.1 + 0.2) + 0.3 differs from 0.1 + (0.2 + 0.3). &nbsp; (D) Every integer below 2⁵³ is stored exactly.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B, C, D</span></p>
+            <p class="small"><strong>A</strong> is false: ten has a factor of five, so 0.1 has no finite binary expansion and is stored as the nearest 53-bit value. <strong>B</strong> is true, and the residue is exactly 2⁻⁵⁴. <strong>C</strong> is true: 0.6000000000000001 against 0.6. <strong>D</strong> is true: the spacing below 2⁵³ is at most 1, so every integer there is representable.</p>
+            <p class="small" style="margin-bottom:0">Note that D is about integers only. The same sentence with "every decimal fraction below 2⁵³" would be false.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q7</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> NAT</p>
+          <p class="small">P = 0xC1800000 and Q = 0x3F5C2EF4 are IEEE single-precision values. Their exponent fields are 131 and 126. What is the exponent field of the product P × Q?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: 130</span></p>
+            <p class="small">131 + 126 − 127 = 130. The bias is subtracted once because the two stored fields counted it twice. The significands multiply to about 1.72, already inside [1, 2), so no normalisation shift is needed and the field stays 130.</p>
+            <p class="small" style="margin-bottom:0">The page computes the whole product: −16 × 0.86009145 = −13.761463, which re-encodes as 0xC15C2EF4 with field 130. A normalisation shift would change the answer by one, which is why the significand product must be checked.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q8</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">In single precision, what is (10⁸ + 1) − 10⁸, and what is the gap between neighbouring values near 10⁸?</p>
+          <p class="small">(A) 1, and 8 &nbsp; (B) 0, and 8 &nbsp; (C) 0, and 1 &nbsp; (D) 1, and 1</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: B</span></p>
+            <p class="small">Near 10⁸ the exponent is 26, and with 24 significand bits the gap is 2^(26−23) = 8. Adding 1 is an eighth of a gap, so the sum rounds back to 10⁸ and the subtraction gives 0.</p>
+            <p class="small"><strong>A</strong> and <strong>D</strong> ignore the absorption. <strong>C</strong> takes the gap to be 1, which is true only below 2²⁴.</p>
+            <p class="small" style="margin-bottom:0">In double precision the gap there is 1.49 × 10⁻⁸, so the same expression gives 1. The format, not the expression, decides.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q9</strong> <span class="claim-chip claim-chip--interpretation">Original practice</span> MCQ</p>
+          <p class="small">A quadratic x² + 10⁸x + 1 = 0 has a small root of about −10⁻⁸. In double precision, why does the textbook formula (−b + √disc)/(2a) give −7.45 × 10⁻⁹?</p>
+          <p class="small">(A) The discriminant overflows. &nbsp; (B) The square root is not correctly rounded. &nbsp; (C) The numerator subtracts two nearly equal values of size 10⁸. &nbsp; (D) 10⁻⁸ is below the smallest normal double.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p><span class="verdict">Answer: C</span></p>
+            <p class="small">√disc is about 10⁸ − 1.5 × 10⁻⁸, and the gap between neighbouring doubles at 10⁸ is 1.49 × 10⁻⁸, so the numerator keeps barely one significant digit. The result is wrong by about 25 per cent.</p>
+            <p class="small"><strong>A</strong> is false: 10¹⁶ is well inside the double range. <strong>B</strong> is false: IEEE requires correct rounding of the square root. <strong>D</strong> is false by many orders of magnitude.</p>
+            <p class="small" style="margin-bottom:0">The repair is algebraic: compute the large root, where no cancellation occurs, and get the small root from c/(large root). The page computes both and checks the 25 per cent.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One screen</h3>
+          <p class="small" style="margin-bottom:0">The four steps, the five modes, the guard bit, the two orders of magnitude at which error appears, and the four traps. Everything else is an instance of one of these.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Facts to keep</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Every operation: align, add, normalise, round — once.</li>
+            <li>Alignment shifts the smaller significand right; that is where bits are lost.</li>
+            <li>Gap near 2^k is 2^(k−p+1). Single: 24 bits, bias 127. Double: 53 bits, bias 1023.</li>
+            <li>Default rounding: nearest, ties to even. Five modes in total.</li>
+            <li>Guard, round and sticky make the single-rounding promise affordable.</li>
+            <li>Multiplication adds exponent fields and subtracts the bias once.</li>
+            <li>Integers exact to 2²⁴ (single) and 2⁵³ (double).</li>
+            <li>Addition is commutative, not associative.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Numbers this page computed</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>toy format, 4 bits: spacing at 1 is 0.125, 8 values in [1, 2)</li>
+            <li>1.0 + 0.0625: 4 bits discarded, sum 1.0</li>
+            <li>2.0 − 1.75 in 3 bits: 0.5 without a guard bit, 0.25 with one</li>
+            <li>0.1 + 0.2 − 0.3 = 2⁻⁵⁴ = 5.551115123125783 × 10⁻¹⁷</li>
+            <li>(10⁸ + 1) − 10⁸ in single = 0, gap 8</li>
+            <li>naive quadratic root −7.45 × 10⁻⁹ against −10⁻⁸: 25.5% error</li>
+            <li>2004 groupings: 9.51 and 10.0</li>
+            <li>a million tenths: 100000.00000133288 plain, 100000 exact compensated</li>
+            <li>0xC1800000 × 0x3F5C2EF4 = 0xC15C2EF4, field 130</li>
+            <li>0x35C00000 + 0x34A00000 = 0x35E80000</li>
+            <li>widths: 7.22 and 15.95 decimal digits</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>Bias 127, not 128; 1023, not 1024.</li>
+            <li>The hidden one is not stored; put it back when decoding.</li>
+            <li>Round once per operation, never twice.</li>
+            <li>The sign bit belongs to the number, not the exponent.</li>
+            <li>All-ones exponent with a non-zero fraction is NaN, not the largest value.</li>
+            <li>Fraction bits <em>1101</em> start at the top of the field: 0x680000, not 0xD00000.</li>
+            <li>"With rounding" means ties to even, not half up.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What the answer must state</h3>
+          <ul class="small" style="margin:0;padding-left:18px">
+            <li>the format: p, bias, and the exponent range</li>
+            <li>the rounding mode, when the question names one</li>
+            <li>how many bits the alignment discards</li>
+            <li>whether the result is exact, or by how many ulps it is off</li>
+            <li>the regime of the answer: normal, denormal, infinity or NaN</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Where this connects</h3>
+          <p class="small" style="margin-bottom:0">Backwards, to <a href="../number-representation-and-arithmetic/index.html">number representation and arithmetic</a>, which owns the layout, the bias, the denormals and the special values this lesson uses without re-deriving. Sideways, to <a href="../arithmetic-algorithms-booth-division-cla/index.html">Booth's algorithm and the carry-look-ahead adder</a>, which are the fixed-point half of the same syllabus phrase: the same four steps without an exponent. Forwards, to <a href="../c-fundamentals/index.html">C fundamentals</a> and <a href="../c-strings-and-the-null-terminator/index.html">C strings</a>, where the printed digits of a float are a conversion with its own rounding, and to <a href="../alu-and-control-unit-design/index.html">ALU design</a>, where the floating-point unit is a separate datapath with its own aligner and normaliser. The error analysis itself is the same reasoning as <a href="../asymptotic-complexity/index.html">asymptotic analysis</a>: count the operations, then bound what each one can cost.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">Official syllabus and papers first, then the standard itself, then course material, then community archives for question wording. Community discussion is used to locate and read a question, never as proof of a fact.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official syllabus and papers</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> (gate2027.iitm.ac.in, the CS syllabus PDF) — Section 2's "Number representation and arithmetic (fixed and floating point)", which is the clause this lesson sits under. Read this run, not quoted from a coaching summary.</p>
+          <p class="small"><strong>GATE CSE 2004, Q28</strong> — the two groupings in three-digit floating-point arithmetic, with the answer 9.51 and 10.0. The question text and the answer were cross-checked across three independent archives.</p>
+          <p class="small"><strong>GATE CSE 2023 Q45, 2025 Set 2 Q49, 2026 Set 1 Q36, 2026 Set 2 Q34, 2024 Set 2 Q14, 2022 Q41, 2021 Set 2 Q4, 2017 Set 2 Q12, 2012 Q7</strong> — used as evidence that the topic is asked, and for the shape of the questions. Where an option list could not be read, the lesson states its own computed result and says so.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE 2017 Set 1 Q7 and 2014 Set 2 Q45</strong> — the fixed-point range question and the −14.25 encoding, used to separate this lesson's arithmetic from the representation lesson's decoding.</p>
+        </div>
+
+        <div class="card">
+          <h3>The standard</h3>
+          <p class="small"><strong>IEEE Std 754-1985, <em>Standard for Binary Floating-Point Arithmetic</em></strong> — §4 rounding (round to nearest as the required default, ties to even, and the three directed modes), §4.3 the single-rounding requirement, §5 "correct to infinite precision and with unbounded range, and then coerced", §7.3 overflow behaviour per mode, §7.4 underflow.</p>
+          <p class="small" style="margin-bottom:0"><strong>IEEE Std 754-2019</strong> — the same promise restated, plus the roundTiesToAway mode required for decimal formats and the augmented operations (2Sum and relatives) that the compensation trick in this lesson anticipates.</p>
+        </div>
+
+        <div class="card">
+          <h3>Course material used as cross-checks</h3>
+          <p class="small"><strong>Mark Smotherman, Clemson, <em>Floating Point</em> notes</strong> — the four-step addition sequence with sticky-bit setting, the guard/round/sticky definitions, and the 2.0 − 1.75 worked example reproduced on the Animation tab and in Example 2.</p>
+          <p class="small"><strong>UCR CS 153 lecture on disks and storage hierarchy</strong> — the access-time model used only for the memory-hierarchy comparison in the Build-up tab, and the note that disk latency dwarfs the arithmetic.</p>
+          <p class="small"><strong>Auburn ELEC 5200/6200, chapter 6 storage notes</strong> — the characterisation of arithmetic latency against memory latency, used for the same comparison.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wikipedia, <em>IEEE 754</em></strong> — the five rounding modes with the ties-to-even and ties-away table for ±11.5 and ±12.5, and the statement that ties-to-even is the default for binary formats. Used only for that table; the normative text is the standard.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community material</h3>
+          <p class="small"><strong>GATE question archives</strong> — used to locate the 2004, 2023, 2025 and 2026 items, to read their wording, and to confirm that the 2004 answer is the option giving 9.51 and 10.0. Where archives disagreed on numbering, only the year and the set are asserted.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> The "half up" rounding habit, the "the printed digits are the stored value" assumption and the "more precision fixes cancellation" belief are all reported repeatedly in discussion of this topic. That is an observation about what learners ask, not a measured claim.</p>
+        </div>
+
+        <div class="card">
+          <h3>What the page computes for itself</h3>
+          <p class="small" style="margin-bottom:0">Nothing on the canvas is copied. The page implements a toy binary format (align on a grid, add, normalise, round under five modes), a three-digit decimal format, and uses the machine's own Float32Array and Float64Array for the IEEE facts. It then re-verifies each computed value against its definition: 24 checks, all of which must pass before the lesson is published. The hex constants for double precision are decoded from their bit patterns on the page and round-tripped through the check that 0x3FF0000000000000 is 1.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What could not be confirmed</h3>
+          <p class="small">The option lists of the 2023, 2025 and 2026 questions were not available to this lesson. It states its own computed results for those registers and labels them as derivations, not as official answer keys.</p>
+          <p class="small">The 2004 paper's own PDF was not opened; its text and answer are taken from three independent archives that agree. Treat the wording as reported rather than transcribed.</p>
+          <p class="small" style="margin-bottom:0">No claim is made about how many marks this topic will carry in GATE CSE 2027, and no historical weightage is asserted. The toy format of this lesson is not IEEE single: its p is 4, its exponent range is −3 to 3, and it has no denormals or special values. It is used because every bit of it fits on a canvas, and every phenomenon it shows recurs at 24 and 53 bits.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
