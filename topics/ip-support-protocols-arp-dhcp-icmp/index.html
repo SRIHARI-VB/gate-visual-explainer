@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IP Support Protocols: ARP, DHCP and ICMP — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">IP Support Protocols: ARP, DHCP and ICMP</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Related: IPv4, CIDR and NAT</a>
+      <a href="../link-layer-error-detection-mac-and-ethernet/index.html">Related: MAC and Ethernet</a>
+      <a href="../layering-switching-and-performance-metrics/index.html">Related: layering</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The three protocols that sit beside IPv4 and make the first packet possible — ARP (an IPv4 address to a hardware address), DHCP (no address at all to a leased one), and ICMP (a packet that failed to a report saying why).</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a network scenario, name which of the three protocols answers it, then justify the answer with the numbers: the 28 octets of an ARP header and the padding that reaches 64, the next-hop decision made by a prefix, the four DHCP messages with their ports and broadcasts, the T1 and T2 timers computed from a lease, and the ICMP type-and-code pair that a router or a host actually sends — including the five cases where nothing is sent at all.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>three gaps and three fillers</em>, not as three unrelated protocols. Every claim on the page is either a rule quoted from a standard, an arithmetic sum you can check, or a classification the page computes at load. Where the standards leave a value to the implementation — an ARP cache timeout, for instance — the lesson says so instead of inventing a number.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class C — a useful extension beyond the printed syllabus.</strong></p>
+          <p class="small">The GATE 2026 CS syllabus, under Computer Networks, named this clause explicitly: <em>"Fragmentation and IP addressing, IPv4, CIDR notation, Basics of IP support protocols (ARP, DHCP, ICMP), Network Address Translation (NAT)"</em>. The GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, replaces the network-layer clause with <em>"IPv4 - Fragmentation, CIDR Notation, Network Address Translation"</em>. The phrase "IP support protocols" does not appear in the 2027 text.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Two independent clause-by-clause comparisons of the 2026 and 2027 official PDFs both list ARP, DHCP and ICMP among the topics no longer named for 2027. That is why this lesson is class C and not class A, and why it makes no weightage claim for 2027.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation claim-chip">Educational interpretation</span> The material stays worth one page of notes because it can still appear as context inside retained clauses: an ICMP time-exceeded message inside an IPv4 TTL question, an ARP request as a wrong option in an Ethernet MSQ, a DHCP broadcast inside a subnetting scenario. A protocol that is no longer named is not a protocol that can no longer be mentioned.</p>
+          <p class="small" style="margin-bottom:0">One previous-year question is quoted in this lesson — GATE CS 2021 Set 1, question 18, on the destination MAC address of an ARP request and reply. It is labelled with its paper and year, and the rest of the practice set is marked original.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>IPv4 addressing and CIDR.</strong> The prefix test in scene 3 is the whole of this lesson's ARP reasoning. Built in <a href="../ip-fragmentation-cidr-and-nat/index.html">IPv4, Fragmentation, CIDR and NAT</a>.</li>
+            <li><strong>Ethernet frames and MAC addresses.</strong> ARP exists only because a frame needs a hardware address. Built in <a href="../link-layer-error-detection-mac-and-ethernet/index.html">Error Detection, MAC and Ethernet</a>.</li>
+            <li><strong>Layering, encapsulation and switching.</strong> The three protocols sit at three different places in the stack, and that placement is half the exam content. Built in <a href="../layering-switching-and-performance-metrics/index.html">Layering, Switching and Performance Metrics</a>.</li>
+            <li><strong>UDP and its port numbers.</strong> DHCP is a UDP application, so the ports 67 and 68 are transport facts. Built in <a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP, Flow Control and Sockets</a>.</li>
+            <li><strong>Routers and subnets.</strong> "A router does not forward a broadcast" is the reason for both the ARP boundary and the DHCP relay. Built in <a href="../ip-fragmentation-cidr-and-nat/index.html">the same IPv4 lesson</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about cryptography, DNS or HTTP is assumed. Network security is mentioned once, in scene 4, only as far as ARP spoofing needs.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Two addresses.</strong> The IP packet beside the Ethernet frame, with the fields that change per hop marked.</li>
+            <li><strong>The ARP exchange.</strong> Four steps, then the header's cells added up to 28 and padded to 64.</li>
+            <li><strong>The prefix.</strong> Five destinations against one /24, and the ARP target for each.</li>
+            <li><strong>Three ARP cases.</strong> Gratuitous, proxy and poisoned, in four cards.</li>
+            <li><strong>DORA.</strong> Four arrows with their addresses and ports, and the two that must be broadcasts.</li>
+            <li><strong>The lease.</strong> A 3600-second bar cut at 1800 and 3150, beside the octet arithmetic.</li>
+            <li><strong>ICMP inside IP.</strong> Nested boxes, an 8-octet header, and the error/query split.</li>
+            <li><strong>The suppression rules.</strong> Six cases, four messages, two silences.</li>
+            <li><strong>The TTL ladder.</strong> Five hops, four type 11 reports and one type 3 code 3.</li>
+            <li><strong>The procedure.</strong> Four questions, three counts, four traps.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A frame names an interface; a packet names a host. ARP is the conversion, and it never crosses a router.</li>
+            <li>The prefix, not the destination address, decides whose MAC you ask for.</li>
+            <li>DHCP has to shout because the client has no legal source address yet. Two of its four messages are client broadcasts.</li>
+            <li>T1 is when renewal starts, at half the lease; T2 is when rebinding starts, at seven eighths. Neither is the expiry.</li>
+            <li>ICMP reports and never repairs, and five rules mean the correct number of messages is sometimes zero.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 60–75 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis. Three things are deliberately outside the lesson. <strong>ARP cache timeouts</strong> are implementation-defined, so no number is given for them. <strong>RARP, BOOTP and DHCPv6</strong> are named only where a distinction needs them. And <strong>nothing here is claimed about 2027 weightage</strong>, because the 2027 syllabus no longer names these protocols and historical frequency would not survive that change.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition: three gaps at the front door</h3>
+              <p class="small">A parcel has two kinds of label. One names the person it is for and travels with it all the way. The other names the van that carries it on the next leg, and it is rewritten at every depot. That is the difference between an IP address and a MAC address, and it is the reason the first of the three protocols exists.</p>
+              <p class="small"><strong>ARP is the address book at the depot.</strong> The van driver knows the person's name — the IPv4 address — but the loading bay needs the bay number, which is the hardware address. If the book has no entry, the driver shouts the name across the yard. Exactly one person answers, quietly, and the book is updated.</p>
+              <p class="small"><strong>DHCP is the desk that issues addresses.</strong> A new arrival has no address at all, so they cannot even post a letter. They stand at the gate and shout "is there a desk that hands out addresses?", every desk in earshot answers with an offer, the arrival picks one and says so out loud — again so that the other desks hear the choice — and the chosen desk confirms it with a time limit.</p>
+              <p class="small" style="margin-bottom:0"><strong>ICMP is the note that comes back when a parcel fails.</strong> It is written by whoever gave up on the parcel — a depot that could not find the road, or the destination itself — and it quotes the original label so the sender knows which parcel is meant. It never resends the parcel, and sometimes no note is written at all.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition: ARP</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> ARP is defined by RFC 826 for IPv4 over any link layer that has broadcast addresses. It carries one question — "which hardware address has this protocol address?" — and one answer to it.</p>
+              <p class="small">The message has a fixed shape for Ethernet and IPv4: hardware type (2 octets), protocol type (2), hardware length (1), protocol length (1), operation (2), sender hardware address (6), sender protocol address (4), target hardware address (6), target protocol address (4). That is 8 + 20 = 28 octets.</p>
+              <p class="small">Operation 1 is a request; operation 2 is a reply. A request is sent to the link-layer broadcast address with the target hardware field zeroed, because that field is the thing being asked for. A reply is sent to the hardware address the request carried.</p>
+          <p class="small" style="margin-bottom:0">The ARP frame is identified by EtherType <span class="mono">0x0806</span>, which is a link-layer field, not an IP field. This is the single fact that separates ARP from the other two protocols in a "which layer" question.</p>
+            </div>
+
+            <div class="card card--recessed">
+              <h3>Formal definition: DHCP</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> DHCP (RFC 2131) is a UDP application. Client messages go to the server port 67; server messages go to the client port 68. It reuses the BOOTP message format: a fixed header of 236 octets, a four-octet magic cookie (99.130.83.99), then tagged options.</p>
+              <p class="small">The fixed header's fields are <span class="mono">op, htype, hlen, hops, xid, secs, flags, ciaddr, yiaddr, siaddr, giaddr, chaddr, sname, file</span>, which add to 236 octets. The reply address goes in <span class="mono">yiaddr</span>, the client's hardware address in <span class="mono">chaddr</span>, and a relay agent's address in <span class="mono">giaddr</span>.</p>
+              <p class="small" style="margin-bottom:0">A client before it has an address sends from source <span class="mono">0.0.0.0</span> to <span class="mono">255.255.255.255</span>. RFC 2131 permits exactly this one case, because a source address must otherwise be one of the host's own.</p>
+            </div>
+
+            <div class="card card--recessed">
+              <h3>Formal definition: ICMP</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> ICMP (RFC 792) is carried as the payload of an IP datagram with IP protocol number 1. The standards describe it as an integral part of IP, which must be implemented by every IP module — not as a transport protocol above it.</p>
+              <p class="small">Every message begins with type (1 octet), code (1), checksum (2) and four further octets whose meaning depends on the type. An error message then quotes the IPv4 header of the datagram that caused it and at least the first 8 octets of that datagram's data.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 792 states that no ICMP messages are sent about ICMP messages, and that messages are sent only about errors in handling fragment zero. RFC 1122 §3.2.2 generalises this into the five suppression rules of scene 8.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The arithmetic that questions actually ask for</h3>
+              <p class="small">Five sums cover most of the numeric content of this topic. Each one is computed on this page at load, and each appears in the model checks beside the animation.</p>
+              <p class="small"><strong>ARP header.</strong> 2 + 2 + 1 + 1 + 2 + 6 + 4 + 6 + 4 = 28 octets.</p>
+              <p class="small"><strong>Minimum Ethernet frame.</strong> 14 header + 28 ARP = 42 octets of payload, against a 46-octet minimum, so 18 octets of padding; 42 + 18 + 4 of frame check sequence = 64 octets.</p>
+              <p class="small"><strong>DHCP sizes.</strong> 236 fixed + 4 cookie = 240; the BOOTP minimum frame is 300, leaving 60 octets for options and padding; the DHCP message must be able to reach 236 + 312 = 548 octets, and 548 + 20 of IP + 8 of UDP = 576, which is the datagram size every host must be able to receive.</p>
+              <p class="small"><strong>Lease timers.</strong> For a 3600-second lease, T1 = 0.5 × 3600 = 1800 and T2 = 0.875 × 3600 = 3150, with T1 &lt; T2 &lt; expiry.</p>
+              <p class="small" style="margin-bottom:0"><strong>ICMP quotes.</strong> 20 octets of IPv4 header plus 8 octets of data = 28 octets quoted inside every error message.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Where each protocol is identified</h3>
+              <table class="small" style="width:100%">
+                <tr><th>Protocol</th><th>Identified by</th><th>Value</th></tr>
+                <tr><td>ARP</td><td>EtherType in the frame</td><td class="mono">0x0806</td></tr>
+                <tr><td>ICMP</td><td>IP protocol number</td><td class="mono">1</td></tr>
+                <tr><td>DHCP</td><td>UDP port pair</td><td class="mono">68 &rarr; 67</td></tr>
+                <tr style="border-bottom:none"><td>IPv4 itself</td><td>EtherType</td><td class="mono">0x0800</td></tr>
+              </table>
+              <p class="small" style="margin-bottom:0">This table is the fastest way to answer "at which layer does this operate". ARP's identifier lives in the frame header, so ARP is spoken of as sitting between the link layer and the network layer. ICMP's lives in the IP header, so ICMP is part of the network layer. DHCP's lives in a UDP header, so DHCP is an application protocol.</p>
+            </div>
+
+            <div class="card card--recessed">
+              <h3>What each one is allowed to answer</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>ARP:</strong> which interface holds this IPv4 address, on this link. Nothing else — it has no field for a route, a lease or an error.</li>
+                <li><strong>DHCP:</strong> what address, mask, gateway, DNS server and lease duration a client should use. It can also refuse, decline or release, but it never resolves a hardware address.</li>
+                <li><strong>ICMP:</strong> what went wrong with a datagram — unreachable, expired, too big, redirected, malformed. It carries no configuration and resolves nothing.</li>
+              </ul>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The one distinction that decides most questions</h3>
+              <p class="small"><strong>A question versus an announcement.</strong> ARP's request expects an answer and is broadcast; its reply answers one asker and is unicast; a gratuitous ARP is a reply nobody asked for, broadcast to everyone. DHCP's discover expects offers; its request announces a choice; its acknowledgement confirms it.</p>
+              <p class="small" style="margin-bottom:0">In both protocols the broadcast carries the question and the unicast carries the answer — except where the answer has to be heard by everyone, which is exactly the case the DHCP request creates. Reading <em>who must hear this</em> answers the addressing question without memorising a table.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 3 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>How the three fit together</h3>
+              <p class="small">They are not parallel topics. They hand over to each other, and one handover is written into a standard.</p>
+              <p class="small"><strong>DHCP &rarr; ARP.</strong> RFC 2131 tells a client that has just accepted a lease to broadcast an ARP reply announcing its new address, precisely so that stale cache entries elsewhere on the link are corrected. A DHCP exchange therefore ends with an ARP message.</p>
+              <p class="small"><strong>ARP &rarr; ICMP.</strong> If ARP gets no reply, the datagram cannot be framed at all, and the host reports a destination unreachable to itself — no ICMP message goes on the wire, because there is no frame in which to send one.</p>
+              <p class="small" style="margin-bottom:0"><strong>DHCP &rarr; ICMP.</strong> Nothing direct. But a client that cannot reach a DHCP server usually learns it through silence, not through an error message, because its request was a broadcast and the suppression rules forbid an error in reply to a broadcast.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>A counterexample that fixes the layer question</h3>
+              <p class="small">"ARP is an application protocol because it has its own message format, like DHCP." The conclusion is false and the reasoning is the interesting part.</p>
+              <p class="small" style="margin-bottom:0">DHCP's format sits inside a UDP header, so an application chose to send it. ARP's format sits directly inside the frame, identified by an EtherType, with no IP header at all — so there is no transport layer and no application to speak of. A protocol is placed by what carries it, not by whether it has fields of its own.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Why "ping failed, so the host is down" is not an inference</h3>
+              <p class="small">An echo request is a datagram like any other. It can be dropped by a congested link, blocked by a filter, answered but with the reply lost, or suppressed by a rule if it was addressed to a broadcast.</p>
+              <p class="small" style="margin-bottom:0">ICMP promises nothing. RFC 792 says plainly that there are no guarantees a datagram will be delivered or that a control message will be returned. A missing reply is evidence about the path, not a verdict about the host.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every sum and every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">An IP packet names hosts. The frame that carries it names interfaces.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two addresses per hop</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">An IP packet names hosts. The frame that carries it names interfaces.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1: size one ARP exchange, end to end</h3>
+              <p class="small">Host A (192.168.10.5/24, MAC AA:00:00:00:00:0A) wants to send one datagram to 192.168.10.20. Its ARP cache is empty.</p>
+              <p class="small"><strong>Step 1, the prefix test.</strong> A's network is 192.168.10.0/24. The destination's network, under the same mask, is also 192.168.10.0. Equal, so the destination is on this link and the next hop is the destination itself.</p>
+              <p class="small"><strong>Step 2, the request.</strong> One ARP request frame: destination MAC FF:FF:FF:FF:FF:FF, operation 1, sender hardware AA:…:0A, sender protocol 192.168.10.5, target hardware all zeros, target protocol 192.168.10.20. Every station on the link reads it; only the owner of .20 answers.</p>
+              <p class="small"><strong>Step 3, the reply.</strong> One ARP reply, unicast to AA:…:0A, operation 2, carrying the answer in the sender fields. A caches the pair.</p>
+              <p class="small" style="margin-bottom:0"><strong>Step 4, the sizes.</strong> The ARP message is 28 octets. The frame is 14 + 28 = 42 octets before padding, which is under the 46-octet minimum, so 18 octets of padding follow; with the 4-octet frame check sequence the frame is 64 octets. Two frames were sent, one broadcast and one unicast, and the datagram itself is sent afterwards in a third frame.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 2: five destinations, one mask</h3>
+              <p class="small">From 192.168.10.5/24, the ARP target for each destination is the next hop:</p>
+              <table class="small" style="width:100%">
+                <tr><th>Destination</th><th>Prefix test</th><th>ARP asks for</th></tr>
+                <tr><td class="mono">192.168.10.20</td><td>inside</td><td class="mono">192.168.10.20</td></tr>
+                <tr><td class="mono">192.168.10.77</td><td>inside</td><td class="mono">192.168.10.77</td></tr>
+                <tr><td class="mono">192.168.10.254</td><td>inside</td><td class="mono">192.168.10.254</td></tr>
+                <tr><td class="mono">192.168.10.9</td><td>inside</td><td class="mono">192.168.10.9</td></tr>
+                <tr style="border-bottom:none"><td class="mono">192.168.20.9</td><td>outside</td><td class="mono">192.168.10.1</td></tr>
+              </table>
+              <p class="small" style="margin-bottom:0">Four requests name a host and one names the gateway. In all five cases the IP destination stays 192.168.20.9 or its own value; only the frame's destination MAC differs. A page that says "the router's IP address goes in the packet" has the two facts confused.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 3: the same question with a different mask</h3>
+              <p class="small">Change A to 192.168.10.5/28. Its network is now 192.168.10.0 with a block of 16 addresses, 192.168.10.0 to 192.168.10.15, so .20, .77 and .254 are <em>outside</em>, while .9 is still <em>inside</em>.</p>
+              <p class="small" style="margin-bottom:0">Three of the five destinations now resolve to the gateway instead of one, and .9 keeps resolving to itself because 9 is inside the 0–15 block. Nothing about the addresses changed; the mask did. That is why a question that supplies a mask is really asking you to apply it, and a question that omits one is usually assuming the classful or the stated default.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 4: a lease of 3600 seconds, traced on the clock</h3>
+              <p class="small"><strong>t = 0.</strong> The client broadcasts DHCPDISCOVER from 0.0.0.0:68 to 255.255.255.255:67. One or more servers answer with DHCPOFFER. The client broadcasts DHCPREQUEST naming one server and one address. That server answers DHCPACK with a lease of 3600 seconds.</p>
+              <p class="small"><strong>t = 1800.</strong> T1, half the lease. The client is still configured, so it unicasts a DHCPREQUEST to the server that granted the lease, with its own address in <span class="mono">ciaddr</span> and no server identifier. A DHCPACK here returns the client to the bound state and resets both timers.</p>
+              <p class="small"><strong>t = 3150.</strong> T2, seven eighths of the lease, reached only if the renewal at T1 got no answer. The client broadcasts a DHCPREQUEST to any server, because the original one may be the thing that is broken.</p>
+              <p class="small" style="margin-bottom:0"><strong>t = 3600.</strong> The lease expires. If no acknowledgement arrived, the client stops using the address and returns to the initial state. Counting the client's broadcasts over one clean cycle gives two at the start and none at renewal — the renewal is unicast, and the rebinding broadcast only happens if renewal failed.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 5: count the messages on a five-hop path</h3>
+              <p class="small">Traceroute sends a probe with TTL 1. Router 1 decrements to zero, discards the datagram and returns time exceeded, type 11 code 0. The source address of that message is router 1.</p>
+              <p class="small">TTL 2 reaches router 2 before expiring, so router 2 reports. TTL 3 and TTL 4 give routers 3 and 4. That is four type 11 messages.</p>
+              <p class="small">TTL 5 reaches the destination. Classic traceroute sends UDP to a port nothing listens on, so the host itself returns destination unreachable, type 3 code 3. One message, from the target.</p>
+              <p class="small" style="margin-bottom:0">Total: five messages for five hops. Two things to keep straight: the last message is a different type, and it comes from a different kind of device. A variant that probes with ICMP echo instead ends with type 0, an echo reply.</p>
+            </div>
+
+            <div class="card card--recessed">
+              <h3>Worked example 6: six cases, and two silences</h3>
+              <p class="small">Apply the five RFC 1122 rules to each case and say whether an error message is sent.</p>
+              <p class="small">A unicast UDP datagram to a closed port, first fragment, valid source: <strong>sent</strong>, type 3 code 3. A datagram whose TTL reaches zero at a router: <strong>sent</strong>, type 11 code 0. A datagram larger than the next link with the don't-fragment bit set: <strong>sent</strong>, type 3 code 4. A destination network the router cannot reach: <strong>sent</strong>, type 3 code 0.</p>
+              <p class="small">A datagram addressed to 255.255.255.255: <strong>not sent</strong>, because the destination is a broadcast address. A datagram that is itself an ICMP error and then fails: <strong>not sent</strong>, because no error is sent about an error.</p>
+              <p class="small" style="margin-bottom:0">Four problems, four reports, two silences. A question that says "how many ICMP messages are generated by these six events" has the answer 4, and the two silences are the whole difficulty.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries where the rules bite</h3>
+          <p class="small">Each of these is a place where a confident sentence becomes false if the boundary is ignored. They are the cases a well-written question is built on.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>An empty cache is normal, and the timeout is not standard</h3>
+          <p class="small">ARP entries are cached for a while and then dropped, so the first packet after a quiet period repeats the exchange. The standards do not fix the lifetime: it is implementation-defined, and different systems choose different values.</p>
+          <p class="small" style="margin-bottom:0">So a question that asks "how many ARP requests are sent in five minutes" without stating a timeout has no single answer. Say what the assumption is, or say the question is under-specified — both are better than inventing a number.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>No ARP reply means no ICMP message either</h3>
+          <p class="small">If ARP resolves nothing, the datagram cannot be put into a frame, so nothing is transmitted. The host may report the failure to the local application, but no ICMP message crosses the wire.</p>
+          <p class="small" style="margin-bottom:0">This is the cleanest example of the difference between "an error happened" and "an error message was sent". The event is real; the message does not exist because there was no frame to carry it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Fragment zero, not "the first fragment you see"</h3>
+          <p class="small">RFC 792 allows ICMP messages only about errors in handling fragment zero — the fragment whose offset field is zero. A non-initial fragment carries no transport header, so a port unreachable about it could not name a socket.</p>
+          <p class="small" style="margin-bottom:0">RFC 1122 turns this into a suppression rule: no error about a non-initial fragment. But a reassembly timeout is a different condition and does produce type 11 code 1, sent about the fragment-zero information the receiver still holds.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A link-layer broadcast that looks unicast</h3>
+          <p class="small">A frame can be sent to the hardware broadcast address while its IP destination is an ordinary unicast address. The suppression rule counts that as a broadcast too, which is why RFC 1122 requires the link layer to tell IP when a frame arrived as a broadcast.</p>
+          <p class="small" style="margin-bottom:0">Checking only the IP destination misses the case. This is the one rule where the information needed lives in the layer below.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>0.0.0.0 is legal once, and only as a source</h3>
+          <p class="small">A DHCP client sends from 0.0.0.0 because it has no address. RFC 1122 forbids 0.0.0.0 as a source in general, and permits it during initialisation — the same permission DHCP depends on.</p>
+          <p class="small" style="margin-bottom:0">It is never a valid destination, and it is never a host you can send an error to. That is why a datagram from 0.0.0.0 is on the suppression list: there is no single host at the other end.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>T1 and T2 are defaults, not constants</h3>
+          <p class="small">RFC 2131 gives T1 = 0.5 × lease and T2 = 0.875 × lease as defaults, and lets the server send other values in options 58 and 59. It also recommends some random variation, so that clients do not all renew at the same instant.</p>
+          <p class="small" style="margin-bottom:0">A question that supplies T1 and T2 explicitly is testing whether you use the given values. A question that gives only the lease is testing whether you know the defaults. They are different questions.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that cost marks, each with the smallest thing that refutes it</h3>
+          <p class="small">Each entry is the wrong belief, then the correction, then the smallest fact that settles it. Where the refutation is a standard, the standard is named.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "ICMP uses port 1"</h3>
+          <p class="small"><strong>Wrong.</strong> 1 is the IP protocol number in the IPv4 header. ICMP has no ports, because no transport header sits above it, and no application can bind to it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fix.</strong> Ask which header holds the identifier. ARP's is in the frame, ICMP's in the IP header, DHCP's in a UDP header. Only the last one has ports.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "ARP requests cross routers to find remote hosts"</h3>
+          <p class="small"><strong>Wrong.</strong> An ARP request is a link-layer broadcast, and a router does not forward broadcasts. ARP resolves only addresses on the same link.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fix.</strong> For a remote destination, ARP resolves the router. The packet's IP destination is unchanged, and the far host's MAC is never known to the sender.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "DHCP works across subnets by broadcast"</h3>
+          <p class="small"><strong>Wrong.</strong> The broadcast is exactly what stops at the router. What carries the message across is a relay agent, which forwards it and records its own address in <span class="mono">giaddr</span> so the server knows which pool to use.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fix.</strong> Broadcast is the reason a relay is needed, not a substitute for one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "The lease expires at T1"</h3>
+          <p class="small"><strong>Wrong.</strong> T1 is when renewal starts, at half the lease. T2 is when rebinding starts, at seven eighths. The address is still usable until the lease itself runs out.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fix.</strong> Three times, in order: T1 &lt; T2 &lt; expiry. A configuration with T2 before T1 is invalid, which is a standard way to build a wrong option.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Every failed datagram produces an ICMP error"</h3>
+          <p class="small"><strong>Wrong.</strong> Five suppression rules can silence it: an error about an error, a broadcast or multicast destination, a link-layer broadcast, a non-initial fragment, or a source that is not one single host.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fix.</strong> Run the rules before counting. "None" is a legitimate answer, and it is the one the rules exist to produce.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "ICMP makes IP reliable"</h3>
+          <p class="small"><strong>Wrong.</strong> ICMP reports; it never retransmits, acknowledges or repairs. RFC 792 states that there is no guarantee a datagram is delivered or that a report is returned.</p>
+          <p class="small" style="margin-bottom:0"><strong>Fix.</strong> Reliability, where it exists, is built above IP — by TCP, which uses acknowledgements and retransmissions of its own and treats an ICMP report as information, not as a repair.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this material is asked, and the reasoning each shape demands</h3>
+          <p class="small"><span class="claim-chip--interpretation claim-chip">Educational interpretation</span> The four shapes below are the ones these protocols make natural: a statement pair about addressing, a count of messages, a size sum, and a "which protocol" placement. One official question is quoted, with its paper and year. No frequency claim is made.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official question: GATE CS 2021, Set 1, Question 18</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The question is a 1-mark MCQ and reads: "Consider the following two statements. S1: Destination MAC address of an ARP reply is a broadcast address. S2: Destination MAC address of an ARP request is a broadcast address. Which one of the following choices is correct?"</p>
+          <p class="small">The official key is that <strong>S1 is false and S2 is true</strong>. I checked this against several independent reproductions of the paper, including a scanned-and-retyped copy of the CS 2021 Paper I. The option letter differs between reproductions — one lists this answer as (A), another as (C) — so the answer is given here by content, not by letter.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it demands.</strong> One fact: the request must reach every station, so it is broadcast; the reply goes to exactly one station, whose hardware address the request supplied, so it is unicast. The framing of the question is a pair of statements, so both halves must be judged separately.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1: statement pairs and MSQs</h3>
+          <p class="small">"Which of the following are true of ARP / DHCP / ICMP?" with options drawn from the addressing, the layer and the suppression rules.</p>
+          <p class="small"><strong>What it demands.</strong> One fact per option, and no reasoning across protocols. The commonest wrong option is a true statement about the wrong protocol, for instance a DHCP broadcast offered as an ARP fact.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure.</strong> For each option, name the protocol, then the header that identifies it, then whether the statement is about addressing or about timing.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2: count the messages or the broadcasts</h3>
+          <p class="small">"How many ARP requests are sent?", "how many DHCP messages are broadcast?", "how many ICMP messages are generated?"</p>
+          <p class="small"><strong>What it demands.</strong> A model of who must hear each message, plus the suppression rules for ICMP. Cache timeouts, retransmissions and failures are usually excluded by the wording, and the wording must be read.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> One ARP request per unresolved next hop, not per packet. Two client broadcasts per clean DHCP exchange, not four.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3: the size sum</h3>
+          <p class="small">"What is the size of the ARP message?", "what is the minimum frame size?", "how many octets does the DHCP fixed header have?"</p>
+          <p class="small"><strong>What it demands.</strong> Adding the fields, then applying the link-layer minimum. The two conventions for the Ethernet minimum — 64 including the 4-octet frame check sequence, 60 excluding it — must be kept apart.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Quoting the ARP header as 8 octets, which is only the fixed part, and forgetting the two address pairs that make it 28.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4: which protocol, and at which layer</h3>
+          <p class="small">"A host needs the hardware address of its gateway. Which protocol is used?" or "which of these operates at the network layer?"</p>
+          <p class="small"><strong>What it demands.</strong> The gap being filled, then the identifier that proves the layer. ARP: EtherType, between link and network. ICMP: protocol number 1, part of the network layer. DHCP: UDP ports 67 and 68, application layer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> "ARP is an application protocol because it has a message format" is the wrong inference, and it is offered as an option more often than it should be.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers withheld until you reveal them</h3>
+              <p class="small">Q1 is the official GATE CS 2021 Set 1 question, quoted with its paper and year. Q2 to Q8 are <strong>original practice questions written for this lesson</strong> and are labelled as such. Use the mock-test switch to hide every answer at once.</p>
+              <p class="small"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until I submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q1</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge">GATE CS 2021, Set 1, Q18</span></p>
+              <p class="small">S1: Destination MAC address of an ARP reply is a broadcast address. S2: Destination MAC address of an ARP request is a broadcast address. Which is correct?</p>
+              <p class="small">(A) Both are true<br>(B) S1 true, S2 false<br>(C) S1 false, S2 true<br>(D) Both are false</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: S1 is false and S2 is true</strong> — option (C) as printed in this reproduction. The official key states the answer by content; reproductions differ in lettering.</p>
+                <p class="small">The request has to reach every station on the link, because the sender does not know which one holds the target address, so its destination MAC is FF:FF:FF:FF:FF:FF. The reply goes to exactly one station, and that station's hardware address was carried in the request's sender field, so the reply is unicast.</p>
+                <p class="small" style="margin-bottom:0"><strong>Why the others fail.</strong> A says both are broadcast, which would mean every station processes every answer. B inverts the pair. D says the request is unicast, which is impossible when the sender does not yet know the address.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q2</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">An ARP message for Ethernet over IPv4 is carried in an Ethernet frame with no VLAN tag. How many octets of padding are added to reach the minimum payload?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 18.</strong> The ARP message is 8 + 6 + 4 + 6 + 4 = 28 octets. The minimum payload is 46 octets, so 46 − 28 = 18 octets of padding.</p>
+                <p class="small" style="margin-bottom:0"><strong>The trap.</strong> Padding is measured against the payload minimum, not against the 64-octet frame. The frame is 14 + 46 + 4 = 64; the padding inside the payload is 18.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q3</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Host A is 10.1.2.3/22. Which destinations does A resolve by ARP to its default gateway rather than to the destination itself?</p>
+              <p class="small">(A) 10.1.2.200<br>(B) 10.1.3.1<br>(C) 10.1.4.5<br>(D) 10.1.7.255</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: C and D.</strong> A /22 block is four /24s: 10.1.0.0 through 10.1.3.255. So 10.1.0.x, 10.1.1.x, 10.1.2.x and 10.1.3.x are inside; 10.1.4.0 onwards is outside.</p>
+                <p class="small">A is inside (10.1.2.x). B is inside (10.1.3.x). C is outside. D, 10.1.7.255, is the directed broadcast of a network A cannot reach directly, so it is outside too.</p>
+                <p class="small" style="margin-bottom:0"><strong>The trap.</strong> Reading /22 as three octets plus two bits of the fourth is the whole question. And a broadcast address of a remote network is still a remote address, not a local one.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <p class="small"><strong>Q4</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">A DHCP server grants a lease of 7200 seconds and sends no T1 or T2 options. At what time, in seconds from the start of the lease, does the client first try to rebind by broadcast?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 6300.</strong> T2 defaults to 0.875 × 7200 = 6300 seconds. T1 would be 3600.</p>
+                <p class="small" style="margin-bottom:0"><strong>The trap.</strong> Three candidate answers are all plausible: 3600 (T1), 6300 (T2) and 7200 (expiry). Rebinding is the T2 event and it is broadcast; renewal at T1 is unicast.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q5</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">A client with no address completes a clean DHCP exchange on a segment with two servers. Which statements are true?</p>
+              <p class="small">(A) The client sends two broadcasts.<br>(B) The client's source address is 0.0.0.0 in all four messages.<br>(C) The client sends to UDP port 67.<br>(D) The DHCPREQUEST is broadcast so the servers it did not choose learn the decision.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: A, C and D.</strong></p>
+                <p class="small">A: DHCPDISCOVER and DHCPREQUEST are both broadcast, so two of the client's two messages are broadcasts. C: client messages go to the server port 67 from port 68. D: the broadcast is the withdrawal signal to the losing server.</p>
+                <p class="small" style="margin-bottom:0"><strong>B is false.</strong> Only the client's messages come from 0.0.0.0; the two server messages come from the server's own address, 192.168.10.2 in this lesson's network. Reading "all four messages" as "both directions" is the error.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q6</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">A router receives a datagram addressed to 224.0.0.9 whose UDP port is closed on every host that receives it. How many ICMP destination-unreachable messages are sent?</p>
+              <p class="small">(A) One per host that receives it<br>(B) One, from the router<br>(C) One per interface<br>(D) None</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: D, none.</strong> 224.0.0.9 is a multicast address, and an ICMP error must not be sent about a datagram whose destination is a broadcast or multicast address.</p>
+                <p class="small" style="margin-bottom:0"><strong>Why the others fail.</strong> A describes exactly the message storm the rule prevents. B invents a router responsibility that the rule removes. C is a real Ethernet fact about hubs and switches, irrelevant to ICMP.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q7</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">A traceroute reaches its target in 7 hops. Counting only the ICMP messages the tool depends on, and assuming the UDP variant, how many ICMP messages are received by the source?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 7.</strong> Six routers each return time exceeded, type 11 code 0, and the destination returns destination unreachable, type 3 code 3. Six plus one is seven.</p>
+                <p class="small" style="margin-bottom:0"><strong>The trap.</strong> The count equals the hop count only because the last message is also an ICMP message. A tool that printed nothing for a hop — because the report was filtered — would still have sent seven probes.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q8</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Which statement about the identifiers is correct?</p>
+              <p class="small">(A) ARP is identified by IP protocol number 1.<br>(B) DHCP is identified by EtherType 0x0806.<br>(C) ICMP is identified by IP protocol number 1.<br>(D) ICMP is identified by UDP port 1.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: C.</strong> ICMP datagrams carry protocol number 1 in the IPv4 header.</p>
+                <p class="small">A swaps ARP with ICMP: ARP has no IP header at all, so it cannot have a protocol number. B swaps ARP's EtherType onto DHCP, which is a UDP application with ports 67 and 68. D is the classic port confusion: ICMP has no ports.</p>
+                <p class="small" style="margin-bottom:0">The distinction being tested: three protocols, three different headers, three different places to look.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything needed to answer a question on this topic, in the order it would be needed. The numbers are the ones this page computes at load.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three gaps and their fillers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>No hardware address for a known IPv4 address:</strong> ARP, EtherType 0x0806, 28 octets, request broadcast, reply unicast.</li>
+            <li><strong>No IPv4 address at all:</strong> DHCP, UDP 68 &rarr; 67, 236 fixed octets, four messages, two client broadcasts.</li>
+            <li><strong>A datagram failed:</strong> ICMP, IP protocol 1, 8-octet header, five suppression rules.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Numbers to carry in</h3>
+          <p class="small mono" style="margin-bottom:6px">ARP 8 + 20 = 28; 14 + 28 = 42; pad 18; 42 + 18 + 4 = 64</p>
+          <p class="small mono" style="margin-bottom:6px">DHCP 236 + 4 = 240; 300 minimum; 236 + 312 = 548; + 28 = 576</p>
+          <p class="small mono" style="margin-bottom:6px">T1 = 0.5 &times; lease; T2 = 0.875 &times; lease; T1 &lt; T2 &lt; expiry</p>
+          <p class="small mono" style="margin-bottom:0">ICMP 20 + 8 = 28 octets quoted; 5 error types; 6 query types</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Types and codes worth knowing</h3>
+          <p class="small">0 echo reply &middot; 3 destination unreachable &middot; 4 source quench &middot; 5 redirect &middot; 8 echo request &middot; 11 time exceeded &middot; 12 parameter problem &middot; 13/14 timestamp.</p>
+          <p class="small">Codes that decide questions: type 3 code 0 network unreachable, code 3 port unreachable, code 4 fragmentation needed with don't-fragment set. Type 11 code 0 TTL expired in transit, code 1 reassembly timed out.</p>
+          <p class="small" style="margin-bottom:0">These code assignments are the standard ones from RFC 792 and RFC 1122. The type numbers were re-read in RFC 792 during this run; the individual codes were not re-read in full, so treat them as standard knowledge rather than as a quoted passage.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>The five suppression rules, one line each</h3>
+          <p class="small">1. No error about an ICMP error.</p>
+          <p class="small">2. No error about a broadcast or multicast IP destination.</p>
+          <p class="small">3. No error about a link-layer broadcast.</p>
+          <p class="small">4. No error about a fragment other than the first.</p>
+          <p class="small" style="margin-bottom:0">5. No error when the source is not one single host.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Decision procedure for an unfamiliar scenario</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>What is missing: a hardware address, an IPv4 address, or a report? That names the protocol.</li>
+            <li>If ARP: apply the prefix. Inside, the target is the destination; outside, it is the gateway.</li>
+            <li>If DHCP: is the client on the server's link? If not, a relay is required and <span class="mono">giaddr</span> is set.</li>
+            <li>If ICMP: run the five rules before counting, and read the code as well as the type.</li>
+            <li>Name the identifier: EtherType, protocol number or port pair. Never the wrong one.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Four traps, one line each</h3>
+          <p class="small">1. ICMP has no ports; 1 is a protocol number.</p>
+          <p class="small">2. ARP never crosses a router, so remote destinations resolve to the gateway.</p>
+          <p class="small">3. Routers drop broadcasts, so DHCP across subnets needs a relay.</p>
+          <p class="small" style="margin-bottom:0">4. T1 starts renewal, T2 starts rebinding, and neither is the expiry.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Quick self-check, no answers given</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Add up the ARP header field by field, then say why the frame needs padding.</li>
+            <li>For a host at 172.16.4.6/23, list which of 172.16.4.200, 172.16.5.10 and 172.16.6.1 resolve to the gateway.</li>
+            <li>State the four DHCP messages with their source and destination addresses and ports.</li>
+            <li>Name the two ICMP messages a five-hop traceroute relies on, and the type and code of each.</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson was built from, and where the research stopped</h3>
+          <p class="small" style="margin-bottom:0">Each source is listed with what it supports. Standards are separated from the syllabus documents, and both are separated from teaching material. Where a claim rests on something not re-read during this run, the lesson says so in place.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Standards, read during this run</h3>
+          <p class="small"><strong>RFC 792, Internet Control Message Protocol</strong> (Postel, 1981). Supports: protocol number 1; the summary of message types 0, 3, 4, 5, 8, 11, 12, 13, 14, 15 and 16; that no ICMP messages are sent about ICMP messages and that they concern fragment zero; that an error quotes the internet header and 64 bits of the original data; and the statement that delivery and report are not guaranteed.</p>
+          <p class="small"><strong>RFC 1122, Requirements for Internet Hosts</strong>, §3.2.2. Supports: the split of ICMP messages into error and query classes; the five conditions under which an error message must not be sent; and the precedence of those restrictions over other requirements.</p>
+          <p class="small"><strong>RFC 2131, Dynamic Host Configuration Protocol</strong> (Droms, 1997). Supports: UDP server port 67 and client port 68; the four-octet magic cookie; T1 = 0.5 × lease and T2 = 0.875 × lease as defaults; unicast renewal and broadcast rebinding; the broadcast DHCPREQUEST; the client's ARP announcement after a lease; and the fixed header field list that adds to 236 octets.</p>
+          <p class="small" style="margin-bottom:0"><strong>RFC 951 / RFC 1542</strong>, on BOOTP. Supports the 300-octet minimum message and the note that relay agents have been known to drop smaller frames.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Syllabus documents</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>. Supports the class C classification: the network-layer clause for 2027 is "IPv4 - Fragmentation, CIDR Notation, Network Address Translation", and the phrase "IP support protocols" does not appear.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE 2026 CS syllabus</strong>, IIT Guwahati. Supports the quoted earlier wording that named ARP, DHCP and ICMP explicitly. Two independent clause-by-clause comparisons of the two documents were read this run and both list these three protocols among the topics no longer named for 2027.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Standard textbooks, cited from established knowledge</h3>
+          <p class="small">Kurose and Ross, <em>Computer Networking: A Top-Down Approach</em>; Tanenbaum and Wetherall, <em>Computer Networks</em>. These supply the ARP packet diagram, the Ethernet minimum frame size and the DHCP state machine as they are taught. I did not open either book during this run, so no page or figure number is quoted.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Nothing on this page cites a specific page number from a textbook, because none was checked during this run.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Where the research stopped, and what is not claimed</h3>
+          <p class="small"><strong>One previous-year question is quoted</strong> — GATE CS 2021 Set 1, question 18 — and it was checked against several independent reproductions of that paper, including a retyped copy of CS 2021 Paper I. The option letter differs between reproductions, so the answer is stated by content. Every other practice question is labelled original.</p>
+          <p class="small"><strong>ARP cache lifetimes are not given.</strong> They are implementation-defined; the lesson says so in the Edge cases tab rather than quoting a number that would be false somewhere.</p>
+          <p class="small"><strong>ICMP code numbers</strong> are stated as standard assignments. The type numbers were re-read in RFC 792 this run; the individual codes were not re-read in full.</p>
+          <p class="small"><strong>No weightage claim is made.</strong> These protocols are no longer named in the 2027 syllabus, and past frequency would not survive that change.</p>
+          <p class="small" style="margin-bottom:0"><strong>Nothing is claimed about audio.</strong> No MP4 and no audio file exists. The narration is a script, with optional browser speech synthesis whose voice availability differs by platform.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
