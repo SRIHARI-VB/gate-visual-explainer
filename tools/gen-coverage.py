@@ -4456,6 +4456,7 @@ topics.append(topic(
 )
 
 _VERIFIED = {
+    "space-complexity-and-auxiliary-space": "2026-11-01",
     "quine-mccluskey-tabular-method": "2026-11-01",
     "relational-calculus-and-safety": "2026-11-01",
     "barriers-and-their-implementations": "2026-11-01",
@@ -5125,6 +5126,73 @@ topics.append(topic(
         "the non-atomic counter is harmless because both updates sit in a semaphore-protected region",
         "counts: n-1 spinning, n arrivals to release, 2n-1 counter maximum, 2n under option D",
         "the reading procedure: find the counter, find the reset, ask what a stale read sees, try two rounds"])
+)
+
+topics.append(topic(
+    "Algorithms", "Analysis: the second half of 'asymptotic worst case time and space complexity'",
+    "Space complexity and auxiliary space: the peak, the recursion stack, and what 'in place' claims",
+    ["space as a peak rather than a total",
+     "total space against auxiliary space",
+     "the three live components: buffer, traversal structure, stack",
+     "the depth of a recursion, computed rather than recalled",
+     "divide-and-conquer space: buffer plus stack",
+     "quick sort's stack, and what the pivot decides",
+     "the three meanings of in place",
+     "graph space: representation, frontier, visited set",
+     "dynamic programming: which tables can be rolled",
+     "the three-step routine and the four traps"],
+    prereq=["asymptotic-complexity", "best-average-worst-and-amortised-analysis", "recursion",
+            "divide-and-conquer", "trees-bst-and-heaps", "graph-representations",
+            "dynamic-programming"],
+    related=["asymptotic-complexity", "best-average-worst-and-amortised-analysis", "recursion",
+             "divide-and-conquer", "sorting-algorithms", "graph-traversals-mst-shortest-paths",
+             "dynamic-programming", "memory-hierarchy-and-cache", "functions-scope-and-preprocessor"],
+    importance="high",
+    evidence=("Official GATE 2027 CS syllabus, IIT Madras, Section 5: 'Searching, sorting, hashing. "
+              "Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, "
+              "dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, "
+              "shortest paths.' The words 'and space complexity' are the clause, so the topic is class A "
+              "by name and not merely by area. One previous-year item is quoted with its number: GATE CSE "
+              "2005 Q81a, the double foo(int n) function asking for space complexity, key O(n), read from "
+              "two independent question archives that agree on wording and key; the 2005 paper PDF itself "
+              "was not opened, and the page recomputes the answer by executing the function rather than "
+              "copying the key. No marks distribution is claimed."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="space-complexity-and-auxiliary-space",
+    path="topics/space-complexity-and-auxiliary-space/index.html",
+    execution=("2026-11-01: published; 19/19 model checks passed, 10 scenes, 40 caption cues, captions "
+               "derived from the timeline by tools/gen-captions.mjs"),
+    microtopics=[
+        "space counts cells alive at the worst instant, never cells allocated over the run",
+        "a returned call occupies nothing, so the count is a depth and not a total",
+        "total space = input + auxiliary; only the auxiliary column ranks two sorts",
+        "'extra', 'additional' and 'auxiliary' name the second column; 'space' alone names the first",
+        "buffer, traversal structure and stack are live together, so they are added",
+        "linear recursion (argument reduced by 1) has depth n + 1",
+        "balanced recursion (argument halved) has depth ceil(log2 n) + 1, and the +1 is the whole array",
+        "a loop over all smaller values makes the time exponential and leaves the depth linear",
+        "naive Fibonacci: 2*F(n+1) - 1 calls but only n frames, because the chain stops at fib(1)",
+        "at n = 20 that is 21,891 calls against 20 frames; at n = 30, 89,751 to 1",
+        "GATE 2005 Q81a: 256 calls and 9 frames at n = 8, so O(n) and not O(2^n)",
+        "merge sort on 1,024 keys: buffer 1,024 + stack 11 = 1,035, so Theta(n)",
+        "quick sort on sorted input at n = 64: depth 64 and 2,016 = 64*63/2 comparisons",
+        "quick sort with a median pivot at n = 64: depth 7 = ceil(log2 64) + 1",
+        "quick sort recursing on the smaller half only turns the worst case into O(log n)",
+        "heapsort is Theta(1) with an iterative sift and Theta(log n) with a recursive one",
+        "in place means O(1), or O(log n), or 'the input array is the only array'",
+        "merge sort is not in place for an array but is for a linked list",
+        "BFS queue peaks at the widest layer, never more than V",
+        "DFS stack peaks at the longest path followed, up to V",
+        "adjacency matrix V^2 cells against a list of V + 2E slots: 81 against 25 at V = 9, E = 8",
+        "LCS rolls 1,000,000 cells down to 2,000 because the recurrence reads two rows",
+        "Floyd-Warshall cannot roll, because every entry is read again at the next intermediate",
+        "Fibonacci has three space answers: Theta(n) naive, Theta(n) memoised, Theta(1) with two variables",
+        "peak allocation and cumulative allocation are different quantities",
+        "a frame that copies an array by value makes each frame linear and the space quadratic",
+        "tail-call elimination is a compiler behaviour the C standard does not require",
+        "converting a recursion to an explicit stack does not change the order",
+        "the four traps: calls over time, tree size for height, in place for Theta(1), total for auxiliary"])
 )
 
 _seen = set()
