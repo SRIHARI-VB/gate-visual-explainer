@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Journaling File Systems: the write-ahead log, the commit record and recovery — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Journaling file systems</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../file-systems/index.html">Related: file systems</a>
+      <a href="../database-recovery-undo-redo/index.html">Related: log-based recovery</a>
+      <a href="../file-organisation-and-indexing/index.html">Related: indexing</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Journaling in a file system — the write-ahead log, the commit record, the three commit orders (journal, ordered, writeback), and the recovery that replays the log. One mechanism, one question: after a crash in the middle of a metadata update, is the file system half updated?</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a workload of transactions and a commit discipline, write out the sequence of block writes, choose any crash point, recover the disk by replaying to the last commit record, and say whether the result breaks a metadata invariant or exposes bytes the file never wrote. Then count the write cost of the log as $$2m+3$$ block writes for $$m$$ metadata blocks, bound a circular journal by its capacity and by the largest transaction that must fit in it, and say which of the four disciplines removes which kind of failure.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one ordering rule, one atomic block, and four ways of using them</em>. Every number on this page — the 10 crash points of the unjournaled run and the 6 that break, the 88 recovered images across four disciplines, the 3 of 6 in-place orders that expose stale bytes, the 7 writeback crash points that do, the 2m+3 cost, the 16 transactions a 64-block journal holds, and the 4,096-fold difference between replaying a log and scanning a disk — is produced at load by the lesson's own block-level model and re-checked against the property it claims.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite mechanism for a clause the 2027 syllabus names.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code> and fetched and read for this lesson, says under Section 8 Operating System: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The syllabus names "File systems" and does not name journaling, so I register this lesson class B rather than class A. It is the mechanism that decides what a file system looks like after a crash, and the same redo-log machinery is named in Section 9 as "Transactions and concurrency control". The repository's lesson on <a href="../file-systems/index.html">file systems</a> owns allocation, the inode pointer arithmetic and the directory structures; its lesson on <a href="../database-recovery-undo-redo/index.html">log-based recovery</a> owns the database side of the same idea. Neither owns the file-system side of the log.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Read these first, or read the one-line reminder in the Build-up tab:</p>
+          <ul class="small">
+            <li><a href="../file-systems/index.html">File systems</a> — blocks, inodes, the bitmap, and why one logical operation is several block writes.</li>
+            <li><a href="../file-organisation-and-indexing/index.html">File organisation and indexing</a> — what a block address means and how a file names its blocks.</li>
+            <li><a href="../database-recovery-undo-redo/index.html">Log-based recovery</a> — write-ahead logging, the undo and redo lists, and the checkpoint. The vocabulary transfers; the file-system version is simpler because it is redo-only.</li>
+            <li><a href="../disk-scheduling/index.html">Disk scheduling</a> — why a sequential write into one contiguous file is the cheapest I/O a disk can do.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, 300 seconds. The canvas draws a real disk image and the real journal, not a cartoon of one:</p>
+          <ul class="small">
+            <li><strong>1.</strong> One operation as four block writes, and the 10 crash points of the unjournaled workload.</li>
+            <li><strong>2.</strong> The nine write points of one journaled transaction, with the commit record marked as the atomic point.</li>
+            <li><strong>3.</strong> The crash-point census: four disciplines × 88 recovered images, metadata failures and byte failures counted separately.</li>
+            <li><strong>4.</strong> Recovery as three passes, the abandoned transaction discarded, idempotence, and the 4,096-fold replay saving.</li>
+            <li><strong>5.</strong> The cost table and the circular journal with its head, tail and capacity.</li>
+            <li><strong>6.</strong> The three commit orders, side by side, with the data block placed.</li>
+            <li><strong>7.</strong> Six in-place orders of one transaction, three of them unsafe.</li>
+            <li><strong>8.</strong> Four things a journal does not do.</li>
+            <li><strong>9.</strong> Five question shapes.</li>
+            <li><strong>10.</strong> Four traps.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The five key ideas</h3>
+          <ol class="small">
+            <li>A file operation is several independent block writes, and a crash can land between any two of them.</li>
+            <li>Write the new <em>image</em> of every block into a log first, and never overwrite a home block before its image is durable.</li>
+            <li>One extra block — the commit record — turns several writes into one atomic unit.</li>
+            <li>Recovery is redo only: replay to the last commit, discard everything after it, and never undo.</li>
+            <li>Which journal you run decides whether you also get the bytes: metadata-only ordered protects structure and data; metadata-only writeback protects structure only.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Takeaway</h3>
+          <p class="small" style="margin-bottom:0">A journal buys atomicity, and atomicity is a statement about a transaction — never about the values inside it. The commit record makes a transaction happen exactly once; the ordering rule decides whether the bytes it describes are there when you read them. On this page those two promises are measured separately, which is why writeback can be durable at 5 crash points and intact at only 2.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Level 1 — Intuition: the order book</h3>
+          <p class="small">A shopkeeper who must never be caught mid-edit keeps two books. In the first she writes down exactly what she is about to change in the second, signs the page, and only then copies the changes across. If the lights go out, she opens the first book: any page with her signature gets copied across again, and any page without one is torn out and forgotten. She is never left with half an entry, because "signed" is a single act that either happened or did not.</p>
+          <p class="small" style="margin-bottom:0">That is the whole design. The first book is the journal, the signature is the commit record, copying across is the checkpoint, and reopening the first book is recovery. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy stops at one point: the shopkeeper tears out pages, while a real journal overwrites them in a circle.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Level 2 — Formal definition</h3>
+          <p class="small">A <strong>transaction</strong> is a set of block writes that must all take effect or none. Write it as a list of pairs $$(b, I)$$ where $$b$$ is the home block number and $$I$$ is the complete new image of that block.</p>
+          <p class="small">The <strong>write-ahead rule</strong>: for every pair in the transaction, the image $$I$$ must be durable in the journal before any byte of block $$b$$ is overwritten.</p>
+          <p class="small">The <strong>commit record</strong> is one journal block written after every image of the transaction. A transaction is <em>committed</em> exactly when its commit record is durable.</p>
+          <p class="small">The <strong>descriptor block</strong> precedes the images and lists the home block of each one, so recovery knows where to copy.</p>
+          <p class="small" style="margin-bottom:0"><strong>Recovery</strong> scans the journal from its tail to the last commit record and copies each logged image to its home block. Nothing is undone, and nothing after the last commit is applied.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four invariants this lesson checks</h3>
+          <p class="small">"Consistent" is not a feeling. It is four properties of the disk image, and the model checks all four on every recovered image:</p>
+          <div class="step-list small">
+            <div><strong>M1 no dangling reference.</strong> Every block an inode names is marked used in the bitmap. Break it and the block can be handed to another file while it is still referenced.</div>
+            <div><strong>M2 no leak.</strong> Every used block is named by some inode. Break it and the space is lost until a full scan rebuilds the bitmap.</div>
+            <div><strong>M3 no aliasing.</strong> No block is named by two inodes.</div>
+            <div><strong>D1 no foreign bytes.</strong> A block a file names holds content that file wrote. Break it and the file reads a deleted file's data.</div>
+          </div>
+          <p class="small" style="margin-bottom:0">M1, M2 and M3 are <em>metadata</em> invariants. D1 is a <em>data</em> invariant. Every journal protects the first three; only some protect the fourth.</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 3 — The workload, in full</h3>
+          <p class="small">A tiny but real file system: a bitmap, one inode table, and eight data blocks of 4 KiB. File <code>g</code> owns block 0. Blocks 1, 2 and 3 are <em>free</em> but still hold the bytes <code>x#1</code>, <code>x#2</code>, <code>x#3</code> of a file deleted earlier — freeing a block does not erase it.</p>
+          <p class="small">Three transactions run in sequence:</p>
+          <ul class="small">
+            <li><strong>T1 create f</strong> — 2 metadata blocks (bitmap, inode table) and 2 data blocks.</li>
+            <li><strong>T2 unlink g</strong> — 2 metadata blocks, no data block at all.</li>
+            <li><strong>T3 append to f</strong> — 2 metadata blocks and 1 data block.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Without a journal that is 9 in-place writes and therefore <strong>10 crash points</strong>. With metadata journaled it is 24 write points and 25 crash points; with the data journaled too, 27 and 28. Across four disciplines the model recovers and checks <strong>88 images</strong>.</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 3 — The four disciplines</h3>
+          <p class="small">The same three transactions under each:</p>
+          <div class="step-list small">
+            <div><strong>none.</strong> No journal. Every block written in place, metadata first. This is ext2.</div>
+            <div><strong>writeback.</strong> Metadata journaled. Data may reach its home block <em>after</em> the commit record is durable.</div>
+            <div><strong>ordered.</strong> Metadata journaled. Data is forced to its home block <em>before</em> the commit record. This is the ext4 default.</div>
+            <div><strong>journal.</strong> Data and metadata both written into the log first. This is <code>data=journal</code>.</div>
+          </div>
+          <p class="small" style="margin-bottom:0">The first three letters of each name are what a mount option chooses. They are not four algorithms: the last three share one redo journal and differ only in where the data block sits.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>The one-line reminder for the prerequisites</h3>
+          <p class="small" style="margin-bottom:0">An inode is a fixed-size record holding a file's size and the numbers of its data blocks. The bitmap is one bit per block saying used or free. A directory is a list of (name, inode number) pairs. Nothing else is needed to read the rest of this lesson: every operation in the workload is a change to one of those three structures, and each change is one block write.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every count and every recovered image computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Creating one file is four separate disk writes, and the power can fail between any two of them.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One operation is four disk writes</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Creating one file is four separate disk writes. The power can fail between any two of them.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked example 1 — the unjournaled crash census, crash point by crash point</h3>
+          <p class="small">Nine in-place writes, ten crash points. Writing each one out and checking the four invariants gives:</p>
+          <p class="small"><strong>k=0</strong> nothing written: clean. <strong>k=1</strong> bitmap says blocks 1 and 2 are used, but no inode names them: <em>two leaked blocks</em>. <strong>k=2</strong> the inode for f is in place and names blocks 1 and 2, which still hold <code>x#1</code> and <code>x#2</code>: <em>foreign bytes</em>. <strong>k=3</strong> block 1 holds <code>f#1</code>, block 2 still holds <code>x#2</code>: still foreign. <strong>k=4</strong> T1 complete: clean.</p>
+          <p class="small"><strong>k=5</strong> T2's bitmap write frees block 0, but the inode for g still names it: <em>a dangling reference</em>, which is real corruption, because block 0 can now be handed to a new file. <strong>k=6</strong> T3 marks block 3 used with no inode naming it: a leak. <strong>k=7</strong> f now has size 3 and names block 3, which still holds <code>x#3</code>: foreign. <strong>k=8</strong> and <strong>k=9</strong>: clean.</p>
+          <p class="small" style="margin-bottom:0"><strong>Result: 6 broken crash points, 4 clean, and exactly 1 at which all three operations survive whole.</strong> Note that the two kinds of failure alternate: three are metadata failures and three are byte failures, and the model counts them separately for that reason.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 2 — the same workload journaled</h3>
+          <p class="small">Journal the metadata only. Each transaction now costs 1 descriptor + 2 images + 1 commit record in the log, plus the in-place writes, plus one head update. T1 becomes 9 write points, T2 becomes 7, T3 becomes 8: <strong>24 write points and 25 crash points</strong>.</p>
+          <p class="small">Crash anywhere and recover. Before T1's commit record the journal has no commit, so nothing is replayed and the disk is the old image: consistent. After it, the two logged images are copied home whatever the in-place writes had done: consistent.</p>
+          <p class="small" style="margin-bottom:0"><strong>Result: 0 of 25 crash points break a metadata invariant.</strong> Adding the data to the log as well gives 27 write points and 28 crash points, and 0 of 28 break either kind.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 3 — where writeback loses the bytes</h3>
+          <p class="small">T1 under <code>data=writeback</code>: descriptor, two images, commit, then the in-place bitmap, the in-place inode, then the two data blocks. Recovery replays the metadata the moment the commit record is durable, which is write point 4.</p>
+          <p class="small">From write point 4 to write point 7 the file is listed with size 2 and blocks [1, 2] while blocks 1 and 2 still hold <code>x#1</code> and <code>x#2</code>. That is <strong>4 crash points inside T1</strong>. T3 adds <strong>3 more</strong> between its commit and its data block.</p>
+          <p class="small" style="margin-bottom:0"><strong>Result: 7 of 25 crash points expose foreign bytes, and 0 of 25 break metadata.</strong> The same workload under <code>data=ordered</code> is 0 and 0, because the data block is forced home before the commit record exists.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 4 — the cost, counted</h3>
+          <p class="small">A journaled transaction of $$m$$ metadata blocks writes: 1 descriptor, $$m$$ images, 1 commit record, then $$m$$ in-place writes, then 1 head update. That is $$2m+3$$.</p>
+          <p class="small">At $$m=1$$: 5 writes instead of 1, a ratio of 5. At $$m=2$$: 7 instead of 2, a ratio of 3.5. At $$m=4$$: 11 instead of 4. At $$m=64$$: 131 instead of 64, a ratio of 2.047.</p>
+          <p class="small" style="margin-bottom:0"><strong>The +3 is constant</strong>, so the ratio falls towards 2 as transactions get larger — which is why the constant is amortised by batching many blocks into one commit.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 5 — bounding the journal</h3>
+          <p class="small">A 64-block journal. One transaction of 2 metadata blocks occupies 1 + 2 + 1 = 4 blocks, so $$\lfloor 64/4 \rfloor = 16$$ transactions fit before the head catches the tail and the writer stalls for a checkpoint.</p>
+          <p class="small">A single transaction must fit whole, so the largest one this journal can commit has $$64-2 = 62$$ metadata blocks. A 63-block transaction cannot be journaled at all.</p>
+          <p class="small" style="margin-bottom:0"><strong>And replay is bounded by the journal, not the disk:</strong> 64 blocks against the 262,144 blocks of a 1 GiB disk in 4 KiB blocks — 4,096 times less work, with the ratio growing as the disk grows.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 6 — the six orders of one append</h3>
+          <p class="small">T3 writes a bitmap block, an inode block and one data block, in place. All six orders of those three writes:</p>
+          <p class="small"><code>bitmap, inode, data</code> — unsafe. <code>bitmap, data, inode</code> — safe. <code>inode, bitmap, data</code> — unsafe. <code>inode, data, bitmap</code> — unsafe. <code>data, bitmap, inode</code> — safe. <code>data, inode, bitmap</code> — safe.</p>
+          <p class="small" style="margin-bottom:0"><strong>Exactly 3 of 6 are unsafe, and they are precisely the orders that place the inode before the data block.</strong> The rule is not "3 out of 6" as a fact to memorise; the rule is that the inode must not name a block before that block holds the file's bytes.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rule stops working, and what each boundary actually does</h3>
+          <p class="small" style="margin-bottom:0">A journal is a small mechanism with sharp edges. Each card names one boundary, the condition it violates, and the consequence measured on this page or stated in the kernel documentation.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample 1 — a leak is not corruption, and a dangling reference is</h3>
+          <p class="small">Crash point 1 of the unjournaled run leaves two blocks marked used that no inode names. Nothing reads them, nothing is wrong with any file: the only loss is space, and a scan that rebuilds the bitmap from the inodes recovers it.</p>
+          <p class="small" style="margin-bottom:0">Crash point 5 is different in kind. Block 0 is marked free while the inode for <code>g</code> still names it. The allocator may now hand block 0 to a new file, and <code>g</code> will read that file's data. The same class of half-update, two very different severities — which is why the model counts them separately.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 1 — a transaction larger than the journal</h3>
+          <p class="small">The write-ahead rule requires the whole transaction's images to be durable before any home block is touched. If the transaction does not fit in the journal, there is no legal place to put it.</p>
+          <p class="small" style="margin-bottom:0">In this lesson's 64-block journal the ceiling is 62 metadata blocks, because the descriptor and the commit record need a block each. Real file systems therefore split large operations into several transactions, and the split point becomes an atomicity boundary — two commits, not one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 2 — revoke records</h3>
+          <p class="small">Suppose a block is written, committed, then freed and reused by a later transaction, and the crash comes before the first transaction's log space is reused. Replaying the old image would resurrect data into a block that now belongs to somebody else.</p>
+          <p class="small" style="margin-bottom:0">The kernel's journal layer therefore assembles a list of <strong>revoke blocks</strong> during recovery, and the final pass replays only un-revoked blocks. Recovery is three passes for exactly this reason: find the end of the log, assemble the revokes, replay the rest.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Boundary 3 — the commit interval is a durability window</h3>
+          <p class="small">The commit record is only written when a transaction closes. ext4 closes one every 5 seconds by default, so up to 5 seconds of acknowledged work can vanish in a crash while the file system itself stays perfectly consistent.</p>
+          <p class="small" style="margin-bottom:0">Those are two different failures and a question can ask either. Losing recent work is the commit interval; damaging the structures is what the journal prevents. A smaller interval narrows the first and does nothing for the second.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Boundary 4 — write barriers and volatile caches</h3>
+          <p class="small">The ordering rule in <code>data=ordered</code> is only real if the device honours a flush. A disk with a volatile write cache may acknowledge the data block and reorder it behind the commit record anyway, and then the ordering rule is a fiction.</p>
+          <p class="small" style="margin-bottom:0">That is what a write barrier is for, and why ext4 enables barriers by default while ext3 did not. With a battery-backed cache the barrier can be turned off safely, and that is a performance decision rather than a correctness one.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 5 — a crash during recovery</h3>
+          <p class="small">Recovery itself can be interrupted. Because replay copies images, replaying twice leaves the same disk as replaying once — the model compares the two images byte for byte and finds them equal.</p>
+          <p class="small" style="margin-bottom:0">This is why a machine that loses power while replaying the journal on boot is not a disaster: the next boot replays again from the same tail. It is also why image redo is preferred to a scheme that applies deltas.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary 6 — the clean unmount</h3>
+          <p class="small">If the file system was unmounted cleanly there is nothing to replay, and the journal is skipped entirely. <code>norecovery</code> and <code>noload</code> force that skip even after an unclean shutdown.</p>
+          <p class="small" style="margin-bottom:0">The documentation is explicit that skipping the replay on a dirty file system leads to inconsistencies that can cause any number of problems. The skip is a diagnostic tool, not an optimisation.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Counterexample 2 — a wrong value replays just as faithfully</h3>
+          <p class="small" style="margin-bottom:0">The model journals a deliberately corrupt inode that names block 4 while the bitmap says block 4 is free, commits it, and recovers. The recovered image contains exactly that inode: the dangling reference is restored with perfect fidelity, along with four byte-level violations on the other blocks. Atomicity did its job — the transaction happened exactly once — and the file system is still wrong. No amount of journaling can distinguish a wrong block number from a right one; only a check that compares the disk against an expectation can, and a file system has no such expectation.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five wrong beliefs, each with the smallest thing that refutes it</h3>
+          <p class="small" style="margin-bottom:0">A misconception is worth stating in the form that makes it tempting, then breaking it with one measurement rather than with an assertion.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. "A journaling file system is a log-structured file system"</h3>
+          <p class="small"><em>Why it tempts:</em> both write sequentially, both are described as "logging", and both appear in the same chapter.</p>
+          <p class="small"><strong>The refutation:</strong> in this lesson every block has a fixed home address and is overwritten there once the log is committed. A log-structured file system never overwrites in place — it writes new versions at the head of the log and makes the whole disk the log.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a journal is a small circular buffer in front of fixed block positions; an LFS replaces the block positions with the log.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. "If the transaction committed, my data is safe"</h3>
+          <p class="small"><em>Why it tempts:</em> the commit record is the moment the file system treats the operation as having happened, so it feels like the moment everything is on disk.</p>
+          <p class="small"><strong>The refutation:</strong> under writeback the workload is durable at 5 crash points and intact at only 2. The other 3 have a durable commit record whose data block had not landed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the commit record covers the transaction; whether the bytes are there is a separate promise, made by the ordering rule or by journaling the data.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. "Replaying the journal twice corrupts the disk"</h3>
+          <p class="small"><em>Why it tempts:</em> in an undo log, applying a compensation twice really would be wrong, and the vocabulary is shared.</p>
+          <p class="small"><strong>The refutation:</strong> replay copies block images. Copying an image twice leaves the image. The model replays once and twice and compares the two recovered images byte for byte; they are equal.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> image redo is idempotent, and that is exactly what makes a crash during recovery harmless.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. "Journaling removes the consistency check"</h3>
+          <p class="small"><em>Why it tempts:</em> boot time after a crash drops from minutes to milliseconds, so the check appears to be gone.</p>
+          <p class="small"><strong>The refutation:</strong> the check is still the only tool that can rebuild the structures after a bad log block, a media error, or a deliberately forced scan. It has moved off the normal path, not out of the system.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> journaling replaces the <em>routine</em> full scan; it does not replace the tool.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. "Ordered mode is a stronger journal"</h3>
+          <p class="small"><em>Why it tempts:</em> ordered gives strictly better guarantees than writeback, so it reads as "more journaling".</p>
+          <p class="small"><strong>The refutation:</strong> the journal is identical. The only difference is one ordering rule plus a flush: the data must reach its home block before the commit record does. The write-point count is the same, 24 in this workload for both.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> ordered is the same redo journal with a barrier in front of the commit; the extra guarantee comes from ordering, not from logging more.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Metadata-only journaling is a partial journal, so it is unsound"</h3>
+          <p class="small"><em>Why it tempts:</em> "partial" sounds like "incomplete", and the writeback failure mode makes it look broken.</p>
+          <p class="small"><strong>The refutation:</strong> metadata-only ordered keeps all four invariants at all 25 crash points of this workload. It is sound for the promise it makes — a structurally valid file system — and silent about the promise it does not make.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> ask which promise the question is about before judging the mode. Ordered keeps two of them, writeback one, full data journaling both.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Three kinds of question, three mechanical procedures</h3>
+          <p class="small" style="margin-bottom:0">Every journaling question on this topic is a <strong>count</strong>, an <strong>order</strong>, or a <strong>state</strong>. Decide which before computing anything: a count is answered by a formula, an order by the commit record, and a state by writing the sequence out and replaying to the last commit. Mixing the three is where marks are lost.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — count the block writes</h3>
+          <p class="small"><strong>Asked as:</strong> "the file system writes X blocks of metadata per operation; with a journal, how many block writes does one operation cost?"</p>
+          <p class="small"><strong>Procedure:</strong> count the <em>distinct blocks</em> the transaction touches, call it $$m$$. Journaled cost is $$2m+3$$; unjournaled is $$m$$. If the data is journaled too, use $$2(m+d)+3$$.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> counting one descriptor block per logged block instead of one per transaction. The descriptor is a list, so it is written once.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — count what recovery reads</h3>
+          <p class="small"><strong>Asked as:</strong> "how many disk blocks must be read during recovery?"</p>
+          <p class="small"><strong>Procedure:</strong> the journal, from its tail to its head — at most the journal's size, not the disk's. Here 64 against 262,144, a ratio of 4,096.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> answering with the number of blocks the transaction wrote. Recovery reads the log entries that exist, which includes transactions that were checkpointed but not yet freed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — which ordering is safe</h3>
+          <p class="small"><strong>Asked as:</strong> "which of the following write orders can leave a file whose data was not written?"</p>
+          <p class="small"><strong>Procedure:</strong> ask where the data block sits relative to the commit record. Data before commit — safe. Data after commit — unsafe, in every order. Then, if the question is about in-place order only, ask whether the inode precedes the data: 3 of 6 orders here do.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> judging the order of the metadata blocks. Once the commit is durable, the in-place metadata order stops mattering, because replay overwrites it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — what the commit record makes atomic</h3>
+          <p class="small"><strong>Asked as:</strong> a statement-selection question about what the commit record guarantees.</p>
+          <p class="small"><strong>Procedure:</strong> it makes exactly one transaction all-or-nothing, and it says nothing about the values inside it. Anything stronger — "the data is on disk", "the file is uncorrupted", "the disk is checked" — is false.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> accepting "the commit record guarantees the data reached the disk". That is the durability promise of a flush, not of a journal.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 — the state after a given crash</h3>
+          <p class="small"><strong>Asked as:</strong> "the system crashes after write W of this sequence; what does the disk contain after recovery?"</p>
+          <p class="small"><strong>Procedure:</strong> three steps, in order. Write the sequence out and stop at W. Find the last commit record present. Copy every logged image up to it, and discard the rest. Then read the resulting structures.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> reasoning from intuition about which write "probably" landed. Run the order; the answer is mechanical, and intuition gets the boundary case wrong almost every time.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Where a question usually hides the difficulty</h3>
+          <p class="small">Three places, in order of frequency:</p>
+          <ul class="small">
+            <li><strong>The +3.</strong> A transaction of one block costs 5 writes, not 2 and not 3.</li>
+            <li><strong>Data or metadata.</strong> A question that says "the file system is journaled" without naming the mode cannot be answered about bytes. If the options differ only on data integrity, the intended mode is writeback or ordered, and the wording usually says which.</li>
+            <li><strong>The uncommitted tail.</strong> Entries in the log after the last commit record are present on disk and irrelevant. Counting them as replayed work is the standard error.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">None of these is a trick. Each is a definition applied literally, which is the whole of what this topic asks.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers withheld until you reveal them</h3>
+          <p class="small">Every question here is an <strong>original practice question written for this lesson</strong>; none is quoted as an official GATE question, and no year or paper is claimed for any of them. Each answer states the reasoning, says why the other options fail, and names the trap the question is built on. Use the mock-test switch to hide every answer at once.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until I submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A file-system operation modifies 4 metadata blocks. The file system uses a redo journal that stores the complete new image of each block. Ignoring any data blocks, how many block writes does the journaled operation cost in total?</p>
+          <p class="small">(A) 4 &nbsp; (B) 8 &nbsp; (C) 11 &nbsp; (D) 13</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (C) 11.</strong> One descriptor + 4 images + 1 commit record = 6 log writes; then 4 in-place writes; then 1 head update. $$2m+3 = 2(4)+3 = 11$$.</p>
+            <p class="small"><strong>Why the others fail:</strong> (A) 4 is the unjournaled cost. (B) 8 counts the images twice and forgets the three overhead writes. (D) 13 comes from counting one descriptor per image — 4 + 4 + 4 + 1.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> the descriptor is one block that lists the others. It is not written once per logged image.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A 128-block journal is used by a file system whose transactions each modify 6 metadata blocks and no data blocks. Each transaction occupies one descriptor block, one image block per modified metadata block, and one commit record. What is the largest number of transactions the journal can hold before the head reaches the tail?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 16.</strong> One transaction occupies $$1 + 6 + 1 = 8$$ blocks. $$\lfloor 128/8 \rfloor = 16$$.</p>
+            <p class="small"><strong>Why not 21 or 18:</strong> 21 comes from dividing 128 by 6 and ignoring the two overhead blocks; 18 from forgetting the commit record only. Both undercount the per-transaction footprint.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> the descriptor and the commit record are per transaction, so they are inside the 8, not once per journal.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A journaled file system crashes during a transaction. Which of the following are TRUE?</p>
+          <p class="small">I. Entries written to the journal after the last commit record are ignored during recovery.<br>
+          II. If the crash happened before the commit record was durable, the transaction's in-place writes must be undone.<br>
+          III. Replaying the journal a second time leaves the disk in the same state as replaying it once.<br>
+          IV. Recovery reads the whole disk to find the last commit record.</p>
+          <p class="small">(A) I and III only &nbsp; (B) I, II and III only &nbsp; (C) II and IV only &nbsp; (D) I, III and IV only</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A).</strong> I is the discard rule. III is idempotence: replay copies images, so a second pass writes the same bytes — the model compares the two recovered images and finds them equal.</p>
+            <p class="small"><strong>Why the others fail:</strong> II is false because the write-ahead rule guarantees no in-place write happened before the commit, so there is nothing to undo — a redo journal has no undo pass at all. IV is false because recovery scans the journal, whose head and tail are recorded in header blocks; here that is 64 blocks against 262,144.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> II is the statement people accept, because they import the undo list from database recovery. The file-system journal is redo-only precisely so that no undo is needed.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">An operation appends one data block to a file, so it writes a bitmap block, an inode block and the data block. The journal is in <code>data=writeback</code> mode. Which statement is correct?</p>
+          <p class="small">(A) No crash point can leave the file system inconsistent, because the metadata is journaled.<br>
+          (B) A crash after the commit record but before the data block reaches its home location leaves the file with its new size and foreign bytes in the new block.<br>
+          (C) The file system can end up with two files claiming the same block.<br>
+          (D) The file system can end up with a block marked free that an inode still names.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> Writeback lets the data land after the commit. Replay restores the inode immediately, so from that write point until the data block arrives the file reads whatever the block held before — here, a deleted file's bytes.</p>
+            <p class="small"><strong>Why the others fail:</strong> (A) is exactly the belief this mode refutes: metadata is perfect and the bytes are not, at 7 of 25 crash points in the model. (C) and (D) are metadata failures, and writeback has none of them: 0 of 25.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> the failure is silent. A test that mounts the file system and lists files passes; a test that reads them fails.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A journal holds at most 4096 blocks. Each transaction modifies 30 metadata blocks and 10 data blocks, and the journal is in full data journaling mode, so one descriptor block and one commit record are written per transaction. What is the largest number of complete transactions that can be present in the journal at once?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 97.</strong> In full data journaling the transaction logs its data blocks too, so one transaction occupies $$1 + 30 + 10 + 1 = 42$$ blocks. $$\lfloor 4096/42 \rfloor = 97$$, since $$42 \times 97 = 4074$$ and the remaining 22 blocks cannot hold another transaction.</p>
+            <p class="small"><strong>Why not 102 or 132:</strong> 102 comes from using 40 blocks per transaction, which is metadata only — that is <code>data=ordered</code>, not full data journaling. 132 comes from ignoring the two overhead blocks entirely ($$4096/31$$).</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> the mode decides what is counted. Read the mode before dividing, and remember the descriptor and commit record are per transaction.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A redo journal commits a transaction that writes a block number into an inode, but the block number is wrong: it names a block the bitmap marks free. The system crashes, and recovery replays the journal. What is the state of the file system after recovery?</p>
+          <p class="small">(A) The transaction is discarded, because the value is invalid.<br>
+          (B) The transaction is replayed exactly as written, and the inode now names a free block.<br>
+          (C) Recovery detects the inconsistency and repairs the inode.<br>
+          (D) The file system falls back to the full consistency check and removes the file.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> Replay copies block images. It has no notion of a value being wrong, only of a transaction being committed. The model journals exactly such an inode and the recovered image contains it, with a dangling reference to a free block.</p>
+            <p class="small"><strong>Why the others fail:</strong> (A) confuses "invalid" with "uncommitted". (C) and (D) attribute a repair to recovery that only a consistency check performs — and even then, only if the check is run.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> atomicity and correctness are independent. A journal makes a transaction happen exactly once; it never makes it the right transaction.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — one screen</h3>
+          <p class="small" style="margin-bottom:0">Definitions, the formulas, the decision procedure, and the numbers this lesson computed. If you can reproduce the four-step procedure and the two formulas from memory, the rest is arithmetic.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions</h3>
+          <ul class="small">
+            <li><strong>Transaction</strong> — a set of block writes that must all take effect or none.</li>
+            <li><strong>Write-ahead rule</strong> — a block's new image must be durable in the journal before its home block is overwritten.</li>
+            <li><strong>Descriptor block</strong> — lists the home block of each image that follows it.</li>
+            <li><strong>Commit record</strong> — one block, written after all the images; the transaction is committed exactly when it is durable.</li>
+            <li><strong>Checkpoint</strong> — copying logged images to their home blocks.</li>
+            <li><strong>Recovery</strong> — redo every committed image, discard everything after the last commit record.</li>
+            <li><strong>Revoke record</strong> — marks a block that must not be replayed from an earlier transaction.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The journal stores whole block images, not deltas: however small the change, one whole block is logged.</p>
+        </div>
+
+        <div class="card">
+          <h3>Formulas</h3>
+          <div class="formula small">journaled cost, metadata only: $$2m+3$$</div>
+          <p class="small">for $$m$$ metadata blocks: 1 descriptor, $$m$$ images, 1 commit, $$m$$ in-place writes, 1 head update.</p>
+          <div class="formula small">journaled cost, data too: $$2(m+d)+3$$</div>
+          <p class="small">for $$m$$ metadata and $$d$$ data blocks.</p>
+          <div class="formula small">transactions held: $$\left\lfloor \frac{J}{m+2} \right\rfloor$$</div>
+          <p class="small">for a journal of $$J$$ blocks and $$m$$ metadata blocks per transaction.</p>
+          <div class="formula small">largest transaction: $$J-2$$</div>
+          <p class="small" style="margin-bottom:0">metadata blocks, because the descriptor and the commit record need one block each.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The four-step procedure for any crash question</h3>
+          <div class="step-list small">
+            <div><strong>1.</strong> Write out the sequence of block writes for the mode named, and stop at the crash point.</div>
+            <div><strong>2.</strong> Find the last commit record that is present on disk.</div>
+            <div><strong>3.</strong> Copy every logged image up to and including it; discard the rest. Nothing is undone.</div>
+            <div><strong>4.</strong> Read the resulting bitmap, inodes and data blocks, and check the four invariants.</div>
+          </div>
+          <p class="small" style="margin-bottom:0">This procedure answers every state question, and it never requires a judgement call.</p>
+        </div>
+
+        <div class="card">
+          <h3>The numbers this lesson computed</h3>
+          <p class="small">Three transactions: T1 = 2 metadata + 2 data, T2 = 2 metadata + 0 data, T3 = 2 metadata + 1 data. Eight data blocks, one bitmap, one inode table.</p>
+          <div class="legend small">
+            <div><strong>none</strong> — 9 writes, 10 crash points, 3 metadata failures, 3 byte failures, 4 clean, workload intact at 1</div>
+            <div><strong>writeback</strong> — 24 writes, 25 crash points, 0 metadata, 7 byte, 18 clean, durable at 5, intact at 2</div>
+            <div><strong>ordered</strong> — 24 writes, 25 crash points, 0 metadata, 0 byte, 25 clean, intact at 4</div>
+            <div><strong>journal</strong> — 27 writes, 28 crash points, 0 metadata, 0 byte, 28 clean, intact at 5</div>
+          </div>
+          <p class="small" style="margin-bottom:0">88 recovered images checked in total. 3 of 6 in-place orders expose foreign bytes. A 64-block journal holds 16 transactions and at most 62 metadata blocks. Replay reads 64 blocks instead of 262,144: 4,096 times less.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Traps in one line each</h3>
+          <p class="small" style="margin-bottom:0">A journal is not a log-structured file system — blocks keep their home addresses. A commit record is not durability for the bytes — under writeback, 5 durable crash points are only 2 intact ones. Replay is idempotent — twice equals once. Journaling does not remove the consistency check — it moves it off the boot path. Ordered mode is not a stronger journal — it is the same journal with a barrier. Metadata-only is not unsound — it makes a narrower promise. A leaked block is not corruption; a dangling reference is. And the +3 in $$2m+3$$ is per transaction, never per block.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What the research covered, and where it stopped</h3>
+          <p class="small" style="margin-bottom:0">Four kinds of source were consulted: the official syllabus for the exam year, the kernel documentation for the journal implementation, the original ext3 design paper, and one textbook treatment for the general vocabulary. Every load-bearing claim below is labelled. Nothing here is quoted from a coaching site, and no previous-year question is claimed because none was verified against an official paper for this topic.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <div class="src-list small">
+            <div><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>gate2027.iitm.ac.in</code>, <code>CS_GATE2027_Syllabus.pdf</code> — fetched and read in full. Section 8 reads "System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems." Section 9 names "Transactions and concurrency control". It supports the class B registration and nothing more: journaling is not named.</div>
+            <div><strong>The Linux kernel documentation, ext4 journal (jbd2)</strong>, <code>docs.kernel.org/filesystems/ext4/journal.html</code> — supports the three-phase commit, the commit record, the 10,240,000-block journal ceiling, and the statement that ext4 by default journals only metadata so data blocks are not guaranteed consistent after a crash.</div>
+            <div><strong>The Linux kernel documentation, ext4 mount options</strong>, <code>kernel.org/doc/Documentation/filesystems/ext4/ext4.rst</code> and <code>ext4(5)</code> — supports the definitions of <code>data=journal</code>, <code>data=ordered</code> (marked default), <code>data=writeback</code>, the 5-second default commit interval, and the statement that writeback "can allow old data to appear in files after a crash and journal recovery".</div>
+            <div><strong>The Linux kernel documentation, the journalling API</strong>, <code>docs.kernel.org/filesystems/journalling.html</code> — supports the three-pass recovery: find the end of the log, assemble revoke blocks, replay un-revoked blocks.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Papers and textbooks</h3>
+          <div class="src-list small">
+            <div><strong>S. Tweedie, "Journaling the Linux ext2fs Filesystem" (1998)</strong> — the original ext3 design. Supports the three journal block types (metadata, descriptor, header), the head and tail of the log, the sequence number in header blocks, the rule that a transaction's log space is reusable only after its blocks are written home, and the statement that the journal records whole block contents rather than deltas.</div>
+            <div><strong>M. Rosenblum and J. Ousterhout, "The Design and Implementation of a Log-Structured File System", ACM TOCS 10(1), 1992</strong> — supports the distinction between a journaling file system, which keeps fixed block positions, and a log-structured file system, which makes the whole disk the log.</div>
+            <div><strong>C. Mohan et al., "ARIES: A Transaction Recovery Method"</strong>, and the write-ahead logging treatment in standard operating-systems texts — support the general vocabulary of redo, undo, the commit point and the checkpoint. The file-system journal is the redo-only special case.</div>
+            <div><span class="claim-chip claim-chip--unverified">Unverified claim</span> The claim that a two-fold metadata write amplification is usually invisible in throughput is an engineering judgement from the sequential-write argument, not a measurement made here. No benchmark was run.</div>
+          </div>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What is derived here and what is measured here</h3>
+          <p class="small">The specific numbers — 9 writes, 10 crash points, 6 failures, 88 recovered images, 7 writeback byte failures, 3 of 6 unsafe orders, 4,096-fold replay saving, 16 transactions in a 64-block journal — are all produced by the model in <code>lesson.js</code> and re-verified by 50 checks at page load. They describe <em>this</em> three-transaction workload on <em>this</em> eight-block disk. They are not measurements of any real file system, and no real crash was induced.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The formulas $$2m+3$$, $$\lfloor J/(m+2)\rfloor$$ and $$J-2$$ follow from counting the four phases of a transaction; they are derived on the page and checked against the model's own write-point list.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community observation</h3>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> In discussion of this topic the two points that are most often reported as confusing are (i) whether a commit record means the data is safe, and (ii) whether the file-system journal needs an undo pass like a database log. Both are treated as full misconceptions above with a measurement, not as a matter of opinion. This is a report of what learners say they find hard, not an independent measurement of difficulty.</p>
+        </div>
+
+        <div class="card">
+          <h3>Where the research stopped</h3>
+          <p class="small" style="margin-bottom:0">No previous-year GATE question on journaling was verified against an official paper, so none is quoted and none is labelled a PYQ; all six practice questions are marked original. The jbd2 on-disk structures were read at the level of the documentation, not the source, so block-level field layouts are not claimed. NTFS, XFS and ZFS journals were not studied, so no comparison across file systems is made beyond the one mode table the ext4 documentation states.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
