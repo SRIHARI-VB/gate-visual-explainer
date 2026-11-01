@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Buddy System for Memory Allocation — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">The Buddy System</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../memory-management-and-virtual-memory/index.html">Related: memory management</a>
+      <a href="../dynamic-memory-and-program-layout/index.html">Related: program layout</a>
+      <a href="../file-systems/index.html">Related: file allocation</a>
+      <a href="../memory-hierarchy-and-cache/index.html">Related: memory hierarchy</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The binary buddy system for dynamic memory allocation. A pool of 2 to the m units is kept as a tree of halves; a request is rounded up to a power of two, a free block of that order or larger is found and split, and a release merges with the block's one buddy while the buddy is free.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a pool size and a sequence of requests, compute the block a request receives, the number of splits it costs, the internal fragmentation it leaves, the free lists it produces, the buddy of any block by one XOR, the number of merges a release cascades, and the first request that fails. Then say which of internal and external fragmentation a given state exhibits, and why.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one trick and five consequences</em>: the trick is that a block's partner is its address XOR its size, and the consequences are the split count, the merge cascade, the internal waste bounded by half, the external fragmentation that survives, and the failure of a request while memory is free. Every count on this page — the 3 splits of a 13-unit request, the 126 blocks that pass the XOR test, the 7th of 9 requests that fails, the merge counts 0, 1, 0, 3, the 31 of 64 worst case, and the 32 free units that refuse a 32-unit request — is computed at load by the lesson's own model and re-checked against the property it claims.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside the clause the 2027 syllabus names.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code> and fetched and read again for this lesson, says under Section 8 Operating System: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The syllabus names "memory management" and does not name the buddy system. I register the lesson class A, and the reason is checkable rather than hopeful: buddy allocation is one of the standard contiguous-allocation schemes in that clause, and the repository's published lesson on the clause owns first fit, best fit and worst fit with its own description, so the one allocation scheme of the family it does not cover is this one.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Questions in this shape appear in public GATE question banks — a 1991 matching question pairing "buddy system" with "memory allocation", and more recent variable-partition and allocation questions in the same family. <strong>No previous-year question is quoted as official on this page</strong>, because none was verified against an official paper while writing it. Every question in the Practice tab is labelled original.</p>
+          <p class="small" style="margin-bottom:0">Historical frequency is an observation about past papers, not a prediction for 2027. No weightage claim is made anywhere on this page.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Contiguous allocation, holes and the three fit strategies.</strong> The vocabulary this lesson extends: hole, fragmentation, compaction. Built in <a href="../memory-management-and-virtual-memory/index.html">Memory management and virtual memory</a>.</li>
+            <li><strong>Powers of two and logarithms.</strong> An order is a logarithm; a block of order k is 2 to the k units. Built in <a href="../asymptotic-complexity/index.html">Asymptotic complexity</a> for the growth ladder, and used here only as arithmetic.</li>
+            <li><strong>Binary representation and bitwise XOR.</strong> The buddy rule is one bit flip. Built in <a href="../number-representation-and-arithmetic/index.html">Number representation and arithmetic</a>.</li>
+            <li><strong>Program memory layout.</strong> Why a heap exists at all, so that "who hands out blocks" has a setting. Built in <a href="../dynamic-memory-and-program-layout/index.html">Dynamic memory and program layout</a>.</li>
+            <li><strong>Paging.</strong> Used once, in the comparison scene, to separate contiguous allocation from frame allocation. Built in <a href="../memory-management-and-virtual-memory/index.html">Memory management and virtual memory</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about kernel internals is assumed. The slab allocator of scene 8 is named and not built.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Two questions.</strong> One contiguous run; the halving tree of a 64-unit pool; 127 blocks, 126 with a buddy.</li>
+            <li><strong>Round up, then split.</strong> 13 units in a 128-unit pool: 16, three splits, waste 3, and 112 free in three blocks.</li>
+            <li><strong>The buddy is one bit away.</strong> 24 XOR 8 = 16 in binary, and all 126 blocks pass the parent test.</li>
+            <li><strong>One free list per order.</strong> Nine requests in 1024 units; the seventh, for 120, is refused.</li>
+            <li><strong>Freeing is a cascade.</strong> Four 8-unit blocks released in order: 0, 1, 0 and 3 merges.</li>
+            <li><strong>Internal waste, bounded by half.</strong> Every request from 1 to 64 as a bar; the worst is 31 of 64.</li>
+            <li><strong>External waste.</strong> Four blocks of 16, two released: 32 free units refuse a 32-unit request.</li>
+            <li><strong>Buddy is not paging.</strong> Four axes in one table, and the row that decides a true-or-false.</li>
+            <li><strong>The five question shapes.</strong> Each shape matched to the one quantity it asks for.</li>
+            <li><strong>Four traps.</strong> Neighbour against buddy, half of what, rounding down, and "no external fragmentation".</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Block sizes are powers of two, and a block of size 2 to the k starts at a multiple of 2 to the k. That alignment is the whole system.</li>
+            <li>The buddy of a block is its address XOR its size, so the partner is computed and never searched for.</li>
+            <li>A request is rounded up, then served from the smallest free block that fits, split down to its order. Splits = pool order minus needed order.</li>
+            <li>Internal fragmentation is block minus request, always under half a block, and zero exactly for power-of-two requests.</li>
+            <li>External fragmentation survives: 32 free units can refuse a 32-unit request, because a block merges only with its own buddy.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 45–60 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis, so every timing is estimated from the timeline rather than measured. Four things are deliberately outside the lesson: <strong>the Fibonacci and weighted buddy systems</strong>, named as a family and not built; <strong>the slab allocator</strong>, named as the layer real kernels add; <strong>the derivation of the 25–33 per cent figure</strong>, quoted from the 1977 analysis and not reproduced; and <strong>any claim about weightage</strong>.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 1 — intuition: the chocolate bar</h3>
+              <p class="small">Imagine a bar marked into 64 equal squares that may only be broken along a groove in the middle. Ask for 13 squares and you cannot get 13: you get a piece of 16, because 16 is a piece you can actually break off, and 3 squares of it go unused inside your piece. Ask for 13 again tomorrow and the break is in a different place.</p>
+              <p class="small">That is the whole system. The bar is broken in half, then a half in half, and so on, so the only sizes that exist are 1, 2, 4, 8, 16, 32 and 64. Because every piece was made by halving, every piece has exactly one sibling — the piece it was broken away from — and those two can be stuck back together, while no other pair can.</p>
+              <p class="small" style="margin-bottom:0">The analogy stops here: a chocolate bar has no addresses, and the interesting part of the buddy system is that the sibling can be named with one arithmetic operation.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>Level 2 — formal definition</h3>
+              <p class="small">A <strong>binary buddy allocator</strong> manages a pool of $$2^m$$ units, where a unit is the smallest allocatable block. Every block has an <strong>order</strong> k, an integer from 0 to m, and a block of order k is $$2^k$$ units long and starts at an address that is a multiple of $$2^k$$. A block of order k+1 is the <strong>parent</strong> of the two blocks of order k at the addresses a and $$a + 2^k$$; those two are each other's <strong>buddy</strong>.</p>
+              <p class="small">Two operations define the system:</p>
+              <p class="small"><strong>allocate(n):</strong> let $$k = \lceil \log_2 n \rceil$$ be the order needed. Find the smallest order $$j \ge k$$ whose free list is not empty, remove its first block, and split it down: while j &gt; k, halve the block, keep the lower half as the candidate and put the upper half on the free list of the new order. The candidate at order k is handed to the caller.</p>
+              <p class="small"><strong>release(a):</strong> mark the block at address a, of order k, free. Then while k &lt; m: let $$b = a \oplus 2^k$$. If b is free, remove it from the free list, replace the two blocks by their parent at $$\min(a,b)$$ of order k+1, set a to that parent and k to k+1. Otherwise stop, and put a on the free list of order k.</p>
+              <p class="small" style="margin-bottom:0">The symbol $$\oplus$$ means bitwise exclusive or: write both numbers in binary and keep a 1 only in the positions where they differ.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Why the XOR rule works</h3>
+              <p class="small">A block of order k starts at a multiple of $$2^k$$, so in binary its address has zeros in the lowest k bits. Its parent starts at a multiple of $$2^{k+1}$$, so the two halves agree in every bit above k and differ in bit k, whose value is $$2^k$$.</p>
+              <p class="small" style="margin-bottom:0">Flipping bit k is therefore exactly "go to the other half of my parent", and that is what XOR with $$2^k$$ does. This is a <span class="claim-chip claim-chip--derivation">Mathematical derivation</span>, and the page checks it exhaustively on all 126 blocks below the root of a 64-unit pool.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The invariants that make a state legal</h3>
+              <p class="small">Three properties hold after every operation, and the model re-checks all three after each step it simulates:</p>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Tiling:</strong> the blocks in the state, taken in address order, are contiguous and sum to the pool.</li>
+                <li><strong>Canonical form:</strong> no two free blocks are buddies of each other — if they were, they would already have merged.</li>
+                <li><strong>Lists match the tree:</strong> the free list of order k contains exactly the free blocks of order k.</li>
+              </ul>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous page</button>
+            <span class="small muted" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next page</button>
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>Level 3 — the visual understanding, in words</h3>
+              <p class="small">Draw the pool as one long strip. A split draws a vertical line through a block and writes the new order in both halves; the lower half is what the search continues on, the upper half goes on a shelf. A merge erases a line and writes the coarser order in the joined block. The free lists are shelves labelled by order, and every block is on exactly one shelf or in the hands of a process.</p>
+              <p class="small" style="margin-bottom:0">The reason this picture is worth having: the strip shows why a request can fail while the strip still has free space on it. Free space in two separate places is not free space in one place.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 4 — the quantities a question asks for</h3>
+              <p class="small">Five numbers come out of the two operations, and every question on this topic asks for one of them:</p>
+              <ol class="step-list small" style="margin-bottom:0">
+                <li>The <strong>block size</strong> a request receives: $$2^{\lceil \log_2 n \rceil}$$.
+                  <span class="why">Because only powers of two exist and the block must be at least n.</span></li>
+                <li>The <strong>split count</strong>: m minus the needed order.
+                  <span class="why">Each split lowers the order by one, and the search starts at the pool order.</span></li>
+                <li>The <strong>internal fragmentation</strong>: block minus request.
+                  <span class="why">Waste inside a block somebody already owns.</span></li>
+                <li>The <strong>free lists</strong>: one block per split, at the orders skipped.
+                  <span class="why">Each split releases the half it does not follow.</span></li>
+                <li>The <strong>merge count</strong> of a release: the length of the cascade while the buddy at the current order is free.
+                  <span class="why">Each merge raises the order, and the buddy is recomputed there.</span></li>
+              </ol>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Level 5 — boundaries and constraints</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li>The pool must be a power of two, or the largest block is the largest power of two that fits and the tail is managed separately.</li>
+                <li>A request larger than the pool fails, and so does a request larger than the largest free block.</li>
+                <li>Sizes are powers of two, so a request of exactly $$2^k$$ wastes nothing and a request of $$2^{k-1}+1$$ wastes almost half its block.</li>
+                <li>A block merges only with its buddy, never with a merely adjacent block.</li>
+                <li>An allocated block cannot be moved, so compaction is not available and external fragmentation is permanent until the blocks are released.</li>
+              </ul>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>Level 6 — the sentence to keep</h3>
+              <p class="small" style="margin-bottom:0">The buddy system trades the freedom to merge any two neighbours for the ability to name a partner with one XOR, and everything it is praised for and blamed for follows from that trade.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous page</button>
+            <span class="small muted" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next page</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every count and every run computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A request must receive one contiguous run of memory, not scattered pieces.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two questions and one trick</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A request must receive one contiguous run of memory. Two smaller runs, however generous, are not an answer.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 — a 13-unit request in a 128-unit pool</h3>
+              <p class="small">This is the shape the exam uses most, and it is four lines of arithmetic.</p>
+              <ol class="step-list small">
+                <li>Round up: 13 needs 16, because 8 is too small and 16 is the next power of two.
+                  <span class="why">Sizes are powers of two and the block must be at least the request.</span></li>
+                <li>Take the orders: the pool is $$2^7 = 128$$, so its order is 7; 16 is $$2^4$$, so the needed order is 4.
+                  <span class="why">An order is the logarithm base two of the size.</span></li>
+                <li>Split: 7 − 4 = 3 splits. The pool becomes 64 + 64, then 32 + 32 + 64, then 16 + 16 + 32 + 64.
+                  <span class="why">Each split halves the block being followed and releases the other half.</span></li>
+                <li>Read off the answer: 16 units at address 0, 3 splits, internal fragmentation 16 − 13 = 3, and 112 units still free in blocks of 16, 32 and 64.
+                  <span class="why">16 + 32 + 64 = 112, and 112 + 16 = 128, which is the check.</span></li>
+              </ol>
+              <p class="small" style="margin-bottom:0">The model on this page runs exactly this and reports the same four numbers under the canvas.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 2 — nine requests in 1024 units</h3>
+              <p class="small">Requests in order: 50, 150, 90, 130, 70, 80, 120, 180, 68. Rounded: 64, 256, 128, 256, 128, 128, 128, 256, 128.</p>
+              <ol class="step-list small">
+                <li>50 takes 64 at address 0, costing 4 splits: free 64 at 64, 128 at 128, 256 at 256, 512 at 512.</li>
+                <li>150 takes the free 256 at 256; 90 takes the free 128 at 128.</li>
+                <li>130 takes 256 from the free 512 at 512, costing 1 split and leaving 256 free at 768.</li>
+                <li>70 and 80 take the free 128 at 768 and the 128 the split released at 896.</li>
+                <li>120 needs 128. Nothing of order 7 or above is free, and the only free block is a 64 at address 64, so it fails.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">Totals: 6 served, 3 refused, 6 splits, 960 units allocated, 64 free in one block. A refused request changes nothing, so the state after nine requests is the state after six.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 3 — the merge cascade</h3>
+              <p class="small">A 64-unit pool. Four requests of 8 units land at 0, 8, 16 and 24, costing 3 + 0 + 1 + 0 = 4 splits.</p>
+              <ol class="step-list small">
+                <li>Release 0: its buddy is 8, which is in use, so 0 merges. Free list order 3 holds 0.</li>
+                <li>Release 8: its buddy is 0, which is free, so the two become a 16 at address 0. One merge.</li>
+                <li>Release 16: its buddy is 24, in use, so it merges. Free list order 3 holds 16.</li>
+                <li>Release 24: 16 joins it into a 32 at 16; the buddy of 16 at order 4 is 0, which is free, so a 32 at 0; the buddy of 0 at order 5 is 32, which is free, so the whole 64. Three merges.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">Total merges 0 + 1 + 0 + 3 = 4, equal to the 4 splits, and the pool is one free 64-unit block again. That equality is a good check on any simulation.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous page</button>
+            <span class="small muted" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next page</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 4 — the external-fragmentation witness</h3>
+              <p class="small">A 64-unit pool, four requests of 16 units, which fill it exactly at addresses 0, 16, 32 and 48. Now release the block at 16 and the block at 48.</p>
+              <ol class="step-list small">
+                <li>Free total is 32 units, in two blocks of 16. Largest free block is 16.</li>
+                <li>The buddy of 16 is $$16 \oplus 16 = 0$$, which is allocated. So no merge.</li>
+                <li>The buddy of 48 is $$48 \oplus 16 = 32$$, which is allocated. So no merge.</li>
+                <li>A request for 32 units needs a block of order 5. None exists, and none can be made from a block of order 4, so the request is refused.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">This is the four-line answer to any true-or-false statement of the form "the buddy system suffers no external fragmentation". The published descriptions say it has <em>little</em> external fragmentation, which is a different sentence and a true one.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 5 — where the internal waste peaks</h3>
+              <p class="small">For each request n, the block is $$2^{\lceil \log_2 n \rceil}$$ and the waste is block minus n. Two facts come out of the table for n from 1 to 64:</p>
+              <ul class="small">
+                <li>The waste is zero exactly when n is a power of two — 1, 2, 4, 8, 16, 32, 64, seven requests out of sixty-four.</li>
+                <li>The worst case is the smallest request that needs the next order up: 33 takes 64 and wastes 31, a ratio of $$31/64 = 0.484375$$.</li>
+              </ul>
+              <p class="small">The ratio is always one half minus one over the block size, so it is strictly under one half and approaches it as the order grows.</p>
+              <p class="small" style="margin-bottom:0">Averaged over uniform requests from 1 to 64, the waste is 0.22265625 of what is allocated. The 1977 analysis of the binary buddy system reports 25 to 33 per cent of allocated memory for the request distributions it studied — a different request mix, not a contradiction.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Counterexample — "a buddy is the block next to mine"</h3>
+              <p class="small">Take a 64-unit pool with four 16-unit blocks at 0, 16, 32 and 48, and release 16 and 48. In the free list of order 4 the two entries are neighbours, and they are <strong>not</strong> buddies: 16 pairs with 0 and 48 pairs with 32.</p>
+              <p class="small" style="margin-bottom:0">So a free list that shows two blocks of the same order tells you nothing about whether they can be combined. The addresses decide it, and the test is one XOR.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Closely confused pair — internal against external</h3>
+              <p class="small"><strong>Internal</strong> waste is inside a block that has been handed out: 13 requested, 16 given, 3 lost. It is bounded by half a block, and it is invisible to the allocator.</p>
+              <p class="small" style="margin-bottom:0"><strong>External</strong> waste is free space that cannot be used because no single run is long enough: 32 free units and a 32-unit request refused. It is unbounded in principle, and it is exactly what compaction repairs and a buddy allocator cannot.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous page</button>
+            <span class="small muted" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next page</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>The root has no buddy</h3>
+          <p class="small">A 64-unit pool has 127 blocks in its tree, and only 126 of them have a buddy inside the pool: the single block of order 6 is the whole pool, and its "buddy" would be outside it. Any counting question that says "every block has a buddy" is off by one.</p>
+          <p class="small" style="margin-bottom:0">The model enumerates all 126 and reports 126 of 126 passing the parent test.</p>
+        </div>
+
+        <div class="card">
+          <h3>A request of exactly a power of two</h3>
+          <p class="small">Ask for 16 in a 128-unit pool and no split happens if a 16 is free; if only larger blocks are free, the splits stop exactly at order 4 and the waste is zero. Seven of the sixty-four requests from 1 to 64 are like this.</p>
+          <p class="small" style="margin-bottom:0">This is the case where the internal-fragmentation formula gives 0, and it is the fastest sanity check on a hand calculation.</p>
+        </div>
+
+        <div class="card">
+          <h3>A request larger than the pool, or of size zero</h3>
+          <p class="small">A request above the pool order cannot be served by any split, so it fails immediately. A request of zero units has no order, and a real allocator returns either a null pointer or a minimum-size block depending on its contract.</p>
+          <p class="small" style="margin-bottom:0">Neither case is a fragmentation question, and neither should be answered with a free-list argument.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A pool that is not a power of two</h3>
+          <p class="small">Real systems rarely have a pool of exactly $$2^m$$ units. The usual arrangement is to take the largest power of two that fits as the buddy arena and manage the remainder with a different allocator; the buddy tree then simply does not cover all of memory.</p>
+          <p class="small" style="margin-bottom:0">If a question gives a pool of 2000 units and a unit of 4, the arena is 1024 and the rest is outside the tree — do not silently round the pool up.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Releasing a block twice, or releasing a block that is not the start of one</h3>
+          <p class="small">Releasing the same address twice would put a block on a free list twice and eventually hand the same memory to two owners. Releasing an address inside a block, rather than its start, corrupts the tree the same way.</p>
+          <p class="small" style="margin-bottom:0">A buddy allocator is entitled to assume this never happens; the page's model refuses a release of an address that is not currently allocated, and reports it.</p>
+        </div>
+
+        <div class="card">
+          <h3>The smallest unit and the deepest order</h3>
+          <p class="small">Order 0 is the smallest block the system hands out. Making it small reduces waste and increases the size of the free lists; making it large reduces bookkeeping and increases waste. This is a design choice, not a property of the algorithm.</p>
+          <p class="small" style="margin-bottom:0">A question that fixes the unit is fixing this choice; a question that fixes only the pool has left it open, and the answer depends on it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Merging with a bigger free neighbour</h3>
+          <p class="small">Suppose a free 8 sits beside a free 16 that is not its buddy. No merge is possible, and none is attempted: the buddy of the 8 is fixed by its address, and the 16 is a different block at a different order.</p>
+          <p class="small" style="margin-bottom:0">This is why a buddy allocator's free lists can show a large total and still refuse a moderately large request.</p>
+        </div>
+
+        <div class="card">
+          <h3>The cascade length is bounded by the pool order</h3>
+          <p class="small">A release merges at most m times, because each merge raises the order by one and the root has order m. That is the O(log) claim about freeing, stated exactly.</p>
+          <p class="small" style="margin-bottom:0">The longest cascade on this page is 3 merges in a 64-unit pool, well inside the bound of 6.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>"A block's buddy is the block next to it"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the buddy is almost always adjacent in memory, and the pictures always draw it that way, so "next to" feels like the definition.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a 64-unit pool with four 16-unit blocks at 0, 16, 32 and 48; release 16 and 48. Both are free and they are not adjacent, and even the adjacent pairs (0, 16) and (32, 48) are the only buddy pairs in the pool.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the buddy is fixed by the parent: the block at address a of size $$2^k$$ has buddy $$a \oplus 2^k$$. Adjacency is necessary and not sufficient.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"Internal waste is at most half the pool"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the number one half appears in the correct statement, and the denominator is left out.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a request of 33 units takes a 64-unit block, wasting 31. That is 48.4 per cent of the block and, in a 4096-unit pool, 0.76 per cent of the pool.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the waste is strictly under half of the allocated block, and can be an arbitrarily small fraction of the pool.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"The buddy system has no external fragmentation"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the algorithm is usually introduced as a fix for the fragmentation of first fit, and published descriptions say it has <em>little</em> external fragmentation.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the four-16 witness above. Free total 32, largest free block 16, request 32 refused.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a block merges only with its buddy, so free space can be stranded in blocks that never join. "Less than first fit" is the true comparative claim.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"A free release always merges something"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the merge loop is the interesting part of the algorithm, so it is remembered as always running.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> release the block at address 0 when its buddy at 8 is still allocated — zero merges. In the page's cascade, two of the four releases merge nothing.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the cascade runs while the buddy at the current order is free, and stops at the first buddy that is in use.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>"Round the request to the nearest power of two"</h3>
+          <p class="small"><strong>Why it tempts:</strong> "nearest" is what rounding usually means, and 13 is nearer 16 than 8 by a wide margin, so the mistake rarely shows on a small example.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a request of 9 units. Rounding to the nearest power of two gives 8, which is smaller than the request; the correct allocation is 16.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> round up, always. An allocation smaller than the request is a buffer overflow, not a policy.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>"The buddy system is a paging scheme"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both divide memory into power-of-two pieces and both are described as "memory management".</p>
+          <p class="small"><strong>Distinction:</strong> a buddy allocation is one contiguous run of addresses; paging hands out frames anywhere and translates through a page table. A buddy allocation has external fragmentation; paging cannot, because every free frame is interchangeable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> contiguity is the word that separates them, and it is the word a true-or-false statement turns on.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The five shapes, and the procedure for each</h3>
+          <p class="small" style="margin-bottom:0">Nothing on this page is quoted as an official previous-year question, because none was verified against an official paper. What follows is the set of shapes the topic supports, each with the one quantity it asks for and the mistake that shape invites.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — which request fails first</h3>
+          <p class="small"><strong>Procedure:</strong> keep a strip and the free lists; for each request round up, search upward from the needed order, split, and stop at the first refusal. Report the index, not the total.</p>
+          <p class="small"><strong>Computed here:</strong> the seventh of nine requests, for 120 units, in a 1024-unit pool.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach:</strong> summing the free space and comparing with the request. Free total 64 and a request of 120 is a failure; free total 64 and a request of 64 is not, and the sum cannot tell them apart.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — size, splits and internal fragmentation</h3>
+          <p class="small"><strong>Procedure:</strong> $$k = \lceil \log_2 n \rceil$$, block $$= 2^k$$, splits = pool order − k, waste = block − n. Four lines, no simulation.</p>
+          <p class="small"><strong>Computed here:</strong> 13 in 128 gives 16, 3 and 3.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach:</strong> counting the halvings by drawing them, which is slow and off by one at the last step, because the final block is not split again.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — the free lists after a sequence</h3>
+          <p class="small"><strong>Procedure:</strong> one block per split, at the order the split released. Sort by address inside each order. Then check the invariants: the blocks tile the pool, and no two free blocks are buddies.</p>
+          <p class="small"><strong>Computed here:</strong> after 13 in 128, order 4 holds 16, order 5 holds 32, order 6 holds 64, total free 112.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach:</strong> forgetting the block released by the last split, which loses 16 units and breaks the tiling check.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — the buddy of a given block</h3>
+          <p class="small"><strong>Procedure:</strong> XOR the address with the size. If the question asks whether two given blocks are buddies, XOR each with its size and compare.</p>
+          <p class="small"><strong>Computed here:</strong> size 8 at address 24 pairs with 16; size 16 at 48 pairs with 32.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach:</strong> adding or subtracting the size. That gives the next or previous block, which is usually not the buddy — 24 + 8 = 32 is a different block from 16.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 — merges on release</h3>
+          <p class="small"><strong>Procedure:</strong> merge, raise the order, recompute the buddy at the new order, repeat while that buddy is free. Count each merge.</p>
+          <p class="small"><strong>Computed here:</strong> four releases give 0, 1, 0 and 3 merges, total 4, equal to the 4 splits.</p>
+          <p class="small" style="margin-bottom:0"><strong>The wrong approach:</strong> merging only once, or reusing the first buddy at every order. Both undercount, and the second is wrong even when the first merge is right.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The two statements that decide a true-or-false</h3>
+          <p class="small">"The buddy system has no external fragmentation" — false, and the four-16 witness settles it in four lines.</p>
+          <p class="small" style="margin-bottom:0">"Every free block's buddy is allocated" — not quite: it is true in a canonical state, because two free buddies would have merged. A question that says "the buddy of a free block must be allocated" is relying on that canonical form, so check whether the state given is canonical before agreeing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers withheld until you reveal them</h3>
+          <p class="small">Every question here is an <strong>original practice question written for this lesson</strong>; none is quoted as an official GATE question. Each answer states the reasoning, says why the other options fail, and names the trap the question is built on. Use the mock-test switch to hide every answer at once.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until I submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A binary buddy allocator manages a pool of 512 units and the smallest block is 1 unit. A process requests 100 units and the pool is entirely free. What does the request receive, and at what cost?</p>
+          <p class="small">(A) 128 units, 2 splits, 28 units of internal fragmentation<br>
+          (B) 128 units, 3 splits, 28 units of internal fragmentation<br>
+          (C) 100 units, 0 splits, 0 units of internal fragmentation<br>
+          (D) 256 units, 1 split, 156 units of internal fragmentation</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A).</strong> 100 needs order 7, because $$2^6 = 64 &lt; 100 \le 128 = 2^7$$. The pool is $$2^9$$, so the split count is 9 − 7 = 2: 512 becomes 256 + 256, and the 256 becomes 128 + 128. Waste is 128 − 100 = 28.</p>
+            <p class="small"><strong>Why the others fail:</strong> (B) counts three halvings instead of two, which is the off-by-one of counting the final block as split again. (C) is impossible, since only powers of two exist. (D) jumps an order and then reports the waste of the wrong block.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> the split count is a subtraction of orders, not a count of lines drawn.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A buddy allocator manages a pool of 1024 units. Requests arrive in this order: 200, 60, 130, 300, 90. Allocations are first fit over the free lists, starting at the needed order and moving up. How many units are free after all five requests have been processed?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 320.</strong> The trace: 200 takes 256 at address 0 with 2 splits, leaving 256 free at 256 and 512 free at 512. 60 takes 64 at 256 with 2 splits, leaving 64 free at 320 and 128 free at 384. 130 takes 256 at 512 with 1 split, leaving 256 free at 768. 300 needs 512, and no block of order 9 is free, so it is refused. 90 takes the free 128 at 384.</p>
+            <p class="small" style="margin-bottom:0">The final state is 256 + 64 + 64 + 128 + 256 + 256 = 1024, with 960 + 64 in use and 320 free in two blocks: 64 at 320 and 256 at 768. <strong>Trap:</strong> the 300 request fails, and a failed request must leave the lists untouched — carrying it forward as an allocation gives 192 instead.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">Which of the following statements about the binary buddy system are TRUE?</p>
+          <p class="small">I. Serving a request of size n from a pool of $$2^m$$ units costs $$m - \lceil \log_2 n \rceil$$ splits when the pool is free.<br>
+          II. A block of size 8 units may begin at address 12.<br>
+          III. In a canonical state, the buddy of a free block is either allocated or merged into a larger free block.<br>
+          IV. Releasing a block always merges at least once.</p>
+          <p class="small">(A) I and III only<br>(B) I and IV only<br>(C) II and III only<br>(D) I, II and III only</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A).</strong> I is the order subtraction. III is the canonical-form invariant: two free buddies would already have merged, so a free block's buddy is in use or is part of a bigger free block.</p>
+            <p class="small"><strong>Why the others fail:</strong> II is false because a block of size 8 must start at a multiple of 8, and 12 is not one — an unaligned block has no buddy under the XOR rule. IV is false: releasing address 0 when its buddy at 8 is allocated merges nothing.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> II is the alignment condition, which is the assumption the XOR rule rests on. Without it there is no buddy to compute.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">Which situation can arise under binary buddy allocation but never under paging?</p>
+          <p class="small">(A) A process is given more memory than it asked for.<br>
+          (B) A request is refused although the total free memory exceeds the request.<br>
+          (C) The last page of a process is partly unused.<br>
+          (D) Memory is divided into fixed-size pieces.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> That is external fragmentation, and the witness is four 16-unit blocks with the second and fourth released: 32 units free, largest free block 16, a 32-unit request refused.</p>
+            <p class="small"><strong>Why the others fail:</strong> (A) is internal fragmentation and happens under paging too, in the last page. (C) is exactly paging's internal waste. (D) describes both schemes, since pages are fixed-size pieces.</p>
+            <p class="small" style="margin-bottom:0"><strong>Distinction:</strong> buddy allocation is contiguous, so free space can be stranded; frames are interchangeable, so it cannot.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A buddy allocator manages a pool of 256 units. Requests of 40, 70 and 100 units arrive in that order and are served first fit. What is the size of the largest free block after all three requests have been processed?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 64.</strong> 40 takes 64 at address 0 with 2 splits, leaving 64 free at 64 and 128 free at 128. 70 takes the free 128 at 128 with no split. 100 needs 128, and the only free block is the 64 at 64, so it is refused.</p>
+            <p class="small" style="margin-bottom:0">The largest free block is therefore 64 units. <strong>Trap:</strong> the question asks for the largest free block, not the free total — here they happen to be equal, which is exactly the case that hides the difference between them.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">In a 64-unit buddy pool, a 16-unit block is allocated at address 48. What is the address of its buddy?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 32.</strong> $$48 \oplus 16 = 32$$: in binary, 48 is 110000 and 16 is 010000, and they differ only in bit 4, so flipping that bit gives 010000, which is 32.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> 48 − 16 = 32 happens to be right here, which is a coincidence of this address. The safe rule is XOR, and the test of a candidate answer is whether the two blocks are the two halves of one aligned parent — 32 and 48 are, since both lie in the parent at 32 of size 32.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q7</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A 64-unit buddy pool is empty. Four requests of 8 units are served, at addresses 0, 8, 16 and 24. The blocks are then released in the order 0, 8, 16, 24. How many merges occur in total?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 4.</strong> Release 0: buddy 8 is in use, 0 merges. Release 8: buddy 0 is free, one merge into a 16 at 0. Release 16: buddy 24 is in use, 0 merges. Release 24: 16 joins into a 32 at 16, whose buddy 0 at order 4 is free, so a 32 at 0, whose buddy 32 at order 5 is free, so the whole 64 — three merges.</p>
+            <p class="small" style="margin-bottom:0">Total 0 + 1 + 0 + 3 = 4, which equals the four splits the allocations cost. <strong>Trap:</strong> the release order matters. Releasing 0, 16, 8, 24 gives a different sequence of merges with the same total, so a question that fixes the order is fixing the intermediate answers too.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q8</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A 64-unit buddy pool has four 16-unit blocks at 0, 16, 32 and 48, and the blocks at 16 and 48 have just been released. Which of the following are TRUE of this state?</p>
+          <p class="small">I. It is a canonical state.<br>
+II. The two free blocks are buddies of each other.<br>
+III. A request for 32 units fails.<br>
+IV. The free total is 32 units.</p>
+          <p class="small">(A) I, III and IV only<br>(B) II and III only<br>(C) I and II only<br>(D) III and IV only</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A).</strong> The state is canonical because no two free blocks are buddies — 16 pairs with 0 and 48 pairs with 32, both of which are in use. III holds because no block of order 5 exists. IV holds because 16 + 16 = 32.</p>
+            <p class="small"><strong>Why the others fail:</strong> II is the misconception this question is built on: the two free blocks are neighbours in the free list and are not buddies. Any option containing II is wrong for that reason alone.</p>
+            <p class="small" style="margin-bottom:0"><strong>Counterexample built into the question:</strong> this is the state that refutes "the buddy system has no external fragmentation".</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Order k:</strong> block size $$2^k$$ units, aligned to a multiple of $$2^k$$.</li>
+            <li><strong>Buddy:</strong> the other half of the parent — address $$\oplus$$ size.</li>
+            <li><strong>Split:</strong> halve a block; keep the lower half, shelve the upper.</li>
+            <li><strong>Merge:</strong> join a block with its buddy while the buddy is free, raising the order each time.</li>
+            <li><strong>Internal fragmentation:</strong> block minus request, inside a block already handed out.</li>
+            <li><strong>External fragmentation:</strong> free space that cannot serve a request because no single run is long enough.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The formulas</h3>
+          <p class="small">block $$= 2^{\lceil \log_2 n \rceil}$$</p>
+          <p class="small">splits $$= m - \lceil \log_2 n \rceil$$</p>
+          <p class="small">internal waste $$= 2^{\lceil \log_2 n \rceil} - n$$, strictly under half the block</p>
+          <p class="small">buddy $$= a \oplus 2^k$$, and $$\oplus$$ twice returns a</p>
+          <p class="small" style="margin-bottom:0">merges $$\le m$$, because each merge raises the order by one</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The numbers on this page</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>13 in 128: 16 units, 3 splits, waste 3, 112 free in three blocks.</li>
+            <li>64-unit pool: 127 blocks, 126 with a buddy.</li>
+            <li>Nine requests in 1024: 6 served, 6 splits, 960 out, 64 free; the seventh (120) fails first.</li>
+            <li>Cascade: splits 4, merges 0 + 1 + 0 + 3 = 4.</li>
+            <li>Worst internal waste 31 of 64 at a request of 33; average over uniform 1..64 is 0.22265625.</li>
+            <li>External witness: 32 free, largest 16, request 32 refused.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five checks before you answer</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Did I round <em>up</em>?</li>
+            <li>Is the request failing on the largest free block, not on the free total?</li>
+            <li>Is the "buddy" I found one XOR away, or merely next door?</li>
+            <li>Did I recompute the buddy at every order in the cascade?</li>
+            <li>Does my free list plus my allocated blocks add up to the pool?</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>CS_GATE2027_Syllabus.pdf</code>, fetched and read again while writing this lesson. Supports: the wording of Section 8, which names "Memory management and virtual memory" and does not name the buddy system, and therefore the class A registration and the reasoning beside it. Supports nothing about weightage, which the document does not state.</p>
+          <p class="small" style="margin-bottom:0">No official GATE question paper was read for this lesson, so no previous-year question is quoted anywhere on the page.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and reference</h3>
+          <p class="small"><strong>J. L. Peterson and T. A. Norman, "Buddy Systems", <em>Communications of the ACM</em> 20(6), June 1977</strong> — supports: the allocation procedure as a search up the free lists followed by splits, the release procedure with recombination, the family of buddy systems defined by a recurrence on block sizes (binary, Fibonacci, weighted), the statement that the binary system's internal fragmentation is 25 to 33 per cent of allocated memory for the distributions studied, and the observation that buddy systems suffer both internal and external fragmentation.</p>
+          <p class="small" style="margin-bottom:0"><strong>D. E. Knuth, <em>The Art of Computer Programming</em>, Vol. 1, §2.5</strong> — the original description, cited by the paper above. The paper's attribution is what this lesson relies on: the scheme was invented by Harry Markowitz in 1963 and first described by Kenneth C. Knowlton in 1965. Knuth's text itself was not read for this lesson.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community and cross-check</h3>
+          <p class="small"><strong>Wikipedia, "Buddy memory allocation"</strong> — used as a cross-check on the order terminology, the alignment requirement, the one-line statement that the buddy's address is the block's address XOR its size, the O(log) bound on freeing, the 66 K to 128 K example of internal waste, and the slab allocator as the layer added on top.</p>
+          <p class="small" style="margin-bottom:0"><strong>Public GATE question banks</strong> — used only to establish that the topic is asked in this shape (a 1991 matching question, and recent allocation questions in the same family). Treated as a <span class="claim-chip claim-chip--community">Community observation</span>, never as an official source, and no question text is reproduced from them.</p>
+        </div>
+
+        <div class="card">
+          <h3>How the numbers on this page were produced</h3>
+          <p class="small" style="margin-bottom:0">Every count comes from the lesson's own model in <code>lesson.js</code>: a buddy allocator with one free list per order, which records every split and merge and re-checks three invariants after each operation (the blocks tile the pool, no two free buddies survive, the lists agree with the tree). It runs the 13-in-128 trace, the nine-request sequence in 1024 units, the four-request cascade, the external witness, and the waste table for requests 1 to 64. Forty checks re-verify the numbers at load and are reported under the canvas. No figure on this page was typed from memory.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the research did not settle</h3>
+          <p class="small">The 25 to 33 per cent figure is quoted from the 1977 paper and its derivation was not reproduced; the page's own 0.22265625 is a different average over a different request mix and is presented as such, not as a correction.</p>
+          <p class="small">The Fibonacci and weighted buddy systems are named as members of the family and are not built, so no claim is made about their waste beyond the paper's qualitative ordering.</p>
+          <p class="small" style="margin-bottom:0">Whether any specific GATE paper carried a buddy-system question was not verified from an official paper, so no year and no question number appear as a citation for one.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
