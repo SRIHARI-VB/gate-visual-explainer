@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multidimensional Arrays in C: Array-of-Arrays Types, Decay and the Pointer-to-Array — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Multidimensional Arrays: Types, Decay and the Pointer-to-Array</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../pointers-in-c/index.html">Related: Pointers in C</a>
+      <a href="../arrays-stacks-queues/index.html">Related: Arrays, Stacks and Queues</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Multidimensional arrays in C — what the type <span class="mono">int a[3][4]</span> actually is, what each expression made from it becomes, and why a pointer to an array and a pointer to a pointer are not interchangeable.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a declaration such as <span class="mono">int a[3][4]</span>, state its size, the size of <span class="mono">a[0]</span> and the size of <span class="mono">a[0][0]</span>; name the type each expression decays to; say how many bytes <span class="mono">a + 1</span>, <span class="mono">a[0] + 1</span> and <span class="mono">&amp;a + 1</span> move; write a function parameter that accepts the array and say which dimension is ignored; and compute a cell address in row-major and column-major order and back-solve a base address from two given cells.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one type read carefully</em>. Every number in the lesson — 48, 16, 4, the three strides, the twelve verified addresses, the two order formulas — is a consequence of the sentence "a is an array of three arrays of four ints". Nothing here is a rule to memorise.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, Section 4 <em>Programming and Data Structures</em>, reads: <em>"Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> The clause <em>Arrays</em> is named, and this lesson owns the multidimensional case of that clause. That wording was read from the official GATE 2027 CS syllabus PDF published by IIT Madras during this run.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Two-dimensional address arithmetic is a long-standing question shape in GATE CSE papers; one such item is discussed in the lesson next door, <a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a>. <strong>No previous-year question is quoted in this lesson</strong>, because the items this run could find were not checked against the paper itself. Every practice item is original and labelled as such.</p>
+          <p class="small" style="margin-bottom:0">Why this lesson rather than a repeat: <a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a> owns the address formula and row-major against column-major. It does not own the <em>type</em> — the nesting, the decay, the parameter adjustment, or the pointer-to-array against array-of-pointers distinction. This lesson is that half, and it links back rather than re-teaching the formula.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Pointers and pointer arithmetic.</strong> <span class="mono">&amp;</span>, <span class="mono">*</span>, and the rule that <span class="mono">+1</span> is scaled by the pointed-to type. Built in <a href="../pointers-in-c/index.html">Pointers in C</a>.</li>
+            <li><strong>Array address arithmetic.</strong> <span class="mono">a[i]</span> is <span class="mono">*(a + i)</span>, and row-major order. Built in <a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a>.</li>
+            <li><strong>Types, conversions and <span class="mono">sizeof</span>.</strong> Built in <a href="../c-fundamentals/index.html">C Fundamentals</a>.</li>
+            <li><strong>Declarators.</strong> How to read <span class="mono">int (*p)[4]</span> from the inside out. Introduced in <a href="../function-pointers/index.html">Function Pointers</a>, which uses the same parentheses.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">No dynamic allocation is required except in one example on the Edge cases tab. No C++ reference types, no variable-length arrays beyond a single remark, and no compiler internals.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument, all drawn from a type model that is built as nesting and then measured:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li>Three <span class="mono">sizeof</span> answers settle whether a is a pointer.</li>
+            <li>The declarator read outwards: an array whose elements are arrays.</li>
+            <li>The array-to-pointer rule applied at each of the three levels.</li>
+            <li>One address, three types, and what <span class="mono">+1</span> does to each.</li>
+            <li>Two dereferences, verified on all twelve cells.</li>
+            <li>The same 48 bytes read through an <span class="mono">int **</span>.</li>
+            <li>The parameter rule, and why <span class="mono">int a[][]</span> will not compile.</li>
+            <li><span class="mono">int (*p)[4]</span> against <span class="mono">int *q[4]</span>, and the ragged table.</li>
+            <li>Forward address arithmetic, then the same formula backwards.</li>
+            <li>Four steps and the five traps.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Conventions used throughout</h3>
+          <p class="formula">sizeof(int) = 4, sizeof(pointer) = 8<span class="gloss">Stated once so the arithmetic is fixed. The conclusions do not depend on these two numbers; only the byte counts do.</span></p>
+          <p class="formula">a is int[3][4] at address 1000<span class="gloss">Three rows of four ints, one contiguous object of 48 bytes, running from 1000 to 1047.</span></p>
+          <p class="formula">a[i][j] means *(*(a + i) + j)<span class="gloss">The standard defines E1[E2] as *((E1) + (E2)), so the two-dereference form is the definition and the bracket form is shorthand.</span></p>
+          <p class="formula">the twelve cells hold 1000, 1004, ... 1044<span class="gloss">A teaching choice, not a claim about C. The stored integers are chosen to be the cell addresses so that the int ** misread in scene 6 produces one visible number you can check, rather than an arbitrary one.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The type is built in the page's model as <span class="mono">arrayOf(3, arrayOf(4, int))</span>, and every size, stride and address is read off that structure. The twelve cell addresses are computed twice — by the index formula and by the pointer walk — and compared, rather than asserted.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Approximate study time</h3>
+          <p class="small">About 40 to 55 minutes for the ten scenes and the Build-up tab, plus 25 minutes for the practice set. This is an estimate, not a measurement.</p>
+          <p class="small" style="margin-bottom:0">The animation is the same lesson as the written tabs, not a decoration of it: if the canvas cannot draw, the caption band still runs, and the Build-up, Examples, Edge cases and Revision tabs carry every size, stride and address in words.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>How this differs from the lesson next door</h3>
+          <p class="small"><a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a> answers <em>where is the cell</em>: it gives <span class="mono">address = base + (i - L1) * cols + (j - L2)) * w</span>, works row-major against column-major, and computes an address on a declared array. That is the arithmetic half.</p>
+          <p class="small" style="margin-bottom:0">This lesson answers <em>what is the expression</em>: which type each name has, what it decays to, how big each pointer step is, and why a function parameter loses only its first dimension. The two meet at exactly one point — the address formula — and this lesson links to it there instead of repeating the derivation. If you have not read the arithmetic half, read it after scene 5.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 1 — Intuition: a row of drawers, each holding a row of pigeonholes</h3>
+              <p class="small">A filing cabinet has three drawers, and each drawer has four pigeonholes. The cabinet is one object. There is no list on the front saying where each drawer starts — you know, because every drawer is the same width. Ask for "drawer 2, hole 3" and anyone who knows the drawer width can walk straight there.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries exactly two facts: the rows are inside one object, and their positions are computed from a width rather than looked up. It does not carry the type system, which is the rest of this lesson.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 2 — Formal definition</h3>
+              <p class="small"><span class="mono">int a[3][4];</span> declares an object <span class="mono">a</span> of type <span class="mono">int[3][4]</span>. Read the declarator outwards: <span class="mono">a</span> is an array of 3 elements, each element is an array of 4 <span class="mono">int</span>.</p>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> C11 6.7.6.2 requires the element type of an array to be complete. <span class="mono">int[4]</span> is complete, so <span class="mono">int[3][4]</span> is a legal declaration; <span class="mono">int[][]</span> is not, because its element type would be the incomplete type <span class="mono">int[]</span>.</p>
+              <p class="small" style="margin-bottom:0">The standard's conversion rule, C11 6.3.2.1p3: <em>"Except when it is the operand of the sizeof operator or the unary &amp; operator, or is a string literal used to initialize an array, an expression that has type 'array of type' is converted to an expression with type 'pointer to type' that points to the initial element."</em> The blank is filled with the <em>element</em> type — here <span class="mono">int[4]</span>, not <span class="mono">int</span>.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 3 — The three levels, in one table</h3>
+              <p class="small"><span class="mono">a</span> has type <span class="mono">int[3][4]</span>, size 48, and decays to <span class="mono">int (*)[4]</span>.</p>
+              <p class="small"><span class="mono">a[0]</span> has type <span class="mono">int[4]</span>, size 16, and decays to <span class="mono">int *</span>.</p>
+              <p class="small"><span class="mono">a[0][0]</span> has type <span class="mono">int</span>, size 4, and does not decay.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 48 = 3 × 16 and 16 = 4 × 4. The sizes nest exactly as the types do, which is the check that the reading is right.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Level 5 — Boundaries and constraints</h3>
+              <p class="small">The array-to-pointer conversion happens <em>once</em> per expression, at the level you are standing on. It does not cascade inside a single expression: <span class="mono">a</span> becomes a pointer to a row, and it stays a pointer to a row until you dereference it.</p>
+              <p class="small">A function parameter declared as an array is adjusted to a pointer before anything else is analysed (C11 6.7.6.3p7). Only the outermost dimension is discarded, so <span class="mono">sizeof</span> inside the callee is the size of a pointer.</p>
+              <p class="small" style="margin-bottom:0">A pointer may point at an incomplete type — <span class="mono">int (*a)[]</span> is legal — but arithmetic through it is not, because pointer arithmetic needs the pointed-to type to be complete (C11 6.5.6p2).</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 1 of 3</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 4 — Worked example: one address, three expressions</h3>
+              <p class="small">With <span class="mono">int a[3][4]</span> at 1000 and 4-byte ints: <span class="mono">a</span>, <span class="mono">&amp;a[0]</span> and <span class="mono">&amp;a</span> all hold 1000. Their types are <span class="mono">int (*)[4]</span>, <span class="mono">int (*)[4]</span> and <span class="mono">int (*)[3][4]</span>.</p>
+              <p class="small" style="margin-bottom:0">So <span class="mono">a + 1</span> is 1016 (one row of 16 bytes), <span class="mono">&amp;a[0] + 1</span> is 1016, and <span class="mono">&amp;a + 1</span> is 1048 — one past the end of the whole object. <span class="mono">a[0] + 1</span> is 1004, because <span class="mono">a[0]</span> decays to <span class="mono">int *</span> and an int is 4 bytes.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 4 — Worked example: the two dereferences</h3>
+              <p class="small"><span class="mono">a[2][3]</span> expanded: <span class="mono">*(*(a + 2) + 3)</span>.</p>
+              <p class="small">Step 1: <span class="mono">a + 2</span> is 1000 + 2 × 16 = 1032, type <span class="mono">int (*)[4]</span>. <span class="mono">*(a + 2)</span> is the row itself, type <span class="mono">int[4]</span>, which decays to <span class="mono">int *</span> at 1032.</p>
+              <p class="small">Step 2: adding 3 moves 3 × 4 = 12, giving 1044. The final <span class="mono">*</span> is the value stored there.</p>
+              <p class="small" style="margin-bottom:0">The index form gives 1000 + (2 × 4 + 3) × 4 = 1000 + 44 = 1044. Same byte. This is checked on all twelve cells, not just this one.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 4 — Worked example: the parameter</h3>
+              <p class="small"><span class="mono">void f(int a[3][4])</span> adjusts to <span class="mono">void f(int (*a)[4])</span>. Inside, <span class="mono">sizeof a</span> is 8.</p>
+              <p class="small"><span class="mono">a[i][j]</span> in the callee is still <span class="mono">*(*(a + i) + j)</span>, which works because <span class="mono">a + i</span> moves <span class="mono">i × 16</span> — the row width survived the adjustment.</p>
+              <p class="small" style="margin-bottom:0">The caller's 3 is gone. If the function needs the row count it must be a second parameter, because no expression inside the callee can recover it.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Level 6 — Edge cases preview</h3>
+              <p class="small">A row of one column: <span class="mono">int a[3][1]</span> — the pointer-to-array step is 4 bytes, the same as an <span class="mono">int *</span>, and the two orders agree on every cell.</p>
+              <p class="small">A single row: <span class="mono">int a[1][4]</span> — <span class="mono">a + 1</span> is one past the end, and again both orders agree.</p>
+              <p class="small" style="margin-bottom:0">An array of arrays of arrays: <span class="mono">int b[2][3][4]</span> — <span class="mono">b</span> decays to <span class="mono">int (*)[3][4]</span>, which is the type of <span class="mono">&amp;a</span> in the worked example above. Same type, different object.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 2 of 3</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Level 7 — How GATE asks it</h3>
+              <p class="small">Four shapes recur. <strong>Address of a cell</strong>, given a base and a width, in row-major or column-major order. <strong>Base recovered</strong> from two given cells. <strong>What does this expression mean</strong> — <span class="mono">*(*(a + i) + j)</span> against <span class="mono">a[i][j]</span>, or <span class="mono">&amp;a + 1</span> against <span class="mono">a + 1</span>. <strong>Which declaration compiles</strong>, usually a parameter with a missing inner dimension.</p>
+              <p class="small" style="margin-bottom:0">None of the four needs a compiler. Each is decided by naming the type and scaling by the pointed-to size.</p>
+            </div>
+
+            <div class="card">
+              <h3>Level 8 — Practice, then the traps</h3>
+              <p class="small">The Practice tab holds eight original questions: three MCQ, two MSQ, three NAT. Answers are withheld until you press Show answer, and each answer explains why the other options fail.</p>
+              <p class="small" style="margin-bottom:0">Attempt them before revealing. A question you get right by guessing teaches nothing, and this topic is one where guessing is unusually easy because the wrong answers look like arithmetic.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Level 9 — Consolidation</h3>
+              <p class="small">One sentence carries the lesson: <em>a is an array of three arrays of four ints.</em> Sizes nest from it, decay is read from it, the parameter rule removes its outer bracket, and every address is a stride from it.</p>
+              <p class="small" style="margin-bottom:0">The five traps are one trap in five costumes: reading the type carelessly. Fix the reading and the traps disappear.</p>
+            </div>
+
+            <div class="card card--recessed">
+              <h3>Where this connects</h3>
+              <p class="small"><a href="../pointers-in-c/index.html">Pointers in C</a> — the scaling rule this lesson applies twice.</p>
+              <p class="small"><a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a> — the address formula and the two orders.</p>
+              <p class="small"><a href="../function-pointers/index.html">Function Pointers</a> — the same declarator parentheses, applied to functions.</p>
+              <p class="small" style="margin-bottom:0"><a href="../dynamic-memory-and-program-layout/index.html">Dynamic Memory and Program Layout</a> — the ragged table built with three allocations.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 3 of 3</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every size, stride and address computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">int a[3][4] holds twelve ints in one block. If a were a pointer to a pointer, sizeof(a) would be the size of one pointer.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One sizeof decides the argument</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">An int a three by four holds twelve ints in one block. If a were a pointer to a pointer, sizeof a would be the size of one pointer.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 1 — every expression in one table</h3>
+              <p class="small" style="margin-bottom:0">Declaration <span class="mono">int a[3][4]</span> at 1000, with 4-byte ints and 8-byte pointers. Each row's numbers come from the page's model, not from memory.</p>
+            </div>
+
+            <div class="card span-2">
+              <table class="table small">
+                <thead>
+                  <tr><th>Expression</th><th>Type</th><th>sizeof</th><th>Value</th><th>+1 moves</th><th>Value after +1</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class="mono">a</td><td class="mono">int[3][4]</td><td>48</td><td>1000</td><td>16</td><td>1016</td></tr>
+                  <tr><td class="mono">a</td><td class="mono">int (*)[4] (decayed)</td><td>8</td><td>1000</td><td>16</td><td>1016</td></tr>
+                  <tr><td class="mono">a[0]</td><td class="mono">int[4]</td><td>16</td><td>1000</td><td>4</td><td>1004</td></tr>
+                  <tr><td class="mono">a[0]</td><td class="mono">int * (decayed)</td><td>8</td><td>1000</td><td>4</td><td>1004</td></tr>
+                  <tr><td class="mono">a[0][0]</td><td class="mono">int</td><td>4</td><td>1000 (the stored value)</td><td>—</td><td>—</td></tr>
+                  <tr><td class="mono">&amp;a[0]</td><td class="mono">int (*)[4]</td><td>8</td><td>1000</td><td>16</td><td>1016</td></tr>
+                  <tr><td class="mono">&amp;a</td><td class="mono">int (*)[3][4]</td><td>8</td><td>1000</td><td>48</td><td>1048</td></tr>
+                </tbody>
+              </table>
+              <p class="small muted" style="margin-bottom:0">The two rows for <span class="mono">a</span> and the two for <span class="mono">a[0]</span> are the same expression before and after the conversion. <span class="mono">sizeof</span> sees the array; every other context sees the pointer.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 1 of 3</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 2 — the twelve cells, both ways</h3>
+              <p class="small" style="margin-bottom:0">Left column: the index formula <span class="mono">1000 + (i × 4 + j) × 4</span>. Right column: the pointer walk <span class="mono">1000 + i × 16 + j × 4</span>. All twelve agree.</p>
+            </div>
+
+            <div class="card">
+              <table class="table small">
+                <thead><tr><th>Cell</th><th>index form</th><th>pointer form</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">a[0][0]</td><td>1000</td><td>1000</td></tr>
+                  <tr><td class="mono">a[0][1]</td><td>1004</td><td>1004</td></tr>
+                  <tr><td class="mono">a[0][2]</td><td>1008</td><td>1008</td></tr>
+                  <tr><td class="mono">a[0][3]</td><td>1012</td><td>1012</td></tr>
+                  <tr><td class="mono">a[1][0]</td><td>1016</td><td>1016</td></tr>
+                  <tr><td class="mono">a[1][1]</td><td>1020</td><td>1020</td></tr>
+                  <tr><td class="mono">a[1][2]</td><td>1024</td><td>1024</td></tr>
+                  <tr><td class="mono">a[1][3]</td><td>1028</td><td>1028</td></tr>
+                  <tr><td class="mono">a[2][0]</td><td>1032</td><td>1032</td></tr>
+                  <tr><td class="mono">a[2][1]</td><td>1036</td><td>1036</td></tr>
+                  <tr><td class="mono">a[2][2]</td><td>1040</td><td>1040</td></tr>
+                  <tr><td class="mono">a[2][3]</td><td>1044</td><td>1044</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card card--definition">
+              <h3>What the table is proving</h3>
+              <p class="small">Not that the formulas happen to agree on these twelve cells, but that they must: the standard <em>defines</em> <span class="mono">E1[E2]</span> as <span class="mono">*((E1) + (E2))</span>, so the pointer walk is not an alternative derivation of the index form. It is the index form, spelled out.</p>
+              <p class="small" style="margin-bottom:0">The last cell ends at 1044 + 4 = 1048, which is exactly the end of the object. That is the arithmetic check that the row width and the count are consistent.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 2 of 3</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 3 — forward and backward on a different shape</h3>
+              <p class="small" style="margin-bottom:0"><span class="mono">int a[5][6]</span>, base 1000, 4-byte ints. Find <span class="mono">a[3][4]</span> in both orders; then a different array, <span class="mono">int b[4][5]</span>, whose base is not given.</p>
+            </div>
+
+            <div class="card">
+              <h3>Forward</h3>
+              <p class="small">Row-major: <span class="mono">1000 + (3 × 6 + 4) × 4 = 1000 + 88 = 1088</span>.</p>
+              <p class="small">Column-major: <span class="mono">1000 + (4 × 5 + 3) × 4 = 1000 + 92 = 1092</span>.</p>
+              <p class="small" style="margin-bottom:0">The row-major multiplier is the column count (6); the column-major multiplier is the row count (5). Swapping them is the commonest arithmetic slip, and it is invisible in a square array.</p>
+            </div>
+
+            <div class="card">
+              <h3>Backward</h3>
+              <p class="small">Given <span class="mono">&amp;b[2][3] = 1112</span> and <span class="mono">&amp;b[3][1] = 1124</span>.</p>
+              <p class="small">The gap is 12 bytes = 3 elements. The row difference is 1 and the column difference is −2, so the column count must satisfy <span class="mono">1 × C − 2 = 3</span>, giving C = 5, which matches the declaration.</p>
+              <p class="small" style="margin-bottom:0">Base <span class="mono">= 1112 − (2 × 5 + 3) × 4 = 1112 − 52 = 1060</span>. Check: <span class="mono">1060 + (3 × 5 + 1) × 4 = 1060 + 64 = 1124</span>. It comes back, so the base is right.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>The habit worth keeping</h3>
+              <p class="small" style="margin-bottom:0">Back-solving produces a number whether or not the reasoning was right, so it needs a check. Recomputing a cell the question already gave you costs one multiplication and catches every slip that does not happen to cancel.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 3 of 3</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The boundary cases that change the numbers</h3>
+              <p class="small" style="margin-bottom:0">Six shapes where a general statement becomes false or degenerate. Each is a real declaration, not a hypothetical.</p>
+            </div>
+
+            <div class="card">
+              <h3>A one-column row</h3>
+              <p class="small"><span class="mono">int a[3][1]</span>: the row is 4 bytes, so a pointer to a row and a pointer to an int have the same stride. <span class="mono">a + 1</span> and <span class="mono">a[0] + 1</span> both move 4 bytes.</p>
+              <p class="small" style="margin-bottom:0">The types still differ, so <span class="mono">a</span> is still not assignable to <span class="mono">int *</span>. Equal strides do not make equal types.</p>
+            </div>
+
+            <div class="card">
+              <h3>A single row</h3>
+              <p class="small"><span class="mono">int a[1][4]</span>: <span class="mono">a + 1</span> is one past the end of the object, which is legal to form and illegal to dereference.</p>
+              <p class="small" style="margin-bottom:0">Row-major and column-major give the same address for all four cells, because one dimension is 1. The formulas are still different expressions.</p>
+            </div>
+
+            <div class="card">
+              <h3>Three dimensions</h3>
+              <p class="small"><span class="mono">int b[2][3][4]</span> decays to <span class="mono">int (*)[3][4]</span> — the same type as <span class="mono">&amp;a</span> above, for a different object. Its +1 moves 48 bytes.</p>
+              <p class="small" style="margin-bottom:0">As a parameter, <span class="mono">int b[][3][4]</span> is required: two inner dimensions survive, one is discarded.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>An incomplete element type</h3>
+              <p class="small"><span class="mono">int a[][]</span> is a constraint violation: the element type would be <span class="mono">int[]</span>, which is incomplete, and C11 6.7.6.2 forbids an array of an incomplete type.</p>
+              <p class="small" style="margin-bottom:0"><span class="mono">int (*p)[]</span> is legal, because a pointer may point at an incomplete type. But <span class="mono">p + 1</span> is not, because 6.5.6 requires the pointed-to type to be complete for arithmetic.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Two more, and the counterexample that matters most</h3>
+              <p class="small" style="margin-bottom:0">The ragged table, and the exact byte-level failure of the <span class="mono">int **</span> substitution.</p>
+            </div>
+
+            <div class="card">
+              <h3>The ragged table</h3>
+              <p class="small"><span class="mono">int *rows[3]</span> with three separate allocations: <span class="mono">sizeof rows</span> is 24, <span class="mono">rows</span> decays to <span class="mono">int **</span>, and <span class="mono">rows[i]</span> is an <span class="mono">int *</span>.</p>
+              <p class="small" style="margin-bottom:0">Rows of different lengths are impossible in one <span class="mono">int[R][C]</span>, because every row must be the same width. That is the whole reason the pointer-array form exists.</p>
+            </div>
+
+            <div class="card">
+              <h3>A rectangular array passed to an int ** parameter</h3>
+              <p class="small">Reading the first 8 bytes of <span class="mono">a</span> as a 64-bit pointer gives <span class="mono">0x000003ec000003e8</span> — decimal 4,312,147,166,184 — because the two ints 1000 and 1004 sit next to each other in little-endian order.</p>
+              <p class="small" style="margin-bottom:0">That value is not inside the array object, so dereferencing it is undefined behaviour. The mistake is not "slightly wrong output"; it is a program with no defined meaning.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>Counterexample: the same call, correct for one object and undefined for another</h3>
+              <p class="small"><span class="mono">void show(int **p, int n)</span> is a perfectly good function. Pass it <span class="mono">rows</span> — an <span class="mono">int *[3]</span> — and it is correct. Pass it <span class="mono">a</span> — an <span class="mono">int[3][4]</span> — and the behaviour is undefined, even though both calls read as <span class="mono">show(x, 3)</span>.</p>
+              <p class="small" style="margin-bottom:0">So "does this function accept my array" cannot be answered from the call site. It is answered by the declaration of what you are passing. This is the one place in the topic where a program can look right, compile with a cast, and still be meaningless.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 2 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Six beliefs that survive practice, and the one line that kills each</h3>
+              <p class="small" style="margin-bottom:0">Each entry gives the belief, the shortest refutation available, and the closely confused concept it is being mixed up with.</p>
+            </div>
+
+            <div class="card">
+              <h3>1. "A two-dimensional array is a pointer to a pointer"</h3>
+              <p class="small"><strong>Refutation:</strong> <span class="mono">sizeof(a)</span> is 48, not 8. An <span class="mono">int **</span> is one word and points at stored pointers; <span class="mono">a</span> is 48 bytes and stores no pointers at all.</p>
+              <p class="small" style="margin-bottom:0"><strong>Confused with:</strong> <span class="mono">int *rows[3]</span>, which <em>is</em> an array of pointers and does decay to <span class="mono">int **</span>. The confusion is between an array of arrays and an array of pointers, which are different objects with different contents.</p>
+            </div>
+
+            <div class="card">
+              <h3>2. "a and &amp;a are different addresses"</h3>
+              <p class="small"><strong>Refutation:</strong> both are 1000. The address of an object and the address of its first byte are the same byte.</p>
+              <p class="small" style="margin-bottom:0"><strong>Confused with:</strong> the <em>type</em>, which is genuinely different: <span class="mono">int (*)[4]</span> against <span class="mono">int (*)[3][4]</span>. So <span class="mono">+1</span> moves 16 against 48. Same number, different arithmetic — the trap is that comparing the printed values tells you nothing.</p>
+            </div>
+
+            <div class="card">
+              <h3>3. "The row count belongs in the address formula"</h3>
+              <p class="small"><strong>Refutation:</strong> <span class="mono">address = base + (i × C + j) × w</span>. C appears because moving down a row steps over a row of C ints. Nothing in the formula uses R.</p>
+              <p class="small" style="margin-bottom:0"><strong>Confused with:</strong> column-major order, where R <em>does</em> appear — as the multiplier for the column index. Both formulas are right; they answer different layout questions, and R belongs to only one of them.</p>
+            </div>
+
+            <div class="card">
+              <h3>4. "int (*p)[4] is an array of four pointers"</h3>
+              <p class="small"><strong>Refutation:</strong> <span class="mono">sizeof</span> is 8, not 32. The parentheses force the pointer to be declared first, so the array belongs to its target.</p>
+              <p class="small" style="margin-bottom:0"><strong>Confused with:</strong> <span class="mono">int *p[4]</span>, the array of four pointers. One pair of parentheses, two types, and the difference shows in <span class="mono">sizeof</span> and in the stride of <span class="mono">+1</span>.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Two more, and a pair worth separating carefully</h3>
+              <p class="small" style="margin-bottom:0">The parameter rule and the cast, then the distinction the whole lesson turns on.</p>
+            </div>
+
+            <div class="card">
+              <h3>5. "Every dimension of a parameter is optional"</h3>
+              <p class="small"><strong>Refutation:</strong> <span class="mono">int a[][]</span> does not compile. Exactly one dimension is discarded, and it is the outermost one; the rest must be complete types.</p>
+              <p class="small" style="margin-bottom:0"><strong>Confused with:</strong> <span class="mono">int a[]</span> as a parameter, where the single dimension <em>is</em> the outer one and therefore is the one that goes. The rule did not change; the number of dimensions did.</p>
+            </div>
+
+            <div class="card">
+              <h3>6. "A cast makes it work"</h3>
+              <p class="small"><strong>Refutation:</strong> the cast changes the compiler's opinion, not the bytes. An <span class="mono">int **</span> over a rectangular array dereferences 1000 and 1004 fused into one 64-bit value.</p>
+              <p class="small" style="margin-bottom:0"><strong>Confused with:</strong> a cast between two pointer types that really are compatible, such as <span class="mono">void *</span> round trips. Those are defined; this one is not. "It compiles" is not the test.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>The pair that decides most questions</h3>
+              <p class="small"><strong>Decay</strong> is a conversion: an array expression becomes a pointer to its first element, once, and only outside <span class="mono">sizeof</span>, <span class="mono">&amp;</span> and string initialisation. It changes the type of the <em>expression</em>.</p>
+              <p class="small"><strong>Parameter adjustment</strong> is a declaration rule: a parameter written with brackets is declared to be a pointer, before anything else is analysed. It changes the type of the <em>object</em> the function has.</p>
+              <p class="small" style="margin-bottom:0">They agree in effect — <span class="mono">int a[3][4]</span> as a parameter is <span class="mono">int (*)[4]</span>, which is also what the caller's argument decays to — but they are two different rules in two different clauses. Mixing them up produces the belief that a function "receives the array", which it never does.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 2 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The four question shapes, and what each one is really testing</h3>
+              <p class="small" style="margin-bottom:0">No question numbers or years are claimed here. These are shapes observed across C and data-structure questions generally, described so you can recognise them; the practice set is original.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 1 — cell address</h3>
+              <p class="small">"An array <span class="mono">A[1..10][1..15]</span> is stored at 100 with one-byte elements in row-major order; find the address of <span class="mono">A[i][j]</span>."</p>
+              <p class="small" style="margin-bottom:0"><strong>Testing:</strong> whether you subtract the lower bounds before multiplying, and whether the multiplier is the column count. With lower bounds the formula is <span class="mono">base + ((i − L1) × C + (j − L2)) × w</span>.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 2 — base recovered</h3>
+              <p class="small">Two cells are given and the base is asked for, or a cell is given and a different cell is asked for.</p>
+              <p class="small" style="margin-bottom:0"><strong>Testing:</strong> whether you convert a byte gap into an element gap before reasoning, and whether you check the answer against the second given cell. The check is one multiplication and it is the difference between right and nearly right.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 3 — what the expression means</h3>
+              <p class="small">"What is the type of <span class="mono">&amp;a + 1</span>?" or "are <span class="mono">*(*(a + i) + j)</span> and <span class="mono">a[i][j]</span> the same?"</p>
+              <p class="small" style="margin-bottom:0"><strong>Testing:</strong> whether you name the type before computing anything. The second question is answered by the definition of subscripting, not by arithmetic: they are the same by definition.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 4 — which declaration is legal</h3>
+              <p class="small">"Which of these parameter declarations compiles?" with options such as <span class="mono">int a[][4]</span>, <span class="mono">int a[][]</span>, <span class="mono">int **a</span>, <span class="mono">int (*a)[4]</span>.</p>
+              <p class="small" style="margin-bottom:0"><strong>Testing:</strong> the parameter rule and the completeness requirement on element types. Three of the four are legal; <span class="mono">int a[][]</span> is not, and <span class="mono">int **a</span> is legal but wrong for a rectangular array.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The solving procedure, and the traps that survive it</h3>
+              <p class="small" style="margin-bottom:0">Four steps, in this order. Doing them out of order is where most lost marks come from.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The procedure</h3>
+              <p class="small"><strong>1. Name the object.</strong> Write the type in words: array of R arrays of C T.</p>
+              <p class="small"><strong>2. Say what the expression became.</strong> Pointer to the element type, one level in.</p>
+              <p class="small"><strong>3. Scale by the pointed-to type.</strong> Row width for a row pointer, element width for an element pointer.</p>
+              <p class="small" style="margin-bottom:0"><strong>4. Check the units.</strong> Bytes or an element index — the question asked for one of them.</p>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>Traps inside the procedure</h3>
+              <p class="small">Forgetting to subtract the lower bounds when the declaration is <span class="mono">A[1..n]</span> rather than <span class="mono">A[0..n-1]</span>.</p>
+              <p class="small">Using the row count where the column count belongs — invisible in a square array.</p>
+              <p class="small">Reading <span class="mono">int (*)[4]</span> as an array of pointers, which changes <span class="mono">sizeof</span> from 8 to 32.</p>
+              <p class="small" style="margin-bottom:0">Assuming every parameter dimension is optional, when exactly one is.</p>
+            </div>
+
+            <div class="card card--takeaway span-2">
+              <h3>What to do when the question looks unfamiliar</h3>
+              <p class="small">Almost every unfamiliar version of this topic is one of the four shapes wearing different notation. Three moves recover it: write the declared type in words; write the expression you are asked about as a pointer plus an offset; and compute the offset in <em>elements</em> first, then multiply by the width.</p>
+              <p class="small" style="margin-bottom:0">If two expressions look identical but the question says they differ, the difference is almost always the type — and the type is visible in <span class="mono">sizeof</span> and in the stride of <span class="mono">+1</span>.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 2 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small" style="margin-bottom:0">All eight questions are <strong>original practice questions written for this lesson</strong>. None is an official GATE question, for the reason given on the Sources tab. Unless a question says otherwise, assume 4-byte ints, 8-byte pointers, and <span class="mono">int a[3][4]</span> declared at address 1000.</p>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q1</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">For <span class="mono">int a[3][4]</span>, what is the type of the expression <span class="mono">&amp;a + 1</span>?</p>
+              <p class="small">(A) <span class="mono">int *</span><br>(B) <span class="mono">int (*)[4]</span><br>(C) <span class="mono">int (*)[3][4]</span><br>(D) <span class="mono">int **</span></p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: C.</strong> <span class="mono">&amp;a</span> is a pointer to the whole object, whose type is <span class="mono">int[3][4]</span>, so the pointer type is <span class="mono">int (*)[3][4]</span>. Adding 1 keeps the type and moves 48 bytes, to 1048.</p>
+                <p class="small"><strong>A</strong> ignores the missing decay: <span class="mono">&amp;</span> is an exception, so <span class="mono">a</span> stays an array. <strong>B</strong> is the type of <span class="mono">a</span> itself and of <span class="mono">&amp;a[0]</span>, and is the commonest wrong answer because it is right for two of the three expressions. <strong>D</strong> is the type <span class="mono">a</span> would have if it were an array of pointers, which it is not.</p>
+                <p class="small" style="margin-bottom:0">Check on this page's model: <span class="mono">a</span>, <span class="mono">&amp;a[0]</span> and <span class="mono">&amp;a</span> all read 1000, and their strides are 16, 16 and 48.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q2</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">An array <span class="mono">int A[1..10][1..15]</span> is stored in row-major order at base address 100 with 1-byte elements. What is the address of <span class="mono">A[4][6]</span>?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 150.</strong> Subtract the lower bounds first: <span class="mono">4 − 1 = 3</span> and <span class="mono">6 − 1 = 5</span>. Then <span class="mono">100 + (3 × 15 + 5) × 1 = 100 + 50 = 150</span>.</p>
+                <p class="small">Two facts are being tested, and each has its own wrong answer. Forget the lower bounds and you compute <span class="mono">100 + (4 × 15 + 6) = 166</span>. Use the row count 10 where the column count 15 belongs and you compute <span class="mono">100 + (3 × 10 + 5) = 135</span>. Only 150 uses both facts correctly.</p>
+                <p class="small" style="margin-bottom:0">With one-byte elements the element index and the byte offset coincide, which is why the multiplier is 1 here. Change the element size to 4 and the same element index 50 becomes a 200-byte offset, for an address of 300.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q3</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Which of these are true of <span class="mono">int a[3][4]</span>?</p>
+              <p class="small">(A) <span class="mono">sizeof(a[0])</span> is 16.<br>(B) <span class="mono">a[0]</span> and <span class="mono">a</span> have the same value.<br>(C) <span class="mono">a[0]</span> and <span class="mono">a</span> have the same type.<br>(D) <span class="mono">a[2][3]</span> is at 1044.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: A, B and D.</strong></p>
+                <p class="small">A: <span class="mono">a[0]</span> is an <span class="mono">int[4]</span>, four ints of four bytes. B: both name the first byte of the same object, 1000. D: <span class="mono">1000 + (2 × 4 + 3) × 4 = 1044</span>.</p>
+                <p class="small" style="margin-bottom:0"><strong>C is false, and it is the distinction this lesson is about.</strong> <span class="mono">a</span> has type <span class="mono">int[3][4]</span>; <span class="mono">a[0]</span> has type <span class="mono">int[4]</span>. In an expression they decay to <span class="mono">int (*)[4]</span> and <span class="mono">int *</span> — different types with the same value. B is true and C is false simultaneously, which is exactly why comparing addresses proves nothing.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q4</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Which declaration of a function parameter can accept <span class="mono">int a[3][4]</span> and index it correctly as <span class="mono">p[i][j]</span>?</p>
+              <p class="small">(A) <span class="mono">void f(int p[][])</span><br>(B) <span class="mono">void f(int **p)</span><br>(C) <span class="mono">void f(int (*p)[4])</span><br>(D) <span class="mono">void f(int p[])</span></p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: C.</strong> <span class="mono">int (*p)[4]</span> is exactly what <span class="mono">a</span> decays to, so <span class="mono">p[i][j]</span> moves <span class="mono">i × 16 + j × 4</span> and lands correctly.</p>
+                <p class="small"><strong>A</strong> does not compile: the element type would be incomplete. <strong>B</strong> compiles and is undefined — the first dereference reads 1000 and 1004 as one 64-bit pointer. <strong>D</strong> compiles, and <span class="mono">p[i][j]</span> would read an <span class="mono">int</span> as a pointer, which is undefined.</p>
+                <p class="small" style="margin-bottom:0">Note that <span class="mono">void f(int p[3][4])</span> is also correct, because it adjusts to C. The question offers the adjusted form to check that you know the adjustment exists.</p>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set, page 2 of 2</h3>
+              <p class="small" style="margin-bottom:0">Four more, all original. Q5 and Q6 need the formula; Q7 and Q8 need the type.</p>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q5</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small"><span class="mono">int b[4][5]</span> has <span class="mono">&amp;b[2][3] = 1112</span> and <span class="mono">&amp;b[3][1] = 1124</span>, with 4-byte ints and row-major order. What is the base address of <span class="mono">b</span>?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 1060.</strong> The gap is <span class="mono">1124 − 1112 = 12</span> bytes, which is 3 elements. The row difference is 1 and the column difference is −2, and <span class="mono">1 × 5 + (−2) = 3</span>, which confirms C = 5.</p>
+                <p class="small">Then <span class="mono">base = 1112 − (2 × 5 + 3) × 4 = 1112 − 52 = 1060</span>.</p>
+                <p class="small" style="margin-bottom:0">Check: <span class="mono">1060 + (3 × 5 + 1) × 4 = 1124</span>. Without the check, an error of one row would give 1040 or 1080 and look perfectly plausible.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q6</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">For the same <span class="mono">int a[3][4]</span> at 1000, which pair of expressions has equal values but different types?</p>
+              <p class="small">(A) <span class="mono">a</span> and <span class="mono">a[0]</span><br>(B) <span class="mono">a[0]</span> and <span class="mono">&amp;a[0][0]</span><br>(C) <span class="mono">a + 1</span> and <span class="mono">a[1]</span><br>(D) <span class="mono">a</span> and <span class="mono">a + 0</span></p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: A.</strong> Both are 1000. <span class="mono">a</span> decays to <span class="mono">int (*)[4]</span> and <span class="mono">a[0]</span> decays to <span class="mono">int *</span>.</p>
+                <p class="small"><strong>B</strong> is equal in value (both 1000) and equal in type: <span class="mono">a[0]</span> decays to <span class="mono">int *</span>, and <span class="mono">&amp;a[0][0]</span> is an <span class="mono">int *</span> directly. It is the pair people expect to be the answer, and it is the pair where nothing differs. <strong>C</strong> is also equal in value and in type — both are <span class="mono">int (*)[4]</span> pointing at row 1, at 1016. <strong>D</strong> is the same expression twice: adding zero changes nothing, type included.</p>
+                <p class="small" style="margin-bottom:0">The lesson's point, stated as a rule: equal values with different types is the normal case here, not the exception.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q7</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">What is <span class="mono">sizeof(a[1])</span> for <span class="mono">int a[3][4]</span>, with 4-byte ints?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 16.</strong> <span class="mono">a[1]</span> is an <span class="mono">int[4]</span>, and <span class="mono">sizeof</span> is one of the three contexts where no conversion happens, so it measures the array and not a pointer.</p>
+                <p class="small" style="margin-bottom:0">The trap is answering 8: that is <span class="mono">sizeof</span> of the <em>decayed</em> expression, which is what you would get by writing <span class="mono">sizeof(&amp;a[1][0])</span> or by passing <span class="mono">a[1]</span> to a function. Inside <span class="mono">sizeof</span> the array stays an array.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q8</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Which statements are true?</p>
+              <p class="small">(A) <span class="mono">int (*p)[4]</span> and <span class="mono">int *q[4]</span> have the same <span class="mono">sizeof</span>.<br>(B) <span class="mono">int a[][]</span> is not a legal declaration.<br>(C) A parameter written <span class="mono">int a[3][4]</span> is adjusted to <span class="mono">int (*a)[4]</span>.<br>(D) Row-major and column-major order agree on every cell when the array is square.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: B and C.</strong></p>
+                <p class="small">B: the element type would be the incomplete <span class="mono">int[]</span>, which C11 6.7.6.2 forbids. C: that is the parameter adjustment of C11 6.7.6.3p7, and only the outer dimension is discarded.</p>
+                <p class="small" style="margin-bottom:0"><strong>A is false:</strong> 8 against 32 — one pointer against four. <strong>D is false</strong>, and it is the trap worth remembering: on a square array the two orders agree only on the diagonal and the first row. On <span class="mono">int a[3][3]</span>, row-major gives <span class="mono">a[1][2]</span> at 1020 and column-major at 1024. "Square" is not "thin": the orders agree on every cell exactly when one dimension is 1.</p>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="pager-count" data-pager-count>Page 2 of 2</span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything on this page is computed by the lesson's own model at load and reported in the Animation tab's check panel.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The five numbers</h3>
+          <p class="formula">sizeof a = 48, sizeof a[0] = 16, sizeof a[0][0] = 4<span class="gloss">Three levels of the same object. A pointer would be 8.</span></p>
+          <p class="formula">strides: a + 1 = 16, a[0] + 1 = 4, &amp;a + 1 = 48<span class="gloss">Scaled by the pointed-to type, which is int[4], int and int[3][4] respectively.</span></p>
+          <p class="formula">sizeof (int (*)[4]) = 8, sizeof (int *[4]) = 32<span class="gloss">A pointer to an array against an array of pointers. One pair of parentheses.</span></p>
+          <p class="small" style="margin-bottom:0">All five are read off the type. None is a fact about this machine beyond the two platform constants.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two formulas</h3>
+          <p class="formula">address = base + (i × C + j) × w<span class="gloss">Row-major: the multiplier is the column count, because a row holds C elements.</span></p>
+          <p class="formula">address = base + (j × R + i) × w<span class="gloss">Column-major: the multiplier is the row count. C arrays are row-major; this appears as a hypothetical.</span></p>
+          <p class="small" style="margin-bottom:0">With lower bounds: replace i by (i − L1) and j by (j − L2). The two orders agree on every cell exactly when R = 1 or C = 1.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The routine</h3>
+          <p class="small"><strong>1.</strong> Name the object in words: array of R arrays of C T.</p>
+          <p class="small"><strong>2.</strong> Say what the expression became: pointer to the element type, one level in.</p>
+          <p class="small"><strong>3.</strong> Scale by the pointed-to type, then add.</p>
+          <p class="small" style="margin-bottom:0"><strong>4.</strong> Check the units: bytes, or an element index.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The five traps</h3>
+          <p class="small">Treating <span class="mono">a</span> as a pointer because <span class="mono">a[i]</span> works.</p>
+          <p class="small">Writing R where C belongs in the row-major formula.</p>
+          <p class="small">Reading <span class="mono">int (*p)[4]</span> as an array of pointers.</p>
+          <p class="small">Thinking every parameter dimension is optional.</p>
+          <p class="small" style="margin-bottom:0">Casting to silence the compiler.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Three sentences to leave with</h3>
+          <p class="small">A two-dimensional array is one object whose elements are arrays; every other fact in this topic is a consequence of that sentence.</p>
+          <p class="small">Decay is a conversion of the expression, and parameter adjustment is a rule about the declaration; they agree in effect and are not the same rule.</p>
+          <p class="small" style="margin-bottom:0">If two expressions print the same address, ask for their types before you compare where <span class="mono">+1</span> goes.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Where to go next</h3>
+          <p class="small"><a href="../arrays-stacks-queues/index.html">Arrays, Stacks and Queues</a> — the address formula derived from first principles, and the GATE-style question on lower bounds.</p>
+          <p class="small"><a href="../pointers-in-c/index.html">Pointers in C</a> — pointer arithmetic, one past the end, and the four combinations of <span class="mono">*</span> and <span class="mono">++</span>.</p>
+          <p class="small" style="margin-bottom:0"><a href="../function-pointers/index.html">Function Pointers</a> — the same declarator parentheses applied to functions.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What this lesson rests on, and where the research stopped</h3>
+          <p class="small" style="margin-bottom:0">Each source is listed with what it supports. Verified facts are things a source states; derivations are worked out on the page; interpretations are analogies.</p>
+        </div>
+
+        <div class="card">
+          <h3>The standard</h3>
+          <p class="small"><strong>ISO/IEC 9899 (C11/C17), clause 6.3.2.1p3</strong> — the array-to-pointer conversion and its three exceptions. Quoted verbatim on the Build-up tab.</p>
+          <p class="small"><strong>Clause 6.7.6.3p7</strong> — "A declaration of a parameter as 'array of type' shall be adjusted to 'qualified pointer to type'". This is the parameter rule in scene 7.</p>
+          <p class="small"><strong>Clause 6.7.6.2p1</strong> — the element type of an array shall not be incomplete. This is why <span class="mono">int a[][]</span> is rejected.</p>
+          <p class="small" style="margin-bottom:0"><strong>Clause 6.5.2.1p2</strong> — <span class="mono">E1[E2]</span> is defined as <span class="mono">*((E1) + (E2))</span>. This is the definition scene 5 applies twice. <strong>Clause 6.5.6</strong> — pointer arithmetic requires a complete pointed-to type.</p>
+        </div>
+
+        <div class="card">
+          <h3>Secondary sources consulted</h3>
+          <p class="small">Public discussion of clauses 6.3.2.1p3 and 6.7.6.3p7 on Stack Overflow, including answers that quote both clauses in full and work through <span class="mono">int x[3][4]</span> adjusting to <span class="mono">int (*x)[4]</span>, and why the implementation needs the second dimension but never the first.</p>
+          <p class="small" style="margin-bottom:0">These were used to check the wording of the rules, not to source any number. Every number on the page comes from the page's own model.</p>
+        </div>
+
+        <div class="card">
+          <h3>The syllabus</h3>
+          <p class="small">GATE 2027 CS syllabus, IIT Madras, Section 4 <em>Programming and Data Structures</em>: "Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs." Read from the official syllabus PDF for GATE 2027 during this run.</p>
+          <p class="small" style="margin-bottom:0">The clause <em>Arrays</em> is named, which is why this lesson is classified A. The multidimensional case is a sub-topic of that clause and is not separately named — the classification is about the clause, and the depth here is a teaching decision.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was not established</h3>
+          <p class="small">No previous-year question on multidimensional arrays could be matched to a GATE year and paper in this run's research, so none is quoted. Practice archives do circulate such items, but the attributions did not survive checking.</p>
+          <p class="small" style="margin-bottom:0">No frequency or weightage claim is made. The two platform constants — 4-byte ints and 8-byte pointers — are a stated model, not a measurement of any machine. Every conclusion holds for any width; only the byte counts change.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>How the numbers were produced</h3>
+          <p class="small" style="margin-bottom:0">The page builds the declared type as nesting — <span class="mono">arrayOf(3, arrayOf(4, int))</span> — and reads every size and stride off that structure rather than writing the numbers down. It then computes all twelve cell addresses twice, once by the index formula and once by the pointer walk, and compares them; it builds the 48-byte image of the array and reads the first two 8-byte words out of it as a little-endian machine would; and it checks that the row-major and column-major formulas agree on every cell of sixteen shapes exactly when one dimension is 1. The check panel in the Animation tab states how many of the page's own claims passed. A separate prototype of the same arithmetic was written and run first, and the two agree on every value.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
