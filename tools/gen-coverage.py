@@ -4457,6 +4457,7 @@ topics.append(topic(
 
 _VERIFIED = {
     "avl-trees-and-rotations": "2026-11-01",
+    "red-black-trees": "2026-11-01",
     "space-complexity-and-auxiliary-space": "2026-11-01",
     "quine-mccluskey-tabular-method": "2026-11-01",
     "relational-calculus-and-safety": "2026-11-01",
@@ -5257,6 +5258,76 @@ topics.append(topic(
         "a double rotation is two single rotations; counting conventions differ",
         "count of rotations against count of repairs is a different question",
         "a tree needing zero rotations is not thereby unbalanced"])
+)
+
+
+
+topics.append(topic(
+    "Programming and Data Structures",
+    "Section 4: trees, binary search trees — the balanced variant the syllabus does not name, second of two",
+    "Red-black trees: the five rules, black-height and the three insertion repairs",
+    ["the five red-black rules, with the NIL leaves drawn",
+     "black-height excluding the node and including the NIL",
+     "the counting claim: at least 2^bh - 1 keys",
+     "the height bound h <= 2 bh <= 2 log2(n+1)",
+     "why a new node is inserted red",
+     "the three insertion cases and their rotation counts",
+     "what a deletion breaks, and why it needs its own fix-up",
+     "red-black against AVL"],
+    prereq=["trees-bst-and-heaps", "avl-trees-and-rotations", "asymptotic-complexity",
+            "mathematical-induction"],
+    related=["avl-trees-and-rotations", "trees-bst-and-heaps", "file-organisation-and-indexing",
+             "asymptotic-complexity"],
+    importance="medium",
+    evidence=("Class C. The GATE 2027 CS syllabus Section 4 names \"trees, binary search trees, "
+              "binary heaps, graphs\" and no balanced variant; the wording was read from the "
+              "official GATE 2027 CS syllabus PDF (IIT Madras). Built as the second half of the "
+              "balanced-tree gap that the avl-trees-and-rotations lesson opened and named as its "
+              "next step. No frequency claim is made and no previous-year question is quoted: no "
+              "red-black item could be matched to a GATE year and paper in this run's research, so "
+              "every practice item is labelled original."),
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="red-black-trees",
+    path="topics/red-black-trees/index.html",
+    execution=("published 2026-11-01: 49 of 49 model checks pass, 1201 frames drawn across 10 "
+               "scenes, geometry audit clean (10 scenes, no text outside the canvas, no "
+               "text-on-text overlap), captions 40 cues over 300s"),
+    microtopics=[
+        "a plain BST promises O(h); sorted input builds a chain: 7 keys, height 6",
+        "the same 7 keys as 10, 20, 30, 15, 25, 12, 5 give height 3",
+        "the red-black promise is 2 log2(n+1), not log2(n+1)",
+        "rule 1: one colour bit per node and nothing else",
+        "rule 2: the root is black; rule 3: the NIL leaves are black",
+        "rule 4: a red node has two black children",
+        "rule 5: every path from a node to a NIL holds the same number of blacks",
+        "bh(x) counts blacks below x, NIL included, x excluded, so bh(NIL) = 0",
+        "a node with two NIL children has black-height 1",
+        "rule 5 restated: the two children of every node have equal black-height",
+        "computed black-heights of the 7-key tree: 2, 2, 1, 1, 1, 1, 1",
+        "a black insertion into 10, 20 breaks rule 5 at node 20 and keeps rule 4",
+        "induction: each child has black-height bh(x) or bh(x) - 1",
+        "2 * (2^(bh-1) - 1) + 1 = 2^bh - 1",
+        "the row 1, 3, 7, 15, 31 for black-heights 1 to 5",
+        "no two reds in a row, so h <= 2 bh(root)",
+        "h <= 2 log2(n+1); for n = 15 that ceiling is 8",
+        "the 15-key tree of height 5 and black-height 3, built by 9 1 2 13 4 3 11 5 6 10 7 15 12 8 14",
+        "fewest keys at each height, computed: 1, 3, 5, 7, 11, 15, 23",
+        "maximum height on 15 keys is 5, not the 8 the formula suggests",
+        "a red node adds no black to any path, so rule 5 survives by construction",
+        "case 1: uncle red, 3 recolours, 0 rotations, and the fault climbs",
+        "case 2: uncle black and inside, 1 rotation to straighten",
+        "case 3: uncle black and outside, 2 recolours and 1 rotation",
+        "at most 2 rotations per insertion; the recolouring is the O(log n) part",
+        "the 7-key build: 7 insertions, 3 rotations, case 1 twice",
+        "the 10-key build: inserting 6 fires case 1 twice with no rotation",
+        "deleting a red leaf keeps all five rules",
+        "deleting a black leaf leaves one path short and breaks rule 5 only",
+        "deleting the black root 20 with two children stays valid: the counterexample",
+        "an all-black colouring is valid exactly for perfect trees",
+        "a valid red-black tree need not be AVL: 10 35 8 37 20 36, root balance factor +2",
+        "every AVL shape on up to 7 keys admits a colouring (35 of 35, finite check only)",
+        "deletion: AVL may rotate at every level, red-black at most 3 times"])
 )
 
 
