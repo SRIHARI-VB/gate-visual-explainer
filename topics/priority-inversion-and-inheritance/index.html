@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Priority Inversion, Priority Inheritance and the Priority Ceiling — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Priority inversion and inheritance</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../synchronisation-and-deadlock/index.html">Related: synchronisation and deadlock</a>
+      <a href="../cpu-scheduling/index.html">Related: CPU scheduling</a>
+      <a href="../monitors-and-condition-variables/index.html">Related: monitors</a>
+      <a href="../atomic-instructions-and-locks/index.html">Related: locks</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Priority inversion, and the two protocols that bound it — basic priority inheritance and the priority ceiling protocol. A job holding a lock that a more urgent job wants runs at the more urgent job's priority, so that unrelated work cannot stretch the wait.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a set of jobs, their priorities, their lock and unlock steps and their release times, compute the ticks the most urgent job spends blocked under no protocol, under inheritance and under the ceiling protocol; count the blocking <em>episodes</em> as well as the ticks; compute each semaphore's ceiling; apply the admission test and say when a free lock is refused; and say which of the two protocols deadlocks on a given program.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one bad wait, one rule that bounds it, and one rule that prevents more than bounds</em>. Every number on this page — the 10 ticks of the three-job trace, the 2 that remain under inheritance, the sweep that reads 2 + L for L from 0 to 20, the 18 and the 50 for two and six middle jobs, the 8 ticks in 2 episodes against 8 ticks in 1, the deadlock at tick 4, and the 31 of 121 release pairs — is produced at load by the lesson's own scheduler and re-checked against the property it claims.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside two clauses the 2027 syllabus names.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code> and fetched and read again for this lesson, says under Section 8 Operating System: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The syllabus names "concurrency and synchronization", "Deadlock" and "CPU ... scheduling", and does not name priority inversion. I register the lesson class A because it sits exactly at the junction of those clauses: it is a scheduling decision (which ready job runs) caused by a synchronisation decision (who holds a lock), and it is the standard reason a deadlock-adjacent wait appears in a correct program. The repository's lessons on <a href="../synchronisation-and-deadlock/index.html">synchronisation and deadlock</a>, <a href="../cpu-scheduling/index.html">CPU scheduling</a> and <a href="../atomic-instructions-and-locks/index.html">locks</a> each own one half of the junction and none owns the interaction.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Questions in this shape appear in public GATE question banks and in operating-systems course examinations — a trace of three processes with one semaphore and a question asking how long the highest-priority process waits. <strong>No previous-year question is quoted as official on this page</strong>, because none was verified against an official paper while writing it. Every question in the Practice tab is labelled original.</p>
+          <p class="small" style="margin-bottom:0">Historical frequency is an observation about past papers, not a prediction for 2027. No weightage claim is made anywhere on this page.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>Preemptive fixed-priority scheduling.</strong> The most urgent ready job runs; a job is preempted when a more urgent one becomes ready. Built in <a href="../cpu-scheduling/index.html">CPU scheduling</a>.</li>
+            <li><strong>Binary semaphores and mutual exclusion.</strong> A lock is held by one job at a time and refused to everyone else. Built in <a href="../synchronisation-and-deadlock/index.html">Synchronisation and deadlock</a>.</li>
+            <li><strong>Blocked, ready and running.</strong> A blocked job cannot run; a ready job can. Built in <a href="../processes-threads-and-ipc/index.html">Processes, threads and IPC</a>.</li>
+            <li><strong>Deadlock as a cycle of waits.</strong> Used once, in scene 6, to separate it from inversion. Built in <a href="../synchronisation-and-deadlock/index.html">Synchronisation and deadlock</a>.</li>
+            <li><strong>Nested critical sections.</strong> A section inside a section, holding two locks at once. Built in <a href="../monitors-and-condition-variables/index.html">Monitors and condition variables</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about a specific kernel is assumed. VxWorks appears in one scene and only as an example.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>The wait</strong> — a Gantt chart of three jobs, and a 10-tick wait for a 3-tick section.</li>
+            <li><strong>Unbounded</strong> — a computed line: blocking is 2 + L, and 2 + 8k.</li>
+            <li><strong>Inheritance</strong> — the same chart with the one rule added, and 2 instead of 10.</li>
+            <li><strong>Ceiling</strong> — the ceiling table and the admission test, including a refused free lock.</li>
+            <li><strong>Chained</strong> — two charts, two episodes against one, and the same total.</li>
+            <li><strong>Deadlock</strong> — the cycle, the tick it forms, and 31 against 0 over 121 release pairs.</li>
+            <li><strong>Pathfinder</strong> — the same trace with spacecraft names on the lanes.</li>
+            <li><strong>Distinctions</strong> — inversion, deadlock, starvation; bounded and unbounded.</li>
+            <li><strong>Question shapes</strong> — five shapes, five quantities.</li>
+            <li><strong>Traps</strong> — the four sentences that read right and answer wrong.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one sentence to keep</h3>
+          <p class="small">A lock inverts priority whenever the holder is less urgent than the waiter, and the length of the resulting wait is decided by whichever job is more urgent than the holder — so the only useful repair is to make the holder as urgent as the waiter for as long as it holds the lock.</p>
+          <p class="small" style="margin-bottom:0">Inheritance bounds the number of blocking episodes by the number of semaphores; the ceiling protocol bounds it by one and removes the cycle. Neither bounds the length of a critical section, because nothing can.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>1. Intuition: the borrowed badge</h3>
+          <p class="small">A junior clerk is at the photocopier, and the chief executive needs the copier. The clerk will be done in a minute. But the clerk has no authority to keep the machine against anyone, so every manager who walks past takes it, one after another, and the executive waits all morning for a one-minute job.</p>
+          <p class="small" style="margin-bottom:0">The repair is obvious once stated: while the clerk is finishing that job, the clerk wears the executive's badge. Managers then cannot take the machine, and the wait is exactly one minute. That is priority inheritance. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span></p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Formal definition</h3>
+          <p class="small">Jobs $$J_1, \ldots, J_n$$ have fixed priorities, and a <em>smaller</em> index means a more urgent job. A job is a sequence of steps: ordinary work, and critical sections bounded by a lock and an unlock on a binary semaphore.</p>
+          <p class="small"><strong>Blocked:</strong> a job is blocked when it must wait for a lower-priority job to leave a critical section. Waiting for a more urgent job is not blocking in this sense.</p>
+          <p class="small"><strong>Priority inversion:</strong> a job of higher priority is delayed by jobs of lower priority, because of a resource they share.</p>
+          <p class="small" style="margin-bottom:0"><strong>Basic priority inheritance:</strong> a job uses its assigned priority, unless it is inside a critical section and blocking more urgent jobs, in which case it uses the most urgent priority among the jobs it blocks. On leaving the section it returns to the priority it had on entry. Inheritance is transitive.</p>
+        </div>
+
+        <div class="card">
+          <h3>3. The ceiling, defined</h3>
+          <p class="small">Each semaphore $$S$$ has a <strong>ceiling</strong>, written $$\mathrm{ceiling}(S)$$: the most urgent priority among all jobs that may lock $$S$$. It is computed from the program text, not from the current state.</p>
+          <p class="small">The <strong>priority ceiling protocol</strong> adds one test before a lock is granted. Let $$S^{*}$$ be the locked semaphore with the highest ceiling among semaphores held by jobs other than the asking job. The asking job enters only if its priority is strictly higher than $$\mathrm{ceiling}(S^{*})$$. Otherwise it is blocked on $$S^{*}$$.</p>
+          <p class="small" style="margin-bottom:0">Because the test comes before the lock is examined, a job can be refused a semaphore that is completely free. That refusal is called <strong>ceiling blocking</strong>. <span class="claim-chip claim-chip--verified">Verified fact</span> — this is the definition given by Sha, Rajkumar and Lehoczky (1990).</p>
+        </div>
+
+        <div class="card">
+          <h3>4. The three kinds of blocking</h3>
+          <p class="small"><strong>Direct blocking:</strong> the semaphore is held by another job. Every correct lock does this.</p>
+          <p class="small"><strong>Push-through blocking:</strong> a job is ready and more urgent than the holder's own priority, but the holder has inherited a priority above it, so it cannot run. The middle job in scene 1 loses exactly 2 ticks this way.</p>
+          <p class="small" style="margin-bottom:0"><strong>Ceiling blocking:</strong> the admission test refuses entry because of a ceiling, whether or not the requested lock is free.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. The two bounds, stated with their assumptions</h3>
+          <p class="small"><strong>Inheritance.</strong> If $$n$$ lower-priority jobs could block $$J$$ and $$m$$ semaphores could be used to block it, then $$J$$ is blocked by at most $$\min(n, m)$$ critical sections — at most one per semaphore. On this page's two-lock program $$n = 2$$ and $$m = 2$$, so the bound is 2, and the model reaches 2.</p>
+          <p class="small"><strong>Ceiling protocol.</strong> $$J$$ is blocked by at most the duration of <em>one</em> longest critical section of a lower-priority job, and the protocol prevents deadlock.</p>
+          <p class="small" style="margin-bottom:0"><strong>Assumptions, which a question can break:</strong> jobs do not suspend themselves inside a critical section; critical sections are properly nested; a semaphore is locked at most once in a nested section; a job releases its locks before it ends. If a job blocks inside a section, the one-section bound no longer holds. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. What neither protocol does</h3>
+          <p class="small">Neither protocol makes the wait zero. Neither shortens a critical section. Neither bounds a wait in <em>time</em> unless the section lengths are known — a bound of "two critical sections" is a count, and two sections of unknown length are an unknown delay.</p>
+          <p class="small" style="margin-bottom:0">And inheritance alone does not prevent deadlock: it decides who runs, not who may take a lock. The 1990 paper says this explicitly, and scene 6 measures it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every count and every schedule computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Three jobs: J1 has the highest priority, J2 the middle, J3 the lowest.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The wait that should not happen</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Three jobs. J1 is the most urgent, J2 the middle, J3 the least. J1 and J3 share one lock. J2 never touches it.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked example 1 — the three-job trace, by hand</h3>
+          <p class="small">Jobs: $$J_3$$ (priority 3, least urgent) does 1 unit, then locks $$S$$ for 3 units, then 1 more unit. $$J_1$$ (priority 1) is released at tick 2 and does 2 units, then locks $$S$$ for 2 units. $$J_2$$ (priority 2) is released at tick 2 and does 8 units of work with no lock at all.</p>
+          <p class="small"><strong>No protocol.</strong> Ticks 0–1: $$J_3$$ runs and locks $$S$$. Ticks 2–3: $$J_1$$ runs. Tick 4: $$J_1$$ asks for $$S$$, is refused, and blocks. Ticks 4–11: $$J_2$$ runs all 8 units, because it outranks $$J_3$$ and wants nothing. Ticks 12–13: $$J_3$$ finishes its section and releases. Ticks 14–15: $$J_1$$ runs. Tick 16: $$J_3$$ finishes. So $$J_1$$ was blocked from tick 4 to tick 13: <strong>10 ticks</strong>, of which 3 are the section and 7 are $$J_2$$.</p>
+          <p class="small"><strong>With inheritance.</strong> At tick 4, $$J_3$$ inherits priority 1 and runs ticks 4–5, releasing $$S$$ at tick 6. $$J_1$$ then runs ticks 6–7. $$J_2$$ runs ticks 8–15. So $$J_1$$ was blocked for <strong>2 ticks</strong>: exactly the part of the section it had not yet executed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Checked:</strong> the total work is 5 + 4 + 8 = 17 units and both runs finish at tick 17; every tick has exactly one running job; $$J_3$$ changes effective priority exactly twice.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 2 — the sweep, and what "unbounded" means</h3>
+          <p class="small">Keep the trace and change only the middle job's length $$L$$. The model measures $$J_1$$'s blocked ticks for every $$L$$ from 0 to 20 and reads $$2, 3, 4, \ldots, 22$$: exactly $$2 + L$$. At $$L = 20$$ the wait is 22 ticks for a 3-tick section.</p>
+          <p class="small">Now keep each middle job at 8 units and change their number $$k$$ from 0 to 6. The readings are $$2, 10, 18, 26, 34, 42, 50$$, which is $$2 + 8k$$. Under inheritance all seven readings are 2.</p>
+          <p class="small" style="margin-bottom:0"><strong>The point:</strong> the section never changed. The wait is a function of work that has nothing to do with the lock, so no constant bounds it, because nothing bounds the amount of middle-priority work a system may contain.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 3 — chained blocking, counted</h3>
+          <p class="small">$$J_1$$ needs $$S_1$$ and then $$S_2$$. At tick 0, $$J_3$$ locks $$S_1$$ for 3 units. At tick 1, $$J_2$$ locks $$S_2$$ for 8 units. $$J_1$$ arrives at tick 3, does 2 units, and asks for $$S_1$$ at tick 5.</p>
+          <p class="small"><strong>Inheritance:</strong> $$J_3$$ inherits, finishes $$S_1$$, and $$J_1$$ then asks for $$S_2$$, held by $$J_2$$, which also inherits. $$J_1$$ is blocked twice — 2 ticks then 6 — <strong>8 ticks in 2 episodes</strong>.</p>
+          <p class="small"><strong>Ceiling protocol:</strong> at tick 1, $$J_2$$ asks for $$S_2$$ while $$J_3$$ holds $$S_1$$, whose ceiling is 1. $$J_2$$'s priority is 2, not above 1, so $$J_2$$ is refused and never holds $$S_2$$. At tick 5, $$J_1$$ is itself refused entry because $$J_2$$ holds $$S_2$$ — a lock $$J_1$$ does not want yet. $$J_1$$ is blocked <strong>8 ticks in 1 episode</strong>.</p>
+          <p class="small" style="margin-bottom:0"><strong>The honest reading:</strong> the same 8 ticks either way. What improved is the episode count, which is what the worst-case bound counts: $$\min(2,2) = 2$$ sections become 1.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 4 — the cycle, and the refusal that prevents it</h3>
+          <p class="small">$$J_1$$ locks $$S_1$$, works, then locks $$S_2$$. $$J_2$$ locks $$S_2$$, works, then locks $$S_1$$. Both sections are nested, and the lock order is opposite.</p>
+          <p class="small"><strong>No protocol and inheritance:</strong> the model stops at tick 4. Both jobs are blocked, neither is finished, and no job is runnable while work remains. That is a deadlock, and inheritance has not touched it.</p>
+          <p class="small"><strong>Ceiling protocol:</strong> both ceilings are 1, because $$J_1$$ locks both. When $$J_2$$ holds $$S_2$$, $$J_1$$ is refused $$S_1$$ — its priority 1 is not above the ceiling 1 of the locked $$S_2$$. The cycle never closes and both jobs finish at tick 10.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counted over every release pair from 0 to 10, 121 pairs:</strong> inheritance deadlocks in 31, the ceiling protocol in none.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: the ceiling protocol can block a job for longer</h3>
+          <p class="small">Take the two-lock program and make $$J_2$$'s section long. Under inheritance, $$J_1$$ waits for the remainder of $$J_3$$'s short section and then for the remainder of $$J_2$$'s long one — but $$J_2$$ may have executed part of it before $$J_1$$ arrived. Under the ceiling protocol, $$J_2$$ is refused its lock early, so the whole of its section is still ahead of it when $$J_1$$ finally waits.</p>
+          <p class="small" style="margin-bottom:0">So a single trace can show the ceiling protocol blocking a job for <em>more</em> ticks than inheritance does. The theorem is about the worst case over all programs, not about one run. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case: a job that suspends inside a section</h3>
+          <p class="small">Both bounds assume a job does not block on I/O inside its critical section. If it does, the "at most one critical section" bound for the ceiling protocol fails: the holder can sleep with the lock, another lower-priority job can take a different lock, and the one-section argument no longer applies.</p>
+          <p class="small" style="margin-bottom:0">This is stated as an assumption in the 1990 paper and repeated in later surveys of unbounded inversion. A question that adds "the job performs I/O inside its section" is testing whether you know the bound had an assumption.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case: equal priorities</h3>
+          <p class="small">If the waiter and the holder have the same priority, there is no inversion to speak of — the tie is broken by the queue discipline, not by priority. Inheritance borrows the <em>highest</em> priority among the blocked jobs, so a job blocking two waiters takes the more urgent of the two and no more.</p>
+          <p class="small" style="margin-bottom:0">The model on this page sorts ties by assigned priority and then by job name, so its traces are reproducible; that is a modelling choice, not a claim about real kernels.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case: what happens at the boundary of a section</h3>
+          <p class="small">Inheritance is applied at the instant of blocking and undone at the instant of release, and both operations must be indivisible. In the three-job trace, $$J_3$$'s priority goes up at tick 4 and back at tick 6 — two changes, measured. If the two operations are not atomic, a window exists in which the holder has already released the lock but not yet given back the priority, or the reverse.</p>
+          <p class="small" style="margin-bottom:0">The model does both inside one tick, which is why its priority-change count is exactly 2.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case: an empty sweep value</h3>
+          <p class="small">At $$L = 0$$ the middle job does no work, and the measured blocking is 2 — the section remainder, and nothing else. That is the smallest value in the whole sweep, and it is not zero: inversion does not require the middle job to exist at all, only for the holder to be less urgent than the waiter.</p>
+          <p class="small" style="margin-bottom:0">Over the 81 release pairs of the three-job trace, no-protocol blocking ranges from 0 to 9 and inheritance never exceeds 3, the length of $$J_3$$'s section.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case: three or more locks in a chain</h3>
+          <p class="small">With $$m$$ semaphores the inheritance bound is $$\min(n, m)$$ sections, so a job can be blocked once per lock. A program that takes four locks in sequence can block a waiter four times under inheritance, which is why the ceiling protocol's one-section bound matters more as the lock count grows.</p>
+          <p class="small" style="margin-bottom:0">A total order on the locks also removes the deadlock, and it is a different repair from either protocol: it constrains the program, not the scheduler.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>“Priority inversion is a kind of deadlock.”</h3>
+          <p class="small"><strong>Why it is tempting:</strong> both involve a high-priority job that is not running, and both involve locks.</p>
+          <p class="small"><strong>What is true:</strong> inversion ends. In the three-job trace the wait of 10 ticks ends at tick 14 and the run finishes at tick 17 with every job complete. Deadlock is the case where the run stops at tick 4 with both jobs blocked and neither finished.</p>
+          <p class="small" style="margin-bottom:0"><strong>The test:</strong> if the trace completes, there was no deadlock, however long the waits inside it were.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Priority inheritance raises the waiting job.”</h3>
+          <p class="small"><strong>Why it is tempting:</strong> the waiter is the important one, so promoting it sounds like the fix.</p>
+          <p class="small"><strong>What is true:</strong> the waiter already has its priority — $$J_1$$ is priority 1 before, during and after, with zero priority changes measured. The holder $$J_3$$ is the job that changes, twice.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why the direction matters:</strong> raising the waiter changes nothing, because the waiter is not the job that runs. The job that must run is the holder, so the holder is the one that must be made urgent.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Being refused a free lock is a bug in the ceiling protocol.”</h3>
+          <p class="small"><strong>Why it is tempting:</strong> the lock is free; refusing it looks like an error.</p>
+          <p class="small"><strong>What is true:</strong> the test is applied before the lock is examined, deliberately. $$J_1$$ is refused entry at tick 5 of the two-lock trace because $$J_2$$ holds $$S_2$$ with ceiling 1. That refusal is what stops the cycle of scene 6 from forming.</p>
+          <p class="small" style="margin-bottom:0"><strong>The trade:</strong> one possibly unnecessary wait, in exchange for no deadlock and at most one blocking episode.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“The ceiling protocol always blocks less than inheritance.”</h3>
+          <p class="small"><strong>Why it is tempting:</strong> the ceiling protocol has the better theorem, so it should be better in every run.</p>
+          <p class="small"><strong>What is true:</strong> on the two-lock trace both protocols block $$J_1$$ for 8 ticks. Inheritance splits them into 2 episodes, the ceiling protocol keeps them in one. A trace is not a bound, and the guarantee that improves is the worst case, not this run.</p>
+          <p class="small" style="margin-bottom:0"><strong>The test:</strong> ask what quantity is being compared. Ticks in one trace and worst-case sections over all traces are different quantities.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Inheritance prevents deadlock.”</h3>
+          <p class="small"><strong>Why it is tempting:</strong> inheritance is introduced in the same breath as the protocols that fix real-time problems, and it does fix a real one.</p>
+          <p class="small"><strong>What is true:</strong> inheritance decides who runs. It says nothing about who may take a lock, so it cannot break a cycle. The model deadlocks at tick 4 under inheritance, and in 31 of 121 release pairs.</p>
+          <p class="small" style="margin-bottom:0"><strong>What does prevent it:</strong> the ceiling admission test, or a total order on the locks.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“Blocked, starved and deadlocked are the same thing.”</h3>
+          <p class="small"><strong>What is true:</strong> blocked means waiting for a lock; ready-but-never-chosen means starvation; waiting in a cycle means deadlock. Only the first two can coexist with a run that finishes.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it matters:</strong> the repair differs in each case — a protocol, an ageing rule, or a lock order. Naming the state wrongly points at the wrong fix.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The five shapes, and the procedure for each</h3>
+          <p class="small">No question on this page is quoted as an official GATE question. The shapes below are the standard forms this material is examined in, and each carries the answer this page's model computes, so you can check your procedure against a worked number.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> These shapes recur in university operating-systems papers and in public question banks. Treat the frequency as an observation about past papers, not a forecast.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — how long is the blocked job blocked?</h3>
+          <p class="small"><strong>Procedure.</strong> Write the tick at which the job is refused the lock, and the tick at which the holder releases it. Subtract. Then check the policy: under no protocol the answer includes every tick of work more urgent than the holder; under inheritance it is only the unexecuted part of the section.</p>
+          <p class="small" style="margin-bottom:0"><strong>This page:</strong> no protocol 10, inheritance 2, ceiling 2. The tempting wrong answer is 3, the section length — right only when the holder has executed none of it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — how many blocking episodes, and what is the bound?</h3>
+          <p class="small"><strong>Procedure.</strong> Count episodes, not ticks: a new episode begins each time the job is refused again. For the bound, count $$n$$, the lower-priority jobs that can block the waiter, and $$m$$, the semaphores that can be used to block it. Inheritance gives $$\min(n, m)$$; the ceiling protocol gives 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>This page:</strong> 2 episodes against 1, and $$\min(2,2) = 2$$ against 1. If the question asks for a time bound, the section lengths must be given; a count of sections is not a time.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — which protocol deadlocks?</h3>
+          <p class="small"><strong>Procedure.</strong> Look for two jobs taking two locks in nested sections in opposite orders. Inheritance cannot prevent it; the ceiling test can. A total order on locks also prevents it, and that is a program constraint rather than a protocol.</p>
+          <p class="small" style="margin-bottom:0"><strong>This page:</strong> deadlock at tick 4 under inheritance, completion at tick 10 under the ceiling protocol; 31 of 121 release pairs against 0.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — compute a ceiling</h3>
+          <p class="small"><strong>Procedure.</strong> List the jobs that lock the semaphore anywhere in their code, take the most urgent, and that is the ceiling. Do not look at who holds it now, and do not average or sum.</p>
+          <p class="small" style="margin-bottom:0"><strong>This page:</strong> both $$S_1$$ and $$S_2$$ are locked by $$J_1$$, so both ceilings are 1.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 — what does a protocol guarantee?</h3>
+          <p class="small"><strong>Procedure.</strong> Name the quantity bounded and the bound. Inheritance bounds the number of critical sections that can block a job, by $$\min(n,m)$$. The ceiling protocol bounds it by one and prevents deadlock. Neither bounds a section's length, and neither makes the wait zero.</p>
+          <p class="small" style="margin-bottom:0"><strong>The trap:</strong> "prevents priority inversion" is not a theorem anyone proves. Both protocols leave inversion in place and bound it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Three sentences that decide the answer</h3>
+          <p class="small">Read the question for these before computing anything.</p>
+          <p class="small">“Under no protocol” — the middle jobs count in full. “Under priority inheritance” — only the section counts. “Under the priority ceiling protocol” — a job may be blocked on a lock it did not ask for.</p>
+          <p class="small" style="margin-bottom:0">And one more: “assume a job never suspends inside a critical section”. If the question drops that assumption, the one-section bound is gone.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers withheld until you reveal them</h3>
+          <p class="small">Every question here is an <strong>original practice question written for this lesson</strong>; none is quoted as an official GATE question. Each answer states the reasoning, says why the other options fail, and names the trap the question is built on. Use the mock-test switch to hide every answer at once.</p>
+          <p class="small" style="margin-bottom:0"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until I submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q1</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">Three jobs run on one processor under preemptive fixed-priority scheduling, with 1 the most urgent. $$J_3$$ (priority 3) executes 1 unit, locks semaphore $$S$$, executes 3 units, unlocks, executes 1 unit. $$J_1$$ (priority 1) is released at time 2, executes 2 units, then locks $$S$$ for 2 units. $$J_2$$ (priority 2) is released at time 2 and executes 8 units using no lock. No priority protocol is used. How many time units is $$J_1$$ blocked?</p>
+          <p class="small">(A) 3 &nbsp; (B) 7 &nbsp; (C) 10 &nbsp; (D) 8</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (C) 10.</strong> $$J_1$$ asks for $$S$$ at tick 4 and is released at tick 14. Ticks 0–1 are $$J_3$$; ticks 2–3 are $$J_1$$; ticks 4–11 are $$J_2$$'s eight units; ticks 12–13 finish $$J_3$$'s section; tick 14 wakes $$J_1$$. Blocked from 4 to 13 inclusive is 10 ticks.</p>
+            <p class="small"><strong>Why the others fail:</strong> (A) 3 is the length of the critical section, which is the answer only if nothing more urgent than $$J_3$$ runs while $$J_1$$ waits. (B) 7 is $$J_2$$'s contribution alone, forgetting the section. (D) 8 counts $$J_2$$ plus nothing, or misplaces the release by one.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> the section is not the bound. Under no protocol the bound is the section plus every tick of work more urgent than the holder.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q2</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">In Q1's schedule, suppose basic priority inheritance is enabled and everything else is unchanged. How many time units is $$J_1$$ blocked now?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 2.</strong> $$J_3$$ has already executed 1 of its 3 critical-section units before $$J_1$$ asks, so 2 remain. With inheritance $$J_3$$ runs those 2 ticks at priority 1, so $$J_2$$ cannot preempt it, and $$J_1$$ is woken exactly when the section ends.</p>
+            <p class="small"><strong>Why not 3:</strong> the whole section is 3 units, but one of them was executed before the wait began. The wait is the unexecuted part, which is why the answer is 3 − 1.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> answering with the section length ignores when the waiter arrived. Read the release times before quoting the section.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q3</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">Which of the following statements are TRUE?</p>
+          <p class="small">I. Under basic priority inheritance a job can be blocked by at most one critical section for each semaphore that can block it.<br>
+          II. The priority ceiling protocol can block a job on a semaphore it has not requested.<br>
+          III. Basic priority inheritance prevents deadlock between jobs that take two locks in opposite orders.<br>
+          IV. The priority ceiling protocol bounds a job's blocking by one longest critical section of a lower-priority job.</p>
+          <p class="small">(A) I, II and IV only<br>(B) I and III only<br>(C) II, III and IV only<br>(D) All four</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A).</strong> I is the lemma behind the $$\min(n, m)$$ bound. II is ceiling blocking: $$J_1$$ is refused entry at tick 5 because $$J_2$$ holds $$S_2$$ whose ceiling is 1. IV is the ceiling protocol's worst-case bound.</p>
+            <p class="small"><strong>Why the others fail:</strong> III is false, and it is the whole point of scene 6 — inheritance decides who runs, not who may lock, so the cycle survives and the model deadlocks at tick 4.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> III is the statement people accept because both protocols are introduced together. Separate what each one is allowed to look at: inheritance looks at priorities, the ceiling test looks at locks.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q4</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">Three jobs with priorities 1 (most urgent), 2 and 3 share two semaphores. $$J_1$$ locks both. $$J_2$$ locks only $$S_2$$. $$J_3$$ locks only $$S_1$$. Give the ceiling of each semaphore, written as two numbers in the order $$S_1$$ then $$S_2$$.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 1 and 1.</strong> $$\mathrm{ceiling}(S_1)$$ is the most urgent priority among the jobs that lock $$S_1$$: that set is $$\{J_1, J_3\}$$, and the most urgent is 1. $$\mathrm{ceiling}(S_2)$$ is over $$\{J_1, J_2\}$$, also 1.</p>
+            <p class="small"><strong>Why not 1 and 2:</strong> taking the priority of the least urgent user, or of the typical user, is not the definition. The ceiling is the maximum urgency over the whole set, because that is the most urgent job the lock can ever be used to block.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> the ceiling is computed from the static set of lockers, not from the current holder. It does not change while the program runs.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q5</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">In the two-lock program of this lesson, basic priority inheritance blocks $$J_1$$ for 8 ticks in 2 episodes and the priority ceiling protocol blocks it for 8 ticks in 1 episode. Which statement is correct?</p>
+          <p class="small">(A) The ceiling protocol is faulty here, because it should never block for longer.<br>
+          (B) The worst-case bound improved from $$\min(n,m)$$ critical sections to one, although this particular run did not improve.<br>
+          (C) Both protocols are equivalent, since the totals agree.<br>
+          (D) Inheritance is preferable here, because fewer ticks are spent in ceiling blocking.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> A theorem about the worst case says nothing about one trace. What changed is the number of episodes the worst case must budget for: 2 sections become 1, so the worst case is one longest critical section.</p>
+            <p class="small"><strong>Why the others fail:</strong> (A) mistakes a guarantee for a per-run promise. (C) ignores the episode count, which is the quantity the bound is stated in. (D) invents a preference the totals do not support — the totals are equal.</p>
+            <p class="small" style="margin-bottom:0"><strong>Distinction:</strong> ticks measure a run; sections bound all runs. A question that gives you one trace and asks about a bound has given you the wrong evidence on purpose.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <p class="small"><strong>Q6</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+          <p class="small">A high-priority job is not running. Which observation proves that the situation is a deadlock rather than priority inversion?</p>
+          <p class="small">(A) The job has been waiting longer than the length of the critical section it needs.<br>
+          (B) Every unfinished job is blocked and no job is runnable, while work remains.<br>
+          (C) A lower-priority job is currently executing.<br>
+          (D) The waiting job's priority is higher than the holder's.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> That is exactly the condition the model tests: it runs until no job is runnable while work remains, and reports the tick. On the cycle program it reports tick 4 with both jobs blocked and neither finished.</p>
+            <p class="small"><strong>Why the others fail:</strong> (A) describes inversion, which is precisely a wait longer than the section. (C) is normal preemption and also normal inversion. (D) is the definition of inversion, not of deadlock.</p>
+            <p class="small" style="margin-bottom:0"><strong>Trap:</strong> a long wait and an endless wait look identical until you check whether the run can continue. Check that first.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--takeaway">
+          <h3>Definitions in one line each</h3>
+          <p class="small"><strong>Priority inversion:</strong> a higher-priority job waits for a lower-priority job because of a shared resource.</p>
+          <p class="small"><strong>Unbounded inversion:</strong> the wait is bounded only by unrelated work, not by critical sections.</p>
+          <p class="small"><strong>Basic priority inheritance:</strong> a job inside a section that blocks more urgent jobs runs at the most urgent of their priorities, and gives it back on exit.</p>
+          <p class="small"><strong>Ceiling of a semaphore:</strong> the most urgent priority among the jobs that may lock it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Priority ceiling protocol:</strong> admission only if the asking job's priority is strictly above the highest ceiling currently locked by others; otherwise it is blocked on that semaphore.</p>
+        </div>
+
+        <div class="card">
+          <h3>The numbers on this page</h3>
+          <p class="small">Three-job trace: 10 ticks blocked with no protocol, 2 with inheritance, 2 with the ceiling protocol; the run finishes at tick 17 in all three.</p>
+          <p class="small">Sweeps: 2 + L for L from 0 to 20, and 2 + 8k for k from 0 to 6, against a constant 2 under inheritance.</p>
+          <p class="small">Two-lock trace: 9 ticks with no protocol, 8 in 2 episodes under inheritance, 8 in 1 episode under the ceiling protocol.</p>
+          <p class="small" style="margin-bottom:0">Deadlock program: deadlock at tick 4 under inheritance, completion at tick 10 under the ceiling protocol; 31 of 121 release pairs deadlock under inheritance, none under the ceiling protocol; over 81 release pairs of the three-job trace, inheritance never exceeds 3 ticks and never exceeds the no-protocol wait.</p>
+        </div>
+
+        <div class="card">
+          <h3>The decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Is the wait for a <em>less</em> urgent job? If not, it is not inversion.</li>
+            <li>Does the run continue? If no job is runnable while work remains, it is deadlock.</li>
+            <li>Which policy is in force? No protocol counts all more urgent work; inheritance counts only the section remainder; the ceiling protocol may block on a lock you did not ask for.</li>
+            <li>Is the question about ticks (a trace) or about sections (a bound)? Answer with the matching quantity.</li>
+            <li>For a bound: $$\min(n, m)$$ for inheritance, 1 for the ceiling protocol, and check the no-suspend assumption.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, one line each</h3>
+          <p class="small">Inversion is not deadlock — the wait ends.</p>
+          <p class="small">The holder is raised, never the waiter.</p>
+          <p class="small">Ceiling blocking refuses free locks on purpose.</p>
+          <p class="small">The ceiling protocol shrinks the worst case, not every run.</p>
+          <p class="small">Inheritance does not prevent deadlock.</p>
+          <p class="small" style="margin-bottom:0">A count of critical sections is not a time bound.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official syllabus</h3>
+          <p class="small"><strong>GATE 2027 Computer Science and Information Technology syllabus</strong>, IIT Madras, document <code>CS_GATE2027_Syllabus.pdf</code>, fetched from the organising institute's site and read in full for this lesson. Section 8 reads: "System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</p>
+          <p class="small" style="margin-bottom:0">The syllabus does not name priority inversion, priority inheritance or the priority ceiling protocol. The class A registration is therefore stated on this page as an <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> with its reasoning, not as a quotation.</p>
+        </div>
+
+        <div class="card">
+          <h3>The primary reference</h3>
+          <p class="small"><strong>L. Sha, R. Rajkumar and J. P. Lehoczky, "Priority Inheritance Protocols: An Approach to Real-Time Synchronization", IEEE Transactions on Computers, vol. 39, no. 9, 1990.</strong> Read for this lesson. It supplies: the definition of uncontrolled priority inversion; the two protocols; the rule that a job uses its assigned priority unless it blocks more urgent jobs; the ceiling of a semaphore and the admission test; the three kinds of blocking (direct, push-through, ceiling); the $$\min(n, m)$$ bound; the one-longest-critical-section bound for the ceiling protocol; the theorem that the ceiling protocol prevents deadlock; the assumptions about nested sections, no self-suspension and releasing locks at the end; and the remark that the basic protocol by itself does not prevent deadlock and can suffer chained blocking.</p>
+          <p class="small" style="margin-bottom:0">The paper's Example 1 (three jobs, one semaphore) is the shape of scene 1, and its Example 2 (two jobs, two semaphores, opposite order) is the shape of scene 6. The numbers on this page are this lesson's own, computed by its scheduler, not the paper's.</p>
+        </div>
+
+        <div class="card">
+          <h3>The Pathfinder account</h3>
+          <p class="small"><strong>Glenn E. Reeves (JPL), "What really happened on Mars?", December 1997</strong>, and <strong>"Priority Inversion: How We Found It, How We Fixed It", Dr Dobb's Journal, November 1999</strong>. Used for: the roles of the bc_sched, bc_dist and ASI/MET tasks and the middle-priority tasks; the mutex inside <code>select()</code>; the 8 Hz bus cycle as the deadline; the reset by the spacecraft; the priority-inheritance flag that was off by default; the lab reproduction in under 18 hours; the fix and its success.</p>
+          <p class="small" style="margin-bottom:0">The date "27 September 1997" for the resets is from the Dr Dobb's conversation with Reeves. No timing figures are invented: the lanes in scene 7 are labelled a schematic and carry no measured durations.</p>
+        </div>
+
+        <div class="card">
+          <h3>Cross-checks, and what was not read</h3>
+          <p class="small"><strong>R. Rajkumar, "The priority ceiling protocol: a method for minimizing the blocking of high priority Ada tasks" (1988)</strong> — used to confirm that the basic protocol bounds the blocking delay and that the ceiling protocol reduces it to at most one section. <span class="claim-chip claim-chip--community">Community observation</span> <strong>Wikipedia, "Priority ceiling protocol"</strong> — used only as a cross-check on the definition and the deadlock-avoidance claim.</p>
+          <p class="small"><strong>M. Jones's 1997 RISKS post and D. Wilner's keynote account</strong> were not read in full; the Pathfinder material on this page comes from Reeves's own two accounts.</p>
+          <p class="small" style="margin-bottom:0">Textbooks such as Silberschatz, Galvin and Gagne, and Stallings, cover priority inversion in their synchronisation chapters; neither was read for this lesson, and nothing on the page is attributed to them.</p>
+        </div>
+
+        <div class="card">
+          <h3>How the numbers on this page were produced</h3>
+          <p class="small" style="margin-bottom:0">Every count comes from the lesson's own model in <code>lesson.js</code>: a tick-by-tick preemptive fixed-priority scheduler with binary semaphores, run under three policies, which records the state of every job on every tick. It runs the three-job trace, the two sweeps over middle-job length and count, the two-lock trace, the deadlock program, and two exhaustive sweeps over release times (81 and 121 pairs). Forty-four checks re-verify the numbers at load and are reported under the canvas. No figure on this page was typed from memory.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the research did not settle</h3>
+          <p class="small">No official GATE paper was read for this lesson, so no previous-year question is quoted and no year or question number is claimed. Every practice question is labelled original.</p>
+          <p class="small">The claim that the ceiling protocol prevents deadlock is the paper's theorem; this page's 121-pair sweep is a measurement that agrees with it on one task set and is presented as a measurement.</p>
+          <p class="small" style="margin-bottom:0">The extension of the $$\min(n,m)$$ bound to the case where a job suspends inside a critical section is not treated here beyond naming the assumption; the surveys that discuss it were not read in full.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
