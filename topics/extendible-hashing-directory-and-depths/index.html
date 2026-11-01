@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Extendible Hashing: the Directory, the Two Depths and the Bucket Split — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Extendible hashing and the two depths</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../file-organisation-and-indexing/index.html">Related: B and B+ tree indexing</a>
+      <a href="../hashing/index.html">Related: in-memory hashing</a>
+      <a href="../secondary-storage-and-raid/index.html">Related: the disk block</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Extendible hashing — the hashed index that replaces a fixed bucket count with a directory of 2<sup>d</sup> pointers. The two depths (global d and local d&prime;), the split, the doubling, the buddy merge and the halving.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a key and a structure, find its directory entry from the low d bits, say whether an overflow splits a bucket alone or doubles the directory first, and say why. Compute the four numbers that questions ask for — pointers per bucket, maximum records, minimum global depth, directory size. Trace an insertion sequence by hand and check the four defining properties afterwards. State what the structure guarantees about a lookup, and name the query it cannot answer.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one promise and two depths</em>: a lookup costs one block read because the directory is resident, and every structural decision follows from comparing d with d&prime;. Every number on this page — the 8 entries and 6 buckets of the ten-record trace, the 3 doublings and 5 splits, the 4-of-4 copied pairs, the 64 entries for 5 skewed keys, the 20160 insertion orders checked — is computed at load by the lesson&rsquo;s own model and re-checked against the definition it claims.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside a syllabus clause.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, Section 9, reads: <em>&ldquo;ER&#8209;model. Relational model: relational algebra, tuple calculus, SQL. Integrity constraints, normal forms. File organization, indexing (e.g., B and B+ trees). Transactions and concurrency control.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The parenthetical says <em>e.g.</em>, which is an example and not a closed list. B and B+ trees are one family of index; hashing is the other, and the clause does not exclude it. This lesson owns the hashed family at the storage level, which no other lesson in the repository did.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> No GATE CS previous-year question specifically on extendible hashing could be verified from a paper or a question-and-answer archive during this run, so <strong>every practice question on this page is original</strong> and is labelled as such. No weightage is claimed and no forecast is made.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <p class="small">This lesson needs one idea from the disk and one from ordinary hashing. Neither is assumed.</p>
+          <ul class="small">
+            <li><a href="../secondary-storage-and-raid/index.html">Secondary storage</a> — a block is the unit of transfer, and a block read is the unit of cost.</li>
+            <li><a href="../hashing/index.html">Hashing</a> — a hash function, a home bucket, a collision, a load factor. That lesson is about hashing inside main memory; this one is about hashing on disk.</li>
+            <li><a href="../file-organisation-and-indexing/index.html">File organisation and indexing</a> — heap, sequential and hashed files, and the B+ tree this lesson is measured against.</li>
+            <li><a href="../asymptotic-complexity/index.html">Asymptotic complexity</a> — why "one block read regardless of size" is the claim worth paying for.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 75 minutes, of which about 25 is the animation.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Five ideas, and the rest follows</h3>
+          <ol class="small">
+            <li>A fixed bucket count overflows as the file grows, and the chain that absorbs the overflow is what makes the lookup cost grow.</li>
+            <li>A directory of 2<sup>d</sup> pointers, indexed by the <em>low</em> d bits of the hash, makes the bucket reachable in one probe. The global depth d is the number of bits it reads.</li>
+            <li>Each bucket records how many bits it actually needed: the local depth d&prime;, never larger than d. A bucket at d&prime; is reached by exactly 2<sup>d&minus;d&prime;</sup> entries, and all of them agree on its low d&prime; bits.</li>
+            <li>On overflow, compare the two depths. d&prime; &lt; d: split and repoint, no new entry. d&prime; = d: double the directory first, then split.</li>
+            <li>Deletion reverses it — merge with the split image when the records fit, then halve the directory when every local depth has fallen below it. The cost of all this is a directory that can grow large when the hash is skewed, and no range query.</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition: a hotel that adds corridors instead of rebuilding</h3>
+          <p class="small">A hotel has a fixed number of rooms. When a floor is full, guests are put in a corridor and the receptionist keeps a note: <em>room 3, then the corridor</em>. Every extra guest makes that note longer, and finding a guest at the end of the corridor takes longer than finding one in a room.</p>
+          <p class="small">The other hotel keeps a <em>signboard</em> at reception: one line per room, saying which floor to go to. When a floor is full, it does not build a corridor — it splits that floor into two and rewrites only the signboard lines that pointed at it. If the signboard has no spare line to give, it reprints the whole board at double the size, which costs a photocopy and nothing else.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy maps: room = bucket, corridor = overflow chain, signboard = directory, one line = one pointer, reprinting at double size = doubling. It stops mapping at the split, which redistributes guests by one bit of their booking number — something a hotel cannot do.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The formal objects, every symbol in words</h3>
+          <p class="small"><strong>Hash value</strong> — h(k), a bit string computed from the key. The structure reads only its <em>low-order</em> bits.</p>
+          <p class="small"><strong>Directory</strong> — an array of 2<sup>d</sup> pointers to buckets. Entry number i is chosen as <code>i = h(k) AND (2<sup>d</sup> &minus; 1)</code>, that is, the last d bits of h(k) read as a number.</p>
+          <p class="small"><strong>Global depth d</strong> — the number of low-order bits the directory reads. It is a property of the directory, and it equals the largest local depth in the structure.</p>
+          <p class="small"><strong>Bucket</strong> — one disk block holding up to <em>capacity</em> records, plus a header field holding its <strong>local depth d&prime;</strong>: the number of low-order bits that were actually needed to separate the records in it.</p>
+          <div class="formula">$$\text{pointers reaching one bucket} \;=\; 2^{\,d-d'}$$
+            <span class="gloss">A bucket whose local depth is d&prime; is pointed at by 2 to the power (d minus d&prime;) directory entries, and every one of those entries agrees with the bucket on its low d&prime; bits.</span>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Split image</strong> (or <em>buddy</em>) — the bucket that shares every bit of a bucket except bit d&prime;&minus;1. Splitting creates a pair of split images; merging rejoins them.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The one decision, and the two cases it has</h3>
+          <p class="small">Every structural change in the structure comes from one question, asked when a record does not fit in the bucket it hashed to. Nothing else causes a split or a doubling.</p>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:4px 8px">the overflowing bucket</th>
+                <th style="text-align:left;padding:4px 8px">what happens</th>
+                <th style="text-align:left;padding:4px 8px">why</th>
+                <th style="text-align:left;padding:4px 8px">cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:4px 8px"><code>d&prime; &lt; d</code></td>
+                <td style="padding:4px 8px">split only</td>
+                <td style="padding:4px 8px">the bucket already has 2<sup>d&minus;d&prime;</sup> &ge; 2 pointers, so a spare one exists for the new bucket</td>
+                <td style="padding:4px 8px">1 bucket read, 1 write, and the pointers that reached it rewritten</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 8px"><code>d&prime; = d</code></td>
+                <td style="padding:4px 8px">double, then split</td>
+                <td style="padding:4px 8px">the bucket has exactly 2<sup>0</sup> = 1 pointer, so a second pointer has to be created, and a new entry means a longer directory</td>
+                <td style="padding:4px 8px">one copy of the pointer array, then the same split</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin-bottom:0">The comparison is made on the bucket as it stands, <em>before</em> anything is moved. Reading it after a split is the commonest procedural error, because after the split the local depth has already changed.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The assumptions under all of it</h3>
+          <p class="small">Three assumptions are load-bearing, and each has a named failure.</p>
+          <ul class="small">
+            <li><strong>The directory fits in main memory.</strong> Then an equality lookup is one block read. If it does not, the lookup is two: one for the directory page, one for the bucket.</li>
+            <li><strong>The hash spreads keys uniformly over the low bits.</strong> When it does not, one bucket keeps overflowing and the directory doubles for nothing — the skew scene computes 64 entries for 5 records.</li>
+            <li><strong>Keys differ somewhere in their bits.</strong> Two records with the same full hash value cannot be separated by any number of bits; implementations keep an overflow chain for duplicates.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Ramakrishnan and Gehrke state the first and third directly: "If directory fits in memory, equality search answered with one disk access; else two&hellip; Multiple entries with same hash value cause problems!"</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the one-read promise does not cover</h3>
+          <p class="small">A hash index answers <em>one key equals one value</em>. It does not answer a range, a prefix, or an ordered scan, because the hash deliberately scatters neighbours in value across unrelated buckets.</p>
+          <p class="small" style="margin-bottom:0">This page measures it: 20 records in 12 buckets, and the eight consecutive keys 5 to 12 land in 8 different buckets. A B+ tree reads one leaf and then walks the leaf chain. So "which index" is never a question with one answer — it is a question about the query shape.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Static hashing fixes the bucket count first: h(k) = k mod 10, ten buckets, two records each.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A fixed number of buckets, and a chain that grows</p>
+            <p class="counter" id="scene-count">Scene 1 of 13</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Static hashing chooses the number of buckets before it sees a single record.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="370" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">6:10</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 1 — ten records, computed end to end</h3>
+              <p class="small">Capacity 2 records per bucket, hash h(k) = k so that a key is its own bit string, and the insertion order 16, 4, 6, 22, 24, 10, 31, 7, 9, 20.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> 16 arrives at depth 0: one entry, one bucket, room for two. <span class="why">16, 4 in the bucket</span></p>
+                <p><strong>2.</strong> 6 overflows it: d&prime; = d = 0, so double to depth 1, then split on bit 0. <span class="why">6 has bit 0 = 0, so it goes to the low half, which still holds two others and overflows again</span></p>
+                <p><strong>3.</strong> the same bucket is still over capacity, so d&prime; = d = 1 again: double to depth 2, split on bit 1. <span class="why">16 and 4 differ at bit 1, and are now separated</span></p>
+                <p><strong>4.</strong> 22 arrives, entry 10 = 2, joins 6. <span class="why">no change</span></p>
+                <p><strong>5.</strong> 24 arrives, entry 00 = 0, holds 16: full but fits. <span class="why">no change</span></p>
+                <p><strong>6.</strong> 24 needs a third: d&prime; = d = 2, double to depth 3, split on bit 2. <span class="why">16 and 24 differ at bit 2 (24 has 1)</span></p>
+                <p><strong>7.</strong> 10 arrives, entry 010 = 2, overflows, and now d&prime; = 2 &lt; d = 3, so split only. <span class="why">this is Example 2</span></p>
+                <p><strong>8.</strong> 31 joins 7 at entry 011. <span class="why">fits</span></p>
+                <p><strong>9.</strong> 9 arrives at entry 001, overflows a bucket at d&prime; = 1 &lt; 3, split only. <span class="why">a second split with no doubling</span></p>
+                <p><strong>10.</strong> 20 joins 4 at entry 100. <span class="why">fits</span></p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Final state, computed: <strong>global depth 3, 8 entries, 6 buckets, 10 records, 10 of 12 slots used</strong>, from <strong>3 doublings and 5 splits</strong>, with local depths 2, 2, 3, 3, 3, 3. The two buckets at d&prime; = 2 are each shared by two entries.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — the split that does not double</h3>
+              <p class="small">State before: depth 3, 8 entries, 5 buckets. Insert 10. Its low three bits are 010, so the entry is 2, and that bucket holds 6 and 22 — three records where two fit.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Compare: the bucket&rsquo;s d&prime; is 2, the global depth is 3. <span class="why">d&prime; &lt; d, so this is the split-only case</span></p>
+                <p><strong>2.</strong> The split bit is bit number d&prime; = 2, which is the 4s bit.</p>
+                <p><strong>3.</strong> 6 = 0110 has bit 2 = 1. 10 = 1010 has bit 2 = 0. 22 = 10110 has bit 2 = 1. <span class="why">so 10 stays, 6 and 22 move</span></p>
+                <p><strong>4.</strong> Both halves take d&prime; = 3. The old bucket had 2<sup>3&minus;2</sup> = 2 pointers; each half now has 2<sup>3&minus;3</sup> = 1.</p>
+                <p><strong>5.</strong> Entries stay 8, global depth stays 3, buckets go from 5 to 6.</p>
+              </div>
+              <p class="small" style="margin-bottom:0"><strong>The check that catches a slip:</strong> 10 &amp; 7 = 2, and the bucket it now sits in must have d&prime; = 3, so that bucket&rsquo;s single entry is 2 and it must contain only keys with low three bits 010. It contains 10 alone. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span></p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 3 — the split that doubles first</h3>
+              <p class="small">State before: depth 2, 4 entries, buckets A(16, 4 at d&prime; = 2), B(6, 22 at d&prime; = 2), C(10 at d&prime; = 2), D(24 at d&prime; = 2) — every bucket at the global depth, so every bucket has exactly one pointer.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Insert 24: its low two bits are 00, so entry 0, which holds 16 and 4. Three records, capacity 2.</p>
+                <p><strong>2.</strong> Compare: d&prime; = 2 and d = 2. <span class="why">equal, so the directory must double</span></p>
+                <p><strong>3.</strong> Copy the array: entry i + 4 becomes entry i, for i = 0 to 3. <span class="why">4 of 4 pairs identical, checked</span></p>
+                <p><strong>4.</strong> Global depth becomes 3. Now the overflowing bucket has two pointers, at 000 and 100.</p>
+                <p><strong>5.</strong> Split on bit 2: 4 = 100 has bit 2 = 1, 16 = 10000 has bit 2 = 0, 24 = 11000 has bit 2 = 0. <span class="why">4 moves, 16 and 24 stay</span></p>
+                <p><strong>6.</strong> The halves take d&prime; = 3. Entry 000 reaches the bucket holding 16 and 24; entry 100 reaches the bucket holding 4.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Depth 2 &rarr; 3, entries 4 &rarr; 8, buckets 4 &rarr; 5. The doubling came first and the split came second; doing them in the other order leaves the new bucket with no pointer.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — the four counts, worked</h3>
+              <p class="small">Each line is computed by the page&rsquo;s model, and each is a question that has actually been asked in this shape.</p>
+              <div class="step-list small">
+                <p><strong>a.</strong> A bucket at d&prime; = 2 in a directory at d = 4: 2<sup>4&minus;2</sup> = <strong>4</strong> entries reach it. <span class="why">count of entries, not of records</span></p>
+                <p><strong>b.</strong> Most records at d = 4, capacity 3: 2<sup>4</sup> &times; 3 = <strong>48</strong>. <span class="why">a ceiling, reached only if every bucket is full and no two share an entry</span></p>
+                <p><strong>c.</strong> 100 records at capacity 8: &lceil;100/8&rceil; = 13 buckets at least, so the smallest d with 2<sup>d</sup> &ge; 13 is <strong>4</strong>, giving 16 entries and a ceiling of 128 records.</p>
+                <p><strong>d.</strong> Directory at d = 20 with 4-byte pointers: 2<sup>20</sup> &times; 4 = 4194304 bytes = <strong>4 MiB</strong>. <span class="why">about two million records at capacity 2</span></p>
+                <p><strong>e.</strong> 1000 records at capacity 10: &lceil;1000/10&rceil; = 100, so d = <strong>7</strong>, 128 entries, ceiling 1280.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Line (c) and line (e) are floors and line (b) is a ceiling. They meet only for a perfectly uniform hash: the bound is necessary, not sufficient, which is exactly what the skew scene shows.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 5 — a deletion sequence with both answers</h3>
+              <p class="small">Start from the finished ten-record structure: depth 3, 8 entries, 6 buckets. Delete 20, then 24, then 22, then 16 and 4.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Delete 20. Its bucket held 4 and 20, so it now holds 4. Its split image holds 16 and 24. Combined 1 + 2 = 3 &gt; capacity 2. <span class="why">merge refused, still 6 buckets</span></p>
+                <p><strong>2.</strong> Delete 24. Now 1 + 1 = 2, which fits, and both have d&prime; = 3. <span class="why">merge accepted, d&prime; falls to 2, 5 buckets</span></p>
+                <p><strong>3.</strong> Delete 22. Its bucket held 6 and 22, now 6 alone at d&prime; = 3; its image holds 10 at d&prime; = 3; combined 2 fits. <span class="why">merge, d&prime; 3 &rarr; 2</span></p>
+                <p><strong>4.</strong> Every local depth is now below the global depth 3, so entry i and entry i + 4 agree for all i. <span class="why">halve: d 3 &rarr; 2, entries 8 &rarr; 4, 4 buckets</span></p>
+                <p><strong>5.</strong> Delete 16, then 4. The last deletion merges again. <span class="why">3 buckets at depth 2, 5 records</span></p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Deleting the remaining records returns the structure to one bucket at depth 0. The page checks that round trip over all 720 insertion orders of six keys.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Example 6 — the skew, measured</h3>
+              <p class="small">Five keys, capacity 2: 1, 17, 33, 49, 65. Every one is congruent to 1 modulo 16, so every one ends in 0001.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> 1 arrives, then 17: two records, one bucket, fits at depth 0.</p>
+                <p><strong>2.</strong> 33 arrives: d&prime; = d = 0, double to 1, split on bit 0. Both 1 and 17 have bit 0 = 1, so both move and the new bucket is still over capacity. <span class="why">the split achieved nothing</span></p>
+                <p><strong>3.</strong> The same thing happens at bits 1, 2 and 3: 1, 17, 33 and 49 agree on all four low bits.</p>
+                <p><strong>4.</strong> The directory doubles six times, reaching depth 6.</p>
+                <p><strong>5.</strong> Final state, computed: <strong>64 directory entries, 7 buckets, 5 records</strong>.</p>
+              </div>
+              <p class="small" style="margin-bottom:0">This is the honest worst case: the directory can grow to roughly one entry per record. The algorithm is not wrong; its assumption — that the hash spreads keys over the low bits — has failed. The engineering answer is a small overflow allowance with doubling on a threshold.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Edge case 1 — the initial state is depth 0, not depth 1</h3>
+          <p class="small">At the start there is one directory entry and one bucket, and both depths are 0. The first overflow therefore has d&prime; = d = 0 and doubles immediately, to a two-entry directory. The first split of any structure is always preceded by a doubling.</p>
+          <p class="small" style="margin-bottom:0"><strong>Consequence for counting:</strong> "after k splits the directory has doubled k times" is false. In the ten-record trace, 5 splits produced only 3 doublings, because two of the splits found a bucket at d&prime; &lt; d.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 2 — a bucket at d&prime; = d has exactly one pointer</h3>
+          <p class="small">2<sup>d&minus;d</sup> = 2<sup>0</sup> = 1. Such a bucket cannot be split without a new entry, which is precisely why the doubling case exists. A bucket at d&prime; &lt; d always has at least two pointers, so it can always be split without touching the array.</p>
+          <p class="small" style="margin-bottom:0"><strong>The test that settles a question:</strong> count the pointers reaching the overflowing bucket. One pointer means the directory must grow; more than one means it must not.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 3 — a split can immediately overflow again</h3>
+          <p class="small">If every record in the bucket has the same bit at position d&prime;, the split sends all of them to one half and that half is over capacity again. The loop repeats: another doubling, another bit. In the ten-record trace this happened to the very first bucket, which doubled twice while inserting a single key.</p>
+          <p class="small" style="margin-bottom:0">So one insert can cause more than one doubling, and the skew example is the extreme case: six doublings for five keys. A question that says "one insertion caused a split" is not the same as "one insertion caused one doubling".</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 4 — duplicates cannot be separated</h3>
+          <p class="small">Two records whose <em>full</em> hash values are identical agree on every bit the directory could ever read. No number of doublings separates them, so the bucket overflows for ever.</p>
+          <p class="small" style="margin-bottom:0">This is the one documented exception to "no overflow chain": real implementations chain duplicates, and the structure gives up on separating them. Ramakrishnan and Gehrke state it as a comment on the scheme rather than a defect in an implementation.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case 5 — deleting to empty</h3>
+          <p class="small">Deletion must be able to undo everything. If the last record goes and the merges and halvings are correct, the structure returns to exactly its initial state: one bucket, one entry, both depths 0. If it does not, the deletion path is wrong somewhere.</p>
+          <p class="small" style="margin-bottom:0">This page checks that over all 720 insertion orders of six keys from six: insert all six, delete all six, and require depth 0, one bucket, zero records, and no invariant violation at any intermediate step.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Edge case 6 — which end are the bits read from?</h3>
+          <p class="small">The original paper (Fagin, Nievergelt, Pippenger and Strong, 1979) uses the <em>first</em> d bits of the hash value and calls them a prefix. Ramakrishnan and Gehrke, and most database texts, use the <em>last</em> d bits, because then doubling is a single copy of the array.</p>
+          <p class="small" style="margin-bottom:0">Both are internally consistent, and the depths, the split rule and the counts are identical. Only the entry numbers differ. A question that gives a binary hash usually says which end; if it does not, say which convention you are using and stay inside it.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Edge case 7 — the merge needs both conditions, and here is what each one stops</h3>
+          <p class="small"><strong>Condition A: the same local depth on both sides.</strong> Buckets that disagree on d&prime; are not split images of each other — one of them spans more of the directory — so merging them would leave a pointer array that no longer matches the buckets. <strong>Condition B: the combined records fit in one bucket.</strong> Without it, the merge creates an overflowing bucket, and the structure would have to split it again immediately.</p>
+          <p class="small" style="margin-bottom:0"><strong>Worked boundary:</strong> in the deletion trace, deleting 20 leaves one record against a split image holding two. 1 + 2 = 3 &gt; 2, so condition B refuses and the structure keeps 6 buckets. Deleting 24 next leaves 1 + 1 = 2, so the merge goes through and the local depth falls from 3 to 2. The two deletions differ only in the count.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>&ldquo;A bucket overflow always doubles the directory&rdquo;</h3>
+          <p class="small"><strong>Wrong.</strong> It doubles only when d&prime; = d. When d&prime; &lt; d the bucket already has at least two pointers, so the split repoints them and the array is untouched.</p>
+          <p class="small" style="margin-bottom:0">In the ten-record trace: 5 splits, 3 doublings. Two of the splits were free of any directory work.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;The directory has 2<sup>d</sup> entries, so there are 2<sup>d</sup> buckets&rdquo;</h3>
+          <p class="small"><strong>Wrong.</strong> 2<sup>d</sup> is an upper bound. Buckets at d&prime; &lt; d are pointed at by several entries each, which is the entire saving the scheme makes.</p>
+          <p class="small" style="margin-bottom:0">Computed here: the finished trace has 8 entries and 6 buckets; 20 records at depth 4 fill 12 of 16 entries. A question that asks for the bucket count needs the sequence traced.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Global depth is the number of records per bucket&rdquo;</h3>
+          <p class="small"><strong>Wrong, and this one costs marks.</strong> Global depth is a number of <em>bits</em>, not a count of anything stored. The capacity is a separate parameter of the block: how many records fit in one disk block.</p>
+          <p class="small" style="margin-bottom:0">The three quantities are independent: capacity comes from the block size and record size, d from the data distribution, and d&prime; from what one bucket happened to need.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Extendible hashing has no overflow, ever&rdquo;</h3>
+          <p class="small"><strong>Almost, and the exception matters.</strong> It has no overflow for <em>distinct</em> hash values, because it can always read another bit. Records with identical full hash values cannot be separated at all.</p>
+          <p class="small" style="margin-bottom:0">The other honest qualification is skew: the directory can grow to about one entry per record, so the space saved in the buckets can reappear in the directory.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;A hash index is faster, so use it for everything&rdquo;</h3>
+          <p class="small"><strong>Wrong for ranges.</strong> Eight consecutive keys touch eight different buckets here. A B+ tree reads one leaf and walks the chain, and it also answers ORDER BY, MIN, MAX and prefix matches.</p>
+          <p class="small" style="margin-bottom:0">A database offers both because the choice is about the query, not about which structure is better.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Deleting a record always shrinks the directory&rdquo;</h3>
+          <p class="small"><strong>Wrong.</strong> Two separate events must happen first: the bucket must merge with its split image, and then every local depth must be below the global depth. A single deletion usually does neither.</p>
+          <p class="small" style="margin-bottom:0">In the trace, deleting 20 changed no bucket count at all; deleting 24 merged; only deleting 22 made the halving possible.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The two pairs that get confused, side by side</h3>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr><th style="text-align:left;padding:4px 8px">pair</th><th style="text-align:left;padding:4px 8px">the distinction</th><th style="text-align:left;padding:4px 8px">what tells them apart</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:4px 8px"><strong>d vs d&prime;</strong></td>
+                <td style="padding:4px 8px">d is one number for the whole directory; d&prime; is one number per bucket and is never larger</td>
+                <td style="padding:4px 8px">ask &ldquo;how many pointers reach this bucket?&rdquo; — 2<sup>d&minus;d&prime;</sup> uses both</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 8px"><strong>extendible vs linear</strong></td>
+                <td style="padding:4px 8px">extendible splits the bucket that overflowed and needs a directory; linear splits the next bucket in a fixed order and needs none</td>
+                <td style="padding:4px 8px">does the structure have a pointer array, and is the split order round-robin?</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 8px"><strong>split vs doubling</strong></td>
+                <td style="padding:4px 8px">the split redistributes records and is always needed; the doubling only creates a pointer and may not be needed</td>
+                <td style="padding:4px 8px">compare d&prime; with d <em>before</em> moving anything</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin-bottom:0">A fourth pair worth keeping apart: <em>directory entries</em> (2<sup>d</sup>) and <em>block reads</em> (1, or 2 if the directory is on disk). The first is a size, the second is a cost.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>The six question shapes this topic produces</h3>
+          <div class="step-list small">
+            <p><strong>1. Read a structure.</strong> Given the directory and the depths, name the bucket for a key, or the keys in a bucket. <span class="why">write the low d bits, then read the entry</span></p>
+            <p><strong>2. Count the pointers.</strong> &ldquo;How many directory entries point to a bucket at d&prime; = 2 in a depth-4 directory?&rdquo; <span class="why">2<sup>d&minus;d&prime;</sup></span></p>
+            <p><strong>3. Trace one insert.</strong> Given the state, say what happens and give the new depth. <span class="why">compare the two depths first</span></p>
+            <p><strong>4. Bound a size.</strong> Maximum records, minimum depth, directory bytes. <span class="why">three different formulas</span></p>
+            <p><strong>5. Choose an index.</strong> Given a query shape, say hash or B+ tree and why. <span class="why">equality against range</span></p>
+            <p><strong>6. Compare schemes.</strong> Static against extendible against linear, on cost and on structure. <span class="why">a table, not a ranking</span></p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The procedure, in the order that avoids a second pass</h3>
+          <div class="step-list small">
+            <p><strong>1.</strong> Write the key in binary. <span class="why">every later step reads bits, not decimals</span></p>
+            <p><strong>2.</strong> Read the low d bits as the entry number. <span class="why">and note which end the question uses</span></p>
+            <p><strong>3.</strong> Follow that entry to its bucket. If the key is there, the lookup is done.</p>
+            <p><strong>4.</strong> If the bucket has room, insert and stop. <span class="why">most inserts end here</span></p>
+            <p><strong>5.</strong> If it is full, compare d&prime; with d before moving anything. <span class="why">equal &rarr; double then split; smaller &rarr; split only</span></p>
+            <p><strong>6.</strong> Redistribute on bit d&prime;, then increment both local depths.</p>
+            <p><strong>7.</strong> Recheck: entries = 2<sup>d</sup>, d = max d&prime;, each bucket reached by 2<sup>d&minus;d&prime;</sup> entries, no bucket over capacity.</p>
+          </div>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Where the marks are actually lost</h3>
+          <ul class="small">
+            <li>Comparing the depths <em>after</em> the split instead of before — the local depth has already changed, so the answer inverts.</li>
+            <li>Splitting on bit d instead of bit d&prime;. One bit too high and the records do not separate at all.</li>
+            <li>Reporting 2<sup>d</sup> as the number of buckets. It is the number of entries, and an upper bound on the buckets.</li>
+            <li>Reading the bits from the wrong end, or mixing the two conventions inside one calculation.</li>
+            <li>Forgetting that one insert can double more than once, when the records share the bit being examined.</li>
+            <li>Merging on the record count alone, without checking that both buckets have the same local depth.</li>
+            <li>Calling the directory halving automatic after any deletion; it needs every local depth below d.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Honest note on previous-year questions</h3>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Several coaching and question-bank sites present items on extendible hashing as previous-year GATE questions. During this run, <strong>none of them could be traced to an actual GATE CS paper or to an official answer key</strong>, and one of the sites inspected contained visible self-corrections inside its own solutions, so its items were not used.</p>
+          <p class="small">What <em>is</em> verifiable is that the topic is standard textbook material for the syllabus clause on indexing: it is chapter 11 of Ramakrishnan and Gehrke, it has an entry in the <em>Encyclopedia of Database Systems</em>, and it is the 1979 paper by Fagin, Nievergelt, Pippenger and Strong.</p>
+          <p class="small" style="margin-bottom:0">Accordingly, no question on this page is labelled a previous-year question, and no year, set or question number is claimed. Every practice item below is original and marked so.</p>
+        </div>
+
+        <div class="card span-2 card--takeaway">
+          <h3>How this connects to the rest of the syllabus</h3>
+          <p class="small">The topic sits where three other lessons meet, and a question can come from any of them.</p>
+          <ul class="small">
+            <li><a href="../file-organisation-and-indexing/index.html">B and B+ trees</a> — the other index family. The same block-cost reasoning applies: a node is a block, a search is a count of blocks. The B+ tree wins on ranges; the hash index wins on equality.</li>
+            <li><a href="../hashing/index.html">In-memory hashing</a> — open addressing, chaining, load factor, probe counts. That lesson is about one array in memory; this one is about blocks on disk and what happens when the array must grow.</li>
+            <li><a href="../secondary-storage-and-raid/index.html">Secondary storage</a> — why a block read is the unit of cost, and why a 4 MiB directory is considered small.</li>
+            <li><a href="../relational-algebra-and-sql/index.html">Query processing</a> — an equality predicate can use a hash index; a range cannot. That is the same fact as the range-query scene, stated in SQL.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">No marks distribution is claimed for any of these, and no prediction is made about GATE 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q1 — pointers to one bucket</h3>
+          <p class="small">In an extendible hash structure the global depth is 4 and one bucket has local depth 2. How many directory entries point to that bucket?</p>
+          <p class="small muted">(a) 2 &nbsp;(b) 4 &nbsp;(c) 8 &nbsp;(d) 16</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(b) 4.</strong> The count is 2<sup>d&minus;d&prime;</sup> = 2<sup>4&minus;2</sup> = 4.</p>
+            <p class="small">(a) is d&prime; itself, the commonest slip: local depth is a number of bits, not a number of pointers. (c) is 2<sup>d&prime;</sup>, and (d) is the whole directory.</p>
+            <p class="small muted" style="margin-bottom:0">Sanity check: four entries agreeing on the low two bits is 2<sup>4&minus;2</sup> = 4 combinations of the two remaining bits. It must be a power of two, and it must divide the directory size.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q2 — the smallest directory that can hold 100 records</h3>
+          <p class="small">Each bucket holds 8 records. What is the minimum global depth of a directory able to hold 100 records?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>4.</strong> At least &lceil;100/8&rceil; = 13 buckets are needed. The smallest d with 2<sup>d</sup> &ge; 13 is 4, giving 16 entries and a ceiling of 128 records.</p>
+            <p class="small">The two wrong answers are 3 (8 entries, 64 records, too few) and 7 (which is the answer for 100 <em>buckets</em>, not 100 records).</p>
+            <p class="small muted" style="margin-bottom:0">This is a floor, and it assumes a uniform hash. Skew can force a larger directory for the same record count, which is why the question says &ldquo;minimum&rdquo;.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q3 — when does the directory double?</h3>
+          <p class="small">A bucket overflows. The directory must double when, before the split:</p>
+          <p class="small muted">(a) the bucket holds more than the capacity (b) d&prime; &lt; d (c) d&prime; = d (d) the number of buckets reaches 2<sup>d</sup></p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(c).</strong> Equality means the bucket has exactly 2<sup>0</sup> = 1 pointer, so a new entry has to be created for the second bucket.</p>
+            <p class="small">(a) is what caused the overflow, not what decides the response. (b) is the case that does <em>not</em> double: a spare pointer already exists. (d) describes a consequence, not a condition — and after a doubling the bucket count is still below 2<sup>d</sup> because buckets share entries.</p>
+            <p class="small muted" style="margin-bottom:0">The comparison must be made on the bucket as it stands. After the split both halves have d&prime; = d + 1, so re-reading the depths gives the wrong answer.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q4 — the ceiling on records</h3>
+          <p class="small">A directory has global depth 4 and each bucket holds 3 records. What is the largest number of records the structure can hold?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>48.</strong> At most 2<sup>4</sup> = 16 buckets, each holding 3, so 16 &times; 3 = 48.</p>
+            <p class="small">The tempting wrong answer is 12 (which is 4 &times; 3, reading the depth as a bucket count) or 24 (using 8 buckets, the depth-3 count).</p>
+            <p class="small muted" style="margin-bottom:0">This is a ceiling and it needs every bucket distinct and full. In practice buckets share entries, so the real count is lower — the trace here holds 10 records in 8 entries at capacity 2, against a ceiling of 16.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q5 — trace one insert</h3>
+          <p class="small">A structure has global depth 2 with 4 entries, and every bucket has local depth 2. Inserting a key whose bucket is full leaves the global depth at:</p>
+          <p class="small muted">(a) 1 &nbsp;(b) 2 &nbsp;(c) 3 &nbsp;(d) 4</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(c) 3.</strong> Every bucket is at d&prime; = d = 2, so the overflowing bucket has one pointer. The directory doubles to 8 entries and depth 3, and then the split runs.</p>
+            <p class="small">(b) is the trap for anyone who assumes a split never touches the directory. (a) is impossible: depth never falls on an insert. (d) would need two doublings, which happens only if the split leaves all records in one half — possible when the keys share the new bit, but not implied here.</p>
+            <p class="small muted" style="margin-bottom:0">&ldquo;Every bucket has local depth 2&rdquo; is the whole question. With one bucket at d&prime; = 1 the answer would be 2, because that bucket could split without the directory growing.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q6 — which statements hold</h3>
+          <p class="small">For extendible hashing with the directory held in main memory, which of these are true?</p>
+          <p class="small muted">(A) an equality lookup costs one block read (B) a range query is answered by following a chain of buckets (C) there is no overflow chain for distinct hash values (D) the number of buckets equals 2<sup>d</sup></p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>A and C.</strong> A: the directory entry is computed arithmetically, so only the bucket is read. C: as long as two records differ in some bit, another bit can be read, so no chain is needed.</p>
+            <p class="small">B is false: there is no leaf chain, because the buckets are not in key order. That is the B+ tree. D is false: 2<sup>d</sup> is an upper bound, and buckets at d&prime; &lt; d are shared.</p>
+            <p class="small muted" style="margin-bottom:0">C needs its qualification to be exactly right: <em>distinct</em> hash values. Records with identical full hash values cannot be separated by any number of bits, and those do chain.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q7 — when the directory can halve</h3>
+          <p class="small">After a deletion, the directory can be halved when:</p>
+          <p class="small muted">(a) the deleted bucket becomes empty (b) the bucket merges with its split image (c) every local depth is strictly less than the global depth (d) the number of records falls below 2<sup>d</sup></p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(c).</strong> Halving needs entry i and entry i + 2<sup>d&minus;1</sup> to agree for every i, and that is exactly the condition that no bucket sits at d&prime; = d.</p>
+            <p class="small">(a) and (b) are necessary steps, not the condition: a bucket can merge and the directory still cannot halve, because some other bucket is still at d&prime; = d. (d) confuses a count of records with a count of bits.</p>
+            <p class="small muted" style="margin-bottom:0">In the deletion trace, deleting 24 merged a pair and left depth 3; only after deleting 22 did the last bucket at d&prime; = 3 drop to 2, and then the halving to depth 2 became possible.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q8 — directory size in bytes</h3>
+          <p class="small">A directory has global depth 10 and each pointer is 4 bytes. What is the size of the directory in bytes?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>4096.</strong> 2<sup>10</sup> = 1024 entries, and 1024 &times; 4 = 4096 bytes, which is 4 KiB.</p>
+            <p class="small">The wrong answers are 10240 (multiplying the depth by something) and 2048 (using a two-byte pointer, or halving the entries by mistake).</p>
+            <p class="small muted" style="margin-bottom:0">Carry the pattern forward: depth 20 at four bytes is 4 MiB, which is why the resident-directory assumption usually holds even for a file of millions of records.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small">
+            <li><strong>Directory</strong> — an array of 2<sup>d</sup> pointers to buckets, addressed by the low d bits of h(k).</li>
+            <li><strong>Global depth d</strong> — the number of low-order hash bits the directory reads; equal to the largest local depth.</li>
+            <li><strong>Local depth d&prime;</strong> — the number of low-order bits a particular bucket needed; at most d.</li>
+            <li><strong>Pointers per bucket</strong> — 2<sup>d&minus;d&prime;</sup>, all agreeing on the bucket&rsquo;s low d&prime; bits.</li>
+            <li><strong>Split</strong> — redistribute a bucket&rsquo;s records on bit d&prime;; both halves take d&prime; + 1.</li>
+            <li><strong>Doubling</strong> — replace the array by two copies of itself; entry i + 2<sup>d</sup> becomes entry i, and d rises by one.</li>
+            <li><strong>Split image (buddy)</strong> — the bucket that agrees with another on every bit except d&prime; &minus; 1.</li>
+            <li><strong>Merge</strong> — rejoin two split images when their local depths match and their records fit in one bucket.</li>
+            <li><strong>Halving</strong> — drop the second half of the array when every local depth is below d.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The formulas, and the one condition each needs</h3>
+          <ul class="small">
+            <li>Entry for key k: <code>h(k) AND (2<sup>d</sup> &minus; 1)</code> — the low d bits, unless the question says prefix.</li>
+            <li>Pointers to a bucket: <code>2<sup>d&minus;d&prime;</sup></code> — needs d and d&prime; at the same instant, before any split.</li>
+            <li>Maximum records: <code>2<sup>d</sup> &times; capacity</code> — a ceiling, needing distinct buckets and full buckets.</li>
+            <li>Minimum depth: smallest d with <code>2<sup>d</sup> &ge; &lceil;N / capacity&rceil;</code> — a floor, assuming a uniform hash.</li>
+            <li>Directory bytes: <code>2<sup>d</sup> &times; pointer width</code> — no condition.</li>
+            <li>Equality lookup: <code>1</code> block read, or <code>2</code> if the directory is on disk — the condition is residency.</li>
+            <li>Range lookup: no guarantee at all; a range can touch every bucket.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure for an exam question</h3>
+          <div class="step-list small">
+            <p><strong>1.</strong> Write the key in binary. <span class="why">bits, not decimals, from here on</span></p>
+            <p><strong>2.</strong> Take the low d bits as the entry, unless a prefix convention is stated. <span class="why">note which end, and stay in it</span></p>
+            <p><strong>3.</strong> Read the bucket and its d&prime;. <span class="why">the two depths are the whole decision</span></p>
+            <p><strong>4.</strong> Full? Compare d&prime; with d. Equal &rarr; double, then split. Smaller &rarr; split only.</p>
+            <p><strong>5.</strong> Split on bit d&prime;; both halves take d&prime; + 1; repoint the entries that reached it.</p>
+            <p><strong>6.</strong> Recheck four things: entries = 2<sup>d</sup>, d = max d&prime;, pointers = 2<sup>d&minus;d&prime;</sup>, no bucket over capacity.</p>
+            <p><strong>7.</strong> Answer the quantity asked for. <span class="why">depth, entries, buckets and reads are four different numbers</span></p>
+          </div>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, each with the case that defuses it</h3>
+          <ul class="small">
+            <li>Doubling on every overflow — 5 splits, 3 doublings in the trace.</li>
+            <li>Buckets = 2<sup>d</sup> — 8 entries, 6 buckets; 16 entries, 12 buckets.</li>
+            <li>Local depth as a pointer count — 2<sup>d&minus;d&prime;</sup>, so d&prime; = 2 at d = 4 gives 4.</li>
+            <li>Comparing the depths after the split — after it, both halves are at d&prime; + 1.</li>
+            <li>Splitting on bit d instead of d&prime; — the records do not separate.</li>
+            <li>&ldquo;No overflow ever&rdquo; — duplicate hash values cannot be separated.</li>
+            <li>&ldquo;Ranges work too&rdquo; — eight consecutive keys, eight buckets.</li>
+            <li>Halving after any deletion — needs every d&prime; below d.</li>
+          </ul>
+        </div>
+
+        <div class="card span-2 card--takeaway">
+          <h3>The one-screen summary</h3>
+          <p class="small">A fixed bucket count overflows as the file grows, and the overflow chain is what makes the lookup cost grow with it. Extendible hashing adds a directory of 2<sup>d</sup> pointers indexed by the <em>low</em> d bits of the hash, so a bucket is found in one probe and the only disk access is the bucket itself. Each bucket records the number of bits it actually needed, its local depth d&prime;, and that single number explains everything else: a bucket at d&prime; is reached by 2<sup>d&minus;d&prime;</sup> entries, all agreeing on its low bits; an overflow with d&prime; &lt; d splits and repoints; an overflow with d&prime; = d doubles the array first, because the bucket has only one pointer. Doubling is a copy — entry i + 2<sup>d</sup> becomes entry i — and that is the only reason the index is taken from the low end. Deletion reverses all of it: merge split images whose records fit and whose depths match, then halve the array once every local depth has fallen below the global depth. The price is a directory that can grow to about one entry per record when the hash is skewed, and the total absence of range queries, which is the B+ tree&rsquo;s job. When a question asks for a number, decide first whether it wants a depth, an entry count, a bucket count or a block count — they are four different answers and only one of them is 2<sup>d</sup>.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>, Section 9: &ldquo;File organization, indexing (e.g., B and B+ trees).&rdquo; <em>Supports:</em> the syllabus classification (class A), the quote on the Overview tab, and the framing of this lesson as the hashed half of the indexing clause. Read directly, 2 pages.</p>
+          <p class="small" style="margin-bottom:0"><strong>Note on scope:</strong> the document names indexing and gives B and B+ trees as an example. It does not enumerate hashing, and nothing here claims that it does. The lesson is taught as the standard content of the named clause.</p>
+        </div>
+
+        <div class="card">
+          <h3>The original paper and the standard textbook</h3>
+          <p class="small"><strong>Fagin, Nievergelt, Pippenger and Strong, &ldquo;Extendible Hashing — A Fast Access Method for Dynamic Files&rdquo;, <em>ACM Transactions on Database Systems</em> 4(3), September 1979.</strong> <em>Supports:</em> the directory of 2<sup>d</sup> pointers, the local depth d&prime; and the statement that the depth of the directory is the maximum of the local depths; the prefix convention (this paper uses the leading bits, and says so); the doubling algorithm and the remark that a second copy of the array makes doubling "especially easy"; the coalescing rule with the sibling page; and the at-most-two-page-fault bound for a lookup.</p>
+          <p class="small" style="margin-bottom:0"><strong>Ramakrishnan and Gehrke, <em>Database Management Systems</em>, 3rd edition, chapter 11 (Hash-Based Indexes).</strong> <em>Supports:</em> the low-bit indexing convention used throughout this lesson; "if directory fits in memory, equality search answered with one disk access; else two"; "multiple entries with same hash value cause problems"; the doubling-on-equality rule; and the observation that hash indexes cannot support range searches.</p>
+        </div>
+
+        <div class="card">
+          <h3>Reference and lecture material</h3>
+          <p class="small"><strong>&ldquo;Extendible Hashing&rdquo;, <em>Encyclopedia of Database Systems</em> (Liu and Özsu, eds., Springer).</strong> <em>Supports:</em> the count 2<sup>d&minus;d&prime;</sup> entries per bucket; the statement that a split below the global depth moves half the pointers and needs no doubling; the buddy-merge and halving conditions; and the skew example of five records congruent modulo 16 forcing repeated doubling. This page&rsquo;s skew scene is the same construction, recomputed here.</p>
+          <p class="small"><strong>Hellerstein and Ramakrishnan, Berkeley CS186 lecture notes; UBC CPSC 304 notes.</strong> <em>Supports:</em> the "global depth = maximum of the local depths" phrasing, the doubling-by-copying explanation, and the deletion conditions as stated on the Edge cases tab.</p>
+          <p class="small" style="margin-bottom:0"><strong>Wikipedia, &ldquo;Extendible hashing&rdquo;.</strong> <em>Supports:</em> the initial state (global depth = local depth = 0, one entry, one bucket) and the statement that the least-significant-bit convention allows the whole directory to be copied as one block. Used only for these two points, both of which are also in the primary sources.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the research did not settle</h3>
+          <p class="small"><strong>No previous-year GATE CS question on this topic was verified.</strong> Coaching and question-bank pages present items on extendible hashing as previous-year questions, but none could be traced to a paper or an official key. One inspected site contained visible self-corrections inside its own published solutions and was therefore not used at all.</p>
+          <p class="small">One GATE question on choosing a hash index against a B+ tree was found for the <em>Data Science and Artificial Intelligence</em> paper (DA), not for CS. It is not reproduced here and no year, set or number is claimed for it.</p>
+          <p class="small" style="margin-bottom:0">No weightage figure is given for Databases or for this clause in GATE 2027, and nothing here predicts how often the topic will appear.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>How to check this page yourself</h3>
+          <p class="small">The animation&rsquo;s right-hand panel reports how many of the lesson&rsquo;s model checks passed; each check recomputes a claim from the definitions rather than comparing against a stored answer. The checks include: the ten-record trace with all four properties re-checked after every insert; every directory entry verified against the low bits of every key in its bucket; 340 membership probes compared against a plain set; all 20160 insertion orders of six keys from eight, each with the invariants checked after every insert; the split-without-doubling and the double-then-split cases, with the event order read from the model; 4 of 4 directory pairs identical immediately after a doubling; the refused merge, the accepted merge and the halving, each on a real deletion; all 720 insertion orders emptied back to depth 0; the count formulas checked against the model for every size from 1 to 40; the range-query measurement; and the skew construction.</p>
+          <p class="small muted" style="margin-bottom:0">The lesson draws every frame from the same model, so a wrong number in the prose would have to survive a check that recomputes it. The captions are derived from the timeline by a generator, and the timings are estimated rather than measured from recorded audio. No MP4 exists for this lesson and none is claimed.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

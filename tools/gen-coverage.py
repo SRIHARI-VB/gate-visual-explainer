@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-11-01"  # the date this tracker was regenerated
+RUN_DATE = "2026-11-02"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -5909,6 +5909,72 @@ topics.append(topic(
         "a full-stripe write needs no reads at all; only a small write pays the read-modify-write",
         "every probability assumes independent failures, which is the model's weakest assumption"])
 )
+
+
+topics.append(topic(
+    "Databases",
+    "Section 9: 'File organization, indexing (e.g., B and B+ trees)' \u2014 the hashed family the clause does not name",
+    "Extendible hashing: the directory, the two depths and the bucket split",
+    [
+    "static hashing and the overflow chain, and why the chain makes the lookup grow with the file",
+    "the directory of 2^d pointers, indexed by the low d bits of h(k)",
+    "global depth d, local depth d-prime, and the 2^(d-d-prime) entries that reach one bucket",
+    "insertion with room, and why it changes nothing structural",
+    "the split below the global depth: redistribute on bit d-prime, move half the pointers",
+    "the split at the global depth: double the array by copying it after itself, then split",
+    "deletion: the buddy merge, both of its conditions, and halving the directory",
+    "the four counts: pointers per bucket, maximum records, minimum depth, directory bytes",
+    "lookup cost as block reads, and the range query the structure cannot answer",
+    "the skew failure mode, and the engineering repair",
+    "extendible against static, against linear hashing, against a B+ tree",
+],
+    prereq=["file organisation and indexing (B and B+ trees)", "hashing in main memory", "secondary storage and the disk block"],
+    related=["file organisation and indexing (B and B+ trees)", "hashing", "secondary storage and RAID", "relational algebra and SQL (which predicates an index can serve)", "asymptotic complexity"],
+    importance="medium-high",
+    evidence="Section 9 of the GATE 2027 CS syllabus (IIT Madras) names 'File organization, indexing (e.g., B and B+ trees)'. The parenthetical is an example rather than a closed list, and hashing is the other index family; the clause is therefore class A for indexing and the hashed family is unnamed inside it. Extendible hashing is chapter 11 of Ramakrishnan and Gehrke, has an entry in the Encyclopedia of Database Systems, and originates in Fagin, Nievergelt, Pippenger and Strong, ACM TODS 4(3), 1979. No GATE CS previous-year question on this topic could be verified from a paper or an answer key during this run, so no PYQ is claimed and every practice item is labelled original. No weightage and no forecast are claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="extendible-hashing-directory-and-depths",
+    path="topics/extendible-hashing-directory-and-depths/index.html",
+    execution="2026-11-02: published by the scheduled run; 15/15 model checks passed, geometry audit clean, 1481 frames drawn across 13 scenes",
+    microtopics=[
+        "static hashing fixes m before the data arrives: 24 keys in 5 buckets of capacity 2 give 5,5,5,5,4",
+        "the overflow chain is what makes the cost grow: worst lookup 1 + 3 = 4 block reads, computed",
+        "growing a static file means a new m and a rehash of every record",
+        "the directory is an array of 2^d pointers and the index is h(k) AND (2^d - 1), the low d bits",
+        "one probe suffices because the index is the bits: same low d bits means same bucket, different means different",
+        "equality lookup costs 1 block read with a resident directory and 2 without; the count does not grow with the file",
+        "global depth is one number for the directory; local depth is one number per bucket and never larger",
+        "a bucket at d-prime is reached by exactly 2^(d-d-prime) entries, all agreeing on its low d-prime bits",
+        "global depth equals the largest local depth, checked as a property after every operation",
+        "a bucket at d-prime = d has exactly one pointer, and that is the whole reason doubling exists",
+        "the insert with room: no pointer, no depth and no other bucket changes; a full bucket is still free",
+        "the comparison is made before anything moves; after a split both halves are already at d-prime + 1",
+        "split below the global depth: redistribute on bit d-prime, both halves take d-prime + 1, pointers are divided not created",
+        "splitting on bit d instead of bit d-prime separates nothing and the same bucket overflows again",
+        "doubling is a copy: entry i + 2^d becomes entry i, which is why the index is taken from the low end",
+        "prefix indexing would need every entry rewritten in a new position, so the copy trick fails there",
+        "order of operations is double then split, never split then double",
+        "one insert can double more than once when every record shares the bit being examined",
+        "the ten-record trace: 3 doublings and 5 splits to depth 3, 8 entries, 6 buckets, 10 records, 10 of 12 slots",
+        "two buckets at d-prime = 2 are shared by two entries each, so 8 entries hold 6 buckets",
+        "pointers per bucket 2^(d-d-prime); depth 4 with local depth 2 gives 4",
+        "maximum records 2^d x capacity is a ceiling that needs distinct, full buckets",
+        "minimum depth is the least d with 2^d >= ceil(N/capacity), a floor that assumes a uniform hash",
+        "directory bytes = 2^d x pointer width; depth 20 at 4 bytes is 4 MiB, which is why residency usually holds",
+        "2^d bounds the bucket count from above and never pins it",
+        "a range of 8 consecutive keys touches 8 of 12 buckets: the hash scatters neighbours on purpose",
+        "a hash index cannot answer a range, a prefix or an ORDER BY; the B+ tree leaf chain can",
+        "merge needs the same local depth on both sides AND the combined records within capacity",
+        "deleting 20 refuses a merge at 1 + 2 = 3 records; deleting 24 accepts one at 1 + 1 = 2",
+        "halving is the inverse of doubling and needs every local depth below the global depth",
+        "deleting everything returns the structure to one bucket at depth 0, checked over 720 orders",
+        "five keys congruent to 1 mod 16 share four low bits and force 6 doublings: 64 entries for 5 records",
+        "the skew failure is a violated assumption, not a wrong algorithm; the repair is an overflow threshold",
+        "duplicate hash values cannot be separated by any number of bits, so they chain",
+        "which end the bits are read from: the 1979 paper uses the leading bits, the textbook the trailing bits",
+        "static, extendible, linear and B+ tree on equality cost, range cost, growth cost and extra structure",
+    ]))
 
 
 _seen = set()

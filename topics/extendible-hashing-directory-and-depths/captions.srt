@@ -1,0 +1,204 @@
+1
+00:00:00,000 --> 00:00:07,000
+Static hashing fixes the bucket count first: h(k) = k mod 10, ten buckets, two records each.
+
+2
+00:00:07,000 --> 00:00:14,000
+Twenty-four keys into five buckets gives five, five, five, five and four records where two fit.
+
+3
+00:00:14,000 --> 00:00:21,000
+The excess goes to overflow blocks chained to the bucket, so the worst key costs four block reads instead of one.
+
+4
+00:00:21,000 --> 00:00:28,000
+The chain grows with the file and nothing in the structure notices. A directory is the fix.
+
+5
+00:00:28,000 --> 00:00:35,000
+Keep an array of pointers, two to the power d of them, and index it by the low d bits of h(k).
+
+6
+00:00:35,000 --> 00:00:42,000
+d is the global depth: the number of low-order bits the directory reads to choose a bucket.
+
+7
+00:00:42,000 --> 00:00:48,000
+A lookup is one directory entry and one pointer. If the directory is resident, that is one block read, always.
+
+8
+00:00:48,000 --> 00:00:54,000
+Two keys with different low d bits cannot share a bucket. Two keys with the same low d bits must.
+
+9
+00:00:54,000 --> 00:01:01,000
+Each bucket also records a local depth: how many bits were actually needed to separate the records it holds.
+
+10
+00:01:01,000 --> 00:01:08,000
+A bucket at local depth two is reached by four entries of an eight-entry directory: two to the power d minus d prime.
+
+11
+00:01:08,000 --> 00:01:15,000
+Every entry that points at one bucket agrees on the low d-prime bits. That is what makes the pointer array legal.
+
+12
+00:01:15,000 --> 00:01:22,000
+The global depth is the largest local depth, and no local depth can exceed it.
+
+13
+00:01:22,000 --> 00:01:29,000
+Insert 22. Its binary form ends in 110, so with d equal to three the entry is 110.
+
+14
+00:01:29,000 --> 00:01:36,000
+Entry six holds one record, 6, so 22 goes in beside it. The directory does not change.
+
+15
+00:01:36,000 --> 00:01:42,000
+Insert 24 into entry 000, which already holds 16. Two records, capacity two: full, but not yet overflowing.
+
+16
+00:01:42,000 --> 00:01:48,000
+The next record that lands there is the one that forces a decision, and the depths decide which decision.
+
+17
+00:01:48,000 --> 00:01:55,000
+If the local depth is below the global depth, split the bucket and leave the directory alone.
+
+18
+00:01:55,000 --> 00:02:02,000
+Redistribute on one more bit: bit number d prime, counting from zero. A zero stays, a one moves.
+
+19
+00:02:02,000 --> 00:02:10,000
+Half the pointers follow the new bucket. Four pointers at local depth two become two and two at local depth three.
+
+20
+00:02:10,000 --> 00:02:18,000
+No other bucket moves and no entry changes its index. Only the pointers that reached the split bucket are rewritten.
+
+21
+00:02:18,000 --> 00:02:25,000
+Now the other case: the bucket is full and its local depth already equals the global depth.
+
+22
+00:02:25,000 --> 00:02:32,000
+Only one pointer reaches it, so splitting in place would leave the new bucket with no entry pointing at it.
+
+23
+00:02:32,000 --> 00:02:42,000
+Doubling is a copy: the new entry at i plus two to the d is a copy of entry i.
+
+24
+00:02:42,000 --> 00:02:50,000
+Then the split runs as before on the new bit. The global depth rises by one and the two halves take local depth d plus one.
+
+25
+00:02:50,000 --> 00:02:58,000
+Ten records, capacity two, inserted in the order 16, 4, 6, 22, 24, 10, 31, 7, 9, 20.
+
+26
+00:02:58,000 --> 00:03:06,000
+Three doublings and five splits take the global depth from zero to three and the directory from one entry to eight.
+
+27
+00:03:06,000 --> 00:03:15,000
+Six buckets hold ten records, so ten of twelve slots are used. Two buckets have local depth two and are shared by two entries each.
+
+28
+00:03:15,000 --> 00:03:24,000
+Every number here is recomputed by this page, and the four defining properties are re-checked after each of the ten inserts.
+
+29
+00:03:24,000 --> 00:03:31,000
+Pointers reaching one bucket: two to the power d minus d prime. Depth four and local depth two gives four.
+
+30
+00:03:31,000 --> 00:03:38,000
+Most records the structure can hold: two to the d times the capacity. Minimum depth for N records: the smallest d with two to the d at least N over the capacity.
+
+31
+00:03:38,000 --> 00:03:45,000
+Directory size in bytes: two to the d times the pointer width. Four-byte pointers at depth twenty is four mebibytes.
+
+32
+00:03:45,000 --> 00:03:52,000
+Two to the d is an upper bound on the number of buckets, not the count. Shared entries make the count smaller.
+
+33
+00:03:52,000 --> 00:03:59,000
+A lookup reads one directory entry, then one bucket. One block read if the directory is resident, two if it is not.
+
+34
+00:03:59,000 --> 00:04:06,000
+A range query is the failure. Twenty records in twelve buckets: eight consecutive keys touch eight different buckets.
+
+35
+00:04:06,000 --> 00:04:16,000
+A B+ tree reads one leaf and then follows the chain. A hash index has nothing to follow.
+
+36
+00:04:16,000 --> 00:04:23,000
+Deletion runs the split backwards. A bucket and its split image may merge if their combined records fit in one bucket.
+
+37
+00:04:23,000 --> 00:04:31,000
+Deleting 20 leaves a candidate of three records, so no merge. Deleting 24 leaves two, so the merge happens and the local depth falls by one.
+
+38
+00:04:31,000 --> 00:04:38,000
+When every local depth is below the global depth, the directory halves: each pair of entries agrees, so one of the pair is redundant.
+
+39
+00:04:38,000 --> 00:04:46,000
+Here the halving takes the depth from three to two. Delete every record and the structure returns to one empty bucket at depth zero.
+
+40
+00:04:46,000 --> 00:04:53,000
+Nothing here is free. Five keys all congruent to one modulo sixteen share their low four bits.
+
+41
+00:04:53,000 --> 00:05:01,000
+Each split leaves them in the same bucket, because the bit being examined is the same for all five. The directory doubles six times.
+
+42
+00:05:01,000 --> 00:05:08,000
+Sixty-four directory entries, seven buckets, five records. The directory grew and the records did not spread.
+
+43
+00:05:08,000 --> 00:05:14,000
+Real implementations allow a few overflow blocks and double only when overflow becomes common.
+
+44
+00:05:14,000 --> 00:05:21,000
+Static: one read until it overflows, then a chain, and a full rehash to grow.
+
+45
+00:05:21,000 --> 00:05:28,000
+Extendible: one read always, a directory that doubles, and no overflow chain except for duplicate keys.
+
+46
+00:05:28,000 --> 00:05:35,000
+Linear hashing: no directory at all, splits round-robin, and an overflow chain allowed in exchange.
+
+47
+00:05:35,000 --> 00:05:42,000
+And a B+ tree answers ranges and ordered scans, which no hash index can.
+
+48
+00:05:42,000 --> 00:05:49,000
+Five steps: read d, take the low d bits, follow the pointer, then choose split or double by comparing the two depths.
+
+49
+00:05:49,000 --> 00:05:57,000
+Write the binary of the key first and count bits from the right. Most wrong answers come from reading the wrong end.
+
+50
+00:05:57,000 --> 00:06:04,000
+After any split, recheck four things: array length, the two depths, pointers per bucket, and no bucket over capacity.
+
+51
+00:06:04,000 --> 00:06:10,000
+Then answer the question that was actually asked: the depth, the entry, the bucket count, or the block reads.
+
