@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contiguous Memory Allocation: Partitioning, Fit Policies and Fragmentation — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Contiguous allocation and fit policies</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../memory-management-and-virtual-memory/index.html">Related: memory management and virtual memory</a>
+      <a href="../buddy-system-memory-allocation/index.html">Related: buddy system</a>
+      <a href="../dynamic-memory-and-program-layout/index.html">Related: program layout and the heap</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Contiguous memory allocation — how a process is given one uninterrupted block of physical memory, what happens to the free space as processes arrive and leave, and how the four placement policies (first fit, next fit, best fit, worst fit) choose among the blocks that are large enough.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a memory and a list of holes, place a sequence of requests under each of the four policies and write the leftover at every step. Account for every byte of a fixed-partition layout as used, internally wasted or free. Decide from two numbers — total free space and largest single hole — whether a refusal is a capacity shortage or external fragmentation, and say whether compaction is available and what it costs.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one list of blocks, one subtraction per request, and one diagnostic</em>. Every number on this page — the eight partitions, the 191 KB of internal waste, the 1215 KB free in six holes, the 1285 KB that compaction must copy, the 1705 enumerated cases and the 0.452 of the measured 50-percent rule — is computed at load by the lesson's own model and re-checked against the definition it claims.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside a named syllabus clause.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, Section 8, reads: <em>"System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems."</em> The syllabus names <em>memory management</em> and does not enumerate its parts, so contiguous allocation is inside the clause rather than beside it: it is the scheme that paging and virtual memory replace, and a question about paging assumes you know what it fixed.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Two previous-year questions are reproduced on the GATE patterns tab with their year and question number — 2015 Set 2, Question 30 and 1994, Question 1.24 — and both are traces of exactly this kind.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The placement policies are not named in the 2027 syllabus. They are here because the clause is named, because the two questions above test them directly, and because no other lesson in this repository covers them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <p class="small">Nothing here needs a previous lesson. Three make it easier:</p>
+          <ul class="small">
+            <li><a href="../dynamic-memory-and-program-layout/index.html">Program layout and the heap</a> — where the idea of one contiguous block comes from.</li>
+            <li><a href="../memory-management-and-virtual-memory/index.html">Memory management and virtual memory</a> — the paging scheme that replaces this one, and the page replacement that follows.</li>
+            <li><a href="../buddy-system-memory-allocation/index.html">The buddy system</a> — a fifth policy on the same list, with splitting and merging by powers of two.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 65 minutes, of which about 25 is the animation.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Five ideas, and the rest follows</h3>
+          <ol class="small">
+            <li>A memory is a list of segments in address order, each free (a hole) or in use.</li>
+            <li>Placing a request of P in a hole of H leaves a hole of H − P at the next address, and if H = P the hole disappears.</li>
+            <li>The four policies differ only in which hole they choose, and on identical holes they can place four, three, three and two of the same four requests.</li>
+            <li>Internal waste is inside an allocation and invisible to the free list; external waste is on the free list but split.</li>
+            <li>A refusal is a capacity shortage if the total free space is below the request, and external fragmentation if the total is enough and the largest hole is not.</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition: a car park with no reserved bays</h3>
+          <p class="small">A car park has no marked bays. A bus arrives and takes the first stretch long enough for it; a car arrives later and takes a smaller stretch further along. When the bus leaves, the gap it leaves is bus-sized, and the next five cars cannot use it together, because a car needs one gap and not a share of two.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy maps: a car park = physical memory, a gap = a hole, a vehicle = a process, one gap per vehicle = contiguity. It stops mapping at compaction, because cars cannot be asked to shuffle forward while they are parked.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The formal objects, with every symbol in words</h3>
+          <p class="small"><strong>Contiguous allocation</strong> — a process occupies one interval of physical addresses, with no other process inside it. <strong>Partition</strong> — a block of memory that belongs to one process. <strong>Hole</strong> — a block of free memory, of whatever size, somewhere in the address space.</p>
+          <p class="small">A memory of size $$T$$ is a list of segments $$s_1, \dots, s_n$$ in address order, each with a size and a state, and the sizes sum to $$T$$. A request of $$P$$ placed in a hole of $$H \ge P$$ produces</p>
+          <div class="formula">$$\text{leftover} = H - P$$</div>
+          <p class="small" style="margin-bottom:0">at the address immediately after the allocation. If $$H = P$$ there is no leftover and the hole is gone.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Fixed partitioning</h3>
+          <p class="small">Memory is divided once, before any process runs, into $$n$$ partitions. If they are equal, $$n = \lfloor T / k \rfloor$$ for a partition size $$k$$, and the degree of multiprogramming is $$n$$: at most $$n$$ processes are resident, however small they are.</p>
+          <p class="small">A process of size $$P$$ placed in a partition of size $$k$$ wastes $$k - P$$ bytes, and this waste is <em>internal</em> because it lies inside memory that has already been handed over. A process with $$P > k$$ cannot be placed at all, however many partitions are free.</p>
+          <p class="small muted" style="margin-bottom:0">On this page: $$T = 1024$$ KB, $$k = 128$$ KB, so $$n = 8$$.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Variable partitioning and the four policies</h3>
+          <p class="small">Each partition is cut to the request, so no internal waste is created at allocation time. The free list is searched for a hole that fits:</p>
+          <ul class="small">
+            <li><strong>First fit</strong> — the first hole in address order that is large enough.</li>
+            <li><strong>Next fit</strong> — the same, but the scan starts where the previous one stopped (a rover), and wraps.</li>
+            <li><strong>Best fit</strong> — the smallest hole that is large enough.</li>
+            <li><strong>Worst fit</strong> — the largest hole.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Best fit and worst fit must examine every hole unless the list is indexed by size; first fit usually stops after a few.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two fragmentations</h3>
+          <p class="small"><strong>Internal</strong> — free bytes inside an allocation. The allocator has given them away and cannot offer them to anyone.</p>
+          <p class="small"><strong>External</strong> — free bytes that are on the free list but split into pieces, none large enough for the request in hand.</p>
+          <p class="small">The diagnostic, for a request of size $$R$$:</p>
+          <div class="formula">$$\text{free total} < R \;\Rightarrow\; \text{shortage} \qquad \text{free total} \ge R,\ \max \text{hole} < R \;\Rightarrow\; \text{external}$$</div>
+          <p class="small muted" style="margin-bottom:0"><strong>Compaction</strong> moves live blocks so that the holes join, and is possible only with dynamic relocation.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The assumption that makes all of this necessary</h3>
+          <p class="small">Every result on this page rests on one requirement: the process must be contiguous. That requirement is what makes the <em>shape</em> of free space matter, and therefore what makes fragmentation exist. Give it up and the arithmetic changes completely: paging lets a process occupy any set of equal frames, so the largest free <em>frame</em> is all that matters and external fragmentation disappears — at the cost of internal waste in the last page of each process. Segmentation keeps contiguity per segment, so it keeps external fragmentation and hands the same first-fit and best-fit choice to the segment allocator.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The standard text states the trade-off in exactly this form: external fragmentation is "total memory space exists to satisfy a request, but it is not contiguous", and compaction "is possible only if relocation is dynamic, and is done at execution time" (Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em>, Chapter 7).</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every trace and every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Contiguous allocation gives a process one uninterrupted run of physical memory.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One process, one uninterrupted block</p>
+            <p class="counter" id="scene-count">Scene 1 of 11</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Contiguous allocation gives a process one uninterrupted run of physical memory.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="306" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:06</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Example 1 — the fixed-partition account</h3>
+          <div class="step-list small">
+            <p><strong>Step 1.</strong> $$1024 / 128 = 8$$ partitions. <em>Justification:</em> the division is exact, so no byte lies outside a partition.</p>
+            <p><strong>Step 2.</strong> Requests 110, 95, 128, 40, 76 KB are placed in partitions 1 to 5; the 130 KB request is refused because $$130 > 128$$.</p>
+            <p><strong>Step 3.</strong> Internal waste per partition is $$128 - P$$: 18, 33, 0, 88, 52, which sums to 191 KB.</p>
+            <p><strong>Step 4.</strong> Check the account: $$449 + 191 + 384 = 1024$$, where 384 is the three free partitions of 128 KB.</p>
+          </div>
+          <p class="small muted" style="margin-bottom:0">The 575 KB unusable is 56.2 per cent of memory, and it is two different failures added together.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — the same four requests, four policies</h3>
+          <p class="small">Holes in address order: 200, 400, 600, 500, 300, 250 KB. Requests in order: 357, 210, 468, 491 KB.</p>
+          <div class="step-list small">
+            <p><strong>First fit</strong> — 400&rarr;43, 600&rarr;390, 500&rarr;32, then 491 has no hole: <em>3 placed</em>.</p>
+            <p><strong>Next fit</strong> — the rover never passes a usable hole here, so the same three placements: <em>3 placed</em>.</p>
+            <p><strong>Best fit</strong> — 400&rarr;43, 250&rarr;40, 500&rarr;32, 600&rarr;109: <em>4 placed</em>.</p>
+            <p><strong>Worst fit</strong> — 600&rarr;243, 500&rarr;290, then the largest hole left is the untouched 400 KB one, so 468 waits: <em>2 placed</em>.</p>
+          </div>
+          <p class="small muted" style="margin-bottom:0">Identical memory, identical requests, four different outcomes. The policy is the only variable.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — the refusal explained in two numbers</h3>
+          <p class="small">After the first-fit trace the free list is 200, 43, 390, 32, 300, 250 KB. The 491 KB request is refused.</p>
+          <p class="small">Total free is $$1215$$ KB, which is more than twice the request, so this is not a shortage. The largest single hole is $$390$$ KB, which is below 491, so it is external fragmentation. The average hole is $$1215/6 = 202.5$$ KB, and that number answers nothing.</p>
+          <p class="small muted" style="margin-bottom:0">Change the request to 300 KB and it fits in the 300 KB hole exactly — the same memory, the same holes, a different verdict. Fragmentation is a property of the pair (layout, request), never of the layout alone.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — compaction, priced</h3>
+          <div class="step-list small">
+            <p><strong>Step 1.</strong> Total free is unchanged at 1215 KB; only the shape changes.</p>
+            <p><strong>Step 2.</strong> The largest hole grows from 390 KB to 1215 KB, so 491 KB now fits.</p>
+            <p><strong>Step 3.</strong> Every live block above the first hole changes address: five resident 50 KB blocks and the processes of 357, 210 and 468 KB.</p>
+            <p><strong>Step 4.</strong> The bill is $$250 + 1035 = 1285$$ KB copied, in eight blocks.</p>
+          </div>
+          <p class="small muted" style="margin-bottom:0">Cost is live bytes moved, not holes merged. A memory with one huge live block and fifty holes is the expensive case.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Example 5 — why best fit is not a promise</h3>
+          <p class="small">Blocks of 50 in use, 150 free, 300 in use, 350 free, 600 in use. Requests 300, 25, 125, 50 arrive in that order. First fit takes the 350 for the 300 (leaving 50), the 150 for the 25 (leaving 125), that 125 exactly, and the 50 exactly — four placements, nothing left. Best fit takes the 350 for the 300 (leaving 50), then serves the 25 from the 50 and leaves 25, then the 150 for the 125 and leaves 25. The last request needs one hole of 50 and there are two of 25, which are not adjacent, so it waits.</p>
+          <p class="small">What survives as a theorem is narrower than the name suggests: best fit always leaves a leftover no larger than first fit does <em>for the same request on the same holes</em>. The model checks that over 1705 enumerated cases with no violation. Nothing follows from it about a sequence of requests, which is exactly what the 1994 question demonstrates.</p>
+          <p class="small muted" style="margin-bottom:0">And next fit breaks even the one-step comparison, because the rover can skip the hole first fit would have taken: with holes 100, 200 and 700 KB and requests 150 then 100, first fit leaves 0 KB and next fit leaves 600 KB.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Boundary 1 — the request exactly equal to a hole</h3>
+          <p class="small">If $$H = P$$ the hole is consumed and disappears; there is no zero-byte hole left behind. The count of holes therefore falls, and a later question that counts holes must account for it. In the 1994 trace the 125 KB request removes a hole entirely, and so does the final 50 KB one.</p>
+          <p class="small muted" style="margin-bottom:0">Violated condition: the request is strictly smaller than the hole, which is the only case that leaves a remainder.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 2 — a process larger than any partition</h3>
+          <p class="small">In the fixed layout, 130 KB cannot run in a 128 KB partition while three partitions sit empty. The failure is not a shortage of memory and it is not fragmentation in the usual sense: it is the partition size acting as a hard ceiling. Variable partitioning removes the ceiling at the cost of external fragmentation.</p>
+          <p class="small muted" style="margin-bottom:0">Violated condition: the process fits inside one partition.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 3 — two holes that look adjacent and are not</h3>
+          <p class="small">The two 25 KB holes in the 1994 trace total 50 KB, and 50 KB is exactly what the last request needs. They cannot be used together because a live 300 KB block sits between them. Adding free sizes is valid only when the free blocks are contiguous — which is the definition of a hole.</p>
+          <p class="small muted" style="margin-bottom:0">Violated condition: the free blocks are neighbours in address order.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 4 — compaction with static relocation</h3>
+          <p class="small">If addresses were bound at compile or load time, moving a process breaks every reference it holds, so compaction is not available at all and the external fragmentation is permanent for that layout. The technique is a consequence of base-and-limit hardware, not of the operating system's willingness.</p>
+          <p class="small muted" style="margin-bottom:0">Violated condition: relocation is dynamic and performed at execution time.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 5 — a block in the middle of a DMA transfer</h3>
+          <p class="small">A device controller holds a physical address. Compaction that moves that block mid-transfer sends the device's writes to the wrong place. The fixes are to pin the block for the duration, or to do I/O only into kernel buffers and copy afterwards. This is why compaction is not a free operation even when the hardware allows it.</p>
+          <p class="small muted" style="margin-bottom:0">Violated condition: no block is pinned by an outstanding device operation.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Boundary 6 — the 50-percent rule is a statistic</h3>
+          <p class="small">Under first fit, with random request sizes and lifetimes, the expected number of free holes settles at about half the number of allocated blocks. It is a statement about an average over a workload, not a capacity formula: it does not say that half of memory is wasted, and it says nothing about a particular layout. The model re-measures it here with a fixed seed and gets 0.452 over 3599 samples.</p>
+          <p class="small muted" style="margin-bottom:0">Violated condition: the request sizes and lifetimes are random and stationary, which a real workload need not be.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. "If the total free space is big enough, the process can be loaded"</h3>
+          <p class="small"><strong>Why it tempts:</strong> free space is quoted as one number, and a number can be compared with the request.</p>
+          <p class="small"><strong>Why it is wrong:</strong> a contiguous request needs one hole, not a share of several. The total is a necessary condition and never a sufficient one.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 1215 KB free in six holes and a 491 KB request refused, because the largest hole is 390 KB.</p>
+          <p class="small"><strong>Correct rule:</strong> compare the <em>largest hole</em> with the request; use the total only to decide whether the failure is a shortage or a shape problem.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Question that exposes it:</strong> Q3 below.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Best fit is the best policy"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the name. And it does minimise the leftover of the current request, which is a real and provable property.</p>
+          <p class="small"><strong>Why it is wrong:</strong> minimising today's leftover can destroy tomorrow's layout. Best fit placed three of four requests in the 1994 question where first fit placed four.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the 1994 trace — two 25 KB leftovers where one 50 KB hole was needed.</p>
+          <p class="small"><strong>Correct rule:</strong> the provable claim is one step wide. Best fit's leftover is never larger than first fit's for the same request and holes, and that says nothing about a sequence.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Question that exposes it:</strong> Q5 and Q6 below.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "Worst fit is the safe choice because it always leaves a big hole"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the leftover really is the largest of the four at each step.</p>
+          <p class="small"><strong>Why it is wrong:</strong> it consumes the one hole that a later large request needed. On this page's stream it places two of four while 1683 KB is free.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the worst-fit bar in the animation — the 468 KB request refused with 1683 KB free and no hole above 400 KB.</p>
+          <p class="small"><strong>Correct rule:</strong> the standard result is that first fit and best fit beat worst fit on speed and storage utilisation.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Question that exposes it:</strong> Q2 below.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Internal and external fragmentation are just two words for the same waste"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are called fragmentation, and both are measured in wasted kilobytes.</p>
+          <p class="small"><strong>Why it is wrong:</strong> they differ in ownership. Internal waste has already been allocated and is invisible to the free list; external waste is on the free list and unusable only because it is split.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 191 KB internal in the fixed layout, which compaction cannot recover at all; 1215 KB external in the variable layout, which compaction recovers entirely.</p>
+          <p class="small"><strong>Correct rule:</strong> ask who owns the bytes. Allocated, it is internal. Free but split, it is external.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Question that exposes it:</strong> Q4 and Q7 below.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "First fit scans the holes in increasing size order"</h3>
+          <p class="small"><strong>Why it tempts:</strong> first fit and best fit are learnt together, and best fit is a size rule, so the order gets borrowed.</p>
+          <p class="small"><strong>Why it is wrong:</strong> first fit scans in <em>address</em> order. The 43 KB remainder at a low address is examined before the 600 KB hole that sits above it.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> in the 1994 trace, first fit takes the 350 KB hole for a 300 KB request and skips the 150 KB hole only because 150 is too small — not because of size ordering.</p>
+          <p class="small"><strong>Correct rule:</strong> first fit and next fit are address-order rules; best fit and worst fit are size rules that still report a position.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Question that exposes it:</strong> Q1 below.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Paging removes fragmentation"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is taught as the answer to external fragmentation, and it is.</p>
+          <p class="small"><strong>Why it is wrong as stated:</strong> it removes external fragmentation only. The last page of a process is partly unused, and that is internal fragmentation of up to one page per process.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a 10 KB process on 4 KB pages holds three frames and wastes 2 KB internally.</p>
+          <p class="small"><strong>Correct rule:</strong> paging trades external waste for internal waste; segmentation keeps external waste because a segment must be contiguous.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Question that exposes it:</strong> Q9 below.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>What the question asks for</h3>
+          <p class="small">Four shapes cover almost every allocation question. Each has a different first move.</p>
+          <ul class="small">
+            <li><strong>A table and a named policy.</strong> Trace it. Four columns: request, chosen hole, leftover, running free list.</li>
+            <li><strong>A table and no policy.</strong> Unanswerable as stated. Say which policy you assume, then trace.</li>
+            <li><strong>A reported failure.</strong> Compare total free with the request, then the largest hole with the request. The remedy follows the diagnosis.</li>
+            <li><strong>An account of a fixed layout.</strong> Multiply out the partitions, then separate used, internal waste and free partitions.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Anything that asks for the <em>optimal</em> arrangement of a set of processes is a bin-packing question, not a placement-policy question.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year question 1 — GATE CSE 2015, Set 2, Question 30</h3>
+          <p class="small"><em>"Consider 6 memory partitions of sizes 200 KB, 400 KB, 600 KB, 500 KB, 300 KB and 250 KB. These partitions need to be allotted to four processes of sizes 357 KB, 210 KB, 468 KB, 491 KB in that order. If the best-fit algorithm is used, which partitions are NOT allotted to any process?"</em></p>
+          <p class="small"><strong>Answer: the 200 KB and the 300 KB partitions.</strong> Best fit assigns 357 to the 400 (43 left), 210 to the 250 (40 left), 468 to the 500 (32 left) and 491 to the 600 (109 left). Partitions 1 and 5 are never chosen, so they are the unallotted pair. The remainders 43, 40, 32 and 109 are still free, which is why "not allotted to any process" is a different question from "still has free space".</p>
+          <p class="small muted" style="margin-bottom:0">This is the configuration the animation uses, and the model reproduces the answer. <span class="claim-chip claim-chip--verified">Verified fact</span> Year, set, question number and options are as reported by two independent question banks; the official paper was not read for this lesson, so the wording above is a restatement and not a quotation.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year question 2 — GATE CSE 1994, Question 1.24</h3>
+          <p class="small"><em>A heap holds, in increasing address order, 50 units in use, 150 free, 300 in use, 350 free and 600 in use. The requests 300, 25, 125 and 50 arrive in that order. Which policy can satisfy the sequence?</em></p>
+          <p class="small"><strong>Answer: first fit, but not best fit.</strong> First fit takes 350 for the 300 (50 left), 150 for the 25 (125 left), that 125 exactly, then the 50 exactly. Best fit takes the same 350 first, but then serves the 25 from the 50 and leaves 25, and the 125 from the 150 and leaves 25; the final 50 cannot be placed in two non-adjacent 25s.</p>
+          <p class="small muted" style="margin-bottom:0">The lesson's model runs both traces and reports four placements against three. <span class="claim-chip claim-chip--verified">Verified fact</span> The heap, the request order and the answer are as reported by a question bank; the official 1994 paper was not read here.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps the paper sets, and the case that defuses each</h3>
+          <ul class="small">
+            <li><strong>Reordering the requests.</strong> The order is part of the question; changing it changes the answer.</li>
+            <li><strong>Forgetting to update the hole.</strong> The next request sees the remainder, never the original size.</li>
+            <li><strong>Sorting holes for first fit.</strong> First fit is address order; sorting makes it best fit in disguise.</li>
+            <li><strong>Adding free holes.</strong> Only contiguous free space can hold one request.</li>
+            <li><strong>Counting a fully used hole as a hole.</strong> $$H = P$$ removes it.</li>
+            <li><strong>Assuming the named policy wins.</strong> Best fit lost a real question in 1994.</li>
+            <li><strong>Treating average hole size as a criterion.</strong> Only the maximum, or a count above the request, decides.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Every one of these is checked by a numbered practice question on the next tab.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Connections that make an unfamiliar question answerable</h3>
+          <p class="small"><strong>To paging.</strong> Every paging question is this page's failure being fixed: a process needs $$n$$ frames and the largest free frame is all that matters. The internal waste of the last page is the fixed-partition waste reappearing one level down.</p>
+          <p class="small"><strong>To segmentation.</strong> A segment must be contiguous, so the segment allocator runs exactly the first-fit and best-fit choice taught here, and inherits external fragmentation. Paged segmentation keeps both kinds at once.</p>
+          <p class="small"><strong>To the buddy system.</strong> The buddy allocator is a fifth policy on the same list: it chooses the smallest power-of-two block that fits, so best fit's leftover argument applies to it directly, and its merge step is coalescing restricted to XOR-partners.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>To malloc.</strong> A user-space heap allocator is a variable-partition allocator with a boundary tag per block; first fit, next fit, best fit and worst fit are all used in real implementations, and the same three fragmentation questions arise with an extra header cost per block.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card span-2">
+          <h3>How to use this set</h3>
+          <p class="small">Nine original questions, written for this lesson and labelled as such; two previous-year questions are on the GATE patterns tab. Every answer is hidden until you reveal it, and each answer states why the other options are wrong. Learning mode is on by default; the mock-test switch hides every answer and reveals them together on submit.</p>
+          <p class="small" style="margin-bottom:0">
+            <label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode (hide all answers)</label>
+            &nbsp;&nbsp;<button class="btn" id="mock-submit" hidden>Reveal all answers</button>
+          </p>
+        </div>
+
+        <div class="card question">
+          <h3>Q1 — first fit, address order</h3>
+          <p class="small">Free blocks in address order are 90, 240, 130 and 400 KB. A request of 130 KB arrives under first fit. Which block is used, and what is left?</p>
+          <p class="small muted">(a) the 130 KB block, nothing left &nbsp;(b) the 240 KB block, 110 left &nbsp;(c) the 400 KB block, 270 left &nbsp;(d) the 240 KB block, 130 left</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(b).</strong> First fit scans in address order and stops at the first hole that is large enough. The 90 KB block is examined first and rejected; the 240 KB block comes next and it fits, so it is taken and leaves 240 − 130 = 110 KB.</p>
+            <p class="small">(a) would be right only if the 130 KB block sat before the 240 KB block in address order, and it does not. (c) takes a later block, which is not first fit. (d) is the wrong subtraction — it reports the hole's size rather than the remainder.</p>
+            <p class="small muted" style="margin-bottom:0">The trap is answering from the sizes alone. Write the order down before choosing.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <h3>Q2 — worst fit, counted</h3>
+          <p class="small">Holes of 100, 500, 200 and 300 KB. Requests 90, 250, 240 KB arrive in that order under worst fit. How many are placed?</p>
+          <p class="small muted">(a) 3 &nbsp;(b) 2 &nbsp;(c) 1 &nbsp;(d) 0</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(a) 3.</strong> Worst fit takes the largest: 500 for 90 (410 left), then 410 for 250 (160 left), then 300 for 240 (60 left). The holes end as 100, 160, 200, 60.</p>
+            <p class="small">(b) and (c) come from taking the smallest hole, which is best fit. (d) is not reachable here.</p>
+            <p class="small muted" style="margin-bottom:0">Note that worst fit succeeding on this stream does not contradict the page's own stream, where it placed two. The stream decides.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <h3>Q3 — shortage or shape?</h3>
+          <p class="small">A process of 250 KB cannot be loaded. The free list holds holes of 120, 80 and 100 KB. Which statement is true?</p>
+          <p class="small muted">(a) capacity shortage, 300 KB free &nbsp;(b) external fragmentation, 300 KB free &nbsp;(c) internal fragmentation &nbsp;(d) the request is larger than memory</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(b).</strong> The total free space is 300 KB, which exceeds 250 KB, and the largest hole is 120 KB, which does not. That pair of facts is the definition of external fragmentation.</p>
+            <p class="small">(a) would require the total to be below 250. (c) is impossible here, since nothing has been allocated for this process. (d) is not stated and not implied.</p>
+            <p class="small muted" style="margin-bottom:0">Compute both numbers before deciding; the total alone gives the wrong answer.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <h3>Q4 — internal or external?</h3>
+          <p class="small">Memory is divided into fixed 64 KB partitions. A 50 KB process is loaded. The 14 KB it does not use is:</p>
+          <p class="small muted">(a) external fragmentation &nbsp;(b) internal fragmentation &nbsp;(c) a hole &nbsp;(d) compaction waste</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(b).</strong> The bytes lie inside a partition that has already been assigned to the process, so the allocator cannot offer them to anyone. That is internal fragmentation by definition.</p>
+            <p class="small">(a) would require the bytes to be on the free list. (c) is wrong for the same reason. (d) is not a kind of waste — compaction is a remedy for external fragmentation, and it could not recover these bytes.</p>
+            <p class="small muted" style="margin-bottom:0">The test is ownership: allocated and unused is internal; free and split is external.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <h3>Q5 — the provable claim</h3>
+          <p class="small">Mark every statement that is true for the same request and the same set of holes.</p>
+          <p class="small muted">I. Best fit's leftover is never larger than first fit's. &nbsp;II. Best fit never places fewer processes than first fit. &nbsp;III. Next fit's leftover is never larger than first fit's. &nbsp;IV. Worst fit's leftover is never smaller than first fit's.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>I and IV only.</strong> Best fit chooses the smallest sufficient hole, so its leftover is the minimum over all sufficient holes, and first fit's is one of those — so I holds, and the model confirms it over 1705 enumerated cases. Worst fit chooses the largest, so its leftover is the maximum, and IV holds for the same reason.</p>
+            <p class="small">II is false: the 1994 trace is a counterexample, with three placements against four. III is false: with holes 100, 200 and 700 KB and requests 150 then 100, first fit leaves 0 KB and next fit leaves 600 KB, because the rover passed the 100 KB hole.</p>
+            <p class="small muted" style="margin-bottom:0">Statements about one leftover are provable; statements about a sequence of requests are not.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <h3>Q6 — the exact-fit removal</h3>
+          <p class="small">Holes of 200, 300 and 500 KB. Under best fit a request of 300 KB is placed. How many holes remain, and what are their sizes?</p>
+          <p class="small muted">(a) three, 200/300/500 &nbsp;(b) two, 200 and 500 &nbsp;(c) three, 200/0/500 &nbsp;(d) two, 200 and 200</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(b).</strong> The 300 KB hole is the smallest sufficient hole and it is used exactly, so it disappears. Two holes remain: 200 and 500 KB.</p>
+            <p class="small">(c) is the classic error — writing the hole back with size zero. (a) leaves the used hole in the list. (d) invents a remainder that the subtraction does not produce.</p>
+            <p class="small muted" style="margin-bottom:0">Whenever a request equals a hole, remove the hole and reduce the count by one.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <h3>Q7 — the account that must balance</h3>
+          <p class="small">A 512 KB memory is divided into fixed 64 KB partitions. Four processes of 40, 60, 55 and 20 KB are loaded, and no others. What is the total internal waste?</p>
+          <p class="small muted">(a) 106 KB &nbsp;(b) 81 KB &nbsp;(c) 351 KB &nbsp;(d) 175 KB</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(b) 81 KB.</strong> Eight partitions exist. The wastes are 64−40 = 24, 64−60 = 4, 64−55 = 9 and 64−20 = 44, which sum to 81 KB.</p>
+            <p class="small">(a) is the sum of the requests, which is memory in use, not waste. (c) counts the four free partitions of 64 KB as internal waste — those are free, not internal. (d) is the free partitions plus something else; only the 81 KB is inside allocations.</p>
+            <p class="small muted" style="margin-bottom:0">Internal waste = sum over placed processes of (partition − request). Free partitions are a separate line.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <h3>Q8 — compaction, priced</h3>
+          <p class="small">A memory holds live blocks of 200, 100 and 300 KB separated by holes of 80, 60 and 40 KB, in the order live, hole, live, hole, live, hole. Compaction packs the live blocks to the bottom. How many KB are copied, and what is the largest hole afterwards?</p>
+          <p class="small muted">(a) 400 copied, 180 largest &nbsp;(b) 600 copied, 180 largest &nbsp;(c) 400 copied, 400 largest &nbsp;(d) 0 copied, 180 largest</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>(a).</strong> The first live block is already at address 0, so it does not move; the 100 KB and 300 KB blocks both move, giving 400 KB copied. The holes total 180 KB and become one hole of 180 KB.</p>
+            <p class="small">(b) counts the first block as moved, which it is not. (c) confuses the free total with the moved bytes. (d) assumes nothing moves, which is only true if the layout is already packed.</p>
+            <p class="small muted" style="margin-bottom:0">Compaction moves live bytes, never free bytes, and the total free space is unchanged.</p>
+          </div>
+        </div>
+
+        <div class="card question span-2">
+          <h3>Q9 — two statements, judged together</h3>
+          <p class="small">Consider these two statements about a system using pure paging with 4 KB pages.</p>
+          <p class="small muted">I. The system can suffer external fragmentation. &nbsp;II. A 10 KB process wastes 2 KB inside its last frame.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>I is false; II is true.</strong> Under pure paging any free frame can hold any page, so there is never free memory that is unusable for want of contiguity — external fragmentation is eliminated by construction. But the process needs three pages, of which the third holds only 2 KB, so 2 KB of that frame is unused and unavailable to anyone else: internal fragmentation.</p>
+            <p class="small">This is the closely-confused pair in one place: paging removes external fragmentation and keeps internal fragmentation. Segmentation does the opposite trade in part, and paged segmentation has both.</p>
+            <p class="small muted" style="margin-bottom:0">A claim that "paging has no fragmentation" is false as stated; the correct claim names which kind.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small">
+            <li><strong>Contiguous allocation</strong> — a process occupies one interval of physical addresses.</li>
+            <li><strong>Partition</strong> — a block of memory belonging to one process.</li>
+            <li><strong>Hole</strong> — a block of free memory; a hole is one contiguous piece, not a total.</li>
+            <li><strong>Fixed partitioning</strong> — the partitions are decided before any process runs.</li>
+            <li><strong>Variable partitioning</strong> — each partition is cut to the request.</li>
+            <li><strong>Rover</strong> — the index at which the next-fit scan resumes.</li>
+            <li><strong>Coalescing</strong> — merging two free neighbours into one hole.</li>
+            <li><strong>Internal fragmentation</strong> — unused bytes inside an allocation.</li>
+            <li><strong>External fragmentation</strong> — free bytes on the free list in pieces too small for the request.</li>
+            <li><strong>Compaction</strong> — moving live blocks so the holes join.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas, with the condition each needs</h3>
+          <ul class="small">
+            <li>Partitions $$n = \lfloor T/k \rfloor$$ — equal fixed partitions of size $$k$$.</li>
+            <li>Internal waste of one placement $$= k - P$$ — needs $$P \le k$$.</li>
+            <li>Leftover $$= H - P$$ — needs $$H \ge P$$; if $$H = P$$ the hole is gone.</li>
+            <li>Free total $$= \sum$$ hole sizes — a necessary condition only.</li>
+            <li>Fits $$\iff \max$$ hole $$\ge P$$ — the sufficient condition.</li>
+            <li>External fragmentation $$\iff$$ free total $$\ge P$$ and $$\max$$ hole $$< P$$.</li>
+            <li>Compaction cost $$=$$ live bytes that change address.</li>
+            <li>50-percent rule: holes $$\approx \tfrac{1}{2}\times$$ allocated blocks — a statistic, not a formula.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedures</h3>
+          <p class="small"><strong>To trace any policy:</strong> write the free list in address order. For each request in the given order, choose the hole by the policy's rule, write the remainder at the next address, and delete a hole that is exactly filled.</p>
+          <p class="small"><strong>To account for a fixed layout:</strong> three lines — in use, internal waste, free partitions — and they must sum to the memory size.</p>
+          <p class="small"><strong>To explain a refusal:</strong> compare the total free space with the request. Below, it is a shortage; at or above with a smaller largest hole, it is external fragmentation.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>To test a claim about a policy:</strong> find one stream where it fails. A witness disproves universality; it does not rank the policies.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, each with the case that defuses it</h3>
+          <ul class="small">
+            <li>Total free space never decides alone: 1215 KB free, 491 KB refused.</li>
+            <li>Best fit is not best: 1994, four placements against three.</li>
+            <li>Worst fit wastes the big holes: two placements with 1683 KB free.</li>
+            <li>First fit is address order, not size order.</li>
+            <li>An exactly filled hole disappears.</li>
+            <li>Internal waste cannot be compacted; external waste can.</li>
+            <li>Compaction needs dynamic relocation and no block pinned by I/O.</li>
+            <li>Paging removes external fragmentation and keeps internal.</li>
+          </ul>
+        </div>
+
+        <div class="card span-2">
+          <h3>Quick revision questions, answers inverted</h3>
+          <p class="small">1. Partitions in 1024 KB of 128 KB each? &nbsp;<span class="muted">— 8</span></p>
+          <p class="small">2. Internal waste of 110, 95, 128, 40 and 76 KB processes in 128 KB partitions? &nbsp;<span class="muted">— 18 + 33 + 0 + 88 + 52 = 191 KB</span></p>
+          <p class="small">3. Leftover when 357 KB takes a 400 KB hole? &nbsp;<span class="muted">— 43 KB</span></p>
+          <p class="small">4. Placements by first, next, best and worst fit on the six-hole stream? &nbsp;<span class="muted">— 3, 3, 4, 2</span></p>
+          <p class="small">5. Free total and largest hole after the first-fit trace? &nbsp;<span class="muted">— 1215 KB in six holes, largest 390 KB</span></p>
+          <p class="small">6. Bytes copied by compaction of that layout? &nbsp;<span class="muted">— 1285 KB in eight blocks</span></p>
+          <p class="small">7. Which policy satisfies all four requests in the 1994 question? &nbsp;<span class="muted">— first fit; best fit places three</span></p>
+          <p class="small" style="margin-bottom:0">8. What kind of fragmentation does paging still have? &nbsp;<span class="muted">— internal, in the last page of each process</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> (CS_GATE2027_Syllabus.pdf). Section 8 reads: "System calls, processes, threads, inter-process communication, concurrency and synchronization. Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems." <em>Supports:</em> the class-A classification, and the statement that the syllabus names memory management without enumerating its parts.</p>
+          <p class="small muted" style="margin-bottom:0">The wording above was confirmed against the syllabus PDF and two independent transcriptions that agree with it. The syllabus document was not re-read line by line for this lesson beyond Section 8.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and lecture material</h3>
+          <p class="small"><strong>Silberschatz, Galvin and Gagne, <em>Operating System Concepts</em>, Chapter 7 (Memory Management).</strong> Gives the multiple-partition allocation model, the definitions of hole, first fit, best fit and worst fit, the statements that best fit "produces the smallest leftover hole" and worst fit "the largest", that "first-fit and best-fit better than worst-fit in terms of speed and storage utilization", and the fragmentation definitions with the compaction conditions. <em>Supports:</em> every definition and the one-step leftover claims on this page.</p>
+          <p class="small"><strong>The same text's bibliographical note</strong> attributes the 50-percent rule and the finding that first fit is generally superior to best fit in simulation to Knuth (1973). <em>Supports:</em> the framing of the 50-percent rule as a simulation result.</p>
+          <p class="small" style="margin-bottom:0"><strong>HKU, CMU and UCSD operating-systems lecture notes</strong> on contiguous allocation. All three present fixed against variable partitions, the four policies, and internal against external fragmentation in the same form. <em>Supports:</em> the fixed-partition internal-waste framing and the note that paging still leaves internal fragmentation.</p>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year questions</h3>
+          <p class="small"><strong>GATE CSE 2015, Set 2, Question 30</strong> — six partitions of 200, 400, 600, 500, 300 and 250 KB; four processes of 357, 210, 468 and 491 KB; best fit; which partitions are unallotted. Reported with the same options and the same answer (200 KB and 300 KB) by a question-and-answer archive, a solved-paper site and a course question bank.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE CSE 1994, Question 1.24</strong> — the heap of 50 in use, 150 free, 300 in use, 350 free, 600 in use with requests 300, 25, 125 and 50, answered "first fit but not best fit". Reported by a question-and-answer archive, with worked solutions that agree on the trace.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the research did not settle</h3>
+          <p class="small">No official GATE paper was read directly for this lesson. Both previous-year questions are restatements from question banks that agree with each other on the numbers and the answer, not quotations from the papers, and no marks value is claimed for either.</p>
+          <p class="small">No weightage figure is given for memory management in GATE 2027. Nothing here predicts how often the topic will appear.</p>
+          <p class="small" style="margin-bottom:0">The 50-percent rule figure of 0.452 is this lesson's own seeded simulation over 4000 operations, not a published measurement; Knuth's original figure comes from a different workload and should not be compared numerically with it.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>How to check this page yourself</h3>
+          <p class="small">The animation's right-hand panel reports how many of the lesson's model checks passed; each check recomputes a claim from the definitions rather than comparing against a stored answer. The checks include: the fixed-partition account summing to 1024 KB; allocated plus free equalling 2500 KB at every step of all four traces; every leftover equalling hole minus request; the 2015 answer reproduced; the four placement counts; the 1705-case enumeration of the best-fit against first-fit leftover claim; the searched next-fit witness; both 1994 traces; and the compaction move.</p>
+          <p class="small muted" style="margin-bottom:0">The lesson draws every frame from the same model, so a wrong number in the prose would have to survive a check that recomputes it. No MP4 exists for this lesson and none is claimed.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
