@@ -831,6 +831,69 @@ topics.append(topic(
     ]))
 
 topics.append(topic(
+    "Digital Logic", "Boolean algebra",
+    "The tabular method: Quine\u2013McCluskey, the prime implicant chart and Petrick\u2019s method",
+    ["the tabular (Quine-McCluskey) minimisation procedure",
+     "the combining theorem and dash notation",
+     "grouping by one-count and why only adjacent groups compare",
+     "rounds to a fixed point, ticks and unticked survivors",
+     "the prime implicant chart as a covering problem",
+     "essential prime implicants, row and column dominance",
+     "don't-care placement in the two directions",
+     "cyclic charts and Petrick's method",
+     "the cost of exact minimisation"],
+    prereq=["boolean-algebra-and-minimisation", "combinational-circuits"],
+    related=["fsm-state-minimisation", "counting-and-combinatorics", "propositional-logic"],
+    importance="high",
+    evidence="GATE 2027 Section 2 names 'Boolean algebra and minimization - algebraic technique, "
+             "Karnaugh map, tabular method', so the tabular method is a named clause. Two previous-year "
+             "items are worked in full with their published keys: GATE CSE 2015 Set 3 Q43 (number of "
+             "prime implicants, key 3) and GATE CSE 2018 Q49 (number of essential prime implicants, key 3). "
+             "Past frequency is an observation about old papers, not a prediction for 2027.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="quine-mccluskey-tabular-method",
+    path="topics/quine-mccluskey-tabular-method/index.html",
+    execution="published 2026-11-01",
+    microtopics=[
+        "a map needs 2^n cells: 4, 8, 16, 32, 64; five variables is two folded maps, six needs a third dimension",
+        "the tabular method is the same search written down, so it has no size limit and can be executed",
+        "Quine 1952 extended by McCluskey 1956; the two phases: find all primes, then choose a cover",
+        "implicant, prime implicant and essential prime implicant, each defined by containment or uniqueness",
+        "a cube over {0,1,-}; k dashes cover exactly 2^k minterms, checked on every cube for n<=4",
+        "the combining theorem x.y + x.y' = x, and the absence of any identity for a two-bit difference",
+        "the dash records the variable the merge removed; dashes must align before two terms are compared",
+        "one-count differs by one for combinable terms, so only adjacent groups are compared",
+        "why two terms inside one group never combine",
+        "rounds carried to a fixed point; a round that finds nothing certifies maximality",
+        "the tick is the containment relation, so a ticked term cannot be prime",
+        "unticked entries across ALL columns are the prime set, not just those in the last column",
+        "GATE CSE 2015 Set 3 Q43 worked through the table: 6 + 2 + 0 merges, 3 primes, key 3",
+        "the table verified against an exhaustive enumeration of all 81 cubes over four variables",
+        "prime is not the same as needed: a prime may appear in no minimal cover",
+        "the prime implicant chart: rows are primes, columns are minterms of f, a cross is coverage",
+        "an essential prime is read down a column holding exactly one cross, never across a row",
+        "striking essential columns; when columns remain the essentials alone are not a cover",
+        "row dominance and column dominance, and which of a dominating pair is deleted",
+        "the cyclic core: what remains when no essential and no dominance applies",
+        "don't-cares included when the terms are listed and excluded from the chart, and why both halves matter",
+        "GATE CSE 2018 Q49 worked in full: 6 primes, 3 essential, key 3",
+        "a prime implicant that covers only don't-cares: maximal, listed, and in no cover",
+        "GATE CSE 2018 Q49: the minimal cover Q'S' + P'QS + PQ', 7 literals",
+        "Sigma m(0,1,2,5,6,7): six primes of two minterms each, every column holding two crosses",
+        "a chart with no essential at all, and why answering 'the essentials' then answers nothing",
+        "Petrick's method: one sum per column, the product of sums, absorption with X + XY = X",
+        "reading all minimal covers out of the expansion rather than one; tie-breaking on literal count",
+        "the two tied minima of the cyclic function, 3 primes and 6 literals each",
+        "the absorption rule verified in the other direction over all 64 assignments of the decisions",
+        "degenerate cases: empty ON-set has no primes, full ON-set has one, a single minterm is its own prime",
+        "overlapping cover sizes, and why they need not add up to the minterm count",
+        "cost: the worst four-variable function on 8 minterms has 8 primes (12,870 functions searched)",
+        "Petrick's expansion can produce up to 2^m products before absorption",
+        "exact minimisation stops: reduce first, Petrick only on the core, heuristics for large functions",
+    ]))
+
+topics.append(topic(
     "Digital Logic", "Number representation", "Number representation and arithmetic",
     ["fixed point representations", "signed number systems", "floating point (IEEE 754)",
      "binary arithmetic and overflow"],
@@ -4393,6 +4456,7 @@ topics.append(topic(
 )
 
 _VERIFIED = {
+    "quine-mccluskey-tabular-method": "2026-11-01",
     "relational-calculus-and-safety": "2026-11-01",
     "barriers-and-their-implementations": "2026-11-01",
     "monitors-and-condition-variables": "2026-11-01",
