@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UDP: the Datagram, the Checksum and Demultiplexing — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">UDP: Datagram, Checksum, Demultiplexing</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Related: TCP and sockets</a>
+      <a href="../dns-and-http/index.html">Related: DNS and HTTP</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Related: IPv4 and NAT</a>
+      <a href="../ip-support-protocols-arp-dhcp-icmp/index.html">Related: ARP, DHCP, ICMP</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> UDP — the transport protocol that kept two jobs and dropped the rest. Its eight-octet header, the length ceilings those sixteen bits impose, the pseudo-header that is never transmitted, the one's complement checksum computed over it, and the two-field rule that decides which socket receives a datagram.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a UDP question, decide which of the four lengths is being asked for, compute or verify a checksum over a pseudo-header without adding that pseudo-header to the datagram's size, count sockets correctly, and count fragments at the IP layer rather than the transport layer — with every number arrived at by arithmetic you can check.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one small header and four consequences of its smallness</em>: the length ceiling, the optional fields, the checksum that needs outside information, and the delivery rule that needs only two fields. Every number on this page is computed at load by the lesson's own model and re-checked against its defining property.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite for clauses the 2027 syllabus does name.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code> and read again for this lesson, names under Computer Networks: <em>"TCP- flow control and congestion control, socket API; DNS and HTTP."</em> It does not use the word UDP anywhere.</p>
+          <p class="small"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> UDP is still prerequisite material twice over. The socket API clause is about sockets of both kinds, and the demultiplexing rule is the part of UDP a socket question tests. The DNS clause is about a protocol that runs over UDP: the 512-octet limit that shapes DNS answers is a UDP payload limit, and this repository's DNS lesson already computes 33-octet queries and a 479-octet remainder inside that ceiling.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> So the lesson is registered class B and makes no claim about 2027 weightage. One previous-year question is quoted, GATE CS 2015 Set 2 question 28, and it is a fragment-counting question that only works if you know the UDP header sits inside the IP payload. Everything else in the practice set is marked original.</p>
+          <p class="small" style="margin-bottom:0">Historical frequency is an observation about past papers, not a prediction for 2027. The 2027 text is shorter than the 2026 text on this section, and the difference is recorded in this repository's execution log rather than guessed at.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small">
+            <li><strong>IPv4 headers and fragmentation.</strong> The 20-octet header, the 16-bit total length and the eight-octet fragment offset unit are used in scenes 3 and 9. Built in <a href="../ip-fragmentation-cidr-and-nat/index.html">IPv4, Fragmentation, CIDR and NAT</a>.</li>
+            <li><strong>Layering and encapsulation.</strong> UDP is payload to IP, and its header is counted in every IP-level figure. Built in <a href="../layering-switching-and-performance-metrics/index.html">Layering, Switching and Performance Metrics</a>.</li>
+            <li><strong>Ports as a multiplexing device.</strong> The 16-bit port and the well-known numbers. Introduced in <a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP, Flow Control and Sockets</a>.</li>
+            <li><strong>One's complement arithmetic.</strong> Not a computing prerequisite in the syllabus sense, but the checksum is unreadable without it. Taught from scratch in scene 5, in five steps.</li>
+            <li><strong>DNS as a protocol.</strong> Scene 8 uses one DNS exchange as the worked application. Built in <a href="../dns-and-http/index.html">DNS and HTTP</a>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Nothing about TCP congestion control, routing or security is assumed. TCP appears only as a contrast, in one line per scene where the contrast is the point.</p>
+        </div>
+
+        <div class="card">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, each one argument:</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Two jobs.</strong> Eight transport jobs as a checklist, with the two UDP kept, then the postcard analogy.</li>
+            <li><strong>The eight octets.</strong> The header as four cells in two rows, with the two fields that may legally be zero marked.</li>
+            <li><strong>The length ceiling.</strong> One scale from 0 to 65535 carrying the three ceilings, then the four subtractions.</li>
+            <li><strong>The pseudo-header.</strong> Six word boxes that are never sent, beside the IPv6 forty-octet version.</li>
+            <li><strong>The procedure.</strong> Five steps, then the receiver's test and what a failure does.</li>
+            <li><strong>A worked checksum.</strong> Fifteen words laid out by source, then the sum, the complement and the re-add.</li>
+            <li><strong>Demultiplexing.</strong> Three datagrams from two senders into one socket, against two for TCP.</li>
+            <li><strong>Ports and DNS.</strong> The port space with the assigned services crowded at the left, then one exchange.</li>
+            <li><strong>What it drops.</strong> Four omissions, then the fragment arithmetic of a real GATE question.</li>
+            <li><strong>The procedure.</strong> Four questions, the counts, and the four answers that look right.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas to leave with</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Eight octets, four fields, no options. The data always begins at offset eight.</li>
+            <li>Length counts its own header, so a 33-octet query reports 41, and 65535 is a field limit rather than a network limit.</li>
+            <li>The pseudo-header is twelve octets over IPv4 and forty over IPv6, enters the checksum, and never enters a transmitted size.</li>
+            <li>Zero and FFFF are the same number in one's complement and opposite instructions in this field: zero means none computed, FFFF means the arithmetic produced zero.</li>
+            <li>Two fields choose a UDP socket; one datagram is one message; fragments are counted at the IP layer.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this lesson does not claim</h3>
+          <p class="small" style="margin-bottom:0">Approximate learning time is 55–70 minutes with the practice set, and that is an estimate. No audio file exists: the narration is a script plus optional browser speech synthesis, so every timing is estimated from the timeline rather than measured. Three things are deliberately outside the lesson: <strong>UDP-Lite and DCCP</strong>, which are different protocols and are named only where a distinction needs them; <strong>QUIC</strong>, mentioned once as a modern user of UDP and not taught; and <strong>any 2027 weightage claim</strong>, because the 2027 syllabus does not name UDP. The port numbers in scene 8 are the standard IANA assignments; the range boundaries of the port space are not used as an exam fact anywhere on this page.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <!-- page 1 -->
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition first: a transport layer has eight jobs, and UDP kept two</h3>
+              <p class="small">Imagine a delivery company. The full-service option sets up an account with you, numbers every parcel, signs for each one, resends anything lost, slows down when you cannot keep up, and traces the route. The cheap option takes your parcel, writes the flat number on it, and drops it in the box. Both deliver parcels. Only one of them is doing bookkeeping.</p>
+              <p class="small" style="margin-bottom:0">The eight jobs are: connection setup, sequence numbers, acknowledgements, retransmission, flow control, congestion control, message boundaries, and finding the right program plus noticing damage. UDP performs the last two. The first six are the application's problem, and for a protocol like DNS the application was going to have its own timer anyway.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition</h3>
+              <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 768 defines UDP as a datagram mode of packet-switched communication that assumes IP underneath, provides "a procedure for application programs to send messages to other programs with a minimum of protocol mechanism", and states that the protocol is transaction oriented and that "delivery and duplicate protection are not guaranteed".</p>
+              <p class="small" style="margin-bottom:0">The header is four 16-bit fields: Source Port, Destination Port, Length and Checksum. There is no options field, no variable-length part, and no reserved bits. The protocol number in the IP header is 17.</p>
+            </div>
+
+            <div class="card">
+              <h3>Every symbol, in words</h3>
+              <ul class="small" style="margin-bottom:0">
+                <li><strong>Source Port</strong> — the port of the sending program. RFC 768 calls it optional and says a zero is inserted when it is not used.</li>
+                <li><strong>Destination Port</strong> — the port of the receiving program, meaningful only together with the destination IP address.</li>
+                <li><strong>Length</strong> — the number of octets in the whole datagram, header included. Its minimum is 8.</li>
+                <li><strong>Checksum</strong> — the 16-bit one's complement of the one's complement sum of a pseudo-header, this header, and the data, padded with zero octets if needed.</li>
+                <li><strong>Pseudo-header</strong> — source address, destination address, the protocol, and the UDP length, "conceptually prefixed" and never transmitted.</li>
+              </ul>
+            </div>
+
+            <div class="card card--assumption">
+              <h3>The three conditions the checksum needs</h3>
+              <p class="small">The procedure only works under three conditions, and a question that breaks one of them is testing exactly that:</p>
+              <ol class="small" style="margin-bottom:0">
+                <li>The IP addresses are available to the receiver, because they are in the sum.</li>
+                <li>The octet count is made even before adding, by a padding octet that is not transmitted.</li>
+                <li>The checksum field is zero while the sum is taken.</li>
+              </ol>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- page 2 -->
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>The length arithmetic, once</h3>
+              <p class="small">Four numbers come from one 16-bit field:</p>
+              <p class="formula small">2<sup>16</sup> − 1 = 65535 &nbsp;·&nbsp; 65535 − 8 = 65527<br>65535 − 20 − 8 = 65507 &nbsp;·&nbsp; 65535 − 60 − 8 = 65467</p>
+              <p class="small" style="margin-bottom:0">The first is what the field can hold. The second is the largest payload UDP itself can describe. The third and fourth are what fits once an IPv4 header without options, and with the maximum 60 octets of options, has taken its share of the same 65535.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>The checksum in five steps</h3>
+              <ol class="step-list small" style="margin-bottom:0">
+                <li><strong>Pad.</strong> Append zero octets until the data count is even. Justification: the sum is over 16-bit words, and a half word cannot be added.</li>
+                <li><strong>Add.</strong> Treat pseudo-header, header and padded data as 16-bit words and add them as unsigned integers. Justification: RFC 768 defines the checksum as the one's complement of this sum.</li>
+                <li><strong>Fold.</strong> Add the bits above position 16 back into the low 16 bits, repeatedly. Justification: one's complement arithmetic has no carry-out.</li>
+                <li><strong>Complement.</strong> Invert all 16 bits. Justification: that is what "one's complement of the sum" means.</li>
+                <li><strong>Map zero to FFFF.</strong> Justification: an all-zero transmitted field is reserved to mean "no checksum computed".</li>
+              </ol>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Demultiplexing, stated as a rule</h3>
+              <p class="small">UDP delivers a datagram to the socket bound to the pair (destination IP address, destination port). The source fields are passed up to the application as information and do not participate in the choice.</p>
+              <p class="small" style="margin-bottom:0">The consequence is worth memorising as a shape: many senders, one destination port, one socket. TCP's four-tuple makes the same traffic several connections, so the same three datagrams need two sockets there.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>The one distinction the whole lesson turns on</h3>
+              <p class="small" style="margin-bottom:0">A transmitted size and a checksummed size are different numbers. The pseudo-header is inside the second and absent from the first. Everything that goes wrong in this topic — adding twelve octets to a length, reporting 53 instead of 41, treating the checksum as covering only the datagram you can see — is that one confusion wearing different clothes.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every sum and every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A transport layer has two jobs to do. UDP does both and stops there.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">What UDP keeps, and what it throws away</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A transport layer has to do two things: find the right program at the far end, and notice when the bits arrived damaged. UDP does those two and stops.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 — the checksum of one real datagram</h3>
+              <p class="small">From 192.168.1.10 to 8.8.8.8, source port 51515, destination port 53, nine octets of data: <code>1A 2B 00 01 00 00 00 00 00</code>. Compute the checksum.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 1 — the length and the padding</h3>
+              <p class="small">Length = 8 + 9 = 17, which is odd, so one zero octet is appended for the arithmetic. The nine data octets become five words: <code>1A2B 0001 0000 0000 0000</code>.</p>
+              <p class="small" style="margin-bottom:0">The padding octet is not transmitted and does not appear in the Length field. It exists only inside this sum.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 2 — the six pseudo-header words</h3>
+              <p class="formula small">C0A8 010A &nbsp;source address<br>0808 0808 &nbsp;destination address<br>0011 0011 &nbsp;zero+protocol, then UDP length</p>
+              <p class="small" style="margin-bottom:0">Protocol 17 is 0x11, and the length 17 is also 0x0011. That coincidence is a coincidence: the two fields are unrelated.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 3 — the four header words, checksum zeroed</h3>
+              <p class="formula small">C93B &nbsp;source port 51515<br>0035 &nbsp;destination port 53<br>0011 &nbsp;length 17<br>0000 &nbsp;checksum, zeroed for the sum</p>
+              <p class="small" style="margin-bottom:0">Fifteen words in all: six pseudo, four header, five data.</p>
+            </div>
+
+            <div class="card">
+              <h3>Step 4 — add, fold, complement</h3>
+              <p class="small">The fifteen words add to <strong>0xB592</strong>, which is already inside 16 bits, so there is nothing to fold. Its one's complement is <strong>0x4A6D</strong>, and that is what the field carries.</p>
+              <p class="small" style="margin-bottom:0">The value is not zero, so no FFFF substitution is needed.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Step 5 — the receiver checks it</h3>
+              <p class="small">The receiver builds the same pseudo-header from its own addresses, puts 0x4A6D into the checksum field instead of zero, and adds the same fifteen words. The result is <strong>0xFFFF</strong>.</p>
+              <p class="small" style="margin-bottom:0">That is the acceptance test. Any other value means the datagram is discarded, silently, with no message to the sender and none to the application.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 2 — the same datagram over IPv6</h3>
+              <p class="small">Change nothing about the datagram and put it over IPv6. The header is still eight octets and the Length field still says 17. Only the pseudo-header changes: two 128-bit addresses, a 32-bit upper-layer length, three zero octets, and a Next Header of 17. That is 16 + 16 + 4 + 3 + 1 = 40 octets, twenty words instead of six.</p>
+            </div>
+
+            <div class="card">
+              <h3>What changes</h3>
+              <p class="small">The sum covers fourteen more words, so the checksum value changes. The datagram's own size does not.</p>
+              <p class="small" style="margin-bottom:0">RFC 8200 §8.1 also makes the checksum mandatory here: an originating node must compute it, a computed zero becomes FFFF, and a received zero checksum must be discarded. Under IPv4 the field may be zero, meaning no checksum was computed.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 3 — a length question</h3>
+              <p class="small">An application hands UDP 100 octets of data. What goes in the Length field?</p>
+              <p class="small"><strong>108.</strong> The field counts the header as well as the data.</p>
+              <p class="small" style="margin-bottom:0">The three wrong answers that look right are 100 (the payload), 112 (payload plus a twelve-octet pseudo-header) and 128 (payload plus an IPv4 header). Only the first of those is even a plausible reading of the field.</p>
+            </div>
+
+            <div class="card">
+              <h3>Worked example 4 — a fragment question</h3>
+              <p class="small">GATE CS 2015 Set 2, Q28. 8880 octets of user data, MTU 1500, 20-octet IPv4 header, no options. How many fragments, and what is in the offset field of the last?</p>
+              <p class="small">IP payload = 8880 + 8 = 8888. Per fragment = 1500 − 20 = 1480. ⌈8888/1480⌉ = 7. Six full fragments carry 8880 octets and the seventh carries 8. The last fragment starts 8880 octets in, and the offset field counts eight-octet units, so 8880/8 = <strong>1110</strong>.</p>
+              <p class="small" style="margin-bottom:0">Fragmenting 8880 instead of 8888 gives six fragments, which is one of the offered wrong answers.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>The pattern across all four</h3>
+              <p class="small" style="margin-bottom:0">Name the length before you subtract; keep the pseudo-header out of every size; put the header inside every IP-layer payload; and remember that the offset counts eight-octet units from the start of the IP payload, not from the start of the data.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a checksum that cannot be zero</h3>
+          <p class="small">A student writes: "if the sum of the words is 0xFFFF, the complement is 0x0000, so the field carries 0x0000."</p>
+          <p class="small">The arithmetic is right and the conclusion is wrong. A transmitted 0x0000 means <em>no checksum was computed</em>, so RFC 768 requires the computed zero to be sent as 0xFFFF. The receiver then re-adds and still gets 0xFFFF, because 0xFFFF and 0x0000 are the same value in one's complement arithmetic.</p>
+          <p class="small" style="margin-bottom:0"><strong>The violated condition:</strong> the transmitted field is not the raw complement; it is the complement with one substitution applied.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: an even-length datagram</h3>
+          <p class="small">Suppose the data is 4 octets, not 9. The datagram is 12 octets, even, and no padding octet is added. A student who always appends a zero gets five data words instead of two and a wrong checksum.</p>
+          <p class="small" style="margin-bottom:0"><strong>The violated condition:</strong> padding is conditional on an odd octet count. It is not part of the format.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: the smallest legal datagram</h3>
+          <p class="small">Length 8 means eight octets of header and no data at all. That is legal: a datagram that carries nothing is a way of signalling. Length 7 or lower describes a datagram that cannot contain its own header and is malformed.</p>
+          <p class="small" style="margin-bottom:0">So 8 is both the minimum and the exact header size, which is why the two facts are easy to conflate. The minimum is 8 <em>because</em> the header is 8.</p>
+        </div>
+
+        <div class="card">
+          <h3>Boundary: 65507 against 65527</h3>
+          <p class="small">65527 is the largest payload UDP can describe. 65507 is the largest that fits in an IPv4 datagram with a 20-octet header. Both are correct answers to different questions, and neither is the largest datagram you will ever see: IPv6 jumbograms use a hop-by-hop option to carry lengths beyond 65535.</p>
+          <p class="small" style="margin-bottom:0">For GATE purposes the two numbers that matter are 65535 (the field) and 65507 (the payload over IPv4 with no options).</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge: a zero source port</h3>
+          <p class="small">RFC 768 permits a zero in Source Port when no reply is wanted. A question that asks "how many port fields must be non-zero" has the answer one — the destination.</p>
+          <p class="small" style="margin-bottom:0">A zero destination port is a different matter: nothing is bound to it in practice, so the datagram is undeliverable. The standard does not assign port 0 to any service.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Edge: the pseudo-header and a routing header</h3>
+          <p class="small">Over IPv6 with a Routing header, RFC 8200 §8.1 says the destination address used in the pseudo-header is that of the final destination, not the address in the IPv6 header. At the sender that address sits in the last element of the Routing header; at the receiver it is the header's destination field.</p>
+          <p class="small" style="margin-bottom:0">This is the one place where the pseudo-header is built from something other than the header in front of it, and it is why the rule is stated as "the addresses in the checksum" rather than "the addresses in the packet".</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. "UDP has no error detection"</h3>
+          <p class="small"><strong>Why it tempts:</strong> UDP is described as unreliable, and unreliability sounds like the absence of checking.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> the checksum field exists, is 16 bits wide, and covers a pseudo-header, the header and the data. A datagram whose bits were corrupted in transit fails the check and is discarded.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correct rule:</strong> UDP detects errors and reports nothing. It never recovers from one. Detection without recovery is still detection.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "The checksum covers the UDP datagram"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the field is in the UDP header, so it looks like a property of the datagram.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> change the destination address in the IP header and leave every UDP octet alone. The checksum no longer matches, because the receiver rebuilds the pseudo-header from its own address.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correct rule:</strong> the checksum covers twelve octets that are not in the datagram, over IPv4.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "Port 17 is UDP"</h3>
+          <p class="small"><strong>Why it tempts:</strong> 17 is the number associated with UDP and it appears in the pseudo-header.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> the pseudo-header has no port fields at all. Its 17 is the IP protocol number, occupying a whole octet, and the IP header carries the same value in its Protocol field.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correct rule:</strong> a protocol number identifies a payload type in the IP header; a port identifies a program. UDP has ports 0 to 65535 and protocol number 17.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "UDP keeps no state, so one socket serves one sender"</h3>
+          <p class="small"><strong>Why it tempts:</strong> TCP's one-connection-one-socket model is learned first, and the word "connectionless" suggests the opposite extreme.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> a DNS server receives queries from thousands of clients on one socket bound to port 53. Three datagrams from two senders reach the same socket, as scene 7 shows.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correct rule:</strong> a UDP socket is named by two fields, so every sender aimed at that address and port shares it.</p>
+        </div>
+
+        <div class="card">
+          <h3>Closely confused pair: zero and 0xFFFF</h3>
+          <p class="small">In one's complement arithmetic the two are the same value — that is why the substitution is legal and why the receiver's test still lands on 0xFFFF. In the checksum field they are opposite instructions: <strong>zero</strong> means "the sender computed nothing", and <strong>0xFFFF</strong> means "the sender computed a checksum and it came out zero".</p>
+          <p class="small" style="margin-bottom:0">This is the single most examinable distinction in the lesson, and it is a distinction between meanings, not between numbers.</p>
+        </div>
+
+        <div class="card">
+          <h3>Closely confused pair: UDP Length and IP Total Length</h3>
+          <p class="small">Both are 16-bit fields, both are called length, and both count themselves. UDP Length counts the eight-octet UDP header plus the data. IP Total Length counts the IP header plus the whole UDP datagram.</p>
+          <p class="small" style="margin-bottom:0">For a 100-octet payload with no IP options the two read 108 and 128. Neither counts the other's header twice, and neither is ever the payload alone.</p>
+        </div>
+
+        <div class="card">
+          <h3>Closely confused pair: message boundaries and reads</h3>
+          <p class="small">UDP preserves boundaries, so one receive returns one datagram. TCP does not, so a receive returns whatever bytes have arrived. A question describing "two reads of 50 octets" is describing a stream.</p>
+          <p class="small" style="margin-bottom:0">The same words describe very different mechanics, which is why the phrase "the application reads 100 octets" appears in TCP questions and not in UDP ones.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "Adding the pseudo-header makes the datagram bigger"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the checksum needs it, so it feels like part of the message.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> the Length field says 17 for the worked datagram. If the pseudo-header were part of the message the field would have to say 29, and no capture would ever agree with it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correct rule:</strong> the pseudo-header is an input to a computation, not a part of a packet.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this topic is actually asked</h3>
+          <p class="small">UDP appears in four shapes. None of them asks you to recite the header; every one asks you to do one piece of arithmetic or one piece of counting, and each shape has a standard wrong approach.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — length arithmetic</h3>
+          <p class="small"><strong>The reasoning demanded:</strong> identify which of the four lengths is named, then add or subtract the right headers. The question usually supplies the payload and asks for a field, or supplies a field and asks for the payload.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> treating the payload as the Length, or adding the pseudo-header because the checksum was mentioned in the same sentence.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — fragmentation with a UDP payload</h3>
+          <p class="small"><strong>The reasoning demanded:</strong> build the IP payload as data plus 8, divide by the MTU minus the IP header, round up, then compute the last fragment's size and offset. The offset is in eight-octet units from the start of the IP payload.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> fragmenting the data alone, or reporting the byte offset instead of the field value. GATE CS 2015 Set 2 Q28 offers both errors as options.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — checksum computation or verification</h3>
+          <p class="small"><strong>The reasoning demanded:</strong> build the pseudo-header, zero the checksum field, add in 16-bit words with padding, fold, complement. For verification, add with the field as received and expect 0xFFFF.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> forgetting to zero the field first, forgetting the padding octet on an odd length, or reporting the sum instead of its complement.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — counting sockets and ports</h3>
+          <p class="small"><strong>The reasoning demanded:</strong> count distinct destination pairs for UDP and distinct four-tuples for TCP, then answer how many sockets, how many connections, or how many binds.</p>
+          <p class="small" style="margin-bottom:0"><strong>The common wrong approach:</strong> counting datagrams, or counting sources rather than destinations.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The procedure to run, in order</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Which length is named? Data, datagram, IP payload, or IP total.</li>
+            <li>Compute or verify? The expected output differs.</li>
+            <li>Which pseudo-header? 12 octets over IPv4, 40 over IPv6, protocol 17 either way.</li>
+            <li>What is being counted? Sockets, datagrams, or IP fragments — three different counts.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What a UDP question is not</h3>
+          <p class="small" style="margin-bottom:0">It is not a question about congestion control, ordering or reliability — those are TCP properties, and a UDP question that mentions them is usually asking which property is <em>missing</em>. It is also not a question about ports as ranges: the ranges of the port space are conventions, while the eight-octet header and the checksum are the standard.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers withheld until you reveal them</h3>
+              <p class="small">Q1 is the official GATE CS 2015 Set 2 question, quoted with its paper and year. Q2 to Q8 are <strong>original practice questions written for this lesson</strong> and are labelled as such. Use the mock-test switch to hide every answer at once.</p>
+              <p class="small"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until I submit</label> <button class="btn" id="mock-submit" hidden>Reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q1</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge">GATE CS 2015, Set 2, Q28</span></p>
+              <p class="small">Host A sends a UDP datagram containing 8880 bytes of user data to host B over an Ethernet LAN. Ethernet frames may carry data up to 1500 bytes (i.e. MTU = 1500 bytes). Size of UDP header is 8 bytes and size of IP header is 20 bytes. There is no option field in IP header. How many total number of IP fragments will be transmitted and what will be the contents of offset field in the last fragment?</p>
+              <p class="small">(A) 6 and 925<br>(B) 6 and 7400<br>(C) 7 and 1110<br>(D) 7 and 8880</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: (C) 7 and 1110.</strong></p>
+                <p class="small">The IP payload is the UDP header plus the data: 8880 + 8 = 8888 octets. Each fragment can carry 1500 − 20 = 1480 octets. ⌈8888/1480⌉ = 7. Six fragments carry 1480 each, which is 8880, so the seventh carries the remaining 8 octets.</p>
+                <p class="small" style="margin-bottom:0">The last fragment begins 8880 octets into the IP payload. The offset field counts in units of 8 octets, so the value is 8880/8 = 1110. <strong>Why the others fail:</strong> 6 comes from fragmenting 8880 instead of 8888; 925 and 7400 are byte offsets rather than field values, and 7400 is not even a multiple of 8.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q2</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">An application hands 100 octets of data to UDP, which sends it over IPv4 with no options. What value goes in the UDP Length field?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 108.</strong> The field counts the eight-octet header as well as the data.</p>
+                <p class="small" style="margin-bottom:0"><strong>The trap.</strong> Three numbers look plausible: 100 (the payload), 112 (payload plus a twelve-octet pseudo-header) and 128 (payload plus an IPv4 header). Only 108 is the field's own definition.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q3</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">The pseudo-header and UDP header and data of a datagram, with the checksum field zeroed, sum to 0xFFFF. What value is transmitted in the checksum field?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: 0xFFFF.</strong> The complement of 0xFFFF is 0x0000, and RFC 768 requires a computed zero to be transmitted as all ones.</p>
+                <p class="small" style="margin-bottom:0"><strong>The trap.</strong> 0x0000 is the arithmetic answer and the wrong one, because a transmitted all-zero field means no checksum was computed. Note that the receiver's test is unaffected: 0xFFFF added to 0xFFFF folds to 0xFFFF, so the check still passes.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q4</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">What is the largest UDP payload that fits in a single IPv4 datagram whose header has no options?</p>
+              <p class="small">(A) 65535<br>(B) 65527<br>(C) 65507<br>(D) 65467</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: (C) 65507.</strong> 65535 − 20 − 8 = 65507.</p>
+                <p class="small" style="margin-bottom:0"><strong>Why the others fail.</strong> 65535 is the field's ceiling, not a payload. 65527 subtracts only the UDP header, which is the UDP-only answer. 65467 subtracts a 60-octet IPv4 header, which is the answer with maximum options — not "no options".</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <p class="small"><strong>Q5</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Which statements about the UDP pseudo-header over IPv4 are true?</p>
+              <p class="small">(A) It is twelve octets long.<br>(B) It carries the protocol number 17.<br>(C) It is transmitted ahead of the UDP header.<br>(D) It is included in the value of the Length field.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: A and B.</strong> Four octets of source address, four of destination address, one zero, one protocol, two of UDP length: twelve. The protocol value is 17.</p>
+                <p class="small" style="margin-bottom:0"><strong>C is false</strong> because the pseudo-header is built by each end and never appears on the wire. <strong>D is false</strong> because Length counts only the eight-octet header and the data — the pseudo-header is an input to the checksum, not part of the datagram.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q6</strong> <span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Three datagrams arrive at a server from two different client hosts, all addressed to port 53 of the same server address. How many UDP sockets receive them?</p>
+              <p class="small">(A) One<br>(B) Two<br>(C) Three<br>(D) Six</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: (A) one.</strong> UDP demultiplexes on (destination address, destination port), and all three datagrams share both.</p>
+                <p class="small" style="margin-bottom:0"><strong>Why the others fail.</strong> Two is the number of TCP sockets the same traffic would need, because the four-tuple differs. Three is the datagram count. Six would be the four-tuple count if both ends were counted separately, which is not a thing.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q7</strong> <span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">A receiver builds the pseudo-header and adds it to the received header and data, with the checksum field left exactly as received. The result is 0xFFFE. What does the receiver conclude, and what does the sender learn?</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: the datagram is corrupt or misdelivered, and it is discarded silently; the sender learns nothing.</strong> The acceptance test is exactly 0xFFFF, so 0xFFFE fails it.</p>
+                <p class="small" style="margin-bottom:0"><strong>The trap.</strong> 0xFFFE is one below the target, which invites "almost right, accept it". There is no tolerance in this test, and there is no negative acknowledgement: UDP reports a bad checksum to nobody, which is why the application needs its own timer.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <p class="small"><strong>Q8</strong> <span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span></p>
+              <p class="small">Which statements about UDP over IPv6 are true?</p>
+              <p class="small">(A) The checksum is mandatory for an originating node.<br>(B) A received datagram with a zero checksum must be discarded.<br>(C) The pseudo-header is forty octets long.<br>(D) The protocol number changes from 17 to 6.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>Answer: A, B and C.</strong> RFC 8200 §8.1 requires the checksum, requires a received zero to be discarded, and defines the pseudo-header as two 128-bit addresses plus a 32-bit upper-layer length, three zero octets and a Next Header — 40 octets.</p>
+                <p class="small" style="margin-bottom:0"><strong>D is false.</strong> 17 remains the number for UDP; 6 is TCP. The standard also permits a zero-checksum mode for tunnel encapsulation under RFC 6936, which is an exception to A and B rather than a contradiction of them.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet — one screen</h3>
+          <p class="small" style="margin-bottom:0">Everything on this tab is a fact you can state in one line and check with one sum. If a line here contradicts your notes, the line here is the one that was computed at load.</p>
+        </div>
+
+        <div class="card">
+          <h3>Header, in numbers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>4 fields × 16 bits = <strong>8 octets</strong>; no options, data starts at octet 8.</li>
+            <li>Minimum Length = 8, because the header is 8.</li>
+            <li>Source Port may be 0 when no reply is wanted.</li>
+            <li>Protocol number <strong>17</strong>, in the IP header and in both pseudo-headers.</li>
+            <li>Length counts header plus data.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Ceilings</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Field ceiling: <strong>65535</strong>.</li>
+            <li>Payload alone: <strong>65527</strong>.</li>
+            <li>Over IPv4, 20-octet header: <strong>65507</strong>.</li>
+            <li>Over IPv4, 60-octet header: <strong>65467</strong>.</li>
+            <li>Port space: <strong>65536</strong> values, 0 to 65535.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Checksum</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Pseudo-header: <strong>12</strong> octets over IPv4, <strong>40</strong> over IPv6.</li>
+            <li>Odd octet count → one zero padding octet, not transmitted.</li>
+            <li>Checksum field is zero during the sum.</li>
+            <li>Add, fold, complement; a computed zero is sent as <strong>FFFF</strong>.</li>
+            <li>Receiver's test: the re-add must give <strong>FFFF</strong>.</li>
+            <li>Optional over IPv4; mandatory over IPv6 (RFC 8200 §8.1).</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Delivery and counting</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>UDP socket = (destination address, destination port).</li>
+            <li>TCP connection = the four-tuple.</li>
+            <li>One datagram = one message; boundaries preserved.</li>
+            <li>Fragments are counted at the IP layer, with the UDP header inside the payload.</li>
+            <li>Offset field counts 8-octet units from the start of the IP payload.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Name the length: data, datagram, IP payload, IP total.</li>
+            <li>Say whether you are computing or verifying the checksum.</li>
+            <li>Pick the pseudo-header: 12 or 40 octets, protocol 17 in both.</li>
+            <li>Count the right thing: sockets, datagrams, or fragments.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Payload reported as Length.</li>
+            <li>Pseudo-header added to a size.</li>
+            <li>Port 17 confused with protocol 17.</li>
+            <li>0x0000 written where 0xFFFF belongs.</li>
+            <li>8880 fragmented instead of 8888.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read for this lesson, and what it supports</h3>
+          <p class="small" style="margin-bottom:0">Grouped by kind. Every load-bearing claim on the page points at one of these; where a claim is a derivation or an interpretation rather than a quotation, it is labelled as such on the page.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official standards</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>RFC 768, User Datagram Protocol</strong>, J. Postel, 28 August 1980 — read in full for this lesson. Supports: the four-field header and the sixteen-bit width of each field; Source Port as optional with a zero inserted when unused; Length counting the header with a minimum of eight; the checksum definition including the padding rule; the pseudo-header's five components; the sentence that this "gives protection against misrouted datagrams"; the rule that a computed zero is transmitted as all ones and that an all-zero transmitted value means no checksum was generated; protocol number 17.</li>
+            <li><strong>RFC 8200, IPv6 Specification, §8.1</strong> — read for this lesson through the datatracker HTML. Supports: the 128-bit pseudo-header layout and its forty-octet total; the rule that for a protocol carrying its own length, such as UDP, that length is the one used in the pseudo-header; the requirement that an IPv6 node compute the checksum and map a computed zero to FFFF; the requirement that receivers discard a zero checksum; the tunnel exception pointing at RFC 6936; the Routing-header rule for the destination address used in the pseudo-header.</li>
+            <li><strong>RFC 6936, Applicability Statement for the Use of IPv6 UDP Datagrams with Zero Checksums</strong> — cited by RFC 8200 §8.1 and named on this page as the exception to the mandatory-checksum rule. Not read in full.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Official syllabus and papers</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong>, <code>CS_GATE2027_Syllabus.pdf</code>, fetched and read again for this lesson. Supports: the exact wording of Section 10, which names layering, switching, the data link layer, routing, IPv4, TCP with the socket API, and DNS and HTTP, and does not name UDP. That absence is what makes this lesson class B.</li>
+            <li><strong>GATE CS 2015, Set 2, question 28</strong> — the one previous-year question quoted in the practice set, with its paper, set and number. The numbers used in scene 9 and in Q1 are this question's numbers, and the arithmetic is reproduced by the lesson's model rather than copied.</li>
+            <li><strong>GATE CS 2025, Set 2, question 13</strong> — noted during research as a second fragment-counting question with a UDP payload (7488 octets). It is not quoted on this page; it is mentioned here only to record that the question shape recurs.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Inside this repository</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP, Flow Control and Sockets</a> — the four-tuple, the socket API order, and the TCP header that this lesson contrasts against.</li>
+            <li><a href="../dns-and-http/index.html">DNS and HTTP</a> — the 33-octet query, the 12-octet DNS header and the 512-octet UDP ceiling used in scenes 3 and 8.</li>
+            <li><a href="../ip-fragmentation-cidr-and-nat/index.html">IPv4, Fragmentation, CIDR and NAT</a> — the IP header fields and the fragmentation rules that scene 9 depends on.</li>
+            <li><a href="../ip-support-protocols-arp-dhcp-icmp/index.html">ARP, DHCP and ICMP</a> — the DHCP ports 67 and 68 and the "ICMP has no ports" distinction, which is the same port-versus-protocol confusion this lesson meets in scene 4.</li>
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering, Switching and Performance Metrics</a> — encapsulation, and the header arithmetic the length questions build on.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Honest limits of this research</h3>
+          <p class="small">The port numbers in scene 8 are the standard IANA assignments and are stated as such. The three ranges of the port space — system, user and dynamic — are deliberately <strong>not</strong> used as an exam fact anywhere on this page, because the RFC that defines them, RFC 6335 §6, was fetched this run only far enough to read its table of contents, not its body. A lesson should not quote a boundary it did not read.</p>
+          <p class="small" style="margin-bottom:0">No audio file exists for this lesson. Timings in <code>captions.vtt</code>, <code>captions.srt</code> and <code>transcript.md</code> are estimated from the timeline at a normal speaking rate, not measured from a recording. Community sources were not used for any claim: the misconception list is derived from the standards' own wording, and each entry names the condition that the wrong belief violates.</p>
+        </div>
+
+        <div class="card">
+          <h3>Claim labels used on this page</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><span class="claim-chip claim-chip--verified">Verified fact</span> a rule quoted from a standard or the official syllabus that was actually read.</li>
+            <li><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> a result shown by arithmetic on this page, computed at load.</li>
+            <li><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> an analogy or a reading offered to aid understanding.</li>
+            <li><span class="claim-chip claim-chip--community">Community observation</span> not used in this lesson.</li>
+            <li><span class="claim-chip claim-chip--unverified">Unverified claim</span> not used in this lesson; anything that could not be read is either omitted or named as unread in the card above.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

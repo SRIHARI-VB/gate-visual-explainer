@@ -3309,6 +3309,47 @@ topics.append(topic(
     ]))
 
 topics.append(topic(
+    "Computer Networks", "Transport layer", "UDP: the datagram, the pseudo-header checksum and demultiplexing",
+    ["the eight-octet header and its four fields", "the length ceilings the 16-bit field imposes",
+     "the IPv4 and IPv6 pseudo-headers", "the one's complement checksum, computed and verified",
+     "demultiplexing on two fields rather than four", "ports and one DNS exchange",
+     "the consequences of the four omissions, including fragmentation"],
+    prereq=["tcp-flow-congestion-control-and-sockets", "ip-fragmentation-cidr-and-nat", "dns-and-http"],
+    related=["tcp-flow-congestion-control-and-sockets", "dns-and-http", "ip-fragmentation-cidr-and-nat",
+             "ip-support-protocols-arp-dhcp-icmp", "layering-switching-and-performance-metrics"],
+    importance="medium",
+    evidence="Class B. The GATE 2027 CS syllabus, IIT Madras, read again on 2026-11-01, does not use the word UDP: Section 10 names 'TCP- flow control and congestion control, socket API; DNS and HTTP'. UDP is a prerequisite for both named clauses, because the socket API is about sockets of both kinds and the two-field demultiplexing rule is the part of UDP a socket question tests, and because DNS runs over UDP with a 512-octet payload ceiling that shapes its answers. No 2027 weightage claim is made.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="udp-datagram-checksum-and-demultiplexing",
+    path="topics/udp-datagram-checksum-and-demultiplexing/index.html",
+    execution="2026-11-01: published, 23 of 23 model checks passed, check-lesson and geometry audit clean, push verified",
+    microtopics=[
+        "four fields of sixteen bits each, eight octets, no options, data at offset 8",
+        "Source Port optional with a zero inserted when unused (RFC 768)",
+        "Length counts its own header, so a 33-octet DNS query reports 41",
+        "65535 the field ceiling, 65527 the payload, 65507 over IPv4, 65467 with 60-octet options",
+        "the IPv4 pseudo-header 4+4+1+1+2 = 12 octets, six words, never transmitted",
+        "protocol number 17 in the pseudo-header against port 17, which does not exist",
+        "protection against misrouted datagrams, because the receiver rebuilds the addresses",
+        "the IPv6 pseudo-header 16+16+4+3+1 = 40 octets, twenty words",
+        "checksum mandatory over IPv6 (RFC 8200 8.1), optional over IPv4, zero means none computed",
+        "one zero padding octet on an odd length, not transmitted and not in Length",
+        "add, fold the carries, complement: 0xB592 gives 0x4A6D on a 17-octet datagram",
+        "the receiver's re-add must give 0xFFFF, and a failure is a silent discard",
+        "a computed zero is transmitted as 0xFFFF, and 0xFFFF and 0x0000 are one value",
+        "demultiplexing on (destination address, destination port): three datagrams, two senders, one socket",
+        "the same three flows over TCP need two sockets, because the four-tuple differs",
+        "message boundaries preserved, one datagram per receive",
+        "the port table 53, 67, 68, 69, 123, 161, 500, 520, and 65536 values in the space",
+        "one DNS query and one response, matched by identifier and port, no handshake",
+        "no acknowledgement, no sequence number, no window, no congestion response",
+        "the UDP header is inside the IP payload, so fragmentation counts it",
+        "GATE CS 2015 Set 2 Q28: 8888 octets of payload, seven fragments, last 8 octets, offset 1110",
+        "the four-question procedure: which length, compute or verify, which pseudo-header, what is counted",
+    ]))
+
+topics.append(topic(
     "Computer Networks", "Transport layer", "TCP flow control, congestion control and sockets",
     ["TCP header and connection management", "flow control and window scaling",
      "congestion control algorithms", "UDP", "socket API"],
@@ -4579,6 +4620,7 @@ topics.append(topic(
         "the four-step routine and the five traps that are one trap in five costumes"]))
 
 _VERIFIED = {
+    "udp-datagram-checksum-and-demultiplexing": "2026-11-01",
     "avl-trees-and-rotations": "2026-11-01",
     "red-black-trees": "2026-11-01",
     "red-black-deletion": "2026-11-01",
