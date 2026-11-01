@@ -4875,6 +4875,11 @@ topics.append(topic(
         "the four-step routine and the five traps that are one trap in five costumes"]))
 
 _VERIFIED = {
+    "secondary-storage-and-raid": (
+        "the LBA-to-CHS round trip was verified on all 4,000,000 addresses",
+        "all 6 single-failure and all 15 double-failure parity recoveries are exact",
+        "the 64 failure patterns were enumerated and weighted, not sampled",
+        "every access time on the page is recomputed from the geometry at load"),
     "udp-datagram-checksum-and-demultiplexing": "2026-11-01",
     "avl-trees-and-rotations": "2026-11-01",
     "red-black-trees": "2026-11-01",
@@ -5822,6 +5827,87 @@ topics.append(topic(
         "measured: 108 deletions need 3 rotations, and they are exactly the 1,3,4 ones",
         "insertion is at most 2 rotations; deletion at most 3; AVL deletion may rotate per level",
         "the recolouring loop still climbs O(log n) levels, so deletion stays O(log n) time"])
+)
+
+
+
+topics.append(topic(
+    "Computer Organization and Architecture",
+    "Section 3: memory hierarchy — the level below main memory, and the arrays built from it",
+    "Secondary storage and RAID: disk geometry, access time and the five levels",
+    ["where secondary storage sits: latency against cost per byte",
+     "platters, surfaces, tracks, sectors and cylinders",
+     "capacity as a product of four counts, and the GiB against GB ratio",
+     "logical block address to cylinder, surface and sector, and back",
+     "seek, rotational latency and transfer as three sequential waits",
+     "why the average rotation is half a turn and the worst case is a whole one",
+     "effective bandwidth against block size on one fixed geometry",
+     "RAID 0: striping, capacity, and the loss of the whole set to one disk",
+     "RAID 1: mirroring, the pair as the unit of failure, write cost two",
+     "RAID 4 and RAID 5: parity by exclusive-or, dedicated against distributed",
+     "the read-modify-write that makes a small write cost four operations",
+     "RAID 6: P and Q over GF(256), two failures, six operations",
+     "RAID 10: striping over mirrors, capacity half, penalty two",
+     "reliability: failure-pattern counting, loss probability and array MTTF"],
+    prereq=["disk-scheduling", "memory-hierarchy-and-cache",
+            "number-representation-and-arithmetic"],
+    related=["disk-scheduling", "memory-hierarchy-and-cache",
+             "io-interface-interrupts-dma", "file-systems",
+             "number-representation-and-arithmetic"],
+    importance="medium",
+    evidence=("Class B. The GATE 2027 CS syllabus no longer names \"secondary storage\" in Section 3; "
+              "the memory clause now reads \"Memory interfacing and hierarchy: performance, cache "
+              "memory mapping\", and the Operating System section still names \"CPU and I/O "
+              "scheduling\" and \"file systems\". Two independent syllabus-comparison write-ups "
+              "(GATEOverflow's 2027 syllabus update and a prosyllabus.com change table) agree on that "
+              "diff, and one reports that disk access-time questions appeared five times between 2014 "
+              "and 2026 with the last in 2026 Set 1; that is a community observation about past papers, "
+              "not an official weightage. No previous-year question is quoted and no year or question "
+              "number is claimed."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="secondary-storage-and-raid",
+    path="topics/secondary-storage-and-raid/index.html",
+    execution=("published 2026-11-01: 57 of 57 model checks pass, 1225 frames drawn across 11 scenes, "
+               "captions 44 cues over 306s, LBA-to-CHS round trip verified on all 4,000,000 addresses, "
+               "all 6 single-failure and all 15 double-failure parity recoveries exact, 64 failure "
+               "patterns enumerated and weighted"),
+    microtopics=[
+        "8 surfaces x 1000 cylinders x 500 sectors x 512 B = 2,048,000,000 bytes",
+        "the same capacity is 1.9073 GiB and 2.048 GB; the ratio is 1.0737",
+        "a 1 TB drive shows 931 GiB for the same reason",
+        "one track is 256,000 bytes; one cylinder is 2,048,000 bytes",
+        "4,000 sectors per cylinder = 8 surfaces x 500 sectors",
+        "LBA 3,999,999 = cylinder 999, surface 7, sector 500",
+        "sectors inside a track count from 1 while addresses count from 0",
+        "the off-by-one round-trips under its own wrong convention, so invert-and-check does not catch it",
+        "7,200 rpm = 8.3333 ms per turn; the average wait is 4.1667 ms",
+        "one sector is 1/500 of a turn = 0.0166667 ms",
+        "one-sector access 12.1833 ms; 4 KB 12.3; 64 sectors 13.2333; a track 20.5",
+        "seek is 65.66 per cent and rotation 34.20 per cent of a one-sector access",
+        "the transfer is 0.14 per cent, so a faster platter barely moves a small read",
+        "effective bandwidth 42.02 kB/s, 333.01 kB/s, 2.476 MB/s, 12.488 MB/s",
+        "full track against one sector is 297.15 times, on the same head",
+        "random 4 KB reads are 81.3 per second on this drive",
+        "a worst-case question uses a whole turn, not a half",
+        "the linear per-sector rule holds only while the run stays on one track",
+        "parity 121 from the six data bytes 198,140,83,25,223,166",
+        "exclusive-or is invertible, so parity reconstructs rather than only detects",
+        "RAID 0 on six 1 TB disks: 6 TB, 100 per cent, penalty 1, 1 survivable pattern of 64",
+        "a 100-disk array of 200,000-hour disks has an MTTF of 2,000 hours",
+        "RAID 1 and RAID 10: 3 TB, 50 per cent, penalty 2, 27 survivable patterns",
+        "of the 15 two-disk failures on three mirrors, exactly 3 break a pair",
+        "RAID 5: 5 TB, 83.33 per cent, penalty 4, 7 survivable patterns",
+        "RAID 6: 4 TB, 66.67 per cent, penalty 6, 22 survivable patterns",
+        "RAID 4 bottlenecks every write on one parity disk; RAID 5 rotates it",
+        "RAID 5 with two disks has the capacity formula of a mirror but not its write cost",
+        "P+Q recovers all 15 pairs over GF(256) with the polynomial 0x11D",
+        "loss at p = 0.01: 0.058520, 0.000300, 0.001460, 0.0000196 for levels 0, 1/10, 5, 6",
+        "RAID 6 is 74.69 times safer than RAID 5 at p = 0.01, for one more disk of cost",
+        "RAID 5 with G=16, 100 disks, 1 h repair gives 3,044 years; RAID 6 gives 43 million",
+        "array small-write rates: 487.8, 243.9, 122.0, 81.3 writes per second",
+        "a full-stripe write needs no reads at all; only a small write pays the read-modify-write",
+        "every probability assumes independent failures, which is the model's weakest assumption"])
 )
 
 
