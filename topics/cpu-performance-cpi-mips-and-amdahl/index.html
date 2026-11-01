@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPU Performance: CPI, MIPS and Amdahl's Law — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">CPU performance arithmetic</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../pipelining-and-hazards/index.html">Related: pipelining</a>
+      <a href="../memory-hierarchy-and-cache/index.html">Related: cache</a>
+      <a href="../alu-and-control-unit-design/index.html">Related: datapath</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Computer performance arithmetic — the CPU performance equation (time = instruction count &times; CPI &times; clock cycle time), the average CPI of an instruction mix, MIPS and its three failures, the speedup ratio, Amdahl&rsquo;s law forward and backward, the stall-cycle split, and the pipeline limit.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a program&rsquo;s instruction mix and a machine&rsquo;s clock, compute the execution time and the average CPI by two routes and get the same answer. Compare two machines that differ in all three factors and say which is faster and by how much. Compute MIPS and say when it is not admissible as evidence. Convert between &ldquo;20% faster&rdquo; and &ldquo;20% less time&rdquo; without mixing them. Apply Amdahl&rsquo;s law in both directions, decide feasibility before solving, and state the ceiling. Split a CPI into ideal cycles and stall cycles and solve for the miss rate that reaches a target.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one equation and four consequences</em>: every other formula here is that product rearranged, and every number on this page &mdash; the 1.95 CPI, the 0.975 ms, the 1026 against 1250 MIPS, the 1.818 speedup, the 2.5 ceiling, the 1.8 stall cycles, the 4.17 pipeline limit &mdash; is computed at load by the lesson&rsquo;s own model and re-checked by a second route before it is drawn.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A for the word &ldquo;performance&rdquo;; class B for the general arithmetic.</strong></p>
+          <p class="small">The GATE 2027 CS syllabus, Section 3, reads: <em>&ldquo;Instruction set and addressing modes. Design of arithmetic and logic unit (ALU). Design of control unit &ndash; hardwired and microprogrammed. Memory interfacing and hierarchy: performance, cache memory mapping. I/O interface (interrupt and DMA). Instruction pipelining, pipeline hazards.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The clause names <em>performance</em> of the memory hierarchy, and it names pipelining. Execution time, CPI and speedup are the arithmetic those two named items are actually examined in; a pipelining question is a CPI question, and a cache question is a miss-rate-into-CPI question. Amdahl&rsquo;s law is <em>not</em> named in the syllabus, and this page does not claim that it is: it is classified <strong>class B</strong>, the standard tool for the speedup questions the named topics generate.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> No GATE CS previous-year question on this exact framing could be verified from a paper or an official key during this run, so <strong>every practice question on this page is original</strong> and is labelled as such. No weightage is claimed and no forecast is made.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <p class="small">Two ideas, and neither is assumed.</p>
+          <ul class="small">
+            <li><a href="../alu-and-control-unit-design/index.html">ALU and control unit design</a> &mdash; what an instruction is, and that a control unit spends a number of clock cycles on it.</li>
+            <li><a href="../pipelining-and-hazards/index.html">Pipelining and hazards</a> &mdash; stages, stalls, and the k + n &minus; 1 cycle count. This page uses that lesson&rsquo;s CPI, not a new one.</li>
+            <li><a href="../memory-hierarchy-and-cache/index.html">Memory hierarchy and cache</a> &mdash; hit rate, miss rate, miss penalty. This page turns a miss rate into CPI.</li>
+            <li><a href="../number-representation-and-arithmetic/index.html">Number representation</a> &mdash; only for the powers of ten and the giga/milli prefixes.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 70 minutes, of which about 20 is the animation.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Five ideas, and the rest follows</h3>
+          <ol class="small">
+            <li>Time = instruction count &times; CPI &times; clock cycle time. Three factors, three different owners: software, microarchitecture, clock.</li>
+            <li>CPI is a <em>weighted</em> average over the mix that actually runs, never the plain mean of the class CPIs.</li>
+            <li>The three factors trade. A machine can have 50% more clock rate and still take 6.7% longer.</li>
+            <li>Speedup is a ratio of times, and Amdahl caps it at 1/(1 &minus; p), where p is the fraction of <em>time</em> improved.</li>
+            <li>MIPS measures instruction throughput under a fixed program, ISA and compiler. It is not a measure of speed.</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition: three knobs on one dial</h3>
+          <p class="small">A moving company charges by the hour. The bill depends on three things: how many boxes there are, how many trips each box needs, and how long one trip takes. Make the van faster and the bill falls &mdash; unless the faster van carries fewer boxes per trip, in which case the trips go up and the saving disappears.</p>
+          <p class="small">That is the whole of CPU performance. The boxes are instructions, the trips per box are cycles per instruction, and the trip time is the clock period. A faster van is a faster clock; a smaller load per trip is a worse CPI; more boxes is a bigger instruction count.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy maps exactly onto the three factors and stops mapping at the average: a real mover has one trip time, while a real processor averages several cycle counts over a mix of instruction classes, which is the subject of the next card.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The formal objects, every symbol in words</h3>
+          <p class="small"><strong>Instruction count (IC)</strong> &mdash; how many instructions the program executes. Not how many it contains: a loop body counts once per iteration.</p>
+          <p class="small"><strong>CPI</strong> &mdash; clock cycles per instruction, the <em>average</em> number of cycles one instruction takes on this machine running this program.</p>
+          <p class="small"><strong>Clock cycle time (T<sub>c</sub>)</strong> &mdash; the duration of one cycle in seconds. The <strong>clock rate</strong> f is its reciprocal, so T<sub>c</sub> = 1/f.</p>
+          <div class="formula">$$\text{CPU time} \;=\; \text{IC} \times \text{CPI} \times T_c \;=\; \frac{\text{IC} \times \text{CPI}}{f}$$
+            <span class="gloss">Instructions, multiplied by cycles per instruction, multiplied by seconds per cycle. The units cancel to seconds, which is the check that the formula was applied correctly.</span>
+          </div>
+          <p class="small" style="margin-bottom:0"><strong>Speedup</strong> &mdash; old execution time divided by new execution time. <strong>MIPS</strong> &mdash; millions of instructions per second: IC / (time &times; 10<sup>6</sup>), which equals f / (CPI &times; 10<sup>6</sup>).</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Average CPI: the weighted sum, computed</h3>
+          <p class="small">An instruction class costs a fixed number of cycles; the machine&rsquo;s average depends on how often each class runs. Weight by frequency, then add.</p>
+          <div class="formula">$$\text{CPI} \;=\; \sum_i \left(\text{fraction}_i \times \text{CPI}_i\right)$$
+            <span class="gloss">fraction<sub>i</sub> is the share of executed instructions that belong to class i, and CPI<sub>i</sub> is the cycles that class takes. The fractions must sum to 1.</span>
+          </div>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:4px 8px">class</th>
+                <th style="text-align:left;padding:4px 8px">share</th>
+                <th style="text-align:left;padding:4px 8px">CPI of the class</th>
+                <th style="text-align:left;padding:4px 8px">contribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:4px 8px">ALU and integer</td><td style="padding:4px 8px">50%</td><td style="padding:4px 8px">1</td><td style="padding:4px 8px">0.50</td></tr>
+              <tr><td style="padding:4px 8px">Load and store</td><td style="padding:4px 8px">25%</td><td style="padding:4px 8px">2</td><td style="padding:4px 8px">0.50</td></tr>
+              <tr><td style="padding:4px 8px">Branch</td><td style="padding:4px 8px">15%</td><td style="padding:4px 8px">3</td><td style="padding:4px 8px">0.45</td></tr>
+              <tr><td style="padding:4px 8px">Floating point</td><td style="padding:4px 8px">10%</td><td style="padding:4px 8px">5</td><td style="padding:4px 8px">0.50</td></tr>
+              <tr><td style="padding:4px 8px"><strong>weighted average</strong></td><td style="padding:4px 8px">100%</td><td style="padding:4px 8px">&mdash;</td><td style="padding:4px 8px"><strong>1.95</strong></td></tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin-bottom:0">The other route gives the same number and is the check run on this page: total cycles &divide; total instructions. For one million instructions at this mix, 1 950 000 cycles &divide; 1 000 000 = 1.95. The plain mean of 1, 2, 3 and 5 is 2.75, and it is wrong.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The assumptions under all of it</h3>
+          <p class="small">Three assumptions are load-bearing, and each has a named failure.</p>
+          <ul class="small">
+            <li><strong>The mix is known.</strong> CPI is only meaningful for a stated program. Change the program and the average moves; the same 2 GHz CPU reads 1333 MIPS on an integer mix and 500 on a floating-point mix.</li>
+            <li><strong>The clock is uniform.</strong> The equation assumes one cycle time. A machine with a variable clock, or an asynchronous unit, needs the cycle counts per component instead.</li>
+            <li><strong>The work does not change.</strong> Comparing two machines assumes the same program produces the same result. A faster machine that executes fewer, more powerful instructions is still doing the same work; a machine that skips work is not comparable at all.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Patterson and Hennessy list the equation as CPU time = instruction count &times; CPI &times; clock cycle time, and list Amdahl&rsquo;s law in the same formula collection as 1 / ((1 &minus; Fraction<sub>enhanced</sub>) + Fraction<sub>enhanced</sub> / Speedup<sub>enhanced</sub>).</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The one distinction that decides most questions</h3>
+          <p class="small">Four different numbers are asked for with similar words, and only one is right for any given question.</p>
+          <ul class="small">
+            <li><strong>Execution time</strong> &mdash; seconds. The product of the three factors.</li>
+            <li><strong>Average CPI</strong> &mdash; cycles per instruction. Total cycles divided by instruction count.</li>
+            <li><strong>MIPS</strong> &mdash; instructions per second, in millions. A rate, not a time.</li>
+            <li><strong>Speedup</strong> &mdash; a dimensionless ratio of two times.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">A correct computation reported as the wrong quantity scores zero, and the arithmetic gives no warning. Re-read the last line of the question before writing the answer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Every program&rsquo;s running time is the product of three numbers: instructions, cycles per instruction, and the clock period.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One equation, three dials</p>
+            <p class="counter" id="scene-count">Scene 1 of 12</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Three numbers multiplied together. That product is the whole of performance.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="372" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">6:12</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 1 &mdash; mix to time, by both routes</h3>
+              <p class="small">A program executes 10<sup>6</sup> instructions on a 2 GHz machine. The mix is 50% ALU at CPI 1, 25% load/store at CPI 2, 15% branch at CPI 3, 10% floating point at CPI 5.</p>
+              <p class="small"><strong>Route A (weighted):</strong> CPI = 0.5&times;1 + 0.25&times;2 + 0.15&times;3 + 0.1&times;5 = 0.50 + 0.50 + 0.45 + 0.50 = <strong>1.95</strong>.</p>
+              <p class="small"><strong>Route B (counts):</strong> 500 000&times;1 + 250 000&times;2 + 150 000&times;3 + 100 000&times;5 = 1 950 000 cycles, over 1 000 000 instructions = <strong>1.95</strong>.</p>
+              <p class="small">Time = 1 950 000 &divide; 2&times;10<sup>9</sup> = 9.75&times;10<sup>&minus;4</sup> s = <strong>0.975 ms</strong>. Clock period 0.5 ns &times; 1.95 &times; 10<sup>6</sup> gives the same number, because it is the same product.</p>
+              <p class="small muted" style="margin-bottom:0">Both routes are computed independently in the page&rsquo;s model and compared; the check passes to within 10<sup>&minus;6</sup> relative.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 &mdash; the faster clock that loses</h3>
+              <p class="small">Machine A: 2 GHz, CPI 1.95, 10<sup>6</sup> instructions &rarr; 1.95&times;10<sup>6</sup> cycles &rarr; <strong>0.975 ms</strong>.</p>
+              <p class="small">Machine B: 3 GHz, CPI 2.40, but its compiler emits 30% more instructions, so 1.3&times;10<sup>6</sup> instructions &rarr; 3.12&times;10<sup>6</sup> cycles &rarr; <strong>1.04 ms</strong>.</p>
+              <p class="small">Speedup of A over B = 1.04 / 0.975 = <strong>1.067</strong>. B has 50% more clock rate and finishes 6.7% later.</p>
+              <p class="small">And MIPS: A reads 2&times;10<sup>9</sup>/(1.95&times;10<sup>6</sup>) = 1026; B reads 3&times;10<sup>9</sup>/(2.4&times;10<sup>6</sup>) = 1250. B wins the metric and loses the race.</p>
+              <p class="small muted" style="margin-bottom:0">This is the counterexample to &ldquo;higher clock means faster&rdquo; and to &ldquo;higher MIPS means faster&rdquo;, and it is one construction, not two.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 3 &mdash; Amdahl forward</h3>
+              <p class="small">60% of the execution time is in a part you make four times faster. The remaining 40% is untouched.</p>
+              <p class="small">New time as a fraction of the old = (1 &minus; 0.6) + 0.6/4 = 0.40 + 0.15 = <strong>0.55</strong>. Speedup = 1 / 0.55 = <strong>1.818</strong>.</p>
+              <p class="small">The 0.40 started as 40% of the run and is now 0.40 / 0.55 = 73% of it. That is why the next doubling of the improved part buys so little: s = 8 gives 1 / (0.4 + 0.075) = 2.105, and the ceiling at 1/0.4 = <strong>2.5</strong> is never reached.</p>
+              <p class="small muted" style="margin-bottom:0">The formula is checked against a direct two-part time computation across the whole grid s &isin; {1, 1.5, 2, 4, 8, 16, 64, 10<sup>9</sup>}, not against a remembered answer.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 &mdash; Amdahl backward, and the impossible target</h3>
+              <p class="small"><strong>Solvable:</strong> 90% of the time is improvable and the target overall speedup is 2. Then 2 = 1/(0.1 + 0.9/s), so 0.1 + 0.9/s = 0.5, so 0.9/s = 0.4, so <strong>s = 2.25</strong>. Substituting back: 1/(0.1 + 0.4) = 2.000 exactly.</p>
+              <p class="small">A local speedup of exactly 2 would give 1/(0.1 + 0.45) = 1.818, and miss the target. The local improvement must exceed the overall target.</p>
+              <p class="small"><strong>Impossible:</strong> 60% improvable, target 3. The ceiling is 1/0.4 = 2.5, and 3 &gt; 2.5, so no positive s exists. The correct answer is that no speedup of that part achieves the target.</p>
+              <p class="small muted" style="margin-bottom:0">Feasibility is one division. Do it first: the impossible case then answers itself instead of producing a negative or infinite s.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 5 &mdash; a miss rate into a CPI into a time</h3>
+              <p class="small">Base CPI 1.2, miss rate 3%, miss penalty 60 cycles. Stall cycles per instruction = 0.03 &times; 60 = <strong>1.8</strong>, so CPI = 1.2 + 1.8 = <strong>3.0</strong>.</p>
+              <p class="small">One million instructions at 2 GHz: 3.0&times;10<sup>6</sup> / 2&times;10<sup>9</sup> = <strong>1.5 ms</strong>. With a perfect cache, 1.2&times;10<sup>6</sup> / 2&times;10<sup>9</sup> = <strong>0.6 ms</strong>. The cache is worth 3.0 / 1.2 = <strong>2.5&times;</strong>.</p>
+              <p class="small">Turned around: to reach CPI 2.0, 1.2 + m&times;60 = 2.0 gives m = 0.8/60 = <strong>1.33%</strong>. Substituted back, CPI is exactly 2.0.</p>
+              <p class="small muted" style="margin-bottom:0">The speedup equals the ratio of the two CPIs because nothing else changed &mdash; the clock and the instruction count are the same in both lines.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 &mdash; the two percentage conversions</h3>
+              <p class="small"><strong>&ldquo;20% faster&rdquo;</strong> means the speed is 1.2 times as large, so the time is 1/1.2 = <strong>0.8333</strong> of the old, a reduction of <strong>16.67%</strong>.</p>
+              <p class="small"><strong>&ldquo;20% less time&rdquo;</strong> means the time factor is 0.8, so the speedup is 1/0.8 = <strong>1.25</strong>, which is 25% faster.</p>
+              <p class="small">So a machine described as 20% faster is <em>not</em> a machine with 20% less time; it is one with 16.67% less time. And a machine with 20% less time is 25% faster.</p>
+              <p class="small muted" style="margin-bottom:0">Both conversions are inverse functions of each other, and the page&rsquo;s model checks that f(x) = 1/(1 + x) and g(x) = 1/(1 &minus; x) undo each other on the same input.</p>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Boundary: nothing is improvable</h3>
+          <p class="small">Set p = 0 in Amdahl&rsquo;s law and every s gives speedup 1, including s = &infin;. The ceiling 1/(1 &minus; 0) = 1 is the whole answer: a program with no improvable part cannot be sped up at all, and the formula says so without a special case.</p>
+          <p class="small" style="margin-bottom:0">At the other end, p = 1 makes the ceiling infinite and the speedup exactly s. Both endpoints are checked in the model, and both are legitimate exam answers.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary: an improvement that is slower</h3>
+          <p class="small">The formula does not require s &ge; 1. With p = 0.5 and s = 0.5 (the part becomes twice as slow) the speedup is 1/(0.5 + 1) = 0.667, which is a slowdown. Questions rarely ask for this, but the algebra is unchanged, and a negative answer to a &ldquo;speedup&rdquo; question is a signal that s was entered upside down.</p>
+          <p class="small muted" style="margin-bottom:0">The usual cause is putting the time ratio where the speed ratio belongs.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The target above the ceiling</h3>
+          <p class="small">For p = 0.6 the ceiling is 2.5, so a target of 3 has no solution. Solving algebraically gives a negative value for the remaining fraction, and reporting it as a speedup is the error. The answer is &ldquo;not achievable by improving this part&rdquo;.</p>
+          <p class="small" style="margin-bottom:0">Check the target against 1/(1 &minus; p) before any rearrangement.</p>
+        </div>
+
+        <div class="card">
+          <h3>Averaging rates: harmonic, not arithmetic</h3>
+          <p class="small">MIPS is a rate, and rates average harmonically. Two programs on the same 2 GHz machine read 1333 MIPS (CPI 1.5) and 500 MIPS (CPI 4). The arithmetic mean is 917; the harmonic mean is 2/(1/1333 + 1/500) = 727.</p>
+          <p class="small" style="margin-bottom:0">Only the harmonic mean equals total instructions &divide; total time, which is 727 for equal instruction counts. The model checks that equality to nine decimal places.</p>
+        </div>
+
+        <div class="card">
+          <h3>CPI below 1, and when it is allowed</h3>
+          <p class="small">For a scalar pipeline the average CPI cannot fall below 1: at most one instruction completes per cycle. A CPI below 1 means more than one instruction completes per cycle, which requires superscalar issue or a VLIW machine &mdash; both outside the GATE 2027 syllabus clause.</p>
+          <p class="small" style="margin-bottom:0">A computed CPI below 1 for an ordinary five-stage pipeline is therefore an arithmetic error, not a discovery. It is a useful bound to check against.</p>
+        </div>
+
+        <div class="card">
+          <h3>The pipeline limit and the exact count</h3>
+          <p class="small">A five-stage pipeline with 0.2 stall cycles per instruction has CPI 1.2 and a speedup tending to 5/1.2 = 4.167. The exact count for 1000 instructions is (5 + 1000 &minus; 1 + 200) = 1204 cycles against 5000 unpipelined, a speedup of 4.153.</p>
+          <p class="small muted" style="margin-bottom:0">The two differ because the pipeline is not full for the first few cycles. Both are computed here, and the model checks that the exact value lies just below the limit.</p>
+        </div>
+
+        <div class="card span-2 card--takeaway">
+          <h3>Two distinctions that look like one</h3>
+          <p class="small"><strong>Speedup of a component against speedup of the program.</strong> Making the floating-point unit four times faster is a statement about one component. Amdahl&rsquo;s law converts it into a statement about the program, and the conversion needs the fraction of <em>time</em> that component is in use. A component that is 90% of the instructions but 40% of the time cannot deliver more than 1/0.6 = 1.67 overall.</p>
+          <p class="small" style="margin-bottom:0"><strong>CPI against cycles.</strong> CPI is per instruction and cycles is a total. A program with 1.95 CPI and 10<sup>6</sup> instructions has 1.95&times;10<sup>6</sup> cycles; doubling the program doubles the cycles and leaves the CPI alone. Questions mix these two words freely, and the unit tells you which was meant.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>&ldquo;A higher clock rate means a faster machine&rdquo;</h3>
+          <p class="small"><strong>Correction.</strong> Only if the other two factors are held fixed. Machine A at 2 GHz with CPI 1.95 and 10<sup>6</sup> instructions takes 0.975 ms; machine B at 3 GHz with CPI 2.4 and 1.3&times;10<sup>6</sup> instructions takes 1.04 ms.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Counterexample.</strong> That pair: 50% more frequency, 6.7% more time. The clock is one of three factors and it does not act alone.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>&ldquo;Average CPI is the mean of the class CPIs&rdquo;</h3>
+          <p class="small"><strong>Correction.</strong> It is the <em>weighted</em> mean, weighted by how often each class runs. For 50/25/15/10 at CPIs 1/2/3/5 the answer is 1.95, not 2.75.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Counterexample.</strong> Take 99% ALU at CPI 1 and 1% floating point at CPI 100: the weighted CPI is 1.99 and the plain mean is 50.5, a factor of 25 apart.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>&ldquo;MIPS measures how fast a machine is&rdquo;</h3>
+          <p class="small"><strong>Correction.</strong> MIPS measures instruction throughput. It ignores what an instruction does, it varies between programs on one machine, and it can rank machines backwards.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Counterexample.</strong> Machine B reads 1250 MIPS and takes 1.04 ms; machine A reads 1026 MIPS and takes 0.975 ms. The metric and the time disagree, and the time is what a user feels.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>&ldquo;20% faster means 20% less time&rdquo;</h3>
+          <p class="small"><strong>Correction.</strong> 20% faster is a speed factor of 1.2, so the time is 0.8333 of the old &mdash; a fall of 16.67%. A 20% cut in time is a speed factor of 1.25.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Why it feels right.</strong> For small percentages the two differ by about the square of the percentage, so 1% and 1.01% look the same. At 20% the gap is already 3.3 percentage points, and at 50% it is 17.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>&ldquo;p in Amdahl&rsquo;s law is the fraction of the code&rdquo;</h3>
+          <p class="small"><strong>Correction.</strong> p is the fraction of <em>execution time</em> spent in the improved part. Amdahl&rsquo;s law is a statement about time, and the derivation writes the old time as (1 &minus; p)T + pT.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Counterexample.</strong> A loop that is 30% of the instructions and runs at CPI 6 against 1 for the rest is 0.30&times;6 / (0.30&times;6 + 0.70&times;1) = 72% of the time. Using 0.30 as p understates the achievable speedup badly.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>&ldquo;Halving the miss rate halves the time&rdquo;</h3>
+          <p class="small"><strong>Correction.</strong> A cache only changes the stall part of the CPI. With base CPI 1.5 and penalty 80 cycles, a miss rate of 4% gives CPI 4.7, and 2% gives CPI 3.1 &mdash; a speedup of 1.52, not 2.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>The general form.</strong> The speedup is the ratio of the two CPIs, (base + m<sub>1</sub>&times;penalty) / (base + m<sub>2</sub>&times;penalty), and the base CPI is the part the cache cannot touch.</p>
+        </div>
+
+        <div class="card span-2 card--takeaway">
+          <h3>What all six have in common</h3>
+          <p class="small">Each one is a claim about a ratio that has been applied to the wrong quantity: a frequency ratio used as a time ratio, a code fraction used as a time fraction, an instruction rate used as a speed, a class average used as a weighted average, a component ratio used as a program ratio. The defence is the same every time &mdash; write the equation with its units, substitute, and check that the units of the answer are the units the question asked for.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>How the topic is examined</h3>
+          <p class="small">This material rarely appears as a standalone question. It appears as the arithmetic inside a question whose headline is something else, and the arithmetic is where the marks are lost. Five patterns cover almost everything:</p>
+          <ol class="small">
+            <li><strong>Mix to time.</strong> An instruction mix and a clock rate are given; execution time is asked. Weight, multiply, convert.</li>
+            <li><strong>Two machines.</strong> Two of the three factors differ; which is faster and by how much. Always compute both times.</li>
+            <li><strong>Speedup with an enhancement.</strong> Amdahl, usually forward, sometimes with the ceiling asked as a separate part.</li>
+            <li><strong>Cache or pipeline into CPI.</strong> A miss rate or a stall count is given; the new CPI, the new time, or the speedup is asked.</li>
+            <li><strong>Which claim is true.</strong> An MSQ listing statements about clock rate, MIPS, averaging and ceilings.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The four numbers that get confused</h3>
+          <p class="small">A question names one of these and the arithmetic produces all four. Answer the one that was asked.</p>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <tbody>
+              <tr><td style="padding:4px 8px">execution time</td><td style="padding:4px 8px"><code>IC &times; CPI / f</code>, in seconds</td></tr>
+              <tr><td style="padding:4px 8px">average CPI</td><td style="padding:4px 8px"><code>total cycles / IC</code>, cycles per instruction</td></tr>
+              <tr><td style="padding:4px 8px">MIPS</td><td style="padding:4px 8px"><code>f / (CPI &times; 10<sup>6</sup>)</code>, instructions per microsecond</td></tr>
+              <tr><td style="padding:4px 8px">speedup</td><td style="padding:4px 8px"><code>t<sub>old</sub> / t<sub>new</sub></code>, dimensionless</td></tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin-bottom:0">A NAT answer carries no units, so a right computation with the wrong quantity is indistinguishable from a wrong one to the grader. Read the last line twice.</p>
+        </div>
+
+        <div class="card">
+          <h3>The solving procedure, in order</h3>
+          <ol class="small">
+            <li>Write the three given quantities with units, and convert any frequency to a period at once.</li>
+            <li>If a mix is given, weight it. If total cycles are given, divide by the instruction count. Do the other one as a check.</li>
+            <li>Multiply, carrying the powers of ten explicitly rather than moving decimal points.</li>
+            <li>If an enhancement appears, compute p as a fraction of time and check the target against 1/(1 &minus; p) before solving.</li>
+            <li>Answer the quantity named in the question, and sanity-check it against the bounds: no speedup above the ceiling, no scalar CPI below 1.</li>
+          </ol>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>On previous-year questions</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> No GATE CS question on this framing could be traced to an official paper or answer key during this run. Coaching and question-bank pages present items on CPI, MIPS and Amdahl, but none inspected could be matched to a paper, a set and a question number.</p>
+          <p class="small">So <strong>every question on the Practice tab is an original practice question</strong>, written to the pattern above and labelled as original. Nothing here is presented as a previous-year question, and no year, set or number is claimed for any of them.</p>
+          <p class="small muted" style="margin-bottom:0">No marks distribution is claimed for this clause, and nothing on this page predicts how often the topic will appear in GATE CSE 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q1 &mdash; execution time from a mix</h3>
+              <p class="small">A program executes 4&times;10<sup>8</sup> instructions on a 2.5 GHz processor. The average CPI is 1.6. Execution time, in milliseconds, is ______.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>256.</strong> Time = 4&times;10<sup>8</sup> &times; 1.6 / 2.5&times;10<sup>9</sup> = 6.4&times;10<sup>8</sup> / 2.5&times;10<sup>9</sup> = 0.256 s = 256 ms.</p>
+                <p class="small">The commonest wrong answer is 0.256, which is the time in seconds &mdash; correct arithmetic, wrong unit, and a NAT box does not forgive it.</p>
+                <p class="small muted" style="margin-bottom:0">Check by the cycle count: 6.4&times;10<sup>8</sup> cycles at 2.5&times;10<sup>9</sup> cycles per second is 0.256 s. Same route, different order.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q2 &mdash; same program, doubled clock and doubled CPI</h3>
+              <p class="small">Machine X runs a program at 1 GHz with average CPI 2. Machine Y runs the same program, compiled to the same instruction count, at 2 GHz with average CPI 4. Which is faster, and by what factor?</p>
+              <p class="small muted">(a) Y, by 2&times; &nbsp;(b) X, by 2&times; &nbsp;(c) the same &nbsp;(d) cannot be determined</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(c) the same.</strong> X: IC&times;2/10<sup>9</sup>. Y: IC&times;4/2&times;10<sup>9</sup>. Both equal 2&times;IC/10<sup>9</sup>, so the ratio is exactly 1.</p>
+                <p class="small">(a) reads the doubled frequency and ignores the doubled CPI. (b) reads the doubled CPI and ignores the frequency. (d) is wrong because the instruction counts are stated to be equal, so all three factors are known.</p>
+                <p class="small muted" style="margin-bottom:0">This is the pipeline trade-off in one line: deeper pipelining raises the clock and the CPI together, and the two can cancel exactly.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q3 &mdash; Amdahl, forward</h3>
+              <p class="small">40% of the execution time is in a part made five times faster. The overall speedup is nearest to:</p>
+              <p class="small muted">(a) 1.43 &nbsp;(b) 1.47 &nbsp;(c) 1.67 &nbsp;(d) 5.00</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(b) 1.47.</strong> New time fraction = 0.6 + 0.4/5 = 0.6 + 0.08 = 0.68, so speedup = 1/0.68 = 1.4706.</p>
+                <p class="small">(c) 1.67 is the <em>ceiling</em> 1/0.6, reached only as s &rarr; &infin;. (d) 5.00 is the local speedup, applied to the whole program by mistake. (a) comes from entering s = 4 instead of 5, which gives 1/(0.6 + 0.10) = 1.43.</p>
+                <p class="small muted" style="margin-bottom:0">The ceiling is worth computing even when it is not asked: it is one division and it tells you which options are impossible.</p>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q4 &mdash; MIPS from a clock and a CPI</h3>
+              <p class="small">A processor runs at 3 GHz with an average CPI of 2.5 for a given program. Its MIPS rating for that program is ______.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>1200.</strong> MIPS = f / (CPI &times; 10<sup>6</sup>) = 3&times;10<sup>9</sup> / (2.5&times;10<sup>6</sup>) = 1200.</p>
+                <p class="small">The commonest slip is 3000/2.5 = 1200 computed with the frequency in MHz and then reported in thousands, or 750 from dividing the CPI the wrong way up. Check the direction: a larger CPI must give a smaller MIPS.</p>
+                <p class="small muted" style="margin-bottom:0">And remember what the number is worth: it is valid for this program at this CPI, and for comparing machines only under the same ISA and compiler.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q5 &mdash; which statements hold</h3>
+              <p class="small">Select every statement that is true in general.</p>
+              <p class="small muted">(a) A machine with a higher MIPS rating can take longer on a given program.<br>
+              (b) Doubling the clock rate always halves the execution time.<br>
+              (c) Amdahl&rsquo;s ceiling depends only on the fraction of time not improved.<br>
+              (d) The average CPI is the arithmetic mean of the class CPIs.<br>
+              (e) For the same program on two machines, the speedup equals the ratio of the execution times.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(a), (c) and (e).</strong></p>
+                <p class="small">(a) holds: this page&rsquo;s two machines give 1250 MIPS at 1.04 ms against 1026 MIPS at 0.975 ms. (c) holds: the ceiling is 1/(1 &minus; p), and s does not appear in it. (e) holds: speedup is defined as t<sub>old</sub>/t<sub>new</sub>, and for one program that is the whole comparison.</p>
+                <p class="small">(b) fails whenever the instruction count or the CPI moves with the clock, which is the normal case. (d) fails because the classes are not equally frequent &mdash; the weighted mean 1.95 against the plain mean 2.75.</p>
+                <p class="small muted" style="margin-bottom:0">(b) and (d) are the two misconceptions this lesson exists to remove; each has a computed counterexample in the Misconceptions tab.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q6 &mdash; halving the miss rate</h3>
+              <p class="small">Base CPI is 1.5 and the miss penalty is 80 cycles. A cache change cuts the miss rate from 4% to 2%. The speedup is nearest to:</p>
+              <p class="small muted">(a) 1.25 &nbsp;(b) 1.52 &nbsp;(c) 2.00 &nbsp;(d) 3.20</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(b) 1.52.</strong> CPI before = 1.5 + 0.04&times;80 = 4.7. CPI after = 1.5 + 0.02&times;80 = 3.1. Speedup = 4.7/3.1 = 1.516.</p>
+                <p class="small">(c) 2.00 is the trap: halving a rate does not halve a time, because the base CPI does not halve. (d) 3.20 is 1.6/0.5, from halving only the stall part and forgetting the base. (a) is 1.5/1.2, from the base and stall being mixed up.</p>
+                <p class="small muted" style="margin-bottom:0">The ratio of the CPIs is the speedup only because nothing else changed. That is worth stating in an answer: it is the reason the base CPI is the part the cache cannot touch.</p>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q7 &mdash; the percentage, stated the other way</h3>
+              <p class="small">A compiler change makes a program run 60% faster. The percentage reduction in execution time is ______ %.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>37.5.</strong> 60% faster is a speed factor of 1.6, so the new time is 1/1.6 = 0.625 of the old, a reduction of 0.375, that is 37.5%.</p>
+                <p class="small">Answering 60 is the trap: it treats a speed ratio as a time ratio. The two agree only in the limit of small percentages.</p>
+                <p class="small muted" style="margin-bottom:0">Reverse check: a time cut of 37.5% is a speed factor of 1/0.625 = 1.6, which is 60% faster. The two conversions undo each other exactly.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q8 &mdash; the local speedup a target needs</h3>
+              <p class="small">75% of the execution time is in a part that can be improved. The overall speedup required is 2. The local speedup needed is ______.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>3.</strong> 2 = 1/(0.25 + 0.75/s), so 0.25 + 0.75/s = 0.5, so 0.75/s = 0.25, so s = 3.</p>
+                <p class="small">Check the ceiling first: 1/0.25 = 4, and the target 2 is below it, so a solution exists. Substituting back gives 1/(0.25 + 0.25) = 2.000 exactly.</p>
+                <p class="small muted" style="margin-bottom:0">Note that the local speedup (3) exceeds the overall target (2). That is normal and worth remembering: the improved part must always be made faster than the program as a whole.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q9 &mdash; Amdahl with a time, not a fraction</h3>
+              <p class="small">A program takes 0.8 s. An enhancement makes 25% of its execution time five times faster, and the rest is unchanged. The new execution time is nearest to:</p>
+              <p class="small muted">(a) 0.160 s &nbsp;(b) 0.512 s &nbsp;(c) 0.640 s &nbsp;(d) 0.750 s</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(c) 0.640 s.</strong> New time = 0.8 &times; (0.75 + 0.25/5) = 0.8 &times; 0.80 = 0.640 s. The speedup is 0.8/0.64 = 1.25, and the ceiling 1/0.75 = 1.333 has not been reached, so the answer is consistent.</p>
+                <p class="small">(a) 0.160 s makes the <em>whole program</em> five times faster, which is the local speedup applied as if p were 1. (b) 0.512 s comes from 0.8 &times; 0.64, adding the fractions before dividing. (d) 0.750 s subtracts the 25% from the time and ignores the improvement inside that 25%.</p>
+                <p class="small muted" style="margin-bottom:0">The check that catches all three is the ceiling: any answer implying a speedup above 1/(1 &minus; p) = 1.333 is arithmetically impossible, so it can be discarded before the algebra is finished.</p>
+              </div>
+            </div>
+
+          </div>
+          <div class="pager">
+            <button class="btn" data-pager-prev>Previous</button>
+            <span class="small muted" data-pager-count></span>
+            <button class="btn" data-pager-next>Next</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Formulas, with the unit of the answer</h3>
+          <ul class="small">
+            <li>$$\text{time} = \text{IC} \times \text{CPI} \times T_c = \text{IC} \times \text{CPI} / f$$ &mdash; seconds.</li>
+            <li>$$\text{CPI} = \sum_i \text{fraction}_i \times \text{CPI}_i$$ &mdash; cycles per instruction; fractions sum to 1.</li>
+            <li>$$\text{MIPS} = f / (\text{CPI} \times 10^6)$$ &mdash; millions of instructions per second.</li>
+            <li>$$\text{speedup} = t_{\text{old}} / t_{\text{new}}$$ &mdash; dimensionless.</li>
+            <li>$$\text{speedup} = 1 / ((1-p) + p/s)$$ &mdash; Amdahl; ceiling $$1/(1-p)$$.</li>
+            <li>$$\text{CPI} = \text{CPI}_{\text{ideal}} + \text{miss rate} \times \text{miss penalty}$$ &mdash; penalty in cycles.</li>
+            <li>$$\text{pipeline speedup} \to k/(1 + \text{stalls per instruction})$$ &mdash; ideal k, exact count k + n &minus; 1.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The numbers from this lesson</h3>
+          <ul class="small">
+            <li>Mix CPI <strong>1.95</strong>; 1.95&times;10<sup>6</sup> cycles; <strong>0.975 ms</strong> at 2 GHz.</li>
+            <li>Machine B: 3 GHz, CPI 2.4, 1.3&times;10<sup>6</sup> instructions, <strong>1.04 ms</strong> &mdash; 6.7% slower, and A is faster by <strong>1.067&times;</strong>.</li>
+            <li>MIPS: A <strong>1026</strong>, B <strong>1250</strong>. One 2 GHz CPU reads 1333 at CPI 1.5 and 500 at CPI 4.</li>
+            <li>Harmonic mean of those two rates <strong>727</strong>; arithmetic mean 917; aggregate from totals 727.</li>
+            <li>Amdahl p = 0.6, s = 4 &rarr; <strong>1.818</strong>; new time 0.55 of old; ceiling <strong>2.5</strong>.</li>
+            <li>Reverse: p = 0.9, target 2 &rarr; <strong>s = 2.25</strong>. p = 0.6, target 3 &rarr; no solution.</li>
+            <li>Stalls: 0.03&times;60 = <strong>1.8</strong>, CPI <strong>3.0</strong>, 1.5 ms vs 0.6 ms, cache worth <strong>2.5&times;</strong>; to reach CPI 2.0 the miss rate must be <strong>1.33%</strong>.</li>
+            <li>Pipeline: 5 stages, CPI 1.2, limit <strong>4.167</strong>, exact for 1000 instructions <strong>4.153</strong>.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, in the order they cost marks</h3>
+          <ul class="small">
+            <li>Comparing clock rates instead of times.</li>
+            <li>Averaging class CPIs without their frequencies.</li>
+            <li>Using MIPS as evidence of speed across different programs or ISAs.</li>
+            <li>Treating &ldquo;x% faster&rdquo; as &ldquo;x% less time&rdquo;.</li>
+            <li>Using an instruction fraction as Amdahl&rsquo;s p, which is a time fraction.</li>
+            <li>Forcing a solution when the target exceeds 1/(1 &minus; p).</li>
+            <li>Reporting seconds as milliseconds, or milliseconds as microseconds.</li>
+            <li>Answering CPI when the question asked for time, or the reverse.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one-screen summary</h3>
+          <p class="small">Execution time is the product of three numbers &mdash; instructions executed, average cycles per instruction, and seconds per cycle &mdash; and every performance question in this subject is that product rearranged. The average CPI is a weighted average over the mix that actually runs, so an instruction class is only worth its frequency times its cycle count. The three factors trade against each other, which is why a machine with 50% more clock rate can take 6.7% longer: deeper pipelining and simpler instructions buy one factor with another, and a comparison that names only the clock is not yet a comparison. Speedup is a ratio of times, so &ldquo;20% faster&rdquo; is 0.833 of the time and not 0.8, and Amdahl caps every improvement at one over the fraction of time left untouched, a ceiling that depends on p alone and never on how good the improvement is. MIPS is a throughput rate that can rank machines backwards and averages harmonically; it is admissible as evidence only for the same program, ISA and compiler. Cache and pipeline results enter the same equation through one number, the average CPI: a miss rate times a penalty in cycles, or a stall count per instruction. When a question gives you numbers, decide first which of the four quantities it wants, then write the units at every step, because in this topic the arithmetic is easy and the accounting is not.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras</strong> &mdash; <code>gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</code>, Section 3: &ldquo;Memory interfacing and hierarchy: performance, cache memory mapping&hellip; Instruction pipelining, pipeline hazards.&rdquo; <em>Supports:</em> the syllabus classification, the quote on the Overview tab, and the framing of the topic as the arithmetic of two named clauses. Read directly, 2 pages.</p>
+          <p class="small" style="margin-bottom:0"><strong>Note on scope.</strong> The document names <em>performance</em> of the hierarchy and names pipelining. It does not name Amdahl&rsquo;s law, MIPS or the performance equation, and nothing here claims that it does. Those are taught as class B &mdash; the standard vocabulary the named clauses are examined in.</p>
+        </div>
+
+        <div class="card">
+          <h3>The standard textbook</h3>
+          <p class="small"><strong>Patterson and Hennessy, <em>Computer Organization and Design</em> &mdash; the formula and glossary appendix.</strong> <em>Supports:</em> the CPU performance equation stated as CPU time = instruction count &times; clock cycles per instruction &times; clock cycle time; Amdahl&rsquo;s law stated as 1/((1 &minus; Fraction<sub>enhanced</sub>) + Fraction<sub>enhanced</sub>/Speedup<sub>enhanced</sub>); the definition of CPI, clock rate, instruction count, miss rate, miss penalty and hit time; and average memory access time = hit time + miss rate &times; miss penalty. This page&rsquo;s notation follows that appendix.</p>
+          <p class="small muted" style="margin-bottom:0">The same text is the source of the &ldquo;make the common case fast&rdquo; framing used in the Revision tab.</p>
+        </div>
+
+        <div class="card">
+          <h3>The original paper and lecture material</h3>
+          <p class="small"><strong>Amdahl, G. M., &ldquo;Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities&rdquo;, AFIPS Spring Joint Computer Conference, 1967, pp. 483&ndash;485</strong> (ACM DOI 10.1145/1465482.1465560; reprinted in <em>IEEE Solid-State Circuits Society Newsletter</em>, 2007). <em>Supports:</em> the law&rsquo;s origin, its date and venue, and the argument that the unimproved part bounds the achievable gain.</p>
+          <p class="small"><strong>UCSD CSE 141, &ldquo;Measuring and Discussing Computer System Performance&rdquo; (D. Tullsen).</strong> <em>Supports:</em> the equation in the form IC &times; CPI &times; cycle time, the worked CPI example, the MIPS identity f/(CPI &times; 10<sup>6</sup>), and the label &ldquo;deceptive&rdquo; applied to MIPS.</p>
+          <p class="small" style="margin-bottom:0"><strong>University of Maryland, <em>Computer Architecture</em> online chapter, &ldquo;Summarizing Performance, Amdahl&rsquo;s Law and Benchmarks&rdquo;.</strong> <em>Supports:</em> the three stated problems with MIPS (it ignores instruction capability, it varies between programs, it can vary inversely with performance) and the three conditions under which it is valid &mdash; same program, same ISA, same compiler. The Misconceptions tab follows this list.</p>
+        </div>
+
+        <div class="card">
+          <h3>Supporting references</h3>
+          <p class="small"><strong>Etiemble, D., &ldquo;45-year CPU evolution: one law and two equations&rdquo;, arXiv:1803.00254.</strong> <em>Supports:</em> the CPU performance equation written as IC &times; CPI &times; T<sub>c</sub> = IC/(IPC &times; F), and the split of CPI into a CPU component and a memory component &mdash; the split used in the stall-cycles scene.</p>
+          <p class="small"><strong>University of Washington CSE 378 lecture notes on performance metrics.</strong> <em>Supports:</em> CPI as a weighted sum over instruction classes, the statement that rates average harmonically while times average arithmetically, and the list of metrics not to use.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Pipelining figures</strong> (k stages, k + n &minus; 1, stall cycles per instruction) follow this repository&rsquo;s own pipelining lesson, which derives them from the reservation table rather than quoting them.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the research did not settle</h3>
+          <p class="small"><strong>No previous-year GATE CS question on this framing was verified.</strong> Question-bank and coaching pages present CPI, MIPS and Amdahl items as previous-year questions, but none inspected could be traced to a paper, a set and a question number, and none is reproduced here.</p>
+          <p class="small">No weightage figure is given for Computer Organization and Architecture, or for this clause within it, and nothing here predicts how often the topic will appear.</p>
+          <p class="small muted" style="margin-bottom:0">Two textbook editions differ in where the performance chapter sits; the formula collection was used from the appendix, which is stable across editions, and no page number is claimed for a specific printing.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>How to check this page yourself</h3>
+          <p class="small">The animation&rsquo;s right-hand panel reports how many of the lesson&rsquo;s model checks passed. Each check recomputes a claim by a route that does not reuse the value being checked: the weighted CPI against total cycles divided by total instructions; the execution time against IC &times; CPI &times; cycle time; the MIPS identity against instruction count divided by time; the harmonic mean against total instructions divided by total time; Amdahl against a direct two-part time computation across the whole grid of s; the reverse solve by substituting s back and recovering the target exactly; the stall arithmetic against the times it predicts; and the pipeline limit against the exact cycle count. The two counterexamples &mdash; the faster clock that loses, and the higher MIPS that loses &mdash; are computed, not asserted.</p>
+          <p class="small muted" style="margin-bottom:0">The captions are derived from the timeline by a generator, and the timings are estimated rather than measured from recorded audio. No MP4 exists for this lesson and none is claimed.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
