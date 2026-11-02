@@ -1,4 +1,4 @@
-# Comparison Lower Bound Decision Trees — transcript
+# The Comparison Lower Bound: Decision Trees, Leaf Counting and the Exact Height — transcript
 
 Full narration and caption text in reading order, with scene headings. This is the
 accessibility fallback and the printable study document for the lesson.
