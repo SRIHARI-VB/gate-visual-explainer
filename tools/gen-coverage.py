@@ -5130,6 +5130,7 @@ topics.append(topic(
 
 _VERIFIED = {
     "comparison-lower-bound-decision-trees": "2026-11-02",
+    "two-edge-connected-components-and-the-bridge-tree": "2026-11-02",
     "strongly-connected-components": "2026-11-02",
     "multi-event-independence": "2026-11-02",
     "antichains-and-chain-covers": "2026-11-02",
@@ -6410,6 +6411,61 @@ topics.append(topic(
         "GATE CSE 1990 Q.3(v): the complexity of comparison based sorting is Theta(n log n)",
     ]))
 
+
+topics.append(topic(
+    DM,
+    "Section 1: 'Graphs: connectivity, matching, colouring' - the edge side of connectivity, which no lesson owned",
+    "2-edge-connected components and the bridge tree: two edge-disjoint routes, the contraction, and the leaves that set the augmentation",
+    ["a bridge as an edge on no cycle, and the deletion test",
+     "the relation 'two edge-disjoint routes exist' as an equivalence relation",
+     "2-edge-connected components as its classes and as the pieces left after cutting bridges",
+     "the low-link test with discovery numbers, and skipping the parent edge rather than the parent vertex",
+     "contracting components to get the bridge forest",
+     "the count identity components = connected components + bridges",
+     "tree distance as the number of bridges on a route",
+     "the augmentation count ceil(leaves/2), plus one per isolated dot"],
+    prereq=["graphs-connectivity", "articulation-points-bridges-and-blocks",
+            "graph-traversals-mst-shortest-paths", "relations-and-their-properties",
+            "counting-and-combinatorics"],
+    related=["strongly-connected-components", "matching-and-colouring",
+             "counting-spanning-trees", "network-security"],
+    importance="medium",
+    evidence=("GATE 2027 Section 1 names 'Graphs: connectivity, matching, colouring'; this is the "
+              "edge-connectivity decomposition inside that clause, and GATE CSE 2015 Set 2 asks the "
+              "bridge-versus-cycle statement directly. No marks distribution is claimed."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="two-edge-connected-components-and-the-bridge-tree",
+    path="topics/two-edge-connected-components-and-the-bridge-tree/index.html",
+    execution=("published 2026-11-02; 27 of 27 model checks pass, geometry audit clean, "
+               "1201 frames drawn across 10 scenes"),
+    microtopics=[
+        "a bridge is an edge whose deletion increases the component count, and the same as an edge on no cycle",
+        "why a cycle through an edge gives a detour, and why no cycle gives a cut",
+        "two parallel edges as a cycle of length two, so neither is a bridge although no simple cycle holds them",
+        "the relation 'u = v, or two edge-disjoint routes join u and v', reflexive by convention",
+        "transitivity of that relation by gluing the two halves of the routes",
+        "2-edge-connected components as the classes, and as the components after cutting every bridge",
+        "'lies on a common cycle' is not transitive: the bowtie has 1 ~ 0 and 0 ~ 3 but not 1 ~ 3",
+        "the bowtie is one 2-edge-connected component and two blocks, which separates the two decompositions",
+        "the depth-first search with disc and low, and a real traversal of the worked graph from the hub",
+        "the bridge test low[child] > disc[parent], strictly greater, and the equality case",
+        "skipping the parent EDGE by identity: two parallel edges give truth 0, edge-id 0, parent-vertex 1",
+        "contracting components gives the bridge forest, with one tree per connected component",
+        "the count identity components after cutting bridges = connected components + bridges (5 = 1 + 4)",
+        "the forest property: edge count = node count minus components, checked on all 1024 graphs on 5 vertices",
+        "bridge-tree distance = the number of bridges on any route between the stations",
+        "two stations in one dot have two edge-disjoint routes; in different dots at most one",
+        "the augmentation count ceil(L/2) with L the leaves of the bridge tree",
+        "the counting lower bound: each leaf needs an added edge and one edge has two ends",
+        "the leaf pairing that meets the bound, checked by deleting every edge afterwards",
+        "disconnected graphs: ceil(p/2) + q for p leaves and q isolated dots",
+        "bridge against articulation point: K2 has one bridge and no cut vertex",
+        "2-vertex-connected implies 2-edge-connected, never the reverse: the bowtie",
+        "strongly connected components are the directed analogue, and the two differ on one graph",
+        "the five-step procedure and the four errors that cost the mark",
+    ],
+))
 
 _seen = set()
 _dedup = []

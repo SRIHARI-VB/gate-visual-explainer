@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2-Edge-Connected Components and the Bridge Tree — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">2-edge-connected components and the bridge tree</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../articulation-points-bridges-and-blocks/index.html">Prerequisite: bridges and blocks</a>
+      <a href="../graphs-connectivity/index.html">Prerequisite: connectivity</a>
+      <a href="../strongly-connected-components/index.html">Related: the directed analogue</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> 2-edge-connected components and the bridge tree &mdash; which stations of a graph keep two independent routes to each other, and what happens when you contract everything that does.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Define a bridge by deletion and prove it is the same as &ldquo;lies on no cycle&rdquo;; define the relation &ldquo;two edge-disjoint routes exist&rdquo; and show it is an equivalence relation whose classes are the 2-edge-connected components; compute those classes in one depth-first search with discovery numbers and low values, skipping the parent <em>edge</em>; contract the components to obtain the bridge forest and use the count identity (components after cutting bridges = connected components + bridges); read distances and leaf counts off that forest; and answer the augmentation question &mdash; the minimum number of edges to add so that no single edge failure disconnects the graph is $$\lceil L/2 \rceil$$, where $$L$$ is the number of leaves of the bridge forest.</p>
+          <p><strong>GATE RELEVANCE:</strong> <strong>Class A</strong> &mdash; Section 1 of the syllabus names <em>&ldquo;Graphs: connectivity, matching, colouring&rdquo;</em>. This lesson is the component decomposition that the word <em>connectivity</em> carries for edges, and it is the natural next step after the articulation-point and block lesson already in this repository.</p>
+          <p><strong>PREREQUISITES:</strong> adjacency lists and the idea of a connected component; depth-first search and the discovery order (<a href="../graph-traversals-mst-shortest-paths/index.html">graph traversals</a>); the definition of a cut edge (<a href="../articulation-points-bridges-and-blocks/index.html">bridges and blocks</a>); equivalence relations and partitions (<a href="../relations-and-their-properties/index.html">relations</a>); the pigeonhole principle for the augmentation bound (<a href="../counting-and-combinatorics/index.html">counting</a>).</p>
+          <p><strong>VISUALIZATION PLAN:</strong> ten scenes on one worked graph of fourteen stations and seventeen edges. First the four bridges, and one of them cut to show the split. Then the deletion test on three small graphs, including two parallel edges. Then two edge-disjoint routes and the classes they define. Then the bowtie, which refutes the tempting relation. Then a real depth-first search from the hub with its discovery and low numbers and the single strict comparison. Then the contraction, the count identity and the forest property. Then the bridge tree, its three leaves and its distance rule. Then the augmentation: two added edges, the counting lower bound, and the brute-force check. Then three pairs that get confused. Then the five-step procedure.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the edge version of decomposition and augmentation</em>, not as a general course in connectivity. The neighbouring lessons own the vertex version (articulation points, blocks, the block-cut tree) and the directed version (strongly connected components); this one owns the edge version and the bridge forest.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The syllabus, in its own words</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The GATE 2027 CS syllabus published by IIT Madras was downloaded and read this run. Section 1 reads: <em>&ldquo;Discrete Mathematics: Propositional and first order logic. Sets, relations, functions, partial orders and lattices. Monoids, Groups. Graphs: connectivity, matching, colouring. Combinatorics: counting, recurrence relations, generating functions.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> &ldquo;Connectivity&rdquo; is one word covering four different measures: how many edges must fail to split the graph, how many vertices must be removed, whether a graph is bridgeless, and whether a graph is 2-vertex-connected. This lesson owns the first and third. Nothing here is claimed to be guaranteed to appear in 2027.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> A previous-year item is recomputed on the GATE patterns tab: <strong>GATE CSE 2015, Set 2</strong>, the four-statement question beginning &ldquo;In a connected graph, a bridge is an edge whose removal disconnects the graph. Which one of the following statements is true?&rdquo; Two independent archives agree on the wording and the key; they disagree on the question number, so only the year and set are quoted.</p>
+          <p class="small muted" style="margin-bottom:0">No marks distribution or weightage is claimed anywhere in this lesson.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites, precisely</h3>
+          <p class="small"><strong>Must already be comfortable with:</strong></p>
+          <ul class="small">
+            <li>A graph is a set of vertices and a set of edges; a <em>multigraph</em> allows two edges between the same pair.</li>
+            <li>A connected component is a maximal set of vertices joined by paths; deleting an edge can only increase the component count.</li>
+            <li>Depth-first search visits each vertex once and numbers it on arrival; that number is its discovery number.</li>
+            <li>An equivalence relation is reflexive, symmetric and transitive, and its classes partition the set.</li>
+            <li>The pigeonhole principle: $$k$$ objects placed into buckets of capacity 2 need at least $$\lceil k/2 \rceil$$ buckets.</li>
+          </ul>
+          <p class="small"><strong>Helpful, not required:</strong> having seen the block-cut tree, since the bridge forest is its edge-side cousin and the difference between them is one of the three confusions this lesson separates.</p>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 40&ndash;50 minutes with the animation, or 8 minutes for the Revision tab alone. The figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small">
+            <li><strong>A bridge is an edge on no cycle.</strong> Deleting it splits the graph; equivalently, no cycle carries a detour around it.</li>
+            <li><strong>The right relation is two edge-disjoint routes.</strong> &ldquo;Lies on a common cycle&rdquo; is not transitive, so it defines nothing; the routes relation is an equivalence relation and its classes are the components.</li>
+            <li><strong>One search finds them all.</strong> A tree edge to a child $$v$$ is a bridge exactly when $$\text{low}[v] > \text{disc}[u]$$, strictly. Skip the parent edge by identity, never by vertex.</li>
+            <li><strong>Contraction turns the graph into a forest.</strong> Components after cutting bridges = connected components + bridges; the bridges become the forest's edges, and tree distance counts bridges on a route.</li>
+            <li><strong>Leaves set the augmentation cost.</strong> With $$L$$ leaves, at least $$\lceil L/2\rceil$$ edges must be added, and pairing leaves achieves it.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Legend: green marks a value the page computed and checked; amber marks a trap; red marks a refuted claim.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition: which roads are the only road</h3>
+          <p class="small">A city has ring roads and a few single-lane links between them. A courier can survive the closure of any road inside a ring, because the ring gives a second way round. But close one of the single-lane links and two districts stop talking.</p>
+          <p class="small">Two questions follow immediately. <em>Which roads are the single-lane links?</em> Those are the bridges. And <em>which pairs of districts still have two independent routes after we ignore the single-lane links?</em> Those pairs form the 2-edge-connected components.</p>
+          <p class="small">The second question is the more useful one, because it comes with a picture: shrink every district that is internally safe into one dot, keep only the single-lane links, and what is left is a tree. Every question about single-road failures becomes a question about a tree, and trees are easy.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is exact about adjacency and silent about length: two routes here must share no road, but they may pass through the same junction, and their lengths do not matter.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definitions</h3>
+          <p class="small">Let $$G = (V, E)$$ be an undirected graph, possibly with parallel edges.</p>
+          <p class="small"><strong>Bridge.</strong> An edge $$e$$ is a <em>bridge</em> (also <em>cut edge</em>, <em>isthmus</em>) when the graph $$G - e$$ has more connected components than $$G$$.</p>
+          <div class="formula">$$u \equiv v \iff u = v \ \text{ or there are two edge-disjoint } u\text{-}v \text{ paths}$$
+            <p class="gloss">Read: two stations are related when they are the same station, or when two routes join them that share no edge. Routes may share vertices. Being the same station counts as two routes of length zero.</p>
+          </div>
+          <p class="small"><strong>2-edge-connected component.</strong> A class of that relation. Equivalently, a maximal set of vertices in which every two vertices have two edge-disjoint routes. A graph is <em>2-edge-connected</em> (or <em>bridgeless</em>) when it is connected and has no bridge.</p>
+          <p class="small"><strong>Bridge forest.</strong> The graph with one node per 2-edge-connected component and one edge per bridge. Its connected pieces are the bridge trees of the connected components of $$G$$.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The relation and the name &ldquo;bridge-block tree&rdquo; are stated this way in the standard reference article on bridges; the classes are called 2-edge-connected components and the bridges are exactly the edges whose endpoints lie in different classes.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 1 &mdash; bridge, deletion, and cycles are the same statement</h3>
+          <p class="small"><strong>Claim.</strong> An edge is a bridge if and only if it lies on no cycle.</p>
+          <p class="small"><strong>If a cycle contains it.</strong> Write the cycle as $$e, P$$ where $$P$$ is the rest of the cycle, a path joining the two endpoints of $$e$$ and not using $$e$$. Then in $$G - e$$ those endpoints are still joined, by $$P$$, so every pair that was joined through $$e$$ is still joined. Deleting $$e$$ changes no component count.</p>
+          <p class="small"><strong>If no cycle contains it.</strong> Let $$e = xy$$. Suppose $$G - e$$ still joined $$x$$ to $$y$$. Then that joining path, together with $$e$$, would be a cycle through $$e$$ &mdash; contradicting the assumption. So $$x$$ and $$y$$ lie in different components of $$G - e$$, and the count went up by one.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both directions are proved above, so the three statements &ldquo;deleting it splits the graph&rdquo;, &ldquo;it lies on no cycle&rdquo; and &ldquo;no back edge covers it&rdquo; are one statement.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 2 &mdash; the relation is an equivalence relation, and cutting bridges gives the same classes</h3>
+          <p class="small"><strong>Reflexive</strong> by the convention, <strong>symmetric</strong> because two routes read the same in reverse.</p>
+          <p class="small"><strong>Transitive.</strong> Suppose two edge-disjoint routes join $$a$$ to $$b$$, and two more join $$b$$ to $$c$$. Take the first route of $$a$$ to $$b$$ and the first of $$b$$ to $$c$$: they cannot share an edge, because the first uses only edges incident to the $$a$$&ndash;$$b$$ side and the second only edges on the $$b$$&ndash;$$c$$ side &mdash; if they did share an edge, that edge would give a second route from $$b$$ back to itself, which cannot happen inside a graph with no repeated edge. The same holds for the second pair. So $$a$$ and $$c$$ have two edge-disjoint routes.</p>
+          <p class="small"><strong>Why cutting bridges gives the same partition.</strong> If two vertices lie in the same class, no bridge can separate them, because a bridge would be the unique edge joining two sides and one of the two routes would have to use it twice. So each class lies inside one component of $$G$$ minus its bridges. Conversely, if two vertices are joined in $$G$$ minus the bridges, take any route between them; every edge on it lies on a cycle, and replacing each such edge by the rest of its cycle yields a second route disjoint from the first. So the two partitions coincide.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page does not rely on this argument alone: it compares the two partitions vertex by vertex on the graphs it enumerates, and they agree everywhere.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 3 &mdash; the count identity and the forest</h3>
+          <p class="small">Let $$G$$ have $$c$$ connected components, $$b$$ bridges and $$k$$ 2-edge-connected components.</p>
+          <p class="small">Cutting the bridges leaves $$k$$ pieces, by the definition of the pieces. Each cut of a bridge inside a connected component increases that component's piece count by exactly one, because a bridge's endpoints are in different components after the cut and no other pair is separated. Starting from $$c$$ pieces and performing $$b$$ cuts gives $$c + b$$ pieces.</p>
+          <div class="formula">$$k = c + b$$
+            <p class="gloss">Read: the number of 2-edge-connected components equals the number of connected components plus the number of bridges. For a connected graph, the component count is one more than the bridge count.</p>
+          </div>
+          <p class="small"><strong>The bridge forest is a forest.</strong> Its nodes are the $$k$$ pieces and its edges are the $$b$$ bridges, so it has $$k$$ nodes and $$k - c$$ edges. A graph with no cycles on $$k$$ nodes and $$c$$ pieces has exactly $$k - c$$ edges, and the contraction cannot create a cycle: a cycle of bridges would give two routes between its pieces, contradicting that each bridge is on no cycle.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both identities are also checked in code on all 1,024 graphs with five vertices, with no exception.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The one place the definitions differ between authors</h3>
+          <p class="small">Is a single vertex 2-edge-connected? It has no bridge, so on the deletion definition alone the answer is yes. Many texts require a 2-edge-connected graph to have at least two vertices, so that it agrees with Menger's theorem, under which two edge-disjoint routes between distinct vertices need at least two edges.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The convention requiring at least two vertices, chosen so that the definition agrees with Menger's theorem, is stated explicitly in the literature on 2-edge-connectivity testing, together with the warning that very small graphs are handled differently by different authors.</p>
+          <p class="small">This lesson avoids the quarrel by never asking whether a one-vertex piece &ldquo;is 2-edge-connected&rdquo;. It asks a question with a stable answer: do two given distinct stations have two edge-disjoint routes? A lone station is a class of the relation all the same, and the worked graph has exactly one such class: the hub.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> In an exam, if an option turns on whether $$K_1$$ counts, the question is testing the convention, not the mathematics. Prefer the answer that uses the two-vertex convention unless the paper states otherwise.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed in code.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">This network has fourteen stations. One cable, between station 2 and station 3, is the only link between the left region and the rest.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One cable, two halves</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Here is a network of fourteen stations. Look at the cable between station two and station three.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Example 1 &mdash; the worked graph, fully decomposed</h3>
+          <p class="small">Fourteen stations, seventeen edges: three triangles, one square, and four edges joining them.</p>
+          <ol class="step-list small">
+            <li>Apply the deletion test to each of the seventeen edges: exactly four increase the component count &mdash; $$2\text{-}3$$, $$5\text{-}6$$, $$6\text{-}7$$, $$6\text{-}11$$. <em>Justification:</em> that is the definition, so nothing else needs arguing yet.</li>
+            <li>Cut those four. Five pieces remain: $$\{0,1,2\}$$, $$\{3,4,5\}$$, $$\{6\}$$, $$\{7,8,9,10\}$$, $$\{11,12,13\}$$. <em>Justification:</em> a bridge is the only edge leaving its side.</li>
+            <li>Check each piece is internally bridgeless: delete each of its edges in turn and confirm nothing disconnects. All five pass. <em>Justification:</em> a piece with no bridge is exactly a class of the relation.</li>
+            <li>Count: $$5 = 1 + 4$$, that is, components = connected components + bridges. <em>Justification:</em> Derivation 3.</li>
+            <li>Read the bridge tree: a hub (the single station 6) with three branches, one of which continues. Degrees $$1,2,3,1,1$$, so three leaves.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Every number in the list is computed on the page and reported in the model-checks panel.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 &mdash; a tree, where every edge is a bridge</h3>
+          <p class="small">Take the path $$0-1-2-3-4$$. Every edge is a bridge, so every station is its own component: five components, four bridges, $$5 = 1 + 4$$.</p>
+          <p class="small">The bridge tree is the path itself. It has two leaves, so the augmentation answer is $$\lceil 2/2 \rceil = 1$$: add the edge $$0\text{-}4$$ and the path becomes a cycle, which has no bridge.</p>
+          <p class="small">Now take the star with centre 0 and leaves 1, 2, 3. Four stations, three bridges, four components, and three leaves. The answer is $$\lceil 3/2 \rceil = 2$$: add $$1\text{-}2$$ and $$1\text{-}3$$, and every edge of the star lies on a cycle.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> A tree has nothing but bridges, because a tree has no cycle at all, so Derivation 1 applies to every edge at once.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 &mdash; the bowtie, in full</h3>
+          <p class="small">Two triangles sharing one station: left triangle $$0,1,2$$ and right triangle $$0,3,4$$.</p>
+          <ul class="small">
+            <li><strong>Bridges:</strong> none. Every edge lies on one of the two cycles.</li>
+            <li><strong>2-edge-connected components:</strong> one. Stations 1 and 3 have the two routes $$1\text{-}0\text{-}3$$ and $$1\text{-}2\text{-}0\text{-}4\text{-}3$$, which share station 0 and no edge.</li>
+            <li><strong>Blocks:</strong> two, because station 0 is an articulation point.</li>
+            <li><strong>Bridge tree:</strong> a single node, no edges, no leaves &mdash; so zero edges need adding.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">This one picture separates three of the lesson&rsquo;s ideas at once, which is why it is Example 3 and also Scene 4.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 &mdash; a cycle with a tail, and a full augmentation trace</h3>
+          <p class="small">Take a triangle $$0,1,2$$, a triangle $$3,4,5$$, and a single edge $$2\text{-}3$$ between them.</p>
+          <p class="small"><strong>Bridges:</strong> one, namely $$2\text{-}3$$. <strong>Components:</strong> two. <strong>Bridge tree:</strong> two nodes and one edge, so two leaves, and the answer is one added edge &mdash; join any station of the left triangle to any station of the right one, and the new edge closes a cycle through $$2\text{-}3$$.</p>
+          <p class="small">Now attach a third triangle by two separate edges to the second one. The bridge tree gains two leaves at once, so the count becomes four leaves and the answer is two edges. Pairing leaves half a turn apart in a depth-first order is the construction that achieves it.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The pairing construction &mdash; order the leaves by a depth-first walk and join leaf $$i$$ to leaf $$i + \lfloor L/2 \rfloor$$ &mdash; is the standard one, and it is the construction the page runs and then verifies by deleting every edge afterwards.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: two parallel edges</h3>
+          <p class="small">Two stations joined by two edges. By the deletion test, neither edge is a bridge: deleting one leaves the other. By the cycle test, they form a cycle of length two.</p>
+          <p class="small">But no <em>simple</em> cycle &mdash; three or more distinct vertices &mdash; contains them. So a reader who takes &ldquo;lies on no simple cycle&rdquo; as the definition gets the wrong answer here, and so does any code that skips the parent <em>vertex</em>.</p>
+          <p class="small muted" style="margin-bottom:0">Computed on the page: the definition gives 0 bridges, the edge-id search gives 0, the parent-vertex search gives 1.</p>
+        </div>
+
+        <div class="card">
+          <h3>One vertex, and the empty graph</h3>
+          <p class="small">A graph with one vertex and no edges has one connected component, no bridges, and one 2-edge-connected component &mdash; a class of one station with no edges. Its bridge tree is a single node with degree 0, which is neither a leaf nor an isolated dot, so the augmentation answer is 0: nothing can fail.</p>
+          <p class="small">The empty graph has no components at all, and every count is zero. Any formula that divides by the number of components needs a guard here.</p>
+          <p class="small muted" style="margin-bottom:0">This is the case where the two conventions about whether a single vertex is 2-edge-connected disagree; the lesson sidesteps it by asking only about pairs of distinct stations.</p>
+        </div>
+
+        <div class="card">
+          <h3>A disconnected graph: a forest, not a tree</h3>
+          <p class="small">Three separate triangles. Nine stations, nine edges, no bridges, and three 2-edge-connected components. The bridge forest has three nodes and no edges: three isolated dots.</p>
+          <p class="small">To make such a graph safe from any single edge failure you must first connect it, and each isolated dot needs two ends of its own. The count becomes $$\lceil L/2 \rceil + q$$, where $$q$$ is the number of isolated dots, and the standard reference states exactly this.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> For a bridge forest with $$p$$ leaves and $$q$$ isolated nodes, at least $$\lceil p/2 \rceil + q$$ edges are needed, and that bound is attained; this is the theorem stated in the documentation of the standard graph library&rsquo;s bridge-augmentation routine.</p>
+        </div>
+
+        <div class="card">
+          <h3>The graph that is already safe</h3>
+          <p class="small">A single cycle, a complete graph, or any bridgeless connected graph has one 2-edge-connected component and a bridge tree of one node with degree 0. There are no leaves, so the augmentation answer is 0.</p>
+          <p class="small">This is the case where the formula $$\lceil L/2 \rceil$$ silently returns the right answer for the wrong reason if you count degree-0 nodes as leaves. Degrees 0 and 1 are different: 0 means &ldquo;nothing to protect&rdquo;, 1 means &ldquo;one bridge is enough to strand this piece&rdquo;.</p>
+          <p class="small muted" style="margin-bottom:0">The page counts leaves as nodes of degree exactly 1, and isolated dots separately, so the two cases cannot be confused.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Trap: counting leaves in the wrong graph</h3>
+          <p class="small">In the worked graph, several stations have degree one in the picture &mdash; stations 0, 1, 4, 8, 12 and 13 all do. Counting them gives six, and $$\lceil 6/2 \rceil = 3$$ added edges.</p>
+          <p class="small">The right count is over the bridge tree, which has three leaves, so the answer is two. The difference is not cosmetic: three is wrong.</p>
+          <p class="small muted" style="margin-bottom:0">The brute-force search on the page confirms two, by trying every single added edge and then every pair.</p>
+        </div>
+
+        <div class="card">
+          <h3>Self-loops, and what they change</h3>
+          <p class="small">A self-loop is never a bridge, because deleting it cannot separate anything, and it never changes a component count. It is a cycle of length one, so the &ldquo;lies on a cycle&rdquo; test also says not a bridge, consistently.</p>
+          <p class="small">It does affect one number: the number of edge-disjoint routes can be raised by a loop only if the loop is at an endpoint, so implementations usually reject or ignore loops rather than reason about them.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> No GATE item in the archives read for this lesson uses self-loops in a bridge question, so treat this as completeness rather than as exam material.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>&ldquo;The components are the pairs that lie on a common cycle&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> on a single cycle it is exactly right, and it sounds like the definition of redundancy.</p>
+          <p class="small"><strong>Counterexample:</strong> the bowtie. Station 1 shares the left cycle with station 0, and station 0 shares the right cycle with station 3, but stations 1 and 3 share no cycle. The relation is not transitive, so it has no classes.</p>
+          <p class="small"><strong>The correct rule:</strong> two edge-disjoint routes, which may share vertices. Stations 1 and 3 do have two such routes.</p>
+          <p class="small muted" style="margin-bottom:0">The page enumerates every simple cycle of the bowtie and confirms the pair 1, 3 appears in none of them, while the maximum flow between 1 and 3 is 2.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;A bridge and an articulation point are the same cut&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the two low-link tests differ by one symbol, so they look like one idea in two notations.</p>
+          <p class="small"><strong>Counterexample, both ways:</strong> one edge on two stations is a bridge with no articulation point. The bowtie has an articulation point and no bridge.</p>
+          <p class="small"><strong>The correct rule:</strong> a bridge asks whether the <em>edge</em> is essential; an articulation point asks whether the <em>station</em> is. Neither implies the other.</p>
+          <p class="small muted" style="margin-bottom:0">Both counts on this page come from the slow definitions, deleting the edge or the vertex and counting pieces.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;2-edge-connected and 2-vertex-connected are the same property&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> both are called &ldquo;2-connected&rdquo; in casual speech, and both are about surviving one failure.</p>
+          <p class="small"><strong>Counterexample:</strong> the bowtie is one 2-edge-connected component but two blocks, because a route may pass through the shared station while a vertex cut may not.</p>
+          <p class="small"><strong>The correct rule:</strong> 2-vertex-connected implies 2-edge-connected, never the converse. Checked on every graph with five vertices: no violation of the implication, and the bowtie refutes the reverse.</p>
+          <p class="small muted" style="margin-bottom:0">A useful sanity check: a graph with an articulation point can still be bridgeless, so &ldquo;has a cut vertex&rdquo; says nothing about edges.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Skip the parent vertex in the search&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is what most textbook code does, and it is correct on every simple graph.</p>
+          <p class="small"><strong>Counterexample:</strong> two parallel edges. Skipping the parent vertex skips both of them, so the child looks like it can reach nothing above its parent, and the search reports a bridge.</p>
+          <p class="small"><strong>The correct rule:</strong> skip the parent <em>edge</em>, identified by its index, and treat the second parallel edge as a back edge.</p>
+          <p class="small muted" style="margin-bottom:0">On 300 seeded random multigraphs the edge-id rule agrees with the definition every time; the parent-vertex rule fails on the two-edge case.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;The low test is low of the child greater than or equal to disc of the parent&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the articulation-point test really does use greater-or-equal, and the two tests are written side by side in most notes.</p>
+          <p class="small"><strong>Counterexample:</strong> in the worked graph, station 5 with child 4 has low 2 and disc 2. Greater-or-equal would call the edge $$4\text{-}5$$ a bridge; it lies on a cycle and is not one.</p>
+          <p class="small"><strong>The correct rule:</strong> the bridge test is strictly greater. Equality means the child reaches the parent by another route, which is exactly a cycle through the edge.</p>
+          <p class="small muted" style="margin-bottom:0">The numbers on the Animation tab are the ones this traversal produced, not illustrations.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Add an edge for each bridge and the graph becomes safe&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is true for a single bridge between two cycles, and it feels like the definition of the problem.</p>
+          <p class="small"><strong>Counterexample:</strong> a path of five stations has four bridges, but one added edge closes it into a cycle and removes all four. The per-bridge count gives four; the truth is one.</p>
+          <p class="small"><strong>The correct rule:</strong> the cost is set by the leaves of the bridge forest, $$\lceil L/2 \rceil$$, because one added edge can cover a whole route of bridges at once.</p>
+          <p class="small muted" style="margin-bottom:0">The brute-force search over all labelled trees with four to six vertices confirms the leaf formula in every case.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>A verified previous-year item</h3>
+          <p class="small"><strong>GATE CSE 2015, Set 2.</strong> &ldquo;In a connected graph, a bridge is an edge whose removal disconnects the graph. Which one of the following statements is true?&rdquo; The options: (1) a tree has no bridges; (2) a bridge cannot be part of a simple cycle; (3) every edge of a clique of size at least 3 is a bridge; (4) a graph with bridges cannot have a cycle.</p>
+          <p class="small"><strong>Answer: (2).</strong> Option (1) is exactly backwards &mdash; every edge of a tree is a bridge. Option (3) is backwards too, because a clique of size 3 or more has no bridge at all. Option (4) confuses &ldquo;has a bridge&rdquo; with &ldquo;every edge is a bridge&rdquo;: a graph can have both a cycle and a bridge, and the worked graph is an example.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Year, set, wording and key agree across two independent archives of previous-year papers. They disagree on the question number, so only the year and set are quoted. The official paper was not opened for this lesson.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 1 &mdash; count the components after cutting</h3>
+          <p class="small"><strong>What is asked:</strong> &ldquo;how many 2-edge-connected components does this graph have&rdquo;, or &ldquo;what is the minimum number of edges to add&rdquo;.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> find the bridges, count them, and use $$k = c + b$$. If the graph is drawn small, the deletion test is faster than any algorithm; if it is given as an edge list with more than about fifteen edges, the low-link test is the only sane route.</p>
+          <p class="small"><strong>The wrong approach:</strong> counting cycles, or counting the pieces you can see without checking that a piece has no internal bridge.</p>
+          <p class="small muted" style="margin-bottom:0">Sanity check: the answer must satisfy $$b = k - c$$, and $$b$$ can never exceed the number of edges.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 2 &mdash; which pair survives a single failure</h3>
+          <p class="small"><strong>What is asked:</strong> &ldquo;which pairs of vertices remain connected after the removal of any one edge&rdquo;, or &ldquo;for which edge does removing it disconnect the pair&rdquo;.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> two vertices survive every single-edge failure exactly when they share a 2-edge-connected component, which is exactly when the bridge-tree distance between their dots is 0.</p>
+          <p class="small"><strong>The wrong approach:</strong> checking whether the pair is connected (almost always true) instead of checking whether it is <em>redundantly</em> connected.</p>
+          <p class="small muted" style="margin-bottom:0">The bridge tree turns this into one comparison of two labels, which is why it is worth building even for a single pair.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 3 &mdash; the augmentation count</h3>
+          <p class="small"><strong>What is asked:</strong> &ldquo;the minimum number of edges to add so that the graph has no bridge&rdquo;, or &ldquo;so that it is 2-edge-connected&rdquo;.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> build the bridge forest, count its leaves $$L$$, answer $$\lceil L/2 \rceil$$ (plus one per isolated dot for a disconnected graph). For a tree this is the standard $$\lceil \text{leaves}/2 \rceil$$ result.</p>
+          <p class="small"><strong>The wrong approach:</strong> answering the number of bridges, or counting degree-one vertices in the original graph.</p>
+          <p class="small muted" style="margin-bottom:0">Watch the wording: &ldquo;so that it is 2-edge-connected&rdquo; usually also requires connectivity, so add one more edge per extra component.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 4 &mdash; statement questions on bridges</h3>
+          <p class="small"><strong>What is asked:</strong> four statements, one true; or an MSQ with several true.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> a one-line counterexample for each false statement. The four that recur: a tree has no bridges (false), a bridge is never on a cycle (true), a bridge is the same as a cut vertex (false), a graph with a bridge has no cycle (false).</p>
+          <p class="small"><strong>The wrong approach:</strong> reasoning from one picture. Every one of these statements is true on some graph, which is why the counterexamples have to be named.</p>
+          <p class="small muted" style="margin-bottom:0">Keep two graphs in mind: $$K_2$$ for &ldquo;bridge without a cut vertex&rdquo;, and the bowtie for &ldquo;cut vertex without a bridge&rdquo;.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 5 &mdash; the search traced by hand</h3>
+          <p class="small"><strong>What is asked:</strong> given a graph and a starting vertex, list the discovery numbers, or the low values, or the bridges.</p>
+          <p class="small"><strong>Reasoning demanded:</strong> run the search in the stated adjacency order, write disc on arrival, then propagate low back up. The answer depends on the adjacency order, so a question that does not fix the order is asking for a property, not a list.</p>
+          <p class="small"><strong>The wrong approach:</strong> recomputing low from the picture instead of from the traversal. The low of a vertex is determined by the traversal, not by the graph alone.</p>
+          <p class="small muted" style="margin-bottom:0">The discovery numbers are not a property of the graph: a different start vertex gives a different numbering, but the same bridge set.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card span-2">
+          <h3>How to use this set</h3>
+          <p class="small">Eight original questions written for this lesson and labelled as such; the previous-year item is on the GATE patterns tab. Every answer is hidden until you reveal it, and each answer says why the other options fail. Learning mode is on by default; the mock-test switch hides every answer and reveals them together.</p>
+          <p class="small" style="margin-bottom:0">
+            <label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode (hide all answers)</label>
+            <button class="btn" id="mock-submit" hidden>Reveal all answers</button>
+            <span class="small muted">Learning mode reveals each answer after your attempt.</span>
+          </p>
+        </div>
+
+        <div data-pager>
+
+          <div class="pager-page active">
+            <div class="grid grid--2">
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q1 &mdash; count the components</h3>
+                <p class="small">A connected graph has 12 edges and exactly 3 bridges. The number of 2-edge-connected components is ______.</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: 4</span></p>
+                  <p class="small">For a connected graph, components after cutting the bridges equal 1 plus the number of bridges: $$1 + 3 = 4$$. The edge count is irrelevant, which is the point of the identity.</p>
+                  <p class="small muted" style="margin-bottom:0">The trap is to answer 3, forgetting that the pieces of the graph itself also count.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q2 &mdash; the definition that works</h3>
+                <p class="small">Which relation on the vertices of an undirected graph has the 2-edge-connected components as its classes?</p>
+                <p class="small muted">(a) some simple cycle contains both &nbsp; (b) two edge-disjoint paths join them &nbsp; (c) some path joins them &nbsp; (d) the same number of edge-disjoint paths leaves each</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (b)</span></p>
+                  <p class="small">Two edge-disjoint paths is reflexive by convention, symmetric, and transitive, and its classes are exactly the components obtained by cutting the bridges.</p>
+                  <p class="small muted" style="margin-bottom:0">(a) fails on the bowtie, where it is not transitive. (c) is plain connectivity, which has one class per connected component. (d) is not even well defined as an equivalence: it compares counts, not endpoints.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q3 &mdash; which statements hold</h3>
+                <p class="small muted">(a) every edge of a tree is a bridge &nbsp; (b) a bridgeless graph has no articulation point &nbsp; (c) every bridge lies on no cycle &nbsp; (d) a graph with an articulation point must have a bridge</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (a), (c)</span></p>
+                  <p class="small">(a) and (c) are the two halves of Derivation 1, since a tree has no cycle at all.</p>
+                  <p class="small muted" style="margin-bottom:0">(b) fails on the bowtie: no bridge, one articulation point. (d) fails on the same graph, which is why the bowtie is worth memorising.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q4 &mdash; the augmentation count</h3>
+                <p class="small">A connected graph has a bridge tree that is a star with 6 leaves. The minimum number of edges to add so that the graph has no bridge is ______.</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: 3</span></p>
+                  <p class="small">$$\lceil 6/2 \rceil = 3$$. Each leaf needs an added edge and each edge serves two leaves, so the counting bound is 3, and pairing leaves in a depth-first order achieves it.</p>
+                  <p class="small muted" style="margin-bottom:0">The trap is 6, from &ldquo;one edge per leaf&rdquo;, or 5, from the number of bridges in the star.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="pager-page">
+            <div class="grid grid--2">
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q5 &mdash; the strict comparison</h3>
+                <p class="small">In the low-link search, the tree edge from $$u$$ to its child $$v$$ is a bridge exactly when:</p>
+                <p class="small muted">(a) $$\text{low}[v] \ge \text{disc}[u]$$ &nbsp; (b) $$\text{low}[v] > \text{disc}[u]$$ &nbsp; (c) $$\text{low}[v] \ge \text{disc}[v]$$ &nbsp; (d) $$\text{disc}[v] > \text{disc}[u]$$</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (b)</span></p>
+                  <p class="small">Strictly greater. Equality means the child reaches the parent or something above it by a route that does not use this edge, which is a cycle through the edge, so it is not a bridge.</p>
+                  <p class="small muted" style="margin-bottom:0">(a) is the articulation-point test, which is a different question about a different object. (c) is always true. (d) is true of every tree edge and so decides nothing.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q6 &mdash; two parallel edges</h3>
+                <p class="small">Two vertices are joined by exactly two parallel edges and nothing else. Which is true?</p>
+                <p class="small muted">(a) both edges are bridges &nbsp; (b) exactly one edge is a bridge &nbsp; (c) neither edge is a bridge, and the graph has one 2-edge-connected component &nbsp; (d) neither edge is a bridge, and each vertex is its own component</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (c)</span></p>
+                  <p class="small">Deleting either edge leaves the other, so neither is a bridge. The two vertices have two edge-disjoint routes, so they form one component.</p>
+                  <p class="small muted" style="margin-bottom:0">(b) is exactly what the parent-vertex version of the search reports, and it is wrong. (d) confuses &ldquo;no bridge&rdquo; with &ldquo;no connection&rdquo;.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q7 &mdash; bridges on a route</h3>
+                <p class="small">In a connected graph, stations $$u$$ and $$v$$ lie in bridge-tree nodes that are 4 apart. The number of bridges that every $$u$$&ndash;$$v$$ route must cross is ______.</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: 4</span></p>
+                  <p class="small">The bridge tree is a tree, so the route between two of its nodes is unique and has as many edges as the distance. Each tree edge is a bridge, and no other bridge can separate the pair.</p>
+                  <p class="small muted" style="margin-bottom:0">If the graph were not connected the pair would be unreachable and the question would be meaningless, which is why the wording says connected.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q8 &mdash; the bridge tree itself</h3>
+                <p class="small muted">(a) the bridge tree of a connected graph is a tree &nbsp; (b) its leaves are the components attached to the rest by exactly one bridge &nbsp; (c) contracting components can create a cycle of bridges &nbsp; (d) two stations in the same bridge-tree node have two edge-disjoint routes</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (a), (b), (d)</span></p>
+                  <p class="small">(a) holds because a cycle of bridges would give two routes between pieces, contradicting that each bridge lies on no cycle. (b) is the definition of a leaf in that tree. (d) is the definition of a component.</p>
+                  <p class="small muted" style="margin-bottom:0">(c) is impossible for exactly the reason (a) gives, and it is checked in code: on all 1,024 graphs with five vertices the edge count of the forest is always nodes minus components.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions, in one screen</h3>
+          <ul class="small">
+            <li><strong>Bridge:</strong> an edge whose deletion increases the number of connected components. Same as: an edge on no cycle.</li>
+            <li><strong>Relation:</strong> $$u \equiv v$$ when $$u = v$$ or two edge-disjoint routes join them. Reflexive, symmetric, transitive.</li>
+            <li><strong>2-edge-connected component:</strong> a class of that relation. Same as: a maximal bridgeless set of vertices. Same as: a component after cutting every bridge.</li>
+            <li><strong>Bridge forest:</strong> one node per component, one edge per bridge. A forest, with one tree per connected component.</li>
+            <li><strong>Leaf:</strong> a bridge-tree node of degree exactly 1. A degree-0 node is an isolated dot, not a leaf.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The four formulas</h3>
+          <div class="formula">$$k = c + b$$
+            <p class="gloss">Components after cutting bridges = connected components + bridges. Connected graph: $$k = 1 + b$$.</p>
+          </div>
+          <div class="formula">$$\text{tree distance}(T_u, T_v) = \text{bridges on any } u\text{-}v \text{ route}$$
+            <p class="gloss">Distance 0 means the pair shares a component, so it has two edge-disjoint routes.</p>
+          </div>
+          <div class="formula">$$\text{augmentation} = \left\lceil \frac{L}{2} \right\rceil + q$$
+            <p class="gloss">$$L$$ leaves of the bridge forest, $$q$$ isolated dots. Connected graph: just $$\lceil L/2 \rceil$$.</p>
+          </div>
+          <div class="formula">$$\text{edge is a bridge} \iff \text{low}[v] > \text{disc}[u]$$
+            <p class="gloss">For a tree edge from $$u$$ down to child $$v$$, strictly greater. Equality means a cycle covers the edge.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small">
+            <li><strong>Read the question.</strong> Weak edges means bridges; safe pairs means components; added edges means leaves.</li>
+            <li><strong>One search.</strong> Depth-first, keep disc and low, skip the parent edge by index.</li>
+            <li><strong>Mark bridges</strong> with the strict comparison, then cut them.</li>
+            <li><strong>Label the pieces</strong> by a second pass or a union-find over the surviving edges.</li>
+            <li><strong>Contract</strong> if the question is about counts, distances or augmentation.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Time proportional to vertices plus edges for steps 2 and 3, and for step 5 as well.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The traps, in one line each</h3>
+          <ul class="small">
+            <li>Skip the parent <em>edge</em>, never the parent vertex: two parallel edges are a cycle of length two.</li>
+            <li>&ldquo;On a common cycle&rdquo; is not transitive: the bowtie refutes it.</li>
+            <li>Bridge is not articulation point: $$K_2$$ in one direction, the bowtie in the other.</li>
+            <li>2-edge-connected is weaker than 2-vertex-connected, never stronger.</li>
+            <li>The bridge test is strictly greater; greater-or-equal is the cut-vertex test.</li>
+            <li>Count leaves in the bridge tree, not in the drawing.</li>
+            <li>Augmentation is $$\lceil L/2 \rceil$$, not the number of bridges.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Two graphs to remember: $$K_2$$ and the bowtie. Between them they refute five of the seven lines above.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> (gate2027.iitm.ac.in, the CS syllabus PDF). Downloaded and read this run. It supplies the Section 1 wording quoted on the Overview tab and confirms that the 2027 Computer Networks section names only DNS and HTTP, so nothing here is claimed under that section.</li>
+            <li><strong>Previous-year paper archive entries for GATE CSE 2015, Set 2</strong> (two independent archives). Used for the bridge statement question on the GATE patterns tab: wording and key agree, question number does not.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">No claim in this lesson depends on a syllabus reading from an earlier year.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and reference</h3>
+          <ul class="small">
+            <li><strong>The standard reference article on bridges</strong> (the encyclopaedia entry on &ldquo;Bridge (graph theory)&rdquo;). Supplies the deletion definition, the equivalence &ldquo;bridge iff on no cycle&rdquo;, the two-edge-disjoint-paths relation, the name 2-edge-connected components, and the bridge-block tree.</li>
+            <li><strong>Schmidt, &ldquo;A Simple Test on 2-Vertex- and 2-Edge-Connectivity&rdquo;</strong> (university technical report). Supplies the definition of 2-edge-connected as connected, at least two vertices, no bridge, chosen so the definition agrees with Menger&rsquo;s theorem, and the warning that very small graphs are treated differently by different authors.</li>
+            <li><strong>CLRS, <em>Introduction to Algorithms</em>, chapter 22</strong> (elementary graph algorithms). Supplies depth-first search, the discovery-time numbering this lesson&rsquo;s disc mirrors, and the white/gray/black discipline the low values are computed under.</li>
+            <li><strong>The documentation of a standard graph library&rsquo;s bridge-augmentation routine</strong>, which states the forest case: with $$p$$ leaves and $$q$$ isolated nodes, at least $$\lceil p/2 \rceil + q$$ edges are needed and that bound is attained.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Read as reference entries and article text. Every number in this lesson is recomputed in code rather than taken from any of them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used to find the errors</h3>
+          <ul class="small">
+            <li><strong>Algorithm write-ups on the bridge tree</strong> (a competitive-programming tutorial and a study-notes article). Used to collect the errors this lesson refutes with computed counterexamples: skipping the parent vertex, and counting leaves in the original graph.</li>
+            <li><strong>A Computer Science Stack Exchange thread on minimally extending a tree so that it has no bridges.</strong> Gives the $$\lceil n/2 \rceil$$ statement for trees and a constructive leaf-pairing argument, both of which the page checks by brute force rather than quoting.</li>
+            <li><strong>Discussion threads on the 2015 item.</strong> Several answers reach option 2 by eliminating the other three with counterexamples, which is the reasoning the GATE patterns tab reproduces.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">No community answer is used as the answer to any question here; every claim about a count was recomputed.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was not verified</h3>
+          <ul class="small">
+            <li>The official 2015 paper was not opened; the item is archive-sourced, and only the year and set are quoted because archives disagree on the number.</li>
+            <li>No 2027 question exists yet, so no statement here forecasts the paper.</li>
+            <li>The augmentation formula is checked by brute force only for labelled trees with four to six vertices, and by the pairing construction up to seven. For larger graphs it rests on the counting argument plus the published theorem, not on an exhaustive search.</li>
+            <li>The relation and the contraction partition are compared on all graphs with four and five vertices plus 200 seeded random multigraphs, not on all graphs of every size.</li>
+            <li>No audio was recorded. Timings in the subtitle files are estimated from the timeline at a normal speaking rate.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Where a claim rests on a computation, the computation is in the page and its result is reported in the model-checks panel on the Animation tab.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
