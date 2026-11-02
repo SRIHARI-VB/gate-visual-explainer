@@ -5129,6 +5129,12 @@ topics.append(topic(
         "the four-step routine and the five traps that are one trap in five costumes"]))
 
 _VERIFIED = {
+    "bit-fields-in-c": (
+        "the layout rule reproduces all five sizes that cppreference and two reported runs print",
+        "all 961 width pairs lie between the bit-count floor and two units, with no clash",
+        "all 512 width triples from 1 to 8 pack without an overlapping bit",
+        "every in-range value for every width from 1 to 12 survives a store and a read",
+        "no C compiler was available: these are computed from the stated rule, not measured"),
     "arrays-stacks-queues": "2026-11-03",
     "recursion": "2026-11-03",
     "functions-scope-and-preprocessor": "2026-11-03",
@@ -6533,6 +6539,75 @@ topics.append(topic(
         "precedence: equality binds tighter than &, so x & 1 == 0 is x & (1 == 0), always false",
         "the trap disagrees with the intended test on exactly the 128 even bytes",
         "the five-step procedure: width, mask, order, sign and count, then one hand check",
+    ],
+))
+
+# ---------------------------------------------------------------- C: bit fields
+topics.append(topic(
+    "Programming and Data Structures",
+    "Section 4: 'Programming in C' - the declarator form that names a run of bits",
+    "Bit fields in C: widths, allocation units, and the six things the standard leaves open",
+    ["the name-colon-width declaration and its four constraints",
+     "the allocation unit and the bits of the unit",
+     "the packing rule and the fit test",
+     "the unnamed field of width w and the zero-width field",
+     "a full member ending the unit",
+     "the range a width gives, unsigned and signed",
+     "what a bit-field refuses: address, sizeof, array, offsetof",
+     "the six implementation-defined or unspecified properties",
+     "the five-step procedure for sizing a bit-field struct"],
+    prereq=["structures-unions-and-enums", "c-fundamentals",
+            "number-representation-and-arithmetic"],
+    related=["bitwise-operators-and-bit-manipulation", "dynamic-memory-and-program-layout",
+             "memory-interfacing-and-interleaving", "ipv6-addressing-and-header",
+             "floating-point-arithmetic"],
+    importance="medium",
+    evidence=("Section 4 of the GATE 2027 CS syllabus names 'Programming in C', and a bit-field is "
+              "a declarator form of that language rather than an application of it. The syllabus "
+              "prints no narrower list of C features, so the classification is an argument from the "
+              "clause, and the lesson says so. No previous-year GATE item on bit-fields specifically "
+              "was located in the papers and archives searched on 2026-11-03, so every practice "
+              "question is labelled original and no PYQ is claimed. Official GATE 2027 CS syllabus, "
+              "IIT Madras."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="bit-fields-in-c",
+    path="topics/bit-fields-in-c/index.html",
+    execution=("published 2026-11-03; 21 of 21 model checks pass, geometry audit clean, "
+               "1441 frames drawn across 12 scenes; no C compiler was available, so every size is "
+               "a computed consequence of the stated layout rule, cross-checked against five "
+               "sizes that cppreference and two reported runs print"),
+    microtopics=[
+        "a bit-field is a run of bits inside an allocation unit, not a small int",
+        "the unit is the size of the declared type: 4 bytes for int, signed int, unsigned int",
+        "width is an integer constant expression, 0 to the bits of the type inclusive",
+        "a width above the type width is a constraint violation, so no object exists to size",
+        "a zero width may not be given a name",
+        "the type is _Bool, signed int, unsigned int, or another type the implementation allows",
+        "char and long bit-fields are extensions, not standard C",
+        "packing a following field into adjacent bits is required; the direction is not",
+        "the fit test is width against the bits remaining, not width against the unit size",
+        "a field that does not fit starts a new unit in the non-straddling model",
+        "the bits left behind by the fit test are lost, and are the cost of not straddling",
+        "straddling is implementation-defined, and changes bit positions even when the size holds",
+        "sizeof is units touched times unit size, rounded to the struct alignment",
+        "adding the widths and dividing by 8 is the commonest wrong method",
+        "the zero-width field takes no bits and ends the unit",
+        "an unnamed nonzero width is padding placed inside the unit",
+        "padding bits are not zeroed and are not preserved by struct assignment",
+        "a non-bit-field member and an adjacent bit-field are in separate memory locations",
+        "the unit is not shrunk to the bits used: it keeps its full size",
+        "a width of w gives 2^w patterns, so unsigned holds 0 to 2^w-1",
+        "a signed field of width w holds -2^(w-1) to 2^(w-1)-1",
+        "a store into an unsigned field is a reduction modulo 2^w, which is defined behaviour",
+        "for a plain int field, the signedness is implementation-defined",
+        "the address-of operator may not take a bit-field, so there are no pointers or arrays",
+        "sizeof of a field is not allowed, and offsetof on one is undefined",
+        "scanf cannot be given the address of a field; copy it out first",
+        "six properties are implementation-defined or unspecified, and a size question must name the platform",
+        "the standard does fix the packing-if-it-fits rule and the width-to-range rule",
+        "bit-fields are portable for values and not for bytes: use masks and shifts for a byte layout",
+        "the five-step procedure: colon, type, pack, unnamed forms, round",
     ],
 ))
 

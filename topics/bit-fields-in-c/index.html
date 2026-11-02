@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bit Fields in C — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Bit fields in C</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../structures-unions-and-enums/index.html">Prerequisite: structures, layout and padding</a>
+      <a href="../bitwise-operators-and-bit-manipulation/index.html">Related: bitwise operators</a>
+      <a href="../c-fundamentals/index.html">Related: C fundamentals</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Bit-fields in C &mdash; the declarator form <code>type name : width</code>, the allocation unit the fields live in, the packing rule, the two kinds of unnamed field, the range a width gives, and the six properties the standard deliberately leaves to the implementation.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a struct whose members are bit-fields, compute its <code>sizeof</code> and say which bit each named field occupies, or state that the answer is not determined by the standard. Distinguish an unnamed field of width four from a zero-width field, and say what each does to the unit. Read the same bits as signed and as unsigned and know which reading a given declaration asks for. And name the four constructs a bit-field refuses, with the one reason they all fail.</p>
+          <p><strong>GATE RELEVANCE:</strong> <strong>Class A</strong> &mdash; Section 4 of the GATE 2027 CS syllabus names <em>&ldquo;Programming in C&rdquo;</em>, and a bit-field is a declarator form of that language, not an application of it. Two honest qualifications, because this topic is where it is easiest to overclaim. First, the words &ldquo;bit-field&rdquo; are not printed in the syllabus; the classification rests on the named language. Second, no previous-year GATE item on bit-fields specifically was located in the papers and archives searched for this lesson, so <em>every</em> question on the Practice tab is labelled original practice and none is presented as a previous-year question. What GATE has asked, verifiably and repeatedly, is the size of a struct &mdash; and bit-fields are a struct-sizing question with one more rule in it. The sibling lesson on structures recomputes those items.</p>
+          <p><strong>PREREQUISITES:</strong> the layout rules for an ordinary struct &mdash; member sizes, alignment, and the trailing round-up (<a href="../structures-unions-and-enums/index.html">Structures, unions and enumerations</a>); the integer types and their widths (<a href="../c-fundamentals/index.html">C fundamentals</a>); and two&rsquo;s complement, for reading a signed field (<a href="../number-representation-and-arithmetic/index.html">Number representation</a>). Bitwise operators are not required: a bit-field is read by assignment, not by a mask, though the mask reading is the same idea and is linked at the end.</p>
+          <p><strong>VISUALIZATION PLAN:</strong> twelve scenes, one object: the 32-bit allocation unit, drawn as 32 cells with bit 31 on the left and bit 0 on the right. First the waste that motivates the feature, three ints against one packed unit. Then the declaration and its four constraints, because a width of 33 has no answer to compute. Then the unit itself, with bit numbering and the low-order-first packing. Then one declaration packed field by field, so the size is seen to be four rather than three. Then the fit rule, with the twelve free bits that are lost, and the straddle question that changes bit positions. Then the zero-width field, shown as one declaration with it and one without it, eight bytes against four. Then the unnamed padding field, which does the opposite. Then a struct that mixes fields with a full int, traced to sixteen bytes. Then the range: eight patterns read two ways. Then the four refusals that all come from having no address. Then the six open properties, as a list to check a question against. Then the five-step procedure, applied to two lines.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the declaration form and its layout</em>, not as a general treatment of packing pragmas or of bit manipulation. Masks and shifts are owned by the <a href="../bitwise-operators-and-bit-manipulation/index.html">bitwise operators</a> lesson, ordinary struct padding by the <a href="../structures-unions-and-enums/index.html">structures</a> lesson, and <code>#pragma pack</code> and <code>__attribute__((packed))</code> are compiler extensions that this lesson names and does not compute.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance, in the syllabus&rsquo;s own words</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The GATE 2027 CS syllabus PDF was downloaded from the IIT Madras GATE site and read for this lesson. Section 4 reads in full: <em>&ldquo;Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs.&rdquo;</em> The syllabus prints no list of C features inside &ldquo;Programming in C&rdquo;.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> Because the clause names the language and nothing narrower, a declarator form of that language is inside the clause. That makes the lesson class A rather than class B. It is an argument from the wording, not a quotation of it, and the Overview says so.</p>
+          <p class="small"><span class="claim-chip claim-chip--observation">Community observation</span> Bit-field questions circulate widely in C interview sets and in compiler documentation, and the reported runs quoted on the Examples tab come from those discussions. None of them is a GATE paper, and none is used here as evidence about GATE.</p>
+          <p class="small muted" style="margin-bottom:0">No marks distribution or weightage is claimed, and nothing here forecasts the 2027 paper. One syllabus clause is not a frequency estimate.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites, precisely</h3>
+          <p class="small"><strong>Must already be comfortable with:</strong></p>
+          <ul class="small">
+            <li>A struct is one block, and its size is the sum of its members plus the padding the alignment rules force, rounded up to the largest member alignment.</li>
+            <li>An <code>int</code> is 4 bytes and 32 bits on the platform this lesson uses, and is aligned to 4.</li>
+            <li>Two&rsquo;s complement: in a signed field of width w, the top bit is worth &minus;2<sup>w&minus;1</sup>, not +2<sup>w&minus;1</sup>.</li>
+            <li>Modular arithmetic on w bits: there are 2<sup>w</sup> patterns, and adding one to the largest wraps to zero.</li>
+            <li>What an lvalue is, since the whole &ldquo;no address&rdquo; section is about lvalues that cannot have one.</li>
+          </ul>
+          <p class="small"><strong>Helpful, not required:</strong> having met <code>sizeof</code> on an ordinary struct, since the questions here are the same question with one extra rule.</p>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 35&ndash;50 minutes with the animation, or 10 minutes for the Revision tab alone. The figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small">
+            <li><strong>A bit-field is a run of bits in a unit, not a small int.</strong> The unit is the size of the declared type, and the field is a window into it. That is why a field can start mid-byte, and why it has no address.</li>
+            <li><strong>Pack in order; start a new unit when the field does not fit.</strong> The test is width against the bits remaining, not width against the unit size. The bits left behind are lost.</li>
+            <li><strong>Width zero and unnamed-with-width are different instructions.</strong> Width zero ends the unit; an unnamed width consumes bits inside it. One token apart, one whole unit apart.</li>
+            <li><strong>The width sets the range, the declared type sets the reading.</strong> Three bits hold eight patterns: 0 to 7 unsigned, &minus;4 to 3 signed. Six and &minus;2 are the same three bits.</li>
+            <li><strong>Six properties are open, so a size question must name the platform.</strong> Order within the unit, straddling, plain-int signedness, other types, atomic types and unit alignment are not fixed by the standard.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Legend: green marks a value the page computed and checked; amber marks a trap; red marks a claim the standard refuses to make.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Intuition: a form with ruled boxes</h3>
+              <p class="small">Think of a paper form with one wide row of thirty-two small boxes. Most of the questions on the form need a number from 0 to 59, which is at most six boxes. If every question got a whole row of its own, the form would be twelve rows long and mostly empty. A bit-field is the instruction &ldquo;this question gets six boxes of this row, starting where the last one stopped&rdquo;.</p>
+              <p class="small">Two things follow immediately, and both matter later. First, a question with six boxes is not a question with its own row: you cannot point at it and say &ldquo;it starts here&rdquo;, because it may start in the middle of a row. Second, how the boxes are numbered and which end you start from is the form designer&rsquo;s choice &mdash; the language fixes that a question gets its boxes, not which end they are counted from.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The form is exact about packing and silent about order, which is precisely the split the standard makes: packing a following field into adjacent bits is required, and the direction is implementation-defined.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Formal definition</h3>
+              <p class="small">A struct or union member may be declared to consist of a specified number of bits. That member is a <strong>bit-field</strong>, and its width follows a colon.</p>
+              <div class="formula">struct S { unsigned int kind : 3; };</div>
+              <div class="formula">0 &le; width &le; bits in the declared type
+                <p class="gloss">Read: the width is an integer constant expression. It may not exceed the number of bits in an object of the type that would apply if the colon and the width were removed. A width of zero is allowed only when the declaration has no name.</p>
+              </div>
+              <div class="formula">type &isin; { _Bool, signed int, unsigned int }
+    &cup; { any other type the implementation allows }
+                <p class="gloss">Read: three types are required to work, plus whatever else the implementation chooses to allow. <code>char</code> and <code>long</code> bit-fields are extensions, not standard C.</p>
+              </div>
+              <div class="formula">no address, no array, no sizeof of a field
+                <p class="gloss">Read: the unary <code>&amp;</code> may not take a bit-field, so there are no pointers to or arrays of bit-fields, and a field cannot be the operand of <code>sizeof</code>.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The three constraints and the prohibition on taking an address are clause 6.7.2.1 of the C standard, read in the annotated reproduction listed on the Sources tab and cross-checked against cppreference&rsquo;s page for the same feature.</p>
+            </div>
+
+            <div class="card">
+              <h3>Derivation 1 &mdash; the size is a whole number of units</h3>
+              <p class="small">A bit-field lives inside an <strong>allocation unit</strong>: an addressable storage object large enough to hold it, whose size is that of the declared type. For an <code>unsigned int</code> field that is 4 bytes, or 32 bits. The struct is then a sequence of such units, plus any ordinary members.</p>
+              <p class="small">So the total size is never the sum of the widths divided by eight. It is the number of units used, times the unit size, rounded up to the alignment of the whole struct. Three fields of 5, 6 and 6 bits use 17 of 32 bits, which is one unit, which is four bytes &mdash; not three.</p>
+              <div class="formula">sizeof = units used &times; unit size, rounded to the struct alignment
+                <p class="gloss">Read: the rounding is at the unit, not at the byte. Adding widths and dividing by 8 answers a question nobody asked, and it is the commonest wrong method on this topic.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Checked in code on every declaration the page draws: the size is always a multiple of the unit size, and the used, padding and unused bits always add up to the size in bits. Both checks are reported in the model-checks panel.</p>
+            </div>
+
+            <div class="card">
+              <h3>Derivation 2 &mdash; the fit test, and what it costs</h3>
+              <p class="small">The standard requires that a bit-field which immediately follows another and has enough space left be packed into adjacent bits of the same unit. It does not require that a field which does <em>not</em> fit be split across two units: whether it starts a new unit or straddles is implementation-defined.</p>
+              <p class="small">The model this lesson computes takes the non-straddling choice, which is what GCC does on x86-64. The test at each step is therefore: does <code>width</code> exceed the bits remaining in the current unit? If it does, move to the next unit boundary first, then place it.</p>
+              <div class="formula">fits(unit, width)  &hArr;  width &le; 32 &minus; (bits used in unit)
+                <p class="gloss">Read: the comparison is against the bits left, not against 32. A twenty-bit field in a unit with twelve bits free does not fit, even though twenty is less than thirty-two.</p>
+              </div>
+              <p class="small">The cost of the non-straddling choice is visible and should be said out loud: the bits left behind are not reused. Two twenty-bit fields occupy two units and waste twenty-four bits.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Enumerated in code over all 961 pairs of widths from 1 to 31: every size lies between the bit-count floor and two units, and no pair produces overlapping bits.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Derivation 3 &mdash; the zero-width field</h3>
+              <p class="small">The standard has one special case: a bit-field member with a width of zero indicates that no further bit-field is to be packed into the unit in which the previous bit-field, if any, was placed. It takes no bits itself; it moves the boundary.</p>
+              <div class="formula">unsigned : 0   &mdash;   end this unit here; the next field starts a new one
+unsigned : 4   &mdash;   place four bits of padding inside this unit
+                <p class="gloss">Read: the first ends the unit and the second fills part of it. They differ by one character in the source and by an entire unit in the layout.</p>
+              </div>
+              <p class="small">The worked consequence: <code>unsigned b1:5, b2:6, b3:15;</code> uses 26 bits and is one unit, four bytes. Insert <code>:0</code> after <code>b1</code> and the same three fields need two units, eight bytes, and every field after the zero moves.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Both declarations are laid out in code; the check confirms the four-byte difference comes from the zero-width field alone, and that b2 starts at bit 32 with it and bit 5 without it.</p>
+            </div>
+
+            <div class="card">
+              <h3>Derivation 4 &mdash; the width is the range</h3>
+              <p class="small">A width of w gives exactly 2<sup>w</sup> patterns, and a bit-field is interpreted as a signed or unsigned integer type consisting of that many bits. So the range is fixed by the width and the reading is fixed by the declared type.</p>
+              <div class="formula">unsigned w-bit field:  0 .. 2<sup>w</sup> &minus; 1
+signed   w-bit field:  &minus;2<sup>w&minus;1</sup> .. 2<sup>w&minus;1</sup> &minus; 1
+                <p class="gloss">Read: for w = 3 those are 0 to 7, and &minus;4 to 3. Eight patterns either way; only the interpretation of the top bit differs.</p>
+              </div>
+              <p class="small">A store into an unsigned field keeps the value modulo 2<sup>w</sup>: storing 9 in a three-bit field reads back 1, and incrementing 7 gives 0. That is defined behaviour, not overflow, because an unsigned field has a defined modular result.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Every in-range value for every width from 1 to 12 survives a store and a read, checked in code; and raw 110 read as a three-bit signed field is &minus;2.</p>
+            </div>
+
+            <div class="card">
+              <h3>Derivation 5 &mdash; why there is no address</h3>
+              <p class="small">A byte address designates a byte. A field of three bits may begin at bit 5 of a byte and end at bit 7 of the same byte, or begin at bit 30 and end at bit 0 of the next unit. In the first case no address designates it because it is not a whole object; in the second, no address designates it because it is not contiguous in the address space.</p>
+              <p class="small">The standard states the consequence directly: the unary address-of operator cannot be applied to a bit-field, so there are no pointers to or arrays of bit-field objects. Everything else follows: no <code>scanf</code> into a field, no <code>offsetof</code> on one, no <code>sizeof</code> of one.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Clause 6.7.2.1 footnote on the address-of operator, and clause 6.5.3.2 on what the operand of <code>&amp;</code> may be. cppreference states the same prohibition and adds that calling <code>offsetof</code> on a bit-field is undefined behaviour.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Derivation 6 &mdash; the same declaration, two compilers</h3>
+              <p class="small">Take <code>struct { unsigned a:28, b:8; }</code>. Twenty-eight bits are placed in the unit, four remain, and eight do not fit in four. A non-straddling compiler starts b at bit 32. A straddling compiler puts b at bits 28 to 35, crossing the boundary, and the struct may be the same size with entirely different bit positions.</p>
+              <p class="small">So the size alone is not enough to answer &ldquo;which bits does b occupy&rdquo;, and the bit positions alone are not enough to answer &ldquo;what is <code>sizeof</code>&rdquo;. A question must pin down the compiler for either, and this is why the lesson states its model in one sentence and tests it against published sizes.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page computes the non-straddling layout for this declaration and reports b starting at bit 32, not 28.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every size and bit position computed in code.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Three ordinary unsigned members. Each one takes four bytes, whatever value it holds.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Three small numbers, twelve bytes</p>
+            <p class="counter" id="scene-count">Scene 1 of 12</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Three ordinary unsigned members, one after another. Each takes four bytes.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="360" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">6:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card span-2">
+              <h3>Worked examples, page 1 of 2 &mdash; the five sizes the model reproduces</h3>
+              <p class="small">These five declarations are the page&rsquo;s cross-check. For each one, cppreference or a reported compiler run prints a size; the page&rsquo;s own rule computes a size; the two agree. No compiler was run in this environment, so the agreement is evidence that the rule is the compiler&rsquo;s rule, not evidence that a program was executed.</p>
+              <div class="sheet">
+                <dl>
+                  <dt>unsigned b1:5, :11, b2:6, b3:2;</dt><dd>24 bits in one unit &rarr; 4 bytes &mdash; matches &ldquo;usually prints 4&rdquo;</dd>
+                  <dt>unsigned b1:5, :0, b2:6, b3:15;</dt><dd>two units &rarr; 8 bytes &mdash; matches &ldquo;usually prints 8&rdquo;</dd>
+                  <dt>unsigned a:5, b:5, c:5, d:5;</dt><dd>20 bits in one unit &rarr; 4 bytes &mdash; matches the reported run</dd>
+                  <dt>opaque:1, fill:3, :4, border:1, bcol:3, bstyle:2, :2;</dt><dd>16 bits in one unit &rarr; 4 bytes &mdash; matches</dd>
+                  <dt>light:1, toast:1, int count, ac:4, :4, clock:1, :0, flag:1;</dt><dd>four units &rarr; 16 bytes &mdash; matches</dd>
+                </dl>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--observation">Community observation</span> The three &ldquo;reported run&rdquo; sizes come from published questions whose authors state the output of their own compiler. They are used here as cross-checks on a rule, not as authority for a standard.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 &mdash; three values that need seventeen bits</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>as three ints</dt><dd>3 &times; 4 = 12 bytes, 96 bits, of which 79 are always zero</dd>
+                  <dt>as bit-fields</dt><dd>h:5 at bits 0&ndash;4, m:6 at 5&ndash;10, s:6 at 11&ndash;16</dd>
+                  <dt>size</dt><dd>one unit, so 4 bytes; 15 bits unused</dd>
+                  <dt>why 5 and 6</dt><dd>h &le; 23 needs 5 bits (32 values); m, s &le; 59 need 6 (64 values)</dd>
+                </dl>
+              </div>
+              <p class="small">This is the motivating example, and it is also the one that shows the size rule: 17 bits is three bytes of data, and the answer is four, because the unit is four.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Computed by the page: the struct is 4 bytes with 15 unused bits.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 &mdash; four fields, one unit, one wrong method</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>b1:5</dt><dd>bits 0&ndash;4</dd>
+                  <dt>:11</dt><dd>bits 5&ndash;15, padding, unreadable</dd>
+                  <dt>b2:6</dt><dd>bits 16&ndash;21</dd>
+                  <dt>b3:2</dt><dd>bits 22&ndash;23</dd>
+                  <dt>unused</dt><dd>bits 24&ndash;31</dd>
+                  <dt>size</dt><dd>4 bytes; the widths sum to 3 bytes</dd>
+                </dl>
+              </div>
+              <p class="small">The wrong method is <code>(5 + 11 + 6 + 2) / 8 = 3</code>. It is wrong because the object is a unit, not a bit string. The right method is: how many units did I touch, and what is a unit worth?</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Every bit position above is the model&rsquo;s output, printed on the canvas in scene four.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 &mdash; one zero, four bytes</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>with :0</dt><dd>b1 at 0&ndash;4, then unit 2: b2 at 32&ndash;37, b3 at 38&ndash;52 &rarr; 8 bytes</dd>
+                  <dt>without :0</dt><dd>b1 at 0&ndash;4, b2 at 5&ndash;10, b3 at 11&ndash;25 &rarr; 4 bytes</dd>
+                  <dt>the difference</dt><dd>one token, one unit, and every later field moved</dd>
+                  <dt>the waste</dt><dd>27 bits of the first unit are never used</dd>
+                </dl>
+              </div>
+              <p class="small">This pair is the sharpest demonstration that layout is a property of the declaration rather than of the data. The same three numbers, the same widths, twice the size.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Both layouts are computed; the check confirms b2 starts at bit 32 in one and bit 5 in the other.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 4 &mdash; two twenty-bit fields</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>a:20</dt><dd>bits 0&ndash;19; bits 20&ndash;31 free</dd>
+                  <dt>b:20</dt><dd>does not fit in twelve bits, so starts unit 2 at bit 32</dd>
+                  <dt>size</dt><dd>8 bytes, with 24 bits never used</dd>
+                  <dt>if straddling allowed</dt><dd>b would sit at bits 20&ndash;39, and the size would still be 8</dd>
+                </dl>
+              </div>
+              <p class="small">The last line is the interesting one: a straddling compiler can produce the same size with different bit positions. So &ldquo;sizeof is 8&rdquo; does not tell you where b is, and &ldquo;b is at bit 32&rdquo; does not follow from the standard.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The non-straddling layout is computed; the straddling one is stated as the alternative the standard permits.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 5 &mdash; a mixed struct traced to sixteen bytes</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>light:1, toast:1</dt><dd>unit 1, bits 0 and 1; 30 bits lost</dd>
+                  <dt>int count</dt><dd>offset 4, because the unit ends first</dd>
+                  <dt>ac:4, :4, clock:1</dt><dd>unit 3, bits 0&ndash;3, 4&ndash;7, 8</dd>
+                  <dt>:0</dt><dd>ends unit 3</dd>
+                  <dt>flag:1</dt><dd>unit 4, bit 0</dd>
+                  <dt>size</dt><dd>16 bytes</dd>
+                </dl>
+              </div>
+              <p class="small">Without the <code>:0</code>, flag would share unit 3 with clock and the struct would be twelve bytes. Without the <code>int</code>, all the fields would share one unit and the struct would be four.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Traced by the model; the size agrees with the sixteen a reported run prints for this declaration.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 &mdash; eight patterns, two readings</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>000, 001, 010, 011</dt><dd>0, 1, 2, 3 in both readings</dd>
+                  <dt>100</dt><dd>4 unsigned; &minus;4 signed</dd>
+                  <dt>110</dt><dd>6 unsigned; &minus;2 signed</dd>
+                  <dt>111</dt><dd>7 unsigned; &minus;1 signed</dd>
+                  <dt>store 9 in a:3</dt><dd>9 mod 8 = 1, read back as 1</dd>
+                  <dt>a = 7; a++</dt><dd>0, because the field holds three bits</dd>
+                </dl>
+              </div>
+              <p class="small">Two different questions hide in this table. &ldquo;What is stored&rdquo; is answered by the width, by reduction modulo 2<sup>w</sup>. &ldquo;What is printed&rdquo; is answered by the declared signedness, and for a plain <code>int</code> field that is implementation-defined.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The wrap and the signed reading are computed in code and reported in the checks; the round trip is verified for every in-range value of every width from 1 to 12.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 &mdash; the four refusals</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>&amp;s.a</dt><dd>constraint violation: &amp; may not take a bit-field</dd>
+                  <dt>sizeof s.a</dt><dd>not allowed: sizeof needs an object or a type</dd>
+                  <dt>unsigned f:3 arr[4]</dt><dd>no arrays of bit-fields exist</dd>
+                  <dt>offsetof(struct S, a)</dt><dd>undefined behaviour</dd>
+                  <dt>scanf("%d", &amp;s.a)</dt><dd>cannot work: it needs an address</dd>
+                </dl>
+              </div>
+              <p class="small">Each line is a different symptom of one fact. A field may start mid-byte, so no byte address designates it. Copying the field into an <code>int</code> first and taking the address of the copy is the working alternative.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The first, third and fourth are stated in clause 6.7.2.1 and in cppreference&rsquo;s page on bit-fields; the <code>offsetof</code> case is named there as undefined behaviour.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. A width equal to the type width</h3>
+          <p class="small"><code>unsigned int a : 32</code> is legal: the constraint is <code>width &le; 32</code>, not <code>width &lt; 32</code>. A width of 33 is a constraint violation and no object exists to size. So the boundary case is allowed and the one past it is not.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The constraint reads &ldquo;shall not exceed the number of bits in an object of the type&rdquo;, so equality is inside it. The model rejects 33 and accepts 32.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. A named zero-width field</h3>
+          <p class="small"><code>unsigned int a : 0;</code> is a constraint violation, because the standard says that if the width is zero the declaration shall have no declarator. There is no object for the name to refer to. The model reports exactly this error.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Checked in code: the declaration produces one error and no layout.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. The field that does not fit, but almost does</h3>
+          <p class="small">A twenty-eight-bit field leaves four bits free. An eight-bit field does not fit, even though eight is much less than thirty-two. The fit test is against the bits remaining, so the answer is a new unit and four wasted bits.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Computed: the second field starts at bit 32 in the non-straddling model.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. Padding is not zero</h3>
+          <p class="small">An unnamed field of width four has no defined value. Assigning the whole struct copies the members; what happens to the padding bits is not something the standard promises, so two structs with equal members need not be equal byte for byte. Comparing a bit-field struct with <code>memcmp</code> is therefore unreliable.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page&rsquo;s bit map shows those bits owned by <code>(pad)</code> and by nothing else; no member can be read from them.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. &ldquo;Adding the widths gives the size&rdquo; fails on the first example</h3>
+          <p class="small">The counterexample is the smallest one available: <code>unsigned b1:5, :11, b2:6, b3:2;</code> has widths summing to 24 bits, which is 3 bytes, and its size is 4. Nothing exotic is involved: no ordinary members, no unions, one unit. The method fails because the object is a unit.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Both numbers are computed; the disagreement is a property of the model, not an accident of one declaration.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. &ldquo;A field of width w holds values up to 2<sup>w</sup>&rdquo; fails at the boundary</h3>
+          <p class="small">A three-bit field holds 0 to 7, so 8 is the first value that does not fit, and it is stored as 0. The tempting statement &ldquo;it holds up to eight&rdquo; is off by one in the direction that matters, because 8 wraps to 0 rather than saturating or failing.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Computed: store 8 in a three-bit field reads back 0; store 9 reads back 1.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>7. Two readings of the same bits, and no way to tell from the value</h3>
+          <p class="small">A signed three-bit field and an unsigned three-bit field holding pattern 110 are indistinguishable from the bits: one is 6 and the other is &minus;2. If a question prints the field and does not say which type, the answer for pattern 110 is not determined. This is the closest-confused pair in the topic, and the difference is one keyword in the declaration.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Computed for all eight patterns: the two readings agree on 000 to 011 and differ on 100 to 111.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>8. Mixing bit-field types</h3>
+          <p class="small">A struct that declares an <code>unsigned int</code> field and then an <code>unsigned char</code> field is outside this lesson&rsquo;s model: whether they share a unit, and how the smaller type&rsquo;s unit aligns, is implementation-defined and differs between compilers. The model covers <code>int</code>, <code>signed int</code> and <code>unsigned int</code> fields, and says so rather than guessing.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Clause 6.7.2.1 permits any implementation-defined type and leaves the unit&rsquo;s alignment unspecified, which is what makes mixed-width field types unpredictable.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--trap">
+              <h3>Misconception 1 &mdash; &ldquo;a bit-field is a small int&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> an int has an address, a size, and a whole object of its own. A bit-field has none of the three. <code>&amp;s.a</code> does not compile, <code>sizeof s.a</code> does not compile, and the field may begin in the middle of a byte.</p>
+              <p class="small"><strong>What to hold instead:</strong> a bit-field is a named window into an allocation unit. Everything that follows &mdash; no pointer, no array, no <code>scanf</code>, no <code>offsetof</code> &mdash; comes from that one sentence.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The prohibition on taking the address is in clause 6.7.2.1 and in clause 6.5.3.2&rsquo;s list of permitted operands.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Misconception 2 &mdash; &ldquo;sizeof is the widths added up and divided by eight&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> the object is a whole number of allocation units. Widths of 5, 11, 6 and 2 sum to 24 bits, and the answer is 4 bytes, not 3. The same method also fails the other way on a struct with a <code>:0</code>, where the widths sum to 26 and the answer is 8.</p>
+              <p class="small"><strong>What to hold instead:</strong> count the units the declaration touches, multiply by the unit size, then round to the struct alignment.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Both cases are computed; the page reports 4 and 8 for the two declarations.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Misconception 3 &mdash; &ldquo;<code>:0</code> is the same as an unnamed field of some width&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> they do opposite things. <code>unsigned : 4</code> consumes four bits of the current unit and the next field continues after them. <code>unsigned : 0</code> consumes nothing and ends the unit, so the next field starts at the next boundary.</p>
+              <p class="small"><strong>What to hold instead:</strong> a nonzero unnamed width is padding; a zero width is a boundary. The second is the only way to force a new unit without inserting a full member.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The mixed struct on the Examples tab places clock at bit 8 after four bits of padding, and flag at bit 32 after a zero.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Misconception 4 &mdash; &ldquo;a three-bit field holds up to 8&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> three bits give eight patterns, numbered 0 to 7. The value 8 does not fit, and storing it keeps 8 modulo 8, which is 0. So the field never holds 8, and it silently holds 0 instead.</p>
+              <p class="small"><strong>What to hold instead:</strong> a w-bit unsigned field holds 0 to 2<sup>w</sup> &minus; 1, and a store is a reduction modulo 2<sup>w</sup>. Check the maximum value the data can take before choosing the width.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Computed: store 8 reads 0, store 9 reads 1, and incrementing 7 gives 0.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--trap">
+              <h3>Misconception 5 &mdash; &ldquo;the first field is in the first byte&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> the first field is in the low-order bits of the unit, which is the first byte only if the compiler packs from the low end and the machine is little-endian. On a big-endian target of the same compiler, the first field is in the last byte of the unit.</p>
+              <p class="small"><strong>What to hold instead:</strong> the field is in the unit, and where inside the unit is implementation-defined. Only the struct&rsquo;s first byte address is fixed.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Clause 6.7.2.1: the order of allocation of bit-fields within a unit is implementation-defined.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Misconception 6 &mdash; &ldquo;the size is fixed by the standard&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> four of the six open properties change the size. Straddling can save a unit, a different plain-int signedness changes the range but not the size, and a compiler that permits <code>char</code> bit-fields may place them in one-byte units.</p>
+              <p class="small"><strong>What to hold instead:</strong> a size question names a platform or it has several right answers. The two published sizes for the same three fields differ by a whole unit between GCC and MSVC on some declarations.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--observation">Community observation</span> The GCC-and-MSVC difference for a zero-width field between <code>char</code> and <code>int</code> fields is documented in a public defect report discussion, and is reported rather than measured here.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Misconception 7 &mdash; &ldquo;bit-fields are portable if I use unsigned int&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> using <code>unsigned int</code> fixes the signedness question and the unit size, and leaves the order inside the unit, the straddling choice, the unit alignment, and whether the compiler honours the widths at all. A struct written to match a network header is not portable across compilers without a packing attribute.</p>
+              <p class="small"><strong>What to hold instead:</strong> bit-fields are portable for <em>values</em> (read and write through the member) and not for <em>bytes</em> (memcpy, file formats, network order). Use masks and shifts when the byte layout matters.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> This is the practical rule the standard&rsquo;s own division implies; the <a href="../bitwise-operators-and-bit-manipulation/index.html">bitwise operators</a> lesson builds the portable alternative.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Misconception 8 &mdash; &ldquo;the compiler will warn me if the value does not fit&rdquo;</h3>
+              <p class="small"><strong>Why it is wrong:</strong> assigning an out-of-range value to a bit-field is not a constraint violation for an unsigned field; it is a defined reduction. For a signed field the result is implementation-defined. Neither is a required diagnostic, so nothing is printed and the value quietly changes.</p>
+              <p class="small"><strong>What to hold instead:</strong> the range check is yours. If the data can exceed 2<sup>w</sup> &minus; 1, the width is wrong, and no compiler is obliged to tell you.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Computed for every width from 1 to 12: a store keeps the value modulo 2<sup>w</sup>, with no error path in the model.</p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Pattern A &mdash; &ldquo;what is sizeof&rdquo; on a struct of bit-fields</h3>
+          <p class="small">The commonest form, and the one this topic is really about. You are given a declaration and a platform (or a platform statement is implied by the paper&rsquo;s conventions), and asked for the size. The work is: unit size, pack in order, count the units, round.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Where marks are lost:</strong> adding the widths and dividing by 8. It is quick, it looks like arithmetic, and it is wrong whenever the declaration touches more than one unit or leaves a partial unit.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern B &mdash; the effect of one token</h3>
+          <p class="small">Two declarations differing by a <code>:0</code>, by a member&rsquo;s order, or by one width, and a question about the difference in size. This form tests whether you know which token does what. The zero-width field is the favourite, because it changes the size by a whole unit and moves every later field.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Shortcut, with its assumption:</strong> a <code>:0</code> costs one unit of waste, so the size goes up by one unit. The assumption is that the unit had bits free; if the previous field filled the unit exactly, the zero changes nothing.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern C &mdash; what a field holds after an out-of-range store</h3>
+          <p class="small">A three-bit field, a value of 9, and a print. For an unsigned field the answer is 9 mod 8 = 1. For a signed field of the same width the answer is implementation-defined, so the question has to name the compiler or be unanswerable.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Where marks are lost:</strong> answering 9 because 9 is what was assigned, or answering &minus;7 by applying two&rsquo;s complement to the wrong width.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern D &mdash; which construct is illegal</h3>
+          <p class="small">Four lines, one of which does not compile: <code>&amp;s.a</code>, <code>sizeof s.a</code>, an array of fields, <code>offsetof</code> on a field. All four fail for the same reason, so recognising the reason answers all four at once.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Shortcut, with its assumption:</strong> if the operand is a bit-field and the operator needs an address, it is the illegal one. The assumption is that you can tell a field from an ordinary member, which the colon does.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern E &mdash; &ldquo;what does this print&rdquo; where the answer is &ldquo;it depends&rdquo;</h3>
+          <p class="small">A declaration with a plain <code>int</code> field, a value whose top bit is set, and four numeric options. The correct reasoning is that the signedness of a plain <code>int</code> field is implementation-defined, so on the stated platform the answer follows that platform&rsquo;s choice and on an unstated platform there is none.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Where marks are lost:</strong> assuming <code>int</code> means <code>signed int</code>, which is what it means everywhere else in C and not inside a bit-field declaration.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five-step reading procedure</h3>
+          <ol class="step-list small">
+            <li>Find the colon. A member without one is an ordinary member and takes its whole type.</li>
+            <li>Read the declared type. It fixes the unit size and, with the width, the range.</li>
+            <li>Pack in declaration order into the low-order bits. A field that does not fit starts a new unit, in this model.</li>
+            <li>Handle the unnamed forms: width zero ends the unit, nonzero width only consumes bits.</li>
+            <li>Round the total to the unit size, then to the struct alignment.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">This procedure is the procedure scene twelve animates. It is a reading checklist, not a proof of the standard&rsquo;s rules, and it holds only under the model stated on the Build-up tab.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>Practice set &mdash; eight original questions</h3>
+          <p class="small">Every question here is written for this lesson and labelled as original practice. None of them is a previous-year question, and none is presented as one: no verified previous-year GATE item on bit-fields was located for this lesson, which the Overview tab states plainly.</p>
+          <p class="small"><label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until I submit</label>
+            <button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+          <p class="small muted" style="margin-bottom:0">Unless a question says otherwise, assume <code>int</code> and <code>unsigned int</code> are 4 bytes and 32 bits, and the compiler packs fields from the low-order bits without straddling &mdash; the model stated on the Build-up tab.</p>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small"><code>struct S { unsigned a:5, b:5, c:5, d:5; };</code> &mdash; what is <code>sizeof(struct S)</code> in bytes?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 4.</strong> Twenty bits fit inside one 32-bit unit, so one unit is touched and a unit is 4 bytes.</p>
+            <p class="small">The wrong method gives 20/8 = 2.5, which is not even an integer, and a student who rounds it up to 3 has answered a question about a bit string rather than about a struct. The page computes 4 for this declaration, which is the size a reported run prints for it.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small">What is the difference between <code>unsigned : 4</code> and <code>unsigned : 0</code> in a struct?</p>
+            <p class="small">(A) nothing, both are padding &nbsp; (B) the first consumes four bits of the current unit, the second ends the unit &nbsp; (C) the first ends the unit, the second consumes four bits &nbsp; (D) the second is a constraint violation</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> A nonzero unnamed width is padding placed inside the unit; a zero width takes no bits and moves the next field to the next unit boundary.</p>
+            <p class="small">(A) is the misconception the scene refutes: the two differ by an entire unit in the layout. (C) is (B) with the two halves swapped, which is the pair most often confused. (D) confuses this with the named zero-width form, which <em>is</em> a violation; an unnamed zero width is the legal and intended case.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small"><code>struct S { unsigned b1:5, :0, b2:6, b3:15; };</code> &mdash; how many bytes is <code>sizeof(struct S)</code>?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 8.</strong> b1 occupies bits 0 to 4 of unit 1, the zero ends that unit, and b2 and b3 take 21 bits of unit 2. Two units, so 8 bytes.</p>
+            <p class="small">Delete the <code>:0</code> and the same three fields fit in one unit of 26 bits, giving 4. The page computes both and the check confirms the four-byte difference comes from the zero-width field alone.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small"><code>struct S { unsigned a:3; } s; s.a = 9;</code> &mdash; what does <code>printf("%u", s.a)</code> print, given <code>a</code> is declared <code>unsigned</code>?</p>
+            <p class="small">(A) 9 &nbsp; (B) 1 &nbsp; (C) 0 &nbsp; (D) implementation-defined</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B) 1.</strong> A three-bit unsigned field keeps the value modulo 8, and 9 mod 8 is 1.</p>
+            <p class="small">(A) is what was assigned, which is not what is stored. (C) is what storing 8 would give. (D) is the trap of this question: for an <code>unsigned</code> field the result is defined, and only for a <code>signed</code> field &mdash; or a plain <code>int</code> field &mdash; does implementation-defined enter. Reading the keyword carefully is the whole question.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small">Which of the following are true of a bit-field member <code>a</code> of a struct? Select all that apply.</p>
+            <p class="small">(A) <code>&amp;s.a</code> is a constraint violation &nbsp; (B) <code>sizeof s.a</code> is not allowed &nbsp; (C) <code>offsetof(struct S, a)</code> has a defined value &nbsp; (D) an array of bit-fields cannot be declared</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A), (B) and (D).</strong> All three follow from the field having no address.</p>
+            <p class="small">(C) is the false statement, and it is the one people mark true: <code>offsetof</code> is defined in terms of the address of a member, so calling it on a bit-field is undefined behaviour rather than a value. The three true options are three symptoms of one cause, which is why they are asked together.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small"><code>struct S { unsigned a:20, b:20; };</code> &mdash; how many bits of the object belong to no field at all?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 24.</strong> a takes bits 0 to 19 of unit 1; b needs 20 bits, only 12 remain, so b starts unit 2 at bit 32 and takes bits 32 to 51. The object is 64 bits and the fields own 40 of them.</p>
+            <p class="small">Twelve bits at the top of unit 1 and twelve at the top of unit 2 are lost. A straddling compiler would use some of them, which is exactly why the question must state the model.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small">A struct holds <code>unsigned light:1, toast:1;</code> followed by <code>int count;</code>. Where does <code>count</code> begin?</p>
+            <p class="small">(A) offset 2 &nbsp; (B) offset 1 &nbsp; (C) offset 4 &nbsp; (D) offset 8</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (C) offset 4.</strong> The two one-bit fields occupy a four-byte unit, and an ordinary member starts a new location after that unit; four-byte alignment also demands offset 4.</p>
+            <p class="small">(A) treats the fields as two one-byte members, which ignores the unit. (B) is the same error with the two bits packed into one byte. (D) would need a second unit before the int, which nothing here asks for. Both the unit rule and the alignment rule point at 4, which is why the wrong options are plausible.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p class="small"><code>struct S { unsigned a:4; unsigned :4; unsigned b:2; unsigned :0; unsigned c:1; };</code> &mdash; what is <code>sizeof(struct S)</code> in bytes?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 8.</strong> Unit 1 holds a at bits 0 to 3, four bits of padding at 4 to 7, and b at 8 and 9. The zero ends that unit. c starts unit 2 at bit 32. Two units, so 8 bytes.</p>
+            <p class="small">The trap is answering 4: the fields themselves need only seven bits, and without the <code>:0</code> the struct would indeed be 4 bytes. The padding field is what makes b land at bit 8 rather than bit 4, and the zero is what costs the second unit.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Formulas, each with its condition</h3>
+          <div class="formula">type name : width
+            <p class="gloss">width is an integer constant expression, 0 &le; width &le; the bits of the declared type. Width 0 only with no name.</p>
+          </div>
+          <div class="formula">sizeof = units touched &times; unit size, rounded to struct alignment
+            <p class="gloss">Not the widths divided by 8. A unit is the size of the declared type: 4 bytes for int, signed int and unsigned int here.</p>
+          </div>
+          <div class="formula">fits &hArr; width &le; bits remaining in the unit
+            <p class="gloss">Otherwise a new unit starts, in the non-straddling model. The bits left behind are lost.</p>
+          </div>
+          <div class="formula">unsigned : 0 ends the unit;  unsigned : w (w &gt; 0) consumes w bits inside it
+            <p class="gloss">The zero takes no bits and moves the boundary. The nonzero width is padding placed in the unit.</p>
+          </div>
+          <div class="formula">unsigned w-bit: 0 .. 2<sup>w</sup>&minus;1;   signed w-bit: &minus;2<sup>w&minus;1</sup> .. 2<sup>w&minus;1</sup>&minus;1
+            <p class="gloss">A store is a reduction modulo 2<sup>w</sup>. For a plain int field the signedness is implementation-defined.</p>
+          </div>
+          <div class="formula">no &amp;field, no sizeof field, no array of fields, no offsetof field
+            <p class="gloss">One cause: a field may start mid-byte, so no byte address designates it.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>The decision procedure</h3>
+          <ol class="step-list small">
+            <li>Find the colon. No colon means an ordinary member with its whole type.</li>
+            <li>Read the declared type: it fixes the unit size and, with the width, the range.</li>
+            <li>Pack in order into the low-order bits; a field that does not fit starts a new unit.</li>
+            <li>Apply the unnamed rules: zero ends the unit, nonzero consumes bits.</li>
+            <li>Round to the unit, then to the struct alignment.</li>
+            <li>If the question asks for bit positions or for a signed value, check that it named the compiler.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">A reading procedure for exam questions. It is not a proof, and it is valid only under the model stated on the Build-up tab.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, each with its defusing example</h3>
+          <ul class="small">
+            <li><strong>Widths divided by 8:</strong> 24 bits is not 3 bytes; the struct is 4.</li>
+            <li><strong><code>:0</code> read as padding:</strong> it ends the unit and costs 4 bytes here.</li>
+            <li><strong>Padding read as ending the unit:</strong> <code>:4</code> keeps the unit and places the next field after it.</li>
+            <li><strong>3 bits holding 8:</strong> it holds 0 to 7, and 8 stores as 0.</li>
+            <li><strong>Plain <code>int</code> field read as signed:</strong> its signedness is implementation-defined.</li>
+            <li><strong>Bit positions without a compiler:</strong> the standard does not fix the order or the straddling.</li>
+            <li><strong><code>&amp;s.a</code> as a workaround:</strong> it is a constraint violation, not a warning.</li>
+            <li><strong>memcmp on a bit-field struct:</strong> padding bits have no defined value.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Every one of these is refuted on the Misconceptions or Edge cases tab with the smallest example that breaks it.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Six questions to test yourself, answers below</h3>
+          <div class="grid grid--2">
+            <div>
+              <p class="small">1. Is <code>unsigned int a : 32;</code> legal?<br>
+              2. Is <code>unsigned int a : 0;</code> legal?<br>
+              3. How many bytes is <code>struct { unsigned a:5, b:6, c:6; }</code>?</p>
+            </div>
+            <div>
+              <p class="small">4. A three-bit signed field holds 110. What does it read?<br>
+              5. Does <code>unsigned : 4</code> end the unit?<br>
+              6. What does <code>sizeof s.a</code> do?</p>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <p class="small"><strong>Answers.</strong> 1. Yes: the constraint is width &le; 32, and 33 is the first illegal width. 2. No: a zero width may not be given a name. 3. Four: 17 bits fit in one unit. 4. &minus;2, because the top bit is the sign in a signed three-bit field. 5. No &mdash; it consumes four bits of the current unit; only a zero width ends the unit. 6. It does not compile: <code>sizeof</code> takes an object or a type, and a bit-field is neither.</p>
+          <p class="small muted" style="margin-bottom:0">Answers 3 and 4 are computed by the page&rsquo;s own model; the rest are the constraints restated.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras.</strong> Downloaded from the GATE 2027 site and read for this lesson. Section 4 is quoted in full on the Overview tab and names &ldquo;Programming in C&rdquo; with no narrower list of features. That clause is the whole of the official basis for this topic&rsquo;s classification, and the Overview says so rather than implying more.</li>
+            <li><strong>No previous-year GATE item on bit-fields.</strong> The 2022 and 2017 papers already read for the sibling bitwise lesson contain no bit-field question, and the archives searched for this lesson returned none. No question on this page is labelled a previous-year question.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">The absence of a previous-year item is a fact about the search, not a prediction. It is reported because a lesson that invented one would be worse than a lesson that admits there is none.</p>
+        </div>
+
+        <div class="card">
+          <h3>The language standard, and material that reproduces it</h3>
+          <ul class="small">
+            <li><strong>ISO/IEC 9899, clause 6.7.2.1 (structure and union specifiers)</strong> &mdash; the width constraint, the permitted types, the packing requirement, the implementation-defined order and straddling, the unnamed and zero-width fields, and the footnote that the address-of operator cannot be applied to a bit-field. Read as clause text reproduced in an annotated form rather than from a purchased copy of the standard.</li>
+            <li><strong>&ldquo;The New C Standard&rdquo;, annotation of 6.7.2.1</strong> &mdash; a sentence-by-sentence reproduction of the clause, which is the source of the exact wording paraphrased on the Build-up tab.</li>
+            <li><strong>cppreference, &ldquo;Bit-fields&rdquo; (C)</strong> &mdash; the same rules in modern wording, the two example structs whose sizes it prints as 4 and 8, the statement that <code>offsetof</code> on a bit-field is undefined, and the list of which properties are implementation-defined and which are unspecified.</li>
+            <li><strong>WG14 N1260, &ldquo;C1x: Bit-fields&rdquo;</strong> &mdash; the committee paper that traces how the permitted types widened from C90 to C99, and why <code>_Bool</code> fields and wider types arrived.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">These were read as clause text and article text, not in full. No number in this lesson depends on them: every size and bit position is computed by the page and reported in the model-checks panel.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook-level and community material</h3>
+          <ul class="small">
+            <li><strong>Kernighan and Ritchie, <em>The C Programming Language</em>, chapter 6</strong> &mdash; bit-fields as a way to pack several small objects into one word, with the caution that almost everything about the layout is machine-dependent.</li>
+            <li><strong>Reported compiler runs on public question sites</strong> &mdash; the sizes 4, 4 and 16 for three of the declarations on the Examples tab. Used as cross-checks on the layout rule, reported as observations, and never as authority for the standard.</li>
+            <li><strong>A public defect-report discussion of the zero-width field</strong> &mdash; the case where GCC and MSVC disagree on the size of a struct mixing <code>char</code> and <code>int</code> bit-fields around a zero-width field. Used to justify the lesson&rsquo;s refusal to model mixed field types.</li>
+            <li><strong>Stack Overflow discussions of bit-field layout</strong> &mdash; used to identify the two errors this lesson refutes with computed examples: that widths can simply be summed, and that a zero-width field is a kind of padding.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Community material is reported as an observation about what is commonly believed or commonly printed, never as proof of a rule.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was not verified</h3>
+          <ul class="small">
+            <li>No C compiler was run in this environment, so no program output on the page is a measured run. Every size and bit position is a consequence of the layout rule stated on the Build-up tab, and the rule is tested against five sizes that cppreference and two reported runs print for the same declarations.</li>
+            <li>The ISO standard itself was not opened. Clause 6.7.2.1 is quoted from an annotated reproduction and cross-checked against cppreference.</li>
+            <li>The lesson does not claim what any particular compiler does beyond the five cross-checked sizes. The straddling alternative is described as permitted, not as any compiler&rsquo;s behaviour.</li>
+            <li>The model&rsquo;s scope is bit-fields of type <code>int</code>, <code>signed int</code> and <code>unsigned int</code>. Mixed field types, <code>char</code> and <code>long</code> fields, <code>_Bool</code> fields, <code>#pragma pack</code> and <code>__attribute__((packed))</code> are named and not computed.</li>
+            <li>No GATE item on bit-fields was located, so the exam evidence is one syllabus clause and no previous-year question. The practice set is entirely original and labelled so.</li>
+            <li>The exhaustive checks cover all 961 width pairs, all 512 width triples from 1 to 8, and every in-range value for widths 1 to 12. They can refute a claim; they cannot prove one for every declaration. The proof is the unit argument on the Build-up tab.</li>
+            <li>No audio was recorded. Timings in the subtitle files are estimated from the timeline at a normal speaking rate.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Where a claim rests on a computation, the computation is in the page and its result is reported in the model-checks panel on the Animation tab.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
