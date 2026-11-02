@@ -1069,6 +1069,71 @@ topics.append(topic(
         "minimal sum of products is minimal two-level, not minimum gates",
     ]))
 
+# The clause "design of combinational circuits" has a cost side that the
+# combinational-circuits lesson names and declines: the minimum number of
+# 2-input NAND or NOR gates for a function. That is this entry.
+topics.append(topic(
+    "Digital Logic", "Combinational design", "Minimum NAND and NOR gate count",
+    ["the four settings of a cost model (gate type, fan-in, supplied signals, reuse)",
+     "the one-gate test and the zero-gate case",
+     "exact minima for every function of one and two variables",
+     "sum of products into NAND-NAND and product of sums into NOR-NOR",
+     "wide-gate expansion from two-input gates",
+     "shared subexpressions across two outputs",
+     "the complements clause and the answers it moves"],
+    prereq=["boolean-algebra-and-minimisation", "combinational-circuits",
+            "algebraic-boolean-minimisation"],
+    related=["combinational-circuits", "boolean-algebra-and-minimisation",
+             "quine-mccluskey-tabular-method", "alu-and-control-unit-design",
+             "arithmetic-algorithms-booth-division-cla", "sequential-circuits"],
+    importance="high",
+    evidence="GATE 2027 Section 2 names 'Design of combinational and sequential circuits' "
+             "(IIT Madras, CS_GATE2027_Syllabus.pdf). Three previous-year items were verified this run "
+             "against the paper text and independent key listings: GATE CSE 2009 Q6 "
+             "(minimum gates for AB+C using only 2-input NOR, key 3), GATE CSE 2017 Set 1 Q21 "
+             "(K-map with don't cares, 2-input NOR only, complements available, key 1) and "
+             "GATE CSE 2019 (f = Sigma(0,2,5,7,8,10,13,15) in 2-input NOR, complements available, key 3). "
+             "Four items often mislabelled as GATE CSE in practice material were identified and are not "
+             "counted: the (A'+B')(C+D) NAND item is ISRO Scientist CS 2020, the A+AB'+AB'C item is ISRO 2016, "
+             "the 2-input XOR NAND item is GATE IT 2004, and f=(X'+Y')(Z+W) is GATE ECE 1988. "
+             "No marks distribution is claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="minimum-nand-nor-gate-count",
+    path="topics/minimum-nand-nor-gate-count/index.html",
+    execution="published 2026-11-02: 63/63 model checks pass, 1393 frames drawn across 12 scenes without error, geometry audit clean, scenes tile the 348s timeline, captions cover the full duration",
+    microtopics=[
+        "a gate count is a property of a cost model, not of a function",
+        "the four settings: gate type, fan-in limit, supplied signals, reuse",
+        "one gate computes not(pq) or not(p+q), and nothing else",
+        "one NAND gate buys 3 functions of two variables with literals only, and 9 with complements",
+        "all 16 two-variable functions classified by exact minimum: 2 at 0 gates, 3 at 1, 4 at 2, 4 at 3, 2 at 4, 1 at 5",
+        "the single 5-gate function is XNOR; XOR is 4",
+        "the four-column table: NAND or NOR, with or without the complements",
+        "AND is 2/2/3/1 and XOR is 4/3/5/3 across those four columns",
+        "NAND contains AND, so supplying complements does not cheapen AND in NAND",
+        "NOR contains OR, so supplying complements makes AND one gate",
+        "XOR is 4 NAND gates without complements and 3 with them; 2 is impossible in both",
+        "XNOR is 5 NAND without complements, 4 NOR without, and 3 of either with",
+        "the complements clause is what separates the folklore table from the 2019 answer",
+        "a sum of products is one NAND per product term plus one combine",
+        "AB+CD is 3 NAND gates; AB+CD+EF is 6, not 4",
+        "a k-input NAND is 2k-3 two-input gates; a k-input AND is 2k-2",
+        "four-input NAND is 5 gates: a balanced NAND tree computes ab+cd, not not(abcd)",
+        "the full adder is 9 gates for both outputs, 8 for the sum alone, 6 for the carry alone",
+        "sharing not(AB) and A xor B saves 5 gates against building the two outputs apart",
+        "the answer can be 0: absorption to a single literal costs no gate",
+        "the answer can be 1: not-a AND c is one NOR gate when not-c is supplied",
+        "the constants are not free: 2 and 3 gates from literals, 1 and 2 with complements",
+        "'gates' without '2-input' is a different question: AB+CD+EF is 6 or 4",
+        "a don't care is spendable only where the input cannot occur",
+        "GATE CSE 2009 Q6: AB+C = (A+C)(B+C) in 3 NOR gates, and 2 is impossible",
+        "GATE CSE 2017 Set 1 Q21: the map collapses to not-a c, which is one NOR gate",
+        "GATE CSE 2019: a four-variable function collapses to B XNOR D, 3 NOR gates",
+        "duality swaps the function as well as the gate, so the counts are not read across a row",
+        "gate count, delay and cover size are three different costs",
+    ]))
+
 topics.append(topic(
     "Digital Logic", "Sequential design", "Design of sequential circuits",
     ["latches and flip-flops", "registers and counters", "finite state machines",
