@@ -976,6 +976,7 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
 </div>
 
 <script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
 <script src="timeline.js"></script>
 <script src="../../assets/lesson-kit.js"></script>
 <script>
@@ -1141,15 +1142,29 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
     return { pass: true, detail: '12 cells, row-major' };
   });
 
-  check('pointer arithmetic scales by sizeof(*p) for int and char', function () {
-    var intOK = true, charOK = true;
-    for (var k = 0; k < M.a.n; k++) {
-      if ((M.a.base + k * SZ.int) - M.a.base !== k * SZ.int) intOK = false;
-      if ((M.a.base + k * SZ.char) - M.a.base !== k * SZ.char) charOK = false;
+  check('one byte span holds span/sizeof(T) elements, so the count is type-dependent', function () {
+    var span = M.a.n * M.a.elem;            /* 20 bytes */
+    var asInt = span / SZ.int, asChar = span / SZ.char;
+    return {
+      pass: asInt === M.a.n && asChar === span && asChar !== asInt,
+      detail: span + ' bytes = ' + asInt + ' ints = ' + asChar + ' chars'
+    };
+  });
+
+  check('a byte offset is an element boundary only when it is a multiple of sizeof(T)', function () {
+    var span = M.a.n * M.a.elem, ok = true, misaligned = 0;
+    for (var off = 0; off < span; off++) {
+      var boundary = (off % SZ.int) === 0;
+      var declared = false;
+      for (var k = 0; k < M.a.cells.length; k++) {
+        if (M.a.cells[k].addr === M.a.base + off) { declared = true; break; }
+      }
+      if (boundary !== declared) ok = false;
+      if (!boundary) misaligned++;
     }
     return {
-      pass: intOK && charOK && SZ.int !== SZ.char,
-      detail: 'int step 4, char step 1'
+      pass: ok && misaligned === span - M.a.n,
+      detail: misaligned + ' of ' + span + ' offsets are not int boundaries'
     };
   });
 
@@ -1172,9 +1187,13 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
     };
   });
 
-  check('a decayed parameter has the pointer size, not the array size', function () {
-    var param = SZ.ptr;
-    return { pass: param === SZ.ptr && param !== M.facts.sizeofA, detail: 'param 8, array 20' };
+  check('sizeof(array) tracks the element count while sizeof(pointer) does not', function () {
+    var sizeA = M.a.n * M.a.elem, sizeB = M.b.n * M.b.elem;
+    return {
+      pass: sizeA === 20 && sizeB === 16 && sizeA !== sizeB && SZ.ptr === 8,
+      detail: M.a.n + ' ints -> ' + sizeA + ' bytes, ' + M.b.n + ' ints -> ' + sizeB +
+              ' bytes, pointer stays ' + SZ.ptr
+    };
   });
 
   var passed = CHECKS.filter(function (c) { return c.pass; }).length;
@@ -1238,159 +1257,13 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
     return c;
   }
 
-  function headPoints(x1, y1, x2, y2, size) {
-    var ang = Math.atan2(y2 - y1, x2 - x1);
-    var a1 = ang + Math.PI - 0.42;
-    var a2 = ang + Math.PI + 0.42;
-    return [
-      [x2, y2],
-      [x2 + size * Math.cos(a1), y2 + size * Math.sin(a1)],
-      [x2 + size * Math.cos(a2), y2 + size * Math.sin(a2)]
-    ];
-  }
-
-  function makePainter2D(ctx) {
-    var P = { W: W, H: H, a: 1 };
-    P.alpha = function (v) { P.a = v < 0 ? 0 : v > 1 ? 1 : v; };
-    P.clear = function () { ctx.clearRect(0, 0, W, H); };
-    P.rect = function (x, y, w, h, o) {
-      o = o || {};
-      ctx.save();
-      if (o.dash) ctx.setLineDash(o.dash);
-      if (o.fill) { ctx.fillStyle = rgba(o.fill, P.a); ctx.beginPath(); roundRect(ctx, x, y, w, h, o.radius || 0); ctx.fill(); }
-      if (o.stroke) { ctx.strokeStyle = rgba(o.stroke, P.a); ctx.lineWidth = o.sw || 1.5; ctx.beginPath(); roundRect(ctx, x, y, w, h, o.radius || 0); ctx.stroke(); }
-      ctx.restore();
-    };
-    P.line = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      ctx.save();
-      if (o.dash) ctx.setLineDash(o.dash);
-      ctx.strokeStyle = rgba(o.stroke || PAL.border, P.a);
-      ctx.lineWidth = o.sw || 1.5;
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-      ctx.restore();
-    };
-    P.arrow = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      P.line(x1, y1, x2, y2, o);
-      var pts = headPoints(x1, y1, x2, y2, o.head || 10);
-      ctx.save();
-      ctx.fillStyle = rgba(o.stroke || PAL.border, P.a);
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      ctx.lineTo(pts[1][0], pts[1][1]);
-      ctx.lineTo(pts[2][0], pts[2][1]);
-      ctx.closePath(); ctx.fill();
-      ctx.restore();
-    };
-    P.circle = function (x, y, r, o) {
-      o = o || {};
-      ctx.save();
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-      if (o.fill) { ctx.fillStyle = rgba(o.fill, P.a); ctx.fill(); }
-      if (o.stroke) { ctx.strokeStyle = rgba(o.stroke, P.a); ctx.lineWidth = o.sw || 1.5; ctx.stroke(); }
-      ctx.restore();
-    };
-    P.tri = function (x1, y1, x2, y2, x3, y3, o) {
-      o = o || {};
-      ctx.save();
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.closePath();
-      if (o.fill) { ctx.fillStyle = rgba(o.fill, P.a); ctx.fill(); }
-      if (o.stroke) { ctx.strokeStyle = rgba(o.stroke, P.a); ctx.lineWidth = o.sw || 1.5; ctx.stroke(); }
-      ctx.restore();
-    };
-    P.text = function (x, y, s, o) {
-      o = o || {};
-      var size = o.size || 14;
-      var fam = o.mono ? '"IBM Plex Mono", ui-monospace, Menlo, monospace'
-                       : '"IBM Plex Sans", system-ui, sans-serif';
-      ctx.save();
-      ctx.font = (o.bold ? '600 ' : '400 ') + size + 'px ' + fam;
-      ctx.fillStyle = rgba(o.color || PAL.ink, P.a);
-      ctx.textAlign = o.align === 'center' ? 'center' : o.align === 'right' ? 'right' : 'left';
-      ctx.textBaseline = o.base === 'middle' ? 'middle' : o.base === 'bottom' ? 'bottom' : 'top';
-      ctx.fillText(String(s), x, y);
-      ctx.restore();
-    };
-    return P;
-  }
-
-  function roundRect(ctx, x, y, w, h, r) {
-    if (!r) { ctx.rect(x, y, w, h); return; }
-    r = Math.min(r, w / 2, h / 2);
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function makePainterP5(sk) {
-    var P = { W: W, H: H, a: 1 };
-    P.alpha = function (v) { P.a = v < 0 ? 0 : v > 1 ? 1 : v; };
-    P.clear = function () { sk.clear(); };
-    P.rect = function (x, y, w, h, o) {
-      o = o || {};
-      sk.push();
-      var dc = sk.drawingContext;
-      if (o.dash) dc.setLineDash(o.dash); else dc.setLineDash([]);
-      if (o.fill) sk.fill(rgba(o.fill, P.a)); else sk.noFill();
-      if (o.stroke) { sk.stroke(rgba(o.stroke, P.a)); sk.strokeWeight(o.sw || 1.5); } else sk.noStroke();
-      sk.rect(x, y, w, h, o.radius || 0);
-      dc.setLineDash([]);
-      sk.pop();
-    };
-    P.line = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      sk.push();
-      var dc = sk.drawingContext;
-      if (o.dash) dc.setLineDash(o.dash); else dc.setLineDash([]);
-      sk.stroke(rgba(o.stroke || PAL.border, P.a));
-      sk.strokeWeight(o.sw || 1.5);
-      sk.line(x1, y1, x2, y2);
-      dc.setLineDash([]);
-      sk.pop();
-    };
-    P.arrow = function (x1, y1, x2, y2, o) {
-      o = o || {};
-      P.line(x1, y1, x2, y2, o);
-      var pts = headPoints(x1, y1, x2, y2, o.head || 10);
-      P.tri(pts[0][0], pts[0][1], pts[1][0], pts[1][1], pts[2][0], pts[2][1],
-            { fill: o.stroke || PAL.border });
-    };
-    P.circle = function (x, y, r, o) {
-      o = o || {};
-      sk.push();
-      if (o.fill) sk.fill(rgba(o.fill, P.a)); else sk.noFill();
-      if (o.stroke) { sk.stroke(rgba(o.stroke, P.a)); sk.strokeWeight(o.sw || 1.5); } else sk.noStroke();
-      sk.circle(x, y, r * 2);
-      sk.pop();
-    };
-    P.tri = function (x1, y1, x2, y2, x3, y3, o) {
-      o = o || {};
-      sk.push();
-      if (o.fill) sk.fill(rgba(o.fill, P.a)); else sk.noFill();
-      if (o.stroke) { sk.stroke(rgba(o.stroke, P.a)); sk.strokeWeight(o.sw || 1.5); } else sk.noStroke();
-      sk.triangle(x1, y1, x2, y2, x3, y3);
-      sk.pop();
-    };
-    P.text = function (x, y, s, o) {
-      o = o || {};
-      sk.push();
-      sk.noStroke();
-      sk.fill(rgba(o.color || PAL.ink, P.a));
-      sk.textFont(o.mono ? 'IBM Plex Mono' : 'IBM Plex Sans');
-      sk.textSize(o.size || 14);
-      sk.textStyle(o.bold ? sk.BOLD : sk.NORMAL);
-      var hAlign = o.align === 'center' ? sk.CENTER : o.align === 'right' ? sk.RIGHT : sk.LEFT;
-      var vAlign = o.base === 'middle' ? sk.CENTER : o.base === 'bottom' ? sk.BOTTOM : sk.TOP;
-      sk.textAlign(hAlign, vAlign);
-      sk.text(String(s), x, y);
-      sk.pop();
-    };
-    return P;
-  }
+  /* The painter is the shared one from assets/painters.js. Before this the page
+     carried its own private copy of both backends, which meant the geometry audit
+     could not read the frames it drew and no check ever exercised its scenes.
+     Delegating to the shared kit gives every lesson one drawing vocabulary and
+     makes this page auditable like the rest. */
+  function makePainter2D(ctx) { return window.Painters.makePainter2D(ctx, W, H); }
+  function makePainterP5(sk) { return window.Painters.makePainterP5(sk, W, H); }
 
   /* ======================================================================
      LAYER 4 — RENDER
@@ -1545,7 +1418,7 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
     P.alpha(1);
 
     P.alpha(q4);
-    P.text(x0, 432, 'a pointer is a variable whose value is an address', { size: 15, bold: true, color: PAL.ink });
+    P.text(x0, 414, 'a pointer is a variable whose value is an address', { size: 15, bold: true, color: PAL.ink });
     P.alpha(1);
   }
 
@@ -1640,7 +1513,7 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
       var bx = ix + 6, by = iy + ih + 34;
       var len = iw * K.clamp01(q2 * 1.6);
       P.arrow(bx, by, bx + len, by, { stroke: PAL.accent, sw: 1.8, head: 9 });
-      P.text(bx + iw + 10, by - 18, 'p + 1  \u2192  +4 bytes', { size: 12, mono: true, bold: true, color: PAL.accent });
+      P.text(bx + iw + 10, by + 8, 'p + 1  \u2192  +4 bytes', { size: 12, mono: true, bold: true, color: PAL.accent });
     }
 
     // char row
@@ -1661,7 +1534,7 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
       var by2 = cy + chh + 34;
       var len2 = cw2 * K.clamp01(q3 * 1.6);
       P.arrow(cx + 6, by2, cx + 6 + len2, by2, { stroke: PAL.info, sw: 1.8, head: 9 });
-      P.text(cx + cw2 + 16, by2 - 18, 'q + 1  \u2192  +1 byte', { size: 12, mono: true, bold: true, color: PAL.info });
+      P.text(cx + cw2 + 16, by2 + 8, 'q + 1  \u2192  +1 byte', { size: 12, mono: true, bold: true, color: PAL.info });
     }
 
     // formula
@@ -2123,6 +1996,14 @@ printf("%d %ld", a[0], (long)(p - a));</code></pre>
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(function () { if (P) drawFrame(P); });
     }
+
+    // Let the headless tools drive the page at any instant. Without this the
+    // scene functions are never executed by a check, so a throwing scene or an
+    // overlapping label would only ever be found by a human watching.
+    window.__drawAt = function (t) {
+      K.state.elapsed = t;
+      if (P) drawFrame(P);
+    };
 
     // expose the validation result for inspection
     window.__lessonChecks = CHECKS;
