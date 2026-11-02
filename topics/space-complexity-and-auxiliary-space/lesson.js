@@ -502,7 +502,7 @@ function drawFrames(t) {
     var appear = K.clamp01((p - i * 0.045) / 0.15);
     if (appear <= 0) continue;
     P.alpha(appear);
-    var x = 56 + i * 21, y = 88 + i * 32;
+    var x = 56 + i * 7, y = 88 + i * 32;
     card(x, y, 300, 27, i === 0 ? ACCDIM : SURF, i === 0 ? ACC : BORDER);
     P.text(x + 10, y + 13, 'foo(' + (FOO_N - i) + ')', { size: 12, bold: true, color: INK, base: 'middle', mono: true });
     P.text(x + 290, y + 13, 'i = ' + (FOO_N - i - 1) + ' at the deepest call',
@@ -653,7 +653,7 @@ function drawQuick(t) {
   var p = K.sceneProgress(t);
 
   tag(56, 76, 'THE ARRAY IS NEVER COPIED');
-  var cells = 16, cw = 46;
+  var cells = 16, cw = 30;
   for (var i = 0; i < cells; i++) {
     var x = 56 + i * cw;
     var isPivot = i === cells - 1;
@@ -662,14 +662,14 @@ function drawQuick(t) {
     });
     P.text(x + (cw - 4) / 2, 107, String(i + 1), { size: 12, color: INK, align: 'center', base: 'middle', mono: true });
   }
-  P.text(56 + cells * cw + 6, 100, 'pivot', { size: 10.5, color: WARN, bold: true });
-  P.text(56 + cells * cw + 6, 116, '= largest', { size: 10, color: FAINT });
-  P.text(56, 140, 'Everything smaller goes left, so the right part is empty and the left part loses one key.',
+  P.text(56, 132, 'the last cell is the pivot, and on sorted input it is the largest key',
+         { size: 9.5, color: FAINT });
+  P.text(56, 148, 'Everything smaller goes left; the left part loses one key.',
          { size: 11.5, color: DIM });
 
   /* the stack column */
   tag(56, 164, 'THE STACK, ONE FRAME PER KEY REMOVED');
-  var cols = 2, rows = 32, fw = 12, fh = 6;
+  var cols = 2, rows = 32, fw = 12, fh = 5;
   for (var f = 0; f < QS_WORST.peak; f++) {
     var ap = K.clamp01((p - 0.15 - f * 0.006) / 0.2);
     if (ap <= 0) continue;
@@ -785,7 +785,7 @@ function drawGraphs(t) {
     P.alpha(1);
   }
 
-  P.text(44, 74, 'the four neighbours of vertex 0 are one BFS layer', { size: 10.5, color: ACC });
+  P.text(44, 108, 'the four neighbours of vertex 0 are one BFS layer', { size: 10.5, color: ACC });
   P.text(44, 424, 'DFS from vertex 0 follows 0 → 4 → 5 → 6 → 7 → 8: six frames.',
          { size: 11, color: DIM });
 

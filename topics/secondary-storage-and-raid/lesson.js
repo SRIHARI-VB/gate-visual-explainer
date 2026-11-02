@@ -851,10 +851,10 @@
     });
 
     if (u > 0.82) {
-      P.rect(430, 128, 420, 44, { fill: C.invalidDim, stroke: C.invalid, sw: 1, radius: 5 });
-      P.text(444, 138, '6 single-failure patterns, 6 data losses \u2014 counted',
+      P.rect(430, 292, 420, 44, { fill: C.invalidDim, stroke: C.invalid, sw: 1, radius: 5 });
+      P.text(444, 302, '6 single-failure patterns, 6 data losses \u2014 counted',
              { size: 12, color: C.ink });
-      P.text(444, 156, 'a 100-disk array of 200,000-hour disks: MTTF 2,000 hours',
+      P.text(444, 320, 'a 100-disk array of 200,000-hour disks: MTTF 2,000 hours',
              { size: 11, color: C.dim });
     }
   }
@@ -896,16 +896,16 @@
       var yy = 344 + i * 26;
       var a = K.ease(K.clamp01((u - 0.2 - i * 0.1) * 3));
       P.alpha(a);
-      P.text(90, yy + 44, r[0], { size: 11.5, color: C.dim });
-      P.text(240, yy + 44, r[1], { size: 11.5, color: r[2] });
+      P.text(90, yy + 32, r[0], { size: 11.5, color: C.dim });
+      P.text(240, yy + 32, r[1], { size: 11.5, color: r[2] });
       P.alpha(1);
     });
 
     if (u > 0.84) {
-      P.rect(520, 120, 330, 64, { fill: C.accentDim, stroke: C.accent, sw: 1, radius: 5 });
-      P.text(534, 130, 'mirroring = RAID 5 with a group of two', { size: 12, bold: true, color: C.ink });
-      P.text(534, 150, '(2 - 1) / 2 = 50%, and the penalty', { size: 11, color: C.dim });
-      P.text(534, 166, 'falls to 2 because nothing must be read', { size: 11, color: C.dim });
+      P.rect(520, 300, 340, 64, { fill: C.accentDim, stroke: C.accent, sw: 1, radius: 5 });
+      P.text(534, 310, 'mirroring = RAID 5 with a group of two', { size: 12, bold: true, color: C.ink });
+      P.text(534, 330, '(2 - 1) / 2 = 50%, and the penalty', { size: 11, color: C.dim });
+      P.text(534, 346, 'falls to 2 because nothing must be read', { size: 11, color: C.dim });
     }
   }
 
@@ -916,7 +916,7 @@
           'one exclusive-or per stripe, and where that block lives');
 
     // RAID 4 grid: 5 data columns + 1 parity column
-    var x0 = 70, cw = 96, ch = 26, gy = 120;
+    var x0 = 60, cw = 62, ch = 26, gy = 120;
     P.text(x0, gy - 22, 'RAID 4: parity on one dedicated disk', { size: 12, bold: true, color: C.ink });
     for (var s = 0; s < 3; s++) {
       for (var c = 0; c < 6; c++) {
@@ -931,7 +931,7 @@
     P.text(x0, gy + 3 * ch + 6, 'every write to any stripe touches disk 5', { size: 11, color: C.warn });
 
     // RAID 5 grid: rotated parity
-    var rx = 470;
+    var rx = 480;
     P.text(rx, gy - 22, 'RAID 5: parity rotated one disk per stripe', { size: 12, bold: true, color: C.ink });
     for (var s5 = 0; s5 < 6; s5++) {
       for (var c5 = 0; c5 < 6; c5++) {
