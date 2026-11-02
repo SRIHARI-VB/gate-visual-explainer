@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The comparison lower bound: decision trees, leaves and the exact height — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">The comparison lower bound</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../sorting-algorithms/index.html">Prerequisite: sorting</a>
+      <a href="../asymptotic-complexity/index.html">Prerequisite: asymptotics</a>
+      <a href="../selection-lower-bounds-max-min-second-largest/index.html">Related: exact comparison counts</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The comparison lower bound for sorting &mdash; the decision tree, the leaf count, the ceiling of $$n!$$, and the exact number of comparisons for small $$n$$.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Turn any comparison-based sorting algorithm into a binary decision tree, argue that a correct algorithm needs at least $$n!$$ leaves, deduce that a tree of height $$h$$ has at most $$2^h$$ leaves, and conclude $$h \ge \lceil \log_2(n!) \rceil$$. Compute that ceiling exactly in whole numbers for $$n = 1$$ to $$22$$, say why the ceiling and the base are what they are, and apply Stirling to get $$\Theta(n\log n)$$. Then state precisely when the ceiling is achieved ($$n \le 11$$) and when it is not (from $$n = 12$$, where the floor is $$29$$ and the proven minimum is $$30$$).</p>
+          <p><strong>GATE RELEVANCE:</strong> <strong>Class A</strong> &mdash; Section 5 of the syllabus names <em>&ldquo;Searching, sorting, hashing. Asymptotic worst case time and space complexity.&rdquo;</em> This lesson is the standard content of that second sentence for sorting: the worst-case asymptotic complexity of the sorting problem, not of one algorithm. The words &ldquo;decision tree&rdquo; and &ldquo;lower bound&rdquo; are not in the syllabus; the clause they belong to is, and three previous-year items ask it directly (1991, 2004, 1990).</p>
+          <p><strong>PREREQUISITES:</strong> factorials and how fast they grow; binary trees and their height (<a href="../trees-bst-and-heaps/index.html">trees</a>); what $$\Theta$$, $$\Omega$$ and &ldquo;worst case&rdquo; mean (<a href="../asymptotic-complexity/index.html">asymptotic complexity</a>); having seen merge sort and insertion sort (<a href="../sorting-algorithms/index.html">sorting algorithms</a>). No probability beyond &ldquo;all orders equally likely&rdquo;, and no calculus except one logarithm.</p>
+          <p><strong>VISUALIZATION PLAN:</strong> eleven scenes. First the numbers that need explaining: at $$n = 8$$ merge sort spends 17 comparisons and insertion and selection sort each spend 28, while one floor, 16, sits under all three. Then the model, drawn: an algorithm for three items as a tree of comparisons, with one run highlighted as a root-to-leaf path. Then the leaves, one per input order, six used and two slots empty. Then the counting argument, and the ladder of powers of two for $$n = 5$$. Then the exact table. Then the two wrong answers, rounding down and base three, each killed on the smallest case. Then Stirling, checked against the exact logarithm. Then tightness: a strip of the gap for $$n = 1$$ to $$22$$, showing it is not monotone. Then the escape route, counting sort making zero comparisons. Then the average case, measured on the built tree. Then the five-step procedure.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the lower bound and its exact arithmetic</em>, not as a general course in sorting. The neighbouring lessons own the algorithms themselves and the exact comparison counts for selection problems; this one owns the decision-tree bound.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance, in the syllabus&rsquo;s own words</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The GATE 2027 CS syllabus published by IIT Madras was fetched and read this run. Section 5 reads in full: <em>&ldquo;Algorithms: Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design techniques: greedy, dynamic programming and divide-and-conquer. Graph traversals, minimum spanning trees, shortest paths.&rdquo;</em></p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> &ldquo;Asymptotic worst case time complexity&rdquo; of sorting is not a statement about one algorithm: it is the question of how fast sorting can possibly be done. The decision-tree argument is the standard answer, so this lesson sits inside a named clause even though its two technical words are not printed there.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Three previous-year items are recomputed on the GATE patterns tab: <strong>GATE CSE 1991, Q.1(vii)</strong> (the minimum comparisons for five elements), <strong>GATE CSE 2004</strong> (the tightest lower bound for comparison-based sorting), and <strong>GATE CSE 1990, Q.3(v)</strong> (the complexity of comparison-based sorting). Each was located in at least two independent archives that agree on wording and key; the official papers were not opened this run, and the 2004 item is numbered differently in different archives, so only its year is quoted.</p>
+          <p class="small muted" style="margin-bottom:0">No marks distribution or weightage is claimed, and nothing here forecasts the 2027 paper.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites, precisely</h3>
+          <p class="small"><strong>Must already be comfortable with:</strong></p>
+          <ul class="small">
+            <li>$$n!$$ is the product $$1 \cdot 2 \cdots n$$ and counts the orderings of $$n$$ distinct items: $$5! = 120$$.</li>
+            <li>A binary tree has at most two children per node; its height is the number of edges on the longest path down from the root.</li>
+            <li>$$\log_2$$ asks &ldquo;two to what power&rdquo;: $$\log_2 120 \approx 6.907$$ because $$2^{6.9} \approx 120$$.</li>
+            <li>A ceiling rounds up to the next whole number: $$\lceil 6.907 \rceil = 7$$.</li>
+          </ul>
+          <p class="small"><strong>Helpful, not required:</strong> having seen that merge sort does $$n\lceil \log_2 n\rceil$$-ish comparisons and insertion sort does about $$n^2/2$$ in the worst case, so that the floor has something to be compared with.</p>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 40&ndash;55 minutes with the animation, or 10 minutes for the Revision tab alone. The figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small">
+            <li><strong>The algorithm is a tree.</strong> Each comparison is an internal node with two exits; each run is a root-to-leaf path; the worst case is the height.</li>
+            <li><strong>Leaves are orders.</strong> A correct algorithm must print a different answer for each of the $$n!$$ input orders, so it needs $$n!$$ leaves.</li>
+            <li><strong>Doubling caps the leaves.</strong> A binary tree of height $$h$$ has at most $$2^h$$ leaves, so $$2^h \ge n!$$ and $$h \ge \lceil \log_2(n!)\rceil$$.</li>
+            <li><strong>The floor is not always the answer.</strong> It is achieved for $$n \le 11$$; at $$n = 12$$ the floor is $$29$$ and the proven minimum is $$30$$.</li>
+            <li><strong>The model is conditional.</strong> Comparisons only. Counting sort and radix sort make none, so no decision tree exists and the floor does not bind them.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Legend: green marks a value the page computed and checked; amber marks a trap; red marks a refuted claim, and the refutations are the teaching.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition: twenty questions, with the answers only ever yes or no</h3>
+          <p class="small">Someone has hidden a shuffled deck of three cards and will only answer yes-or-no questions. How many questions before you know the order? There are six possible orders. One yes-or-no question splits them into two groups, so after $$k$$ questions you have at most $$2^k$$ distinguishable outcomes. Six orders therefore need at least three questions, because $$2^2 = 4 < 6 \le 8 = 2^3$$.</p>
+          <p class="small">A comparison sort is exactly that game. The hidden thing is the input order, the questions are comparisons, and the answers are &ldquo;the first is smaller&rdquo; or &ldquo;the second is smaller&rdquo;. The number of questions in the worst case is the depth you must reach to separate all six orders.</p>
+          <p class="small">That is the entire lower bound. Everything else in this lesson is the arithmetic of it, and one honest correction: the counting gives a floor, and a floor is not always reachable.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is exact about the counting and silent about cost: a comparison here is assumed to cost one unit, whatever is being compared. If comparing two items is itself expensive, the bound still holds on the number of comparisons, but not on running time.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition</h3>
+          <p class="small">Fix an algorithm that sorts $$n$$ distinct items using only comparisons. Its <strong>decision tree</strong> is the binary tree built as follows: the root is the first comparison the algorithm makes; each internal node is a comparison; the two children of a node are the two possible answers; a leaf is a point at which the algorithm stops and prints its answer.</p>
+          <div class="formula">$$\text{height}(T) = \text{the worst-case number of comparisons made by the algorithm}$$
+            <p class="gloss">Read: the longest root-to-leaf path counts the comparisons of the unluckiest input, so the height is the worst case. The average of the leaf depths is the average case, over equally likely orders.</p>
+          </div>
+          <div class="formula">$$L(T) \ge n! \quad\text{and}\quad h \ge \lceil \log_2(n!) \rceil$$
+            <p class="gloss">Read: the tree needs at least one leaf per input order; a tree of height $$h$$ has at most $$2^h$$ leaves; so $$2^h \ge n!$$, and since $$h$$ is a whole number it is at least the ceiling.</p>
+          </div>
+          <p class="small"><strong>The lower bound</strong> is the statement that <em>every</em> comparison-based algorithm has height at least $$\lceil \log_2(n!)\rceil$$. It is a statement about the problem, not about any one algorithm.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This is the standard treatment: Knuth, <em>The Art of Computer Programming</em>, volume 3, section 5.3.1, defines the minimum $$S(n)$$ and calls $$\lceil \lg n! \rceil$$ the information-theoretic lower bound. The derivation below is worked out here rather than quoted.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 1 &mdash; every comparison algorithm has a tree, and the tree is all that matters</h3>
+          <p class="small">Run the algorithm on a fixed input. At each step it either stops or makes one comparison, whose outcome is determined by the input. So the run is a path, and the set of all runs is a tree: two inputs that make the same comparisons in the same order with the same answers follow the same path.</p>
+          <p class="small">The tree is finite because the algorithm must stop on every input. Its height is the largest number of comparisons any input costs. Nothing about the algorithm survives this translation except the tree, which is why the argument works for algorithms nobody has written yet.</p>
+          <div class="formula">$$\text{worst case of the algorithm} = \text{height of its tree}$$
+            <p class="gloss">Read: one number, read off one picture. If the tree is shallow, every input is cheap; if some path is deep, that input is expensive.</p>
+          </div>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page builds the tree for $$n = 3$$ and $$n = 4$$ and walks every input order through it, confirming that each order reaches its own leaf and that the deepest path is the length claimed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 2 &mdash; a correct algorithm needs one leaf per input order</h3>
+          <p class="small">There are $$n!$$ orders in which $$n$$ distinct items can arrive, and the sorted answer reveals which order it was: given the sorted list and the original items, you can reconstruct the input order uniquely. So two different orders must end at two different leaves, because a leaf carries one printed answer.</p>
+          <div class="formula">$$L(T) \ge n!$$
+            <p class="gloss">Read: the number of leaves is at least the number of orders. If two orders shared a leaf, the algorithm would print one answer for both, and one of them would be wrong.</p>
+          </div>
+          <p class="small">For $$n = 3$$ that is 6 leaves, and the drawn tree has exactly 6. For $$n = 4$$ it is 24. Nothing here uses the comparison model yet &mdash; only correctness.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Checked on the page: the built $$n = 3$$ tree has 6 distinct leaves and the built $$n = 4$$ tree has 24, with every one of the $$n!$$ orders reaching its own leaf.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 3 &mdash; a tree of height h holds at most 2 to the h leaves</h3>
+          <p class="small">Count by level. The root is one node. Each node has at most two children, so level 1 holds at most 2, level 2 at most 4, and level $$k$$ at most $$2^k$$. A tree of height $$h$$ has levels $$0$$ to $$h$$, and the leaves are a subset of the nodes, so the total number of leaves is at most the total number of nodes at the deepest level, which is $$2^h$$.</p>
+          <div class="formula">$$L(T) \le 2^{h}$$
+            <p class="gloss">Read: doubling at every level is the fastest a tree can widen, so no shape beats the full tree. A lopsided tree uses fewer leaves, never more.</p>
+          </div>
+          <p class="small">Putting Derivations 2 and 3 together: $$n! \le L(T) \le 2^h$$, hence $$2^h \ge n!$$, hence $$h \ge \log_2(n!)$$, and since a height is an integer, $$h \ge \lceil \log_2(n!) \rceil$$.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page counts the leaves of every binary tree shape up to height 6 and confirms the maximum is exactly $$2^h$$ each time &mdash; 1, 2, 4, 8, 16, 32, 64.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 4 &mdash; why the ceiling, and why base two</h3>
+          <p class="small"><strong>Ceiling:</strong> a height is a count of comparisons, so it is a whole number. If $$\log_2(n!) = 6.907$$ then no tree of height 6 works, and the smallest usable height is 7. Rounding down is not a rounding error: a height-6 tree holds 64 leaves and $$5! = 120$$ orders, so 56 orders would have no leaf.</p>
+          <p class="small"><strong>Base two:</strong> a comparison of two distinct items has exactly two possible outcomes. It has three possible <em>relations</em> &mdash; smaller, equal, larger &mdash; but &ldquo;equal&rdquo; cannot happen for distinct items, so a correct algorithm cannot rely on that branch, and a branch that is never taken contributes no leaves.</p>
+          <div class="formula">$$h \ge \big\lceil \log_2(n!) \big\rceil, \qquad \text{not } \big\lceil \log_3(n!) \big\rceil$$
+            <p class="gloss">Read: base three would give $$\log_3 120 = 4.36$$, suggesting five comparisons for five items, when seven are necessary. The base is the number of usable outcomes, and that number is two.</p>
+          </div>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Both refutations are arithmetic on the page: $$2^6 = 64 < 120$$ and $$120 \le 128 = 2^7$$; and $$\lceil \log_3 120\rceil = 5 < 7$$.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 5 &mdash; Stirling turns the integer into Theta of n log n</h3>
+          <p class="small">The exact ceiling is what an exam asks for at small $$n$$. For the asymptotic statement, replace the factorial by Stirling's approximation, converted to base two:</p>
+          <div class="formula">$$\log_2(n!) = n\log_2 n - \frac{n}{\ln 2} + \tfrac12\log_2(2\pi n) + o(1)$$
+            <p class="gloss">Read: the leading term is $$n\log_2 n$$; the next is a constant times $$n$$ (since $$1/\ln 2 = 1.4427$$); the rest grows like $$\log n$$. So the floor grows like $$n\log n$$, up to a constant factor.</p>
+          </div>
+          <p class="small">Because merge sort achieves $$n\lceil\log_2 n\rceil - 2^{\lceil \log_2 n\rceil} + 1$$ comparisons, which is the same rate, the floor is not merely $$\Omega(n\log n)$$ but $$\Theta(n\log n)$$ for the problem. That is the whole asymptotic content of the topic, and it is why the exam can ask for &ldquo;the tightest lower bound&rdquo; and expect $$n\log n$$.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page checks Stirling against the exact logarithm at $$n = 8, 16, 32, 64$$ (agreement to two decimals) and checks the merge sort closed form against a simulated merge sort on every order up to $$n = 8$$.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 6 &mdash; the floor is not always achievable</h3>
+          <p class="small">Counting gives a lower bound. Whether an algorithm reaches it is a separate, much harder question, and the answer is known only for small $$n$$.</p>
+          <div class="formula">$$\lceil \log_2(n!)\rceil \;\le\; S(n) \;\le\; \sum_{k=1}^{n}\Big\lceil \log_2 \tfrac{3k}{4} \Big\rceil$$
+            <p class="gloss">Read: $$S(n)$$ is the true minimum. The left side is what counting forces; the right side is what merge insertion (Ford&ndash;Johnson) achieves. Where the two meet, $$S(n)$$ is settled.</p>
+          </div>
+          <p class="small">They meet for every $$n$$ from 1 to 11. At $$n = 12$$ the floor is 29, merge insertion spends 30, and exhaustive search proved that 29 is impossible. The gap is not monotone: it is 1 from 12 to 19, 0 again at 20 and 21, and 1 again at 22.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The proven minima are OEIS A036604: 0, 1, 3, 5, 7, 10, 13, 16, 19, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 66, 71. The $$n = 12$$ value was settled by exhaustive search (Wells, 1965); 13, 14 and 22 were proved later by Peczarski, and 16, 17, 18 by Stober and Weiss. <span class="claim-chip claim-chip--derivation">Derivation</span> Every gap on the page is recomputed against the exact ceiling, and merge insertion's count is computed by the page, not copied.</p>
+        </div>
+
+        <div class="card">
+          <h3>Derivation 7 &mdash; the average case, from the same tree</h3>
+          <p class="small">Average the leaf depths instead of taking the maximum. For a binary tree with $$L$$ leaves, the average depth is at least $$\log_2 L$$, because the balanced tree is the shape that minimises the average and the balanced tree with $$L$$ leaves has average depth about $$\log_2 L$$.</p>
+          <div class="formula">$$\text{average comparisons} \;\ge\; \log_2(n!)$$
+            <p class="gloss">Read: substitute $$L \ge n!$$. So the average case has the same $$n\log n$$ floor as the worst case, with a smaller constant &mdash; and a lopsided tree pays for its short paths with very long ones.</p>
+          </div>
+          <p class="small">The best case is <em>not</em> bounded this way. Insertion sort sorts an already sorted array in $$n - 1$$ comparisons, which is below the floor for every $$n \ge 3$$. A floor on the worst case says nothing about the best case.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Measured on the page: the optimal $$n = 4$$ tree averages 4.667 comparisons over its 24 paths against a floor of 4.585; insertion sort averages 4.917 over the 24 orders; and its best case is 3.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every number computed in code.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Sort eight items and count the comparisons: merge sort spends 17, insertion sort 28 in the worst case, selection sort 28.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One floor under every comparison sort</p>
+            <p class="counter" id="scene-count">Scene 1 of 11</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Take eight distinct items and count how many comparisons each algorithm makes.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="330" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:30</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card span-2">
+              <h3>Worked examples, page 1 of 2 &mdash; the tree, and the arithmetic</h3>
+              <p class="small">Every number below is produced by the page from its own model and checked against its own defining property. Nothing is quoted from a table without being recomputed.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 &mdash; three items, walked</h3>
+              <p class="small">The tree on the Animation tab compares $$a$$ with $$b$$ first. Take the input order $$c &lt; a &lt; b$$, which is the values $$(2, 3, 1)$$:</p>
+              <div class="sheet">
+                <dl>
+                  <dt>compare a : b</dt><dd>2 &lt; 3 &nbsp;&rarr;&nbsp; go left</dd>
+                  <dt>compare b : c</dt><dd>3 &gt; 1 &nbsp;&rarr;&nbsp; go right</dd>
+                  <dt>compare a : c</dt><dd>2 &gt; 1 &nbsp;&rarr;&nbsp; go right</dd>
+                  <dt>leaf</dt><dd>prints $$c\,a\,b$$, which is 1 2 3 &nbsp;&check;</dd>
+                </dl>
+              </div>
+              <p class="small">Three comparisons, three levels, one leaf. The other five orders reach the other five leaves, and no two orders share one.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The page walks all six orders through the drawn tree and confirms each reaches its own leaf with the correct sorted output.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 &mdash; five items, by hand</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>orders</dt><dd>$$5! = 120$$</dd>
+                  <dt>$$2^6$$</dt><dd>64 &mdash; too few, 56 orders would be lost</dd>
+                  <dt>$$2^7$$</dt><dd>128 &mdash; enough, 8 slots spare</dd>
+                  <dt>answer</dt><dd>$$\lceil \log_2 120\rceil = 7$$ comparisons</dd>
+                </dl>
+              </div>
+              <p class="small">Doubling from 1 is the fast way to do this under exam pressure: 1, 2, 4, 8, 16, 32, 64, 128 &mdash; seven doublings, so seven comparisons. And seven is not merely a floor here: the page's exhaustive search confirms that no strategy sorts five items in six.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The exhaustive minimax over comparison strategies returns 3, 5, 7, 10 for $$n = 3, 4, 5, 6$$, matching the ceiling exactly at each.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 &mdash; four items, and the sixteen that are not enough</h3>
+              <p class="small">$$4! = 24$$ orders. A tree of height 4 has at most $$2^4 = 16$$ leaves, which is fewer than 24, so height 4 is impossible before any algorithm is considered. Height 5 allows $$2^5 = 32$$ leaves, and the page's search finds a five-comparison strategy.</p>
+              <div class="sheet">
+                <dl>
+                  <dt>$$n = 4$$</dt><dd>24 orders, floor 5, minimum 5 &mdash; met</dd>
+                  <dt>slack</dt><dd>$$32 - 24 = 8$$ leaves unused</dd>
+                  <dt>$$n = 3$$</dt><dd>6 orders, floor 3, minimum 3 &mdash; met</dd>
+                  <dt>slack</dt><dd>$$8 - 6 = 2$$ leaves unused</dd>
+                </dl>
+              </div>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Both trees are built and walked on the page; both slacks are computed, not asserted.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 &mdash; the exact ceiling, computed</h3>
+              <p class="small">The ceiling is found by doubling in whole numbers, so no floating point can round the wrong way:</p>
+              <div class="sheet">
+                <dl>
+                  <dt>$$n = 8$$</dt><dd>$$40320$$, and $$32768 &lt; 40320 \le 65536$$, so 16</dd>
+                  <dt>$$n = 10$$</dt><dd>$$3628800$$, and $$2097152 &lt; \cdot \le 4194304$$, so 22</dd>
+                  <dt>$$n = 11$$</dt><dd>$$39916800$$, and $$33554432 &lt; \cdot \le 67108864$$, so 26</dd>
+                  <dt>$$n = 12$$</dt><dd>$$479001600$$, and $$268435456 &lt; \cdot \le 536870912$$, so 29</dd>
+                </dl>
+              </div>
+              <p class="small">Each row is the same two-part check: the power below is too small, the power at the ceiling is big enough. That is exactly what makes the height minimal.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The page checks both inequalities for every $$n$$ from 1 to 22 with exact integer arithmetic (the factorial is held as a whole number, not a float).</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card span-2">
+              <h3>Worked examples, page 2 of 2 &mdash; the algorithms, and where the floor stops</h3>
+              <p class="small">The counts of real algorithms, simulated on every input order, against the floor they cannot beat.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 5 &mdash; three algorithms at n = 8</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>floor</dt><dd>$$\lceil\log_2 40320\rceil = 16$$</dd>
+                  <dt>merge sort</dt><dd>17 comparisons, worst case</dd>
+                  <dt>insertion sort</dt><dd>28 comparisons, worst case</dd>
+                  <dt>selection sort</dt><dd>28 comparisons, always</dd>
+                </dl>
+              </div>
+              <p class="small">Merge sort is one comparison above the floor at $$n = 8$$, and its closed form $$n\lceil\log_2 n\rceil - 2^{\lceil\log_2 n\rceil} + 1$$ explains the one: $$8 \cdot 3 - 8 + 1 = 17$$. Insertion sort's $$\binom{8}{2} = 28$$ is far above it, which is why the floor is useful: it says no rewrite of insertion sort will ever reach 16.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> All three counts are simulated over all 40,320 orders, and the closed form is checked against the simulation for every $$n$$ up to 8.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 &mdash; the averages, and the best case</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>$$n = 4$$ floor</dt><dd>$$\log_2 24 = 4.585$$</dd>
+                  <dt>optimal tree</dt><dd>4.667 on average over 24 paths</dd>
+                  <dt>insertion sort</dt><dd>4.917 on average, 6 worst, 3 best</dd>
+                  <dt>merge sort</dt><dd>4.667 on average, 5 worst</dd>
+                </dl>
+              </div>
+              <p class="small">Every average is at or above the floor, as the theorem says. The best case is below it, and that is not a contradiction: the floor is a statement about the worst and average cases.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The two averages are computed on the page from the built tree and from a simulated insertion sort, not taken from a textbook.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 7 &mdash; where the floor stops being the answer</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>$$n = 11$$</dt><dd>floor 26, minimum 26 &mdash; met</dd>
+                  <dt>$$n = 12$$</dt><dd>floor 29, minimum 30 &mdash; missed by one</dd>
+                  <dt>$$n = 20$$</dt><dd>floor 62, minimum 62 &mdash; met again</dd>
+                  <dt>$$n = 22$$</dt><dd>floor 70, minimum 71 &mdash; missed again</dd>
+                </dl>
+              </div>
+              <p class="small">This is the single most examinable nuance in the topic. If the question says &ldquo;the lower bound&rdquo;, the answer is 29 at $$n = 12$$. If it says &ldquo;the minimum number of comparisons&rdquo;, the answer is 30, and only a settled value may be quoted.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Minima from OEIS A036604; the floors are recomputed on the page. <span class="claim-chip claim-chip--unverified">Unverified</span> No value of $$S(n)$$ beyond $$n = 22$$ is claimed anywhere in this lesson, because the exact values are not known there.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 8 &mdash; Stirling against the exact logarithm</h3>
+              <div class="sheet">
+                <dl>
+                  <dt>$$n = 8$$</dt><dd>exact 15.30, Stirling 15.29</dd>
+                  <dt>$$n = 16$$</dt><dd>exact 44.25, Stirling 44.25</dd>
+                  <dt>$$n = 32$$</dt><dd>exact 117.66, Stirling 117.66</dd>
+                  <dt>$$n = 32$$ merge sort</dt><dd>129 comparisons</dd>
+                </dl>
+              </div>
+              <p class="small">At $$n = 32$$ the floor is 118 comparisons and merge sort spends 129 &mdash; a ratio of about 1.09. That ratio stays bounded as $$n$$ grows, which is precisely what $$\Theta(n\log n)$$ means.</p>
+              <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The approximation is compared with the exact base-two logarithm at four values of $$n$$, and the leading term is checked to stay within a constant factor of the exact floor from $$n = 8$$ to $$4096$$.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn" data-pager-prev disabled>Previous page</button>
+          <span class="small muted" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next page</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>n = 0 and n = 1: no comparison at all</h3>
+          <p class="small">An empty list and a one-element list are already sorted. The tree is a single leaf, its height is 0, and the formula gives $$\lceil \log_2 1\rceil = 0$$. It agrees.</p>
+          <p class="small">$$n = 2$$ gives $$\lceil\log_2 2\rceil = 1$$, and one comparison decides the order &mdash; so here the floor is met, with no slack at all: $$2^1 = 2 = 2!$$.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The page's table starts at $$n = 1$$ for this reason: those two rows are the ones an examiner can check by hand, and a bound that failed there would be suspect.</p>
+        </div>
+
+        <div class="card">
+          <h3>Equal keys: the model changes, and so does the count</h3>
+          <p class="small">Everything here assumes distinct items. If keys may repeat, two different input orders can have the same sorted output, so those orders may share a leaf and the leaf count is no longer $$n!$$. The correct count then uses the number of distinct <em>multiset permutations</em>, which is smaller.</p>
+          <p class="small">The usual exam convention is that a comparison sort of $$n$$ <em>distinct</em> keys is being asked about, because that is the case where the bound is sharp. If a question says &ldquo;may contain duplicates&rdquo;, the $$n!$$ count is not the right one.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> A stable sort is required to keep equal keys in their input order, which restores the need for distinct leaves &mdash; that is one reason stability is a real constraint and not decoration.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Worst case, average case, best case: three different questions</h3>
+          <p class="small">The floor of $$\lceil\log_2(n!)\rceil$$ is a <strong>worst-case</strong> statement, and the same counting gives an <strong>average-case</strong> floor of $$\log_2(n!)$$ without the ceiling. It says nothing about the <strong>best case</strong>.</p>
+          <p class="small">Insertion sort on eight items: best 7, average about 15.7, worst 28. The floor is 16. The best case is below it and the worst is above it, and both are correct statements.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> All three insertion sort figures are simulated on the page over every order of eight items; the page also checks that $$n - 1$$ is below the floor for every $$n$$ from 3 to 12.</p>
+        </div>
+
+        <div class="card">
+          <h3>Three-way comparisons change the base</h3>
+          <p class="small">A machine that answers &ldquo;smaller, equal, larger&rdquo; in one instruction gives a ternary decision tree, and then the floor becomes $$\lceil\log_3(n!)\rceil$$ &mdash; smaller, because each node has three exits. At $$n = 5$$ that is 5 instead of 7.</p>
+          <p class="small">This is not a loophole either: it costs a more powerful comparison. GATE's standard model is the two-outcome comparison, and a question that offers $$\log_3$$ as an option is testing whether you know that.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The rule to carry: the base of the logarithm is the number of outcomes the model actually allows, and for two distinct keys under a normal comparison that number is two.</p>
+        </div>
+
+        <div class="card">
+          <h3>Non-comparison sorts are outside the model entirely</h3>
+          <p class="small">Counting sort, radix sort and bucket sort learn about the keys by reading their values, not by comparing pairs. There is no decision tree, so there is nothing for the counting argument to count, and they can beat $$n\log n$$.</p>
+          <p class="small">They pay for it with assumptions the comparison model does not make: keys are integers (or short strings) in a range that is known and small. Counting sort's cost is $$n + k$$ for a range of size $$k$$, so a range of size $$n^2$$ makes it quadratic.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The page runs a counting sort on six keys and counts its comparisons: zero, with the output correctly sorted. That is the escape route, measured rather than asserted.</p>
+        </div>
+
+        <div class="card">
+          <h3>Each comparison is one unit, and that is an assumption</h3>
+          <p class="small">The bound counts comparisons, not seconds. It assumes every comparison costs the same and that everything else the algorithm does is at most proportional to the comparisons.</p>
+          <p class="small">That is why the bound transfers to running time for sorting of machine words, and why it does not transfer directly to sorting long strings, where one comparison may scan many characters. There, the right measure is comparisons times the cost of a comparison.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> This assumption is the reason the phrase &ldquo;comparison-based&rdquo; is in every statement of the theorem. Without it the theorem is not even false &mdash; it is meaningless.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>1. &ldquo;The bound is $$\lfloor \log_2(n!)\rfloor$$&rdquo;</h3>
+          <p class="small"><strong>Wrong.</strong> <strong>Smallest counterexample: $$n = 5$$.</strong> $$\log_2 120 = 6.907$$, so rounding down gives 6, and a height-6 tree has $$2^6 = 64$$ leaves. There are 120 orders, so 56 of them would share a leaf with another and one of each pair would print the wrong answer.</p>
+          <p class="small">The height is an integer, so it is at least the ceiling. There is no case where rounding down is safe.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page checks $$2^h \ge n!$$ and $$2^{h-1} < n!$$ for every $$n$$ from 1 to 22, which is exactly the statement that $$h$$ is the ceiling and nothing smaller works.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. &ldquo;A comparison has three outcomes, so the base is three&rdquo;</h3>
+          <p class="small"><strong>Wrong.</strong> <strong>Smallest counterexample: $$n = 5$$.</strong> $$\lceil \log_3 120\rceil = 5$$, but five comparisons cannot sort five items &mdash; the page's exhaustive search returns 7, and the 1991 paper's answer is 7.</p>
+          <p class="small">The third outcome is &ldquo;equal&rdquo;, which cannot occur for distinct keys. A branch that can never be taken adds no leaves, so the tree is binary and the base is two.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Any ternary branch taken by an algorithm on distinct keys would need an input with equal keys to be useful; for distinct keys it is dead code, and dead code cannot reduce the height.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. &ldquo;The bound is the minimum number of comparisons&rdquo;</h3>
+          <p class="small"><strong>Wrong from $$n = 12$$ onward.</strong> <strong>Smallest counterexample: $$n = 12$$.</strong> The ceiling is 29 ($$2^{28} &lt; 12! \le 2^{29}$$), but the proven minimum is 30. Twenty-nine comparisons are provably impossible, even though the counting does not rule them out.</p>
+          <p class="small">The counting argument is necessary, not sufficient: it says a shallow tree would have too few leaves, and it cannot see the subtler obstructions that make a 29-comparison tree impossible.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> $$S(12) = 30$$ is recorded in OEIS A036604 and was settled by exhaustive search. <span class="claim-chip claim-chip--derivation">Derivation</span> The gap is 0 for $$n \le 11$$ and irregular afterwards, which the page's strip recomputes entry by entry.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. &ldquo;So no algorithm can ever sort faster than n log n&rdquo;</h3>
+          <p class="small"><strong>Wrong as stated.</strong> <strong>Counterexample: counting sort.</strong> It sorts six small integers with zero comparisons, and it is linear in $$n$$ plus the key range. The floor binds only methods that learn by comparing.</p>
+          <p class="small">The repaired statement is the one to memorise: <em>no comparison-based algorithm</em> sorts in fewer than $$\lceil\log_2(n!)\rceil$$ comparisons in the worst case.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page counts the comparisons a counting sort makes: zero, on a real array, with the output verified sorted.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. &ldquo;The floor bounds the best case too&rdquo;</h3>
+          <p class="small"><strong>Wrong.</strong> <strong>Smallest counterexample: $$n = 3$$.</strong> The floor is 3 comparisons, and insertion sort sorts the already-sorted order $$a &lt; b &lt; c$$ in 2 comparisons. At $$n = 4$$ the floor is 5 and the best case is 3.</p>
+          <p class="small">The floor is a statement about the worst case (and, with the ceiling removed, the average). A single lucky input can always be cheap; the tree only forces one deep path to exist.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> The page checks $$n - 1 &lt; \lceil\log_2(n!)\rceil$$ for every $$n$$ from 3 to 12, and simulates the best case of insertion sort at $$n = 4$$: three comparisons.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. &ldquo;n log n means exactly $$n\log_2 n$$ comparisons&rdquo;</h3>
+          <p class="small"><strong>Wrong.</strong> <strong>Counterexample: $$n = 8$$.</strong> $$n\log_2 n = 24$$, the floor is 16, and merge sort spends 17. Three different numbers, all of them described by the same $$\Theta(n\log n)$$.</p>
+          <p class="small">The exact floor is $$n\log_2 n - 1.4427n + \tfrac12\log_2(2\pi n)$$; at $$n = 8$$ that is about 15.3, and its ceiling is 16. The leading term alone overshoots by roughly $$1.44n$$, which is why the exact count is always a little below $$n\log_2 n$$.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> Stirling is compared with the exact logarithm at $$n = 8, 16, 32, 64$$, and the difference is checked to stay small.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card span-2">
+          <h3>Pattern A &mdash; GATE CSE 1991, Q.1(vii): the exact count for a small n</h3>
+          <p class="small">The paper asks, as a fill in the blank worth two marks: <em>&ldquo;The minimum number of comparisons required to sort 5 elements is ______.&rdquo;</em></p>
+          <p class="small">The answer recorded in the archives is <strong>7</strong>, and it is the ceiling of $$\log_2 120 = 6.907$$. Here the floor and the minimum coincide, because $$n = 5$$ is one of the settled values: the page's exhaustive minimax over comparison strategies confirms that no strategy sorts five items in six comparisons, and merge insertion does it in seven.</p>
+          <p class="small">The reasoning to write down is two lines: five items have $$5! = 120$$ possible orders; a comparison has two outcomes, so $$k$$ comparisons separate at most $$2^k$$ orders; $$2^6 = 64 &lt; 120 \le 128 = 2^7$$, so seven.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Wording and key (7) agree across three independent archives of the 1991 paper. The official paper was not opened this run. <span class="claim-chip claim-chip--derivation">Derivation</span> The verdict is recomputed here: the exact minimum for five items is found by search, not copied from the key.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern B &mdash; GATE CSE 2004: the tightest lower bound, asymptotically</h3>
+          <p class="small">The item asks: <em>&ldquo;The tightest lower bound on the number of comparisons, in the worst case, for comparison-based sorting is of the order of&rdquo;</em> with options $$n$$, $$n^2$$, $$n\log n$$ and $$n\log^2 n$$. The key is $$n\log n$$.</p>
+          <p class="small">The reason is that the floor is $$\Theta(n\log n)$$, not merely $$\Omega(n\log n)$$: Stirling gives the leading term $$n\log_2 n$$, and merge sort matches it, so no smaller order is tight. $$n\log^2 n$$ is an order too large to be &ldquo;tightest&rdquo;.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Year and wording agree across two independent archives; they disagree on the question number (29 in one, 35 in the other), so only the year is quoted here. <span class="claim-chip claim-chip--derivation">Derivation</span> The page checks that $$n\log_2 n$$ stays within a constant factor of the exact floor from $$n = 8$$ to $$4096$$, and that merge sort stays within a constant factor above it up to $$n = 64$$.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern C &mdash; GATE CSE 1990, Q.3(v): the same fact, asked as a multiple select</h3>
+          <p class="small">The item asks for the complexity of comparison-based sorting algorithms, with options $$\Theta(n\log n)$$, $$\Theta(n)$$, $$\Theta(n^2)$$ and $$\Theta(n\sqrt n)$$. The key is $$\Theta(n\log n)$$.</p>
+          <p class="small">The reasoning is the same two halves: a floor of $$\Omega(n\log n)$$ from the decision tree, and an algorithm &mdash; merge sort or heapsort &mdash; achieving $$O(n\log n)$$. Theta needs both, and the paper is asking for both.</p>
+          <p class="small">Note the trap in the wording: $$\Theta$$ of the <em>problem</em>, not of a named algorithm. A question about quicksort alone could legitimately answer $$\Theta(n^2)$$.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Wording and key agree across two independent archives of the 1990 paper. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The distinction between a bound on the problem and a bound on one algorithm is the single most common source of lost marks in this topic.</p>
+        </div>
+
+        <div class="card">
+          <h3>How the exam words it, and what each wording wants</h3>
+          <div class="sheet">
+            <dl>
+              <dt>&ldquo;minimum number of comparisons&rdquo;</dt><dd>the ceiling, and check the value is a settled one</dd>
+              <dt>&ldquo;lower bound on comparisons&rdquo;</dt><dd>the ceiling, stated as $$\Omega(n\log n)$$ if asked asymptotically</dd>
+              <dt>&ldquo;tightest lower bound, order of&rdquo;</dt><dd>$$n\log n$$, because merge sort matches it</dd>
+              <dt>&ldquo;minimum comparisons for merge sort&rdquo;</dt><dd>not the floor: run the algorithm, or use its closed form</dd>
+              <dt>&ldquo;can we do better than n log n&rdquo;</dt><dd>only by leaving the comparison model</dd>
+            </dl>
+          </div>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> Five wordings, three answers. Deciding which is being asked is most of the work, and the procedure on the Animation tab is written for that decision.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card span-2">
+          <h3>How to use this set</h3>
+          <p class="small">Eight original questions written for this lesson and labelled as such; the three previous-year items are on the GATE patterns tab. Every answer is hidden until you reveal it, and each answer says why the other options fail. Learning mode is on by default; the mock-test switch hides every answer and reveals them together.</p>
+          <p class="small" style="margin-bottom:0">
+            <label class="small"><input type="checkbox" id="mock-toggle"> Mock-test mode (hide all answers)</label>
+            <button class="btn" id="mock-submit" hidden>Reveal all answers</button>
+            <span class="small muted">Learning mode reveals each answer after your attempt.</span>
+          </p>
+        </div>
+
+        <div data-pager>
+
+          <div class="pager-page active">
+            <div class="grid grid--2">
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q1 &mdash; six items</h3>
+                <p class="small">The minimum number of comparisons required to sort 6 distinct elements in the worst case is ______.</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: 10</span></p>
+                  <p class="small">$$6! = 720$$, and $$2^9 = 512 &lt; 720 \le 1024 = 2^{10}$$, so the ceiling is 10. It is also achievable: the page's exhaustive search returns 10, and merge insertion spends 10.</p>
+                  <p class="small muted" style="margin-bottom:0">The trap is 9 (rounding down) or 12 (from $$n\lceil\log_2 n\rceil$$). The floor at six items is 10, and this is one of the settled values.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q2 &mdash; why the leaves</h3>
+                <p class="small">A correct comparison sort of $$n$$ distinct items must have at least $$n!$$ leaves in its decision tree because:</p>
+                <p class="small muted">(a) each comparison creates two leaves &nbsp; (b) different input orders must produce different outputs, and a leaf carries one output &nbsp; (c) the tree must be balanced &nbsp; (d) there are $$n!$$ internal nodes</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (b)</span></p>
+                  <p class="small">The sorted output determines the input order for distinct items, so two orders sharing a leaf would get the same printed answer, and one would be wrong.</p>
+                  <p class="small muted" style="margin-bottom:0">(a) is false: comparisons are internal nodes, not leaves. (c) is false: the bound does not require balance, it only holds more strongly when the tree is unbalanced. (d) counts the wrong thing: the internal nodes are comparisons, and there are far fewer of them than $$n!$$ in any useful tree.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q3 &mdash; twelve items</h3>
+                <p class="small">The value of $$\lceil \log_2(12!) \rceil$$ is ______.</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: 29</span></p>
+                  <p class="small">$$12! = 479{,}001{,}600$$, and $$2^{28} = 268{,}435{,}456 &lt; 479{,}001{,}600 \le 536{,}870{,}912 = 2^{29}$$. So the ceiling is 29.</p>
+                  <p class="small muted" style="margin-bottom:0">Careful with the next step: the <em>minimum</em> for twelve items is 30, not 29. This question asks for the bound, and the bound is 29.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q4 &mdash; which statements are true</h3>
+                <p class="small muted">(a) a binary tree of height $$h$$ has at most $$2^h$$ leaves &nbsp; (b) the worst case of a comparison sort equals the height of its decision tree &nbsp; (c) every comparison sort makes at least $$\lceil\log_2(n!)\rceil$$ comparisons on every input &nbsp; (d) merge sort attains the floor for every $$n$$</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (a), (b)</span></p>
+                  <p class="small">(a) is the doubling count, checked on every tree shape up to height 6. (b) is the definition of height as the longest root-to-leaf path.</p>
+                  <p class="small muted" style="margin-bottom:0">(c) fails on the best case: insertion sort sorts eight sorted items in 7 comparisons, below 16. (d) fails at $$n = 8$$, where merge sort spends 17 against a floor of 16, and at $$n = 3$$, where it spends 3 against a floor of 3 &mdash; met there, missed here, so &ldquo;every $$n$$&rdquo; is false.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="pager-page">
+            <div class="grid grid--2">
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q5 &mdash; the escape route</h3>
+                <p class="small">Which statement is true?</p>
+                <p class="small muted">(a) the $$\Omega(n\log n)$$ lower bound applies to every sorting algorithm &nbsp; (b) counting sort is faster than the bound allows, so the bound is wrong &nbsp; (c) the bound applies only to algorithms that learn by comparing pairs &nbsp; (d) radix sort also needs $$\Omega(n\log n)$$ comparisons</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (c)</span></p>
+                  <p class="small">The bound is derived from a decision tree of comparisons. Counting sort and radix sort have no such tree, so the counting argument says nothing about them.</p>
+                  <p class="small muted" style="margin-bottom:0">(a) and (d) both overreach the model: radix sort makes zero comparisons. (b) misreads a conditional theorem as a universal one &mdash; the bound is not wrong, it is scoped.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q6 &mdash; the slack</h3>
+                <p class="small">For $$n = 7$$, how many leaves does a decision tree of height $$\lceil\log_2(7!)\rceil$$ have left unused? ______</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: 3152</span></p>
+                  <p class="small">$$7! = 5040$$ and $$2^{12} = 4096 &lt; 5040 \le 8192 = 2^{13}$$, so the height is 13 and there are $$8192 - 5040 = 3152$$ unused slots.</p>
+                  <p class="small muted" style="margin-bottom:0">The trap is stopping at $$2^{12}$$: that power is too small, so subtracting it gives a meaningless 944. Work the two inequalities first, find the power <em>at</em> the ceiling, and only then subtract the factorial.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q7 &mdash; averages and best cases</h3>
+                <p class="small muted">(a) some comparison sort averages fewer than $$\log_2(n!)$$ comparisons &nbsp; (b) insertion sort averages 4.917 comparisons on four items &nbsp; (c) the floor bounds the best case from below &nbsp; (d) any binary tree with 24 leaves has average depth at least 4.585</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (b), (d)</span></p>
+                  <p class="small">(b) is measured on the page over all 24 orders. (d) is the average-depth theorem applied to $$L = 24$$.</p>
+                  <p class="small muted" style="margin-bottom:0">(a) contradicts (d), since $$n!$$ leaves force an average of at least $$\log_2(n!)$$. (c) is the trap from scene ten: the best case of insertion sort on four items is 3, well under the floor of 5.</p>
+                </div>
+              </div>
+
+              <div class="card question">
+                <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+                <h3>Q8 &mdash; the closest pair of ideas</h3>
+                <p class="small">A paper asks: &ldquo;What is the minimum number of comparisons needed to sort 12 elements?&rdquo; Which is the correct answer and why?</p>
+                <p class="small muted">(a) 29, the ceiling &nbsp; (b) 30, the proven minimum &nbsp; (c) 66, from $$n\log_2 n$$ &nbsp; (d) 29 or 30, undetermined</p>
+                <button class="reveal btn">Show answer</button>
+                <div class="answer" hidden>
+                  <p class="small"><span class="verdict">Answer: (b)</span></p>
+                  <p class="small">The ceiling is 29, but 29 comparisons are provably insufficient; 30 is the settled minimum, recorded in OEIS A036604. The wording &ldquo;minimum&rdquo; asks for the achievable value, not the bound.</p>
+                  <p class="small muted" style="margin-bottom:0">This is the closest confusion in the whole topic, and it is why the lesson keeps the two words apart: <em>lower bound</em> gives 29, <em>minimum</em> gives 30. Option (d) would be right for $$n = 23$$ and beyond, where the exact value is unknown &mdash; but at $$n = 12$$ it is known.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:12px">
+            <button class="btn" data-pager-prev disabled>Previous page</button>
+            <span class="small muted" data-pager-count>Page 1 of 2</span>
+            <button class="btn" data-pager-next>Next page</button>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>The argument in four lines</h3>
+          <div class="sheet">
+            <dl>
+              <dt>Model</dt><dd>each comparison is an internal node; each run is a root-to-leaf path</dd>
+              <dt>Leaves</dt><dd>at least $$n!$$, one per input order</dd>
+              <dt>Capacity</dt><dd>a tree of height $$h$$ has at most $$2^h$$ leaves</dd>
+              <dt>Conclusion</dt><dd>$$h \ge \lceil \log_2(n!)\rceil = \Theta(n\log n)$$</dd>
+            </dl>
+          </div>
+          <p class="small muted" style="margin-bottom:0">Four lines, and every question in the topic is one of them being asked about.</p>
+        </div>
+
+        <div class="card">
+          <h3>The numbers worth memorising</h3>
+          <div class="sheet">
+            <dl>
+              <dt>$$n = 3$$</dt><dd>$$6$$ orders, floor 3, minimum 3</dd>
+              <dt>$$n = 4$$</dt><dd>$$24$$ orders, floor 5, minimum 5</dd>
+              <dt>$$n = 5$$</dt><dd>$$120$$ orders, floor 7, minimum 7</dd>
+              <dt>$$n = 6$$</dt><dd>$$720$$ orders, floor 10, minimum 10</dd>
+              <dt>$$n = 8$$</dt><dd>$$40320$$ orders, floor 16, minimum 16</dd>
+              <dt>$$n = 11$$</dt><dd>floor 26, minimum 26 &mdash; last agreement</dd>
+              <dt>$$n = 12$$</dt><dd>floor 29, minimum 30 &mdash; first disagreement</dd>
+            </dl>
+          </div>
+          <p class="small muted" style="margin-bottom:0">Doubling from one gets you the floor at exam speed: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 &hellip;</p>
+        </div>
+
+        <div class="card">
+          <h3>Formulas, and when each one applies</h3>
+          <div class="sheet">
+            <dl>
+              <dt>exact floor</dt><dd>$$\lceil \log_2(n!)\rceil$$ &mdash; small $$n$$, integer answer</dd>
+              <dt>asymptotic</dt><dd>$$\Theta(n\log n)$$ &mdash; the order, when the question says &ldquo;order of&rdquo;</dd>
+              <dt>Stirling</dt><dd>$$n\log_2 n - 1.4427n + \tfrac12\log_2(2\pi n)$$</dd>
+              <dt>average floor</dt><dd>$$\log_2(n!)$$ &mdash; no ceiling, since it is not a count of comparisons</dd>
+              <dt>merge insertion</dt><dd>$$\sum_{k\le n}\lceil\log_2 \tfrac{3k}{4}\rceil$$ &mdash; the upper bound</dd>
+              <dt>merge sort worst</dt><dd>$$n\lceil\log_2 n\rceil - 2^{\lceil\log_2 n\rceil} + 1$$</dd>
+            </dl>
+          </div>
+          <p class="small muted" style="margin-bottom:0">The first two are what GATE asks. The rest are what makes the first two defensible.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Four traps, one line each</h3>
+          <ul class="small">
+            <li>Rounding down: 6 instead of 7 at $$n = 5$$. The height is an integer, so take the ceiling.</li>
+            <li>Base three: 5 instead of 7 at $$n = 5$$. The third outcome cannot happen for distinct keys.</li>
+            <li>Floor as minimum: 29 instead of 30 at $$n = 12$$. Read the question's wording.</li>
+            <li>Floor as best case: the floor says nothing about a lucky input; insertion sort beats it on sorted data.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> These four cover almost every wrong option the archives show being chosen on this topic.</p>
+        </div>
+
+        <div class="card">
+          <h3>The five-step procedure</h3>
+          <ol class="small">
+            <li><strong>What is counted?</strong> Worst case, average, or one named algorithm on one input.</li>
+            <li><strong>Write $$2^h \ge n!$$</strong> and find the smallest power of two that covers $$n!$$.</li>
+            <li><strong>Floor or minimum?</strong> They agree to $$n = 11$$ and differ from $$n = 12$$.</li>
+            <li><strong>Name the model.</strong> Comparisons only, so non-comparison sorts are outside.</li>
+            <li><strong>Check the base.</strong> Two, because the third outcome is unavailable.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Sixty seconds, and it answers every variant the archives contain.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>If you remember one thing</h3>
+          <p class="small">A sorting algorithm is a binary tree of comparisons, and a tree of height $$h$$ cannot have more than $$2^h$$ leaves. Since correctness demands $$n!$$ leaves, the height cannot be smaller than $$\lceil\log_2(n!)\rceil$$ &mdash; and that single sentence is the floor, the $$\Theta(n\log n)$$, and the reason counting sort is allowed to ignore both.</p>
+          <p class="small muted" style="margin-bottom:0">Everything else in the lesson is the arithmetic of that sentence, including the one honest correction: the floor is achievable up to $$n = 11$$ and not at $$n = 12$$.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> (<code>gate2027.iitm.ac.in</code>). Section 5 is quoted in full on the Overview tab from the PDF fetched and read this run: searching, sorting and hashing; asymptotic worst case time and space complexity; the design techniques; graph traversals, minimum spanning trees and shortest paths. It does not print the words &ldquo;decision tree&rdquo; or &ldquo;lower bound&rdquo;, which is why the class is argued rather than assumed.</li>
+            <li><strong>GATE CSE 1991, Q.1(vii)</strong> &mdash; the minimum comparisons for five elements, key 7. Wording and key agree across three independent archives; the official paper was not opened.</li>
+            <li><strong>GATE CSE 2004</strong> &mdash; the tightest lower bound for comparison-based sorting, key $$n\log n$$. Year and wording agree across two archives; they disagree on the question number, so only the year is quoted.</li>
+            <li><strong>GATE CSE 1990, Q.3(v)</strong> &mdash; the complexity of comparison-based sorting, key $$\Theta(n\log n)$$. Two archives agree.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Every previous-year item is marked archive-sourced where it appears, and every verdict the page gives is recomputed rather than copied from a key.</p>
+        </div>
+
+        <div class="card">
+          <h3>Reference values and textbook-level sources</h3>
+          <ul class="small">
+            <li><strong>OEIS A036604</strong>, &ldquo;Sorting numbers: minimal number of comparisons needed to sort n elements&rdquo; &mdash; 0, 1, 3, 5, 7, 10, 13, 16, 19, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 66, 71. Supports every proven minimum quoted here, and the note that values past $$n = 22$$ are not settled.</li>
+            <li><strong>Knuth, <em>The Art of Computer Programming</em>, volume 3, section 5.3.1.</strong> Supports the decision-tree model, the name &ldquo;information theoretic lower bound&rdquo; for $$\lceil \lg n!\rceil$$, the merge-insertion upper bound $$\sum \lceil \lg \tfrac{3}{4}k\rceil$$, and the history of the exact values of $$S(n)$$.</li>
+            <li><strong>Peczarski, &ldquo;New Results in Minimum-Comparison Sorting&rdquo;, <em>Algorithmica</em>, 2004.</strong> Supports the proved values $$S(13) = 34$$, $$S(14) = 38$$ and $$S(22) = 71$$ by counting linear extensions of partial orders.</li>
+            <li><strong>Cormen, Leiserson, Rivest and Stein, <em>Introduction to Algorithms</em>, chapter 8.</strong> Supports the decision-tree argument, the $$2^h$$ leaf bound, the ceiling and the $$\Omega(n\log n)$$ conclusion in the form GATE examines.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Read as article text and search summaries, not in full. No number in this lesson depends on them: every value is recomputed in code and reported in the model-checks panel.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community, used to find the errors</h3>
+          <ul class="small">
+            <li><strong>GATE Overflow threads on the 1991 item and on &ldquo;minimum comparison sorting&rdquo;.</strong> Several answers give 7 with the ceiling, and at least one gives 7 with the reasoning that the ceiling is only a bound &mdash; both arrive at the right number for $$n = 5$$ and for different reasons. That difference is the subject of the tightness scene.</li>
+            <li><strong>A Computer Science Stack Exchange thread, &ldquo;Why is finding the minimum number of comparisons to sort n elements so difficult?&rdquo;</strong> Gives the $$\lceil\lg n!\rceil \le S(n) \le F(n)$$ sandwich used in Derivation 6, and the reason the exact value is hard.</li>
+            <li><strong>Coaching-site summaries of the topic.</strong> Used to identify the wrong answers this lesson refutes with computed counterexamples: rounding down, base three, and quoting the floor as the minimum.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">No community answer is used as the answer to any question here; every claim about a count was recomputed.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was not verified</h3>
+          <ul class="small">
+            <li>The official 1990, 1991 and 2004 papers were not opened; all three items are archive-sourced, and the 2004 question number is quoted only as a year because the archives disagree.</li>
+            <li>The exact minimum $$S(n)$$ is not known beyond $$n = 22$$, so no value is claimed there. Where the lesson says &ldquo;the minimum&rdquo;, it means a settled value from OEIS A036604.</li>
+            <li>The exhaustive minimax on the page settles the minimum for $$n = 3, 4, 5, 6$$ only. It is a computation over those cases, not a proof for all $$n$$; the proof for all $$n$$ is the counting argument on the Build-up tab.</li>
+            <li>The merge sort closed form was checked against a simulation for $$n \le 8$$ and against the floor up to $$n = 64$$; beyond that it is used as a known formula, not as a checked one.</li>
+            <li>Stirling's approximation was compared with the exact logarithm at four values of $$n$$; the $$o(1)$$ term is stated, not bounded.</li>
+            <li>No audio was recorded. Timings in the subtitle files are estimated from the timeline at a normal speaking rate.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Where a claim rests on a computation, the computation is in the page and its result is reported in the model-checks panel on the Animation tab.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

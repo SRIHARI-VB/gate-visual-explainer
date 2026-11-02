@@ -5129,6 +5129,7 @@ topics.append(topic(
         "the four-step routine and the five traps that are one trap in five costumes"]))
 
 _VERIFIED = {
+    "comparison-lower-bound-decision-trees": "2026-11-02",
     "strongly-connected-components": "2026-11-02",
     "multi-event-independence": "2026-11-02",
     "antichains-and-chain-covers": "2026-11-02",
@@ -6344,6 +6345,69 @@ topics.append(topic(
         "the pop table: which tree edge ends which block, and why the bridge C-D pops alone",
         "GATE CSE 2021 Set 1 Q41: four statements on articulation points and the DFS tree, three refuted by computed counterexamples",
         "GATE CSE 2015 Set 2 Q26: a bridge cannot lie on a simple cycle, checked as 'no bridge shares a block'",
+    ]))
+
+
+# ------------------------------------------------- Algorithms: the comparison lower bound
+topics.append(topic(
+    "Algorithms", "Asymptotic worst case complexity (sorting)",
+    "The comparison lower bound: decision trees, leaf counting and the exact height",
+    ["the decision tree of a comparison sort",
+     "leaves are input orders",
+     "the leaf capacity of a tree of height h",
+     "the ceiling of log2(n!)",
+     "the exact table of n! against the power of two above it",
+     "why base two and why the ceiling",
+     "Stirling and Theta(n log n)",
+     "when the floor is achievable",
+     "the average-case floor",
+     "non-comparison sorts and the scope of the model"],
+    prereq=["sorting-algorithms", "asymptotic-complexity", "trees-bst-and-heaps",
+            "counting-and-combinatorics"],
+    related=["sorting-algorithms", "selection-lower-bounds-max-min-second-largest",
+             "asymptotic-complexity", "divide-and-conquer", "master-theorem-cases-and-boundaries"],
+    importance="high",
+    evidence=("GATE 2027 Section 5 names 'Searching, sorting, hashing. Asymptotic worst case time "
+              "and space complexity.'; this topic is the asymptotic worst-case complexity of the "
+              "sorting problem rather than of one algorithm, and three previous-year items ask it "
+              "directly (GATE CSE 1991 Q.1(vii), 2004, 1990 Q.3(v)). No marks distribution is claimed."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="comparison-lower-bound-decision-trees",
+    path="topics/comparison-lower-bound-decision-trees/index.html",
+    execution=("published 2026-11-02; 34 of 34 model checks pass, geometry audit clean, "
+               "1321 frames drawn across 11 scenes"),
+    microtopics=[
+        "a comparison sort drawn as a binary tree: internal node = one comparison, two exits",
+        "one run = one root-to-leaf path, and its length = the comparisons that run cost",
+        "worst case of the algorithm = height of its tree",
+        "a correct sort needs one leaf per input order, so at least n! leaves",
+        "a binary tree of height h has at most 2^h leaves, counted over all 677 shapes of height at most 4",
+        "combining the two: 2^h >= n! and h >= ceil(log2 n!)",
+        "the ceiling is forced: at n = 5, 2^6 = 64 < 120 leaves are needed",
+        "the base is two: the equality outcome cannot occur for distinct keys",
+        "ceil(log2 120) = 7; ceil(log3 120) = 5, which is refuted by the exhaustive search",
+        "the exact table: n = 1..12 gives 0, 1, 3, 5, 7, 10, 13, 16, 19, 22, 26, 29",
+        "the ceiling is found by doubling in whole numbers, never by a floating logarithm",
+        "slack = 2^h - n!: 2 at n = 3, 8 at n = 4, 3152 at n = 7",
+        "Stirling in base two: n log2 n - 1.4427 n + 0.5 log2(2 pi n) + o(1)",
+        "the leading term gives Theta(n log n), and merge sort matches it",
+        "merge sort worst case = n ceil(log2 n) - 2^ceil(log2 n) + 1, checked by simulation to n = 8",
+        "the sandwich ceil(log2 n!) <= S(n) <= sum ceil(log2 3k/4)",
+        "merge insertion meets the floor for every n up to 11 and spends 30 at n = 12",
+        "the first n whose minimum exceeds the floor is 12, and the gap is not monotone (0 again at 20 and 21)",
+        "the exact minima for n = 3..6 recomputed by exhaustive minimax: 3, 5, 7, 10",
+        "the average floor: any binary tree with L leaves has average depth at least log2 L",
+        "the optimal n = 4 tree averages 4.667 comparisons over its 24 paths",
+        "the best case is not bounded: insertion sort sorts 4 items in 3 and 8 items in 7",
+        "counting sort makes zero comparisons, so no decision tree exists and the floor does not bind it",
+        "radix sort sorts digit by digit, also without comparisons",
+        "the model assumes one unit per comparison, which is why the bound is on comparisons not seconds",
+        "equal keys reduce the leaf count to the number of multiset permutations",
+        "the five-step procedure and the four errors that cost the mark",
+        "GATE CSE 1991 Q.1(vii): minimum comparisons for 5 elements is 7",
+        "GATE CSE 2004: the tightest lower bound is of the order of n log n",
+        "GATE CSE 1990 Q.3(v): the complexity of comparison based sorting is Theta(n log n)",
     ]))
 
 
