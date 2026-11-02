@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IPv6 Addressing and the Forty-Octet Header — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">IPv6 address and header</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Related: IPv4, CIDR and NAT</a>
+      <a href="../udp-datagram-checksum-and-demultiplexing/index.html">Related: UDP checksum</a>
+      <a href="../link-layer-error-detection-mac-and-ethernet/index.html">Related: MAC addresses</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The IPv6 address and the IPv6 base header &mdash; the 128-bit address as eight groups of sixteen bits, the five rules that decide its written form, the prefix arithmetic, the fixed forty-octet header, and the three IPv4 fields that were removed.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Write any 128-bit address in RFC&nbsp;5952 canonical form and expand any legal form back to eight groups, including the two cases that decide marks (a single zero group is never compressed, and a tie between two zero runs goes to the first). Count the addresses in a prefix, subtract the one address a subnet reserves, and say why it is one and not two. Recite the eight header fields with their widths, check that they sum to 320 bits, and compute Payload Length and the resulting wire size for a packet with extension headers. Walk a Next Header chain. Build a modified EUI-64 interface identifier from a MAC address and a link-local address from that.</p>
+          <p><strong>GATE RELEVANCE:</strong> <strong>Class C</strong> &mdash; a useful extension beyond the 2027 syllabus wording, with verified previous-paper evidence. The GATE 2027 CS syllabus, Section&nbsp;10, names <em>IPv4</em> and does not name IPv6; GATE CSE 2018 Question&nbsp;13 did examine the IPv6 Next Header field, and the address arithmetic transfers directly to the CIDR questions the syllabus does name. The reasoning behind the class is set out in full in the second card.</p>
+          <p><strong>PREREQUISITES:</strong> a prefix and its length, and the count $$2^{32-n}$$ for an IPv4 prefix (<a href="../ip-fragmentation-cidr-and-nat/index.html">IP fragmentation, CIDR and NAT</a>); the IPv4 header as a set of named fields; the idea of a 48-bit MAC address (<a href="../link-layer-error-detection-mac-and-ethernet/index.html">Error detection, MAC and Ethernet</a>); binary and hexadecimal place value, and powers of two.</p>
+          <p><strong>VISUALIZATION PLAN:</strong> eleven scenes. The 32-bit and 128-bit fields are drawn at the same scale so the ratio is seen and not asserted. Then the eight groups, with one group expanded to its sixteen bits. Then the five compression rules applied in order to one address, with the tie case and the single-zero counterexample beside it. Then expansion back, with the four malformed inputs the parser refuses. Then the prefix table with the one reserved address. Then the header as eight fields whose widths are summed on screen to 320 bits, and the three dropped IPv4 fields beside it. Then the payload arithmetic octet by octet, the Next Header chain, and the EUI-64 construction. Every string and every number on the canvas is read from the page&rsquo;s model, which validates itself against twelve addresses computed independently.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>the address as a data structure and the header as a fixed layout</em>, not as a list of facts about IPv6. The facts are here, but each one is computed: the canonical form, the counts, the width sum, the payload arithmetic.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance, in the syllabus&rsquo;s own words</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Section&nbsp;10 of the GATE 2027 CS syllabus, as published by IIT Madras, reads in full: <em>&ldquo;Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; Data link layer: error detection, Medium Access Control, Ethernet; Distance vector and link state routing; IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP- flow control and congestion control, socket API; DNS and HTTP.&rdquo;</em> (GATE 2027 CS syllabus PDF, IIT Madras, read this run.)</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The word IPv6 does not appear anywhere in that document, and neither do ARP, DHCP, ICMP, UDP, Wi-Fi or network security. The 2027 wording is narrower than the Section&nbsp;10 that circulated for earlier years.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> That is why this lesson is classified C. It is not claimed to be examinable in 2027 on the syllabus&rsquo;s words. It is claimed to be worth the hour, on two grounds: a verified GATE CSE paper did examine an IPv6 field, and the address arithmetic here is the same arithmetic the named CIDR clause tests, at four times the width.</p>
+          <p class="small muted" style="margin-bottom:0">No marks distribution or weightage is claimed, and nothing here forecasts the 2027 paper.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites, precisely</h3>
+          <p class="small"><strong>Must already be comfortable with:</strong></p>
+          <ul class="small">
+            <li>A prefix of length $$n$$ and the count $$2^{32-n}$$ of IPv4 addresses it holds.</li>
+            <li>Hexadecimal: one hex digit is four bits, so four digits are sixteen bits.</li>
+            <li>That a MAC address is 48 bits, written as six octets.</li>
+            <li>Powers of two up to $$2^{10}$$, and the fact that $$2^{a+b} = 2^a \times 2^b$$.</li>
+          </ul>
+          <p class="small"><strong>Helpful, not required:</strong> having seen an IPv6 address written with a double colon, so that the third scene has something to correct.</p>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 45&ndash;60 minutes with the animation, or 12 minutes for the Revision tab alone. The figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small">
+            <li><strong>The address is eight groups of sixteen bits.</strong> Everything else is a way of writing those eight numbers down.</li>
+            <li><strong>Reading is generous and writing is strict.</strong> Any legal form expands to eight groups; exactly one form is canonical, and RFC&nbsp;5952 fixes it.</li>
+            <li><strong>A single zero group is never compressed, and a tie goes to the first run.</strong> Those two rules are where the marks are lost.</li>
+            <li><strong>The header is a fixed forty octets.</strong> Eight fields, 320 bits, no header-length field, no checksum, no options, no router fragmentation.</li>
+            <li><strong>Payload Length is not Total Length.</strong> It counts what follows the base header, extension headers included, and the base header not at all.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Legend: green marks a value the page&rsquo;s model computed and checked; amber marks a trap or a clause; red would mark a failing check, and none is failing on this page.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition: a building with more floors</h3>
+          <p class="small">An IPv4 address is a short street address. There are only so many of them, and every new building has to reuse somebody&rsquo;s number. An IPv6 address is the same idea with a much longer plot number, plus a rule that the last half of the number is the flat and the first half is the street.</p>
+          <p class="small">The written form is the part that surprises people. Because the number is long, it is written in hex, and because it is mostly zeros, the zeros are allowed to collapse into a double colon. Collapsing is where the ambiguity lives, so the collapse has exactly five rules and no more.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is exact about the split &mdash; prefix says where, interface ID says which &mdash; and loose about the writing, which has no counterpart in a postal address.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definitions</h3>
+          <p class="small">An <strong>IPv6 address</strong> is a 128-bit value. It is written as eight <strong>groups</strong> of sixteen bits each, separated by colons, each group written as one to four hexadecimal digits.</p>
+          <p class="small">A <strong>prefix</strong> of length $$n$$ is the first $$n$$ bits of an address, written after a slash. The remaining $$128-n$$ bits are the <strong>interface ID</strong>.</p>
+          <p class="small">The <strong>base header</strong> is the fixed forty-octet header at the start of every IPv6 packet: eight fields, no options, no checksum.</p>
+          <div class="formula">address = 8 groups &times; 16 bits = 128 bits &nbsp;&nbsp; header = 320 bits = 40 octets
+            <p class="gloss">Both lines are arithmetic, and both are checked by the page: the eight groups are the address, and the eight header fields sum to 320 bits, which is forty octets. Neither number is a convention you have to memorise.</p>
+          </div>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--mathematical">Mathematical derivation</span> A group holds sixteen bits because four hex digits hold four bits each. Four times four is sixteen, and eight times sixteen is one hundred and twenty-eight.</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 1&ndash;2: the eight groups, and why hex</h3>
+          <p class="small">Binary would need 128 characters per address. Decimal would need 39 digits and still not align to anything. Hex gives four bits per character, so a group is four characters and the whole address is thirty-two &mdash; and a group boundary is also a natural place to break a routing decision.</p>
+          <p class="small">So the address is read as eight independent sixteen-bit numbers. Converting one group is ordinary place value: <span class="nowrap"><code>0202</code></span> is $$0\times16^3 + 2\times16^2 + 0\times16 + 2 = 514$$, which in binary is <span class="nowrap"><code>0000 0010 0000 0010</code></span>.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--mathematical">Mathematical derivation</span> Each hex digit stands for four bits, so a group of four digits stands for sixteen. That is the whole reason a group is four characters and not five.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Level 3: the five rules of the written form</h3>
+          <p class="small">RFC&nbsp;5952 fixes one canonical form. Applied in order:</p>
+          <ul class="small">
+            <li><strong>Rule 1.</strong> Leading zeros inside a group are suppressed. <code>0db8</code> becomes <code>db8</code>, and <code>0000</code> becomes <code>0</code>.</li>
+            <li><strong>Rule 2.</strong> The digits a to f are lowercase.</li>
+            <li><strong>Rule 3.</strong> The double colon appears at most once, because it stands for one or more groups of zeros.</li>
+            <li><strong>Rule 4.</strong> The longest run of zero groups is the one compressed, and compression must be used to its maximum.</li>
+            <li><strong>Rule 5.</strong> If two runs tie for longest, the <em>first</em> is compressed.</li>
+          </ul>
+          <p class="small">Two consequences that the rules imply and that people miss: a run of <em>one</em> zero group is never compressed, and a double colon may not be used where it would have to stand for no group at all.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> All five are quoted from RFC&nbsp;5952, sections 4.1 to 4.3, whose own worked example for the tie rule is the address used in this lesson: <code>2001:db8:0:0:1:0:0:1</code> becomes <code>2001:db8::1:0:0:1</code>.</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 3: expansion is a count, not a guess</h3>
+          <p class="small">To read an address back, count the groups on each side of the double colon and let it stand for whatever makes eight. In <code>2001:db8::1</code> there are two groups before and one after, so the colon stands for five groups of zeros.</p>
+          <p class="small">The test that decides whether a string is an address is therefore a single sentence: <em>after expansion, are there exactly eight groups?</em> Every malformed input fails that test, and nothing else needs checking.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC&nbsp;4291 says the double colon stands for one or more groups of 16 bits of zeros and can appear only once in an address. Both halves of that sentence are used by the parser on this page, and both are checked.</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 4: prefix arithmetic, and the one reserved address</h3>
+          <p class="small">A prefix of length $$n$$ leaves $$128-n$$ bits, so it holds $$2^{128-n}$$ addresses. A $$/64$$ holds $$2^{64}$$, a $$/48$$ holds $$2^{80}$$, and a $$/48$$ therefore contains $$2^{16} = 65{,}536$$ subnets of size $$/64$$.</p>
+          <p class="small">One address per subnet is reserved: the interface ID of all zeros is the <strong>subnet-router anycast address</strong>, which every router on that subnet must answer for. So a $$/64$$ has $$2^{64}-1$$ usable interface IDs, and there is no broadcast address, so no second reservation is needed.</p>
+          <div class="formula">usable in a $$/64$$: $$2^{64} - 1 = 18{,}446{,}744{,}073{,}709{,}551{,}615$$
+            <p class="gloss">The subtraction is one, not two. IPv4 subtracts two because it reserves a network address and a broadcast address; IPv6 reserves the anycast address and has no broadcast address to reserve.</p>
+          </div>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The subnet-router anycast address is predefined in RFC&nbsp;4291 section 2.6.1, and all routers are required to support it for the subnets they are attached to.</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 4: the header, field by field</h3>
+          <p class="small">Eight fields, in order: Version 4 bits; Traffic Class 8; Flow Label 20; Payload Length 16; Next Header 8; Hop Limit 8; Source Address 128; Destination Address 128. The sum is 320 bits, which is forty octets.</p>
+          <p class="small">Three meanings that carry marks: Version is always 6; Hop Limit counts <em>hops</em>, not seconds; Payload Length counts the octets <em>after</em> this header, including every extension header, and excludes the forty octets of the base header itself.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> All eight widths and all three meanings are stated in RFC&nbsp;8200 section 3, which is the current IPv6 specification (July 2017).</p>
+        </div>
+
+        <div class="card">
+          <h3>Level 5: what was removed, and the condition that removed it</h3>
+          <p class="small">Three fields are gone, and each removal has a stated replacement:</p>
+          <ul class="small">
+            <li><strong>Header checksum.</strong> Gone. The link layer checks each hop and the transport layer checks the ends.</li>
+            <li><strong>Options, and with them the header-length field.</strong> Moved into extension headers, so the base header can be fixed.</li>
+            <li><strong>Identification, flags and fragment offset.</strong> Routers no longer fragment; only the source does, through a Fragment header, and a router that cannot forward sends ICMPv6 Packet Too Big (type 2).</li>
+          </ul>
+          <p class="small">The condition attached to the third: every IPv6 link must carry at least 1280 octets, so a source can always send something that fits.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The 1280-octet minimum link MTU is RFC&nbsp;8200 section 5; the Packet Too Big message with type 2 is RFC&nbsp;4443 section 3.2, and it is the message path MTU discovery depends on.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every count and every canonical form computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">An IPv4 address is thirty-two bits and an IPv6 address is a hundred and twenty-eight. The extra width is the reason the space stopped being countable.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A bigger space, not a bigger number</p>
+            <p class="counter" id="scene-count">Scene 1 of 11</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">An IPv4 address is thirty-two bits. An IPv6 address is a hundred and twenty-eight. The extra width is not decoration: it is the reason the address space stopped being countable.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="336" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:36</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Example 1 &mdash; write the canonical form</h3>
+          <p class="small"><strong>Given</strong> <code>2001:0DB8:0000:0000:0001:0000:0000:0001</code>, write the RFC&nbsp;5952 form.</p>
+          <ol class="step-list small">
+            <li><strong>Suppress leading zeros.</strong> <code>2001:db8:0:0:1:0:0:1</code>. <span class="why">0db8 becomes db8, and each 0000 becomes 0.</span></li>
+            <li><strong>Lowercase.</strong> The D and B of DB8 become d and b. <span class="why">Already done in step 1 here; it matters when the input is uppercase.</span></li>
+            <li><strong>Find the zero runs.</strong> Groups 2 and 3 are zero, and groups 5 and 6 are zero. <span class="why">Two runs, each two groups long.</span></li>
+            <li><strong>Break the tie.</strong> The first run wins. <span class="why">RFC&nbsp;5952 section 4.2.3: on equal length, shorten the first sequence.</span></li>
+          </ol>
+          <p class="small"><span class="verdict">Answer: <code>2001:db8::1:0:0:1</code></span> &mdash; seventeen characters, and the page&rsquo;s model produces it and checks it.</p>
+          <p class="small muted" style="margin-bottom:0"><code>2001:db8:0:0:1::1</code> expands to the same eight groups and is not canonical. If the question says <em>canonical</em>, only the first is right; if it says <em>a valid representation</em>, both are.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 &mdash; expand, and decide validity</h3>
+          <p class="small"><strong>Given</strong> <code>fe80::202:b3ff:fe1e:8329</code>, expand it and say what kind of address it is.</p>
+          <ol class="step-list small">
+            <li><strong>Count.</strong> One group before the colon, four after. <span class="why">So the colon stands for $$8-5 = 3$$ groups of zeros.</span></li>
+            <li><strong>Expand.</strong> <code>fe80:0000:0000:0000:0202:b3ff:fe1e:8329</code>. <span class="why">Eight groups, so the string is a legal address.</span></li>
+            <li><strong>Read the prefix.</strong> The first ten bits are 1111 1110 10. <span class="why">That is fe80::/10, the link-local prefix.</span></li>
+          </ol>
+          <p class="small"><span class="verdict">Answer: a link-local address.</span> Routers must not forward it off the link it was made on, which is what makes it useful for autoconfiguration and useless for reaching anything else.</p>
+          <p class="small muted" style="margin-bottom:0">Notice the interface ID: <code>0202:b3ff:fe1e:8329</code> has FF FE in the middle and a 02 in the first octet. That is a modified EUI-64 identifier built from a MAC address, which is Example 5.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 &mdash; the packet arithmetic</h3>
+          <p class="small"><strong>Given</strong> an IPv6 packet carrying an 8-octet Routing header and a 1000-octet UDP datagram. Find Payload Length and the size on the wire.</p>
+          <ol class="step-list small">
+            <li><strong>Payload</strong> is everything after the base header: the Routing header plus the UDP datagram. <span class="why">$$8 + 1000 = 1008$$.</span></li>
+            <li><strong>Base header</strong> is not in the payload, and is 40 octets. <span class="why">It is fixed, so no length field is needed for it.</span></li>
+            <li><strong>On the wire</strong> the packet is $$40 + 1008 = 1048$$ octets. <span class="why">IPv4 would have written 1048 in Total Length, for the same packet.</span></li>
+          </ol>
+          <p class="small"><span class="verdict">Answer: Payload Length 1008; 1048 octets on the wire.</span></p>
+          <p class="small muted" style="margin-bottom:0">The off-by-forty error is the commonest slip: 1008 is the answer to &ldquo;what does the field say&rdquo;, and 1048 is the answer to &ldquo;how big is the packet&rdquo;. Read which one was asked.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 &mdash; count a prefix</h3>
+          <p class="small"><strong>Given</strong> the allocation <code>2001:db8:abcd::/48</code>. How many /64 subnets does it contain, and how many usable interface IDs does one of them have?</p>
+          <ol class="step-list small">
+            <li><strong>Subnet bits.</strong> The allocation fixes 48 bits and a /64 fixes 64, so the subnet field is $$64-48 = 16$$ bits. <span class="why">$$2^{16} = 65{,}536$$.</span></li>
+            <li><strong>Addresses in one /64.</strong> $$128-64 = 64$$ bits remain, so $$2^{64}$$ addresses. <span class="why">That is 18,446,744,073,709,551,616.</span></li>
+            <li><strong>Subtract the reserved one.</strong> The all-zero interface ID is the subnet-router anycast address. <span class="why">$$2^{64}-1$$ usable, and no broadcast address to subtract.</span></li>
+          </ol>
+          <p class="small"><span class="verdict">Answer: 65,536 subnets; 18,446,744,073,709,551,615 usable interface IDs each.</span></p>
+          <p class="small muted" style="margin-bottom:0">The allocation itself holds $$2^{80}$$ addresses, so a /48 is not a small thing. That is why the first three groups are enough to route on.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 &mdash; build a link-local address</h3>
+          <p class="small"><strong>Given</strong> the MAC address <code>00:1a:2b:3c:4d:5e</code>, build the modified EUI-64 interface ID and the link-local address.</p>
+          <ol class="step-list small">
+            <li><strong>Insert FF FE</strong> between the third and fourth octets: <code>00:1a:2b:ff:fe:3c:4d:5e</code>. <span class="why">Six octets become eight, which is sixty-four bits.</span></li>
+            <li><strong>Flip the universal/local bit</strong>, which is the 0x02 bit of the first octet: <code>00</code> becomes <code>02</code>, giving <code>02:1a:2b:ff:fe:3c:4d:5e</code>. <span class="why">RFC&nbsp;4291 Appendix A inverts it so a locally administered identifier can be hand-written as 0:0:0:1 rather than 0200:0:0:1.</span></li>
+            <li><strong>Group the octets in pairs</strong>: <code>021a:2bff:fe3c:4d5e</code>. <span class="why">Two octets per group, which is what a group is.</span></li>
+            <li><strong>Prefix it</strong> with fe80::/64 and write the canonical form: <code>fe80::21a:2bff:fe3c:4d5e</code>. <span class="why">The leading zero of 021a is suppressed.</span></li>
+          </ol>
+          <p class="small"><span class="verdict">Answer: <code>fe80::21a:2bff:fe3c:4d5e</code>.</span> Every step is computed by the page and compared with the example in RFC&nbsp;4291 Appendix A.</p>
+          <p class="small muted" style="margin-bottom:0">The final compressed form suppresses the zero in <code>021a</code>. That is rule 1, not a mistake: the interface ID is still sixteen bits per group.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample &mdash; why an example is not a rule</h3>
+          <p class="small">Most addresses you will see compress a run of three or four zero groups, so it is tempting to conclude that <em>any</em> zero group can be collapsed. Here is the smallest counterexample:</p>
+          <p class="small"><code>2001:0db8:0000:0001:0001:0001:0001:0001</code></p>
+          <p class="small">Its canonical form is <code>2001:db8:0:1:1:1:1:1</code>. The single zero group stays a <code>0</code>. Written as <code>2001:db8::1:1:1:1:1</code> it is not canonical, and RFC&nbsp;5952 section 4.2.2 forbids it explicitly.</p>
+          <p class="small">The reason is not stylistic. A double colon must stand for <em>one or more</em> groups, so writing one zero group with it is a wasted opportunity at best, and at worst it invites a reader to expand it as two groups, which changes the address.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--mathematical">Mathematical derivation</span> The compression rule is defined on the run length: a run of length $$k\ge 2$$ saves $$k-1$$ characters, and a run of length 1 saves none. So the rule that compresses only runs of at least two is the rule that saves the most characters.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>The double colon at the end</h3>
+          <p class="small"><code>2001:db8::</code> is legal: two groups then six of zeros, and the trailing colon compresses the run. But <code>2001:db8:1:2:3:4:5:6::</code> is not legal, because eight groups are already present and the colon would have to stand for zero groups.</p>
+          <p class="small muted" style="margin-bottom:0">The page&rsquo;s parser refuses exactly this, and the refusal is in the model checks under &ldquo;:: standing for no group at all&rdquo;.</p>
+        </div>
+
+        <div class="card">
+          <h3>Zero runs at both ends</h3>
+          <p class="small"><code>::1</code> is the loopback address: seven zero groups and a one. <code>::</code> alone is the unspecified address: eight zero groups, and it is never a valid destination. Both compress a run at the boundary, which is why the formatter must treat the ends like any other run.</p>
+          <p class="small muted" style="margin-bottom:0">The model formats both from eight integers and checks them against the independent table, so the boundary case is exercised rather than assumed.</p>
+        </div>
+
+        <div class="card">
+          <h3>The IPv4-mapped address</h3>
+          <p class="small">An address in <code>::ffff:0:0/96</code> embeds an IPv4 address in its low 32 bits. RFC&nbsp;5952 section 5 recommends mixed notation for exactly these well-known prefixes, so <code>::ffff:c000:0201</code> is written <code>::ffff:192.0.2.1</code>.</p>
+          <p class="small muted" style="margin-bottom:0">This is the one place where dotted decimal appears inside an IPv6 address, and the page computes both forms and checks them.</p>
+        </div>
+
+        <div class="card">
+          <h3>A /127 is legal</h3>
+          <p class="small">A /127 holds two addresses and is used on point-to-point links. It is not &ldquo;the same as IPv4&rsquo;s /30&rdquo;: IPv4 needs two of its four for network and broadcast, IPv6 needs neither of those two reservations on a /127 in the same way, and the subnet-router anycast matters only where a router is expected to answer.</p>
+          <p class="small muted" style="margin-bottom:0">The general rule still holds: subtract the anycast address where a router is present on the subnet, and check whether the question asked for <em>addresses</em> or <em>usable interface IDs</em>.</p>
+        </div>
+
+        <div class="card">
+          <h3>Jumbograms, and Payload Length zero</h3>
+          <p class="small">Payload Length is 16 bits, so it stops at 65,535. A larger payload is signalled by setting the field to 0 and carrying the real length in the Jumbo Payload option of the hop-by-hop header. A zero with no such option means a zero-length payload, which is a legal but useless packet.</p>
+          <p class="small muted" style="margin-bottom:0">So a zero in that field is ambiguous until you have read the hop-by-hop header &mdash; the only field in the base header whose meaning depends on another header.</p>
+        </div>
+
+        <div class="card">
+          <h3>Next Header 59</h3>
+          <p class="small">The value 59 means there is no next header at all. A packet can therefore end at an extension header with nothing behind it, which is legal and is how some control traffic is sent.</p>
+          <p class="small muted" style="margin-bottom:0">This is the value most often forgotten in a list, and it is the reason the chain is described as ending either at a transport header or at 59.</p>
+        </div>
+
+        <div class="card">
+          <h3>An extension header is part of the payload</h3>
+          <p class="small">RFC&nbsp;8200 says explicitly that extension headers count towards Payload Length. So a packet with a 24-octet Routing header and 100 octets of TCP data has Payload Length 124, not 100.</p>
+          <p class="small muted" style="margin-bottom:0">If you forget this, every packet with an extension header is short by the size of that header, and the error is invisible unless you add the pieces up.</p>
+        </div>
+
+        <div class="card">
+          <h3>The EUI-64 errata</h3>
+          <p class="small">RFC&nbsp;4291 Appendix A inserts 0xFF and 0xFE. Its own errata note records that an earlier version of the text said 0xFF twice, and explains that 0xFF 0xFE is the pair used when starting from a MAC-48.</p>
+          <p class="small muted" style="margin-bottom:0">Worth knowing because a page that quotes the old text will produce a different interface ID from the one every operating system produces.</p>
+        </div>
+
+        <div class="card">
+          <h3>Link-local addresses do not leave the link</h3>
+          <p class="small">A router must not forward a packet whose source or destination is link-local. So <code>fe80::/10</code> is the address a host uses to talk to its neighbours before it has anything routable.</p>
+          <p class="small muted" style="margin-bottom:0">This is why a host can have several addresses at once: one link-local, and one or more global ones per prefix it has been told about.</p>
+        </div>
+
+        <div class="card">
+          <h3>The minimum MTU is a requirement, not a default</h3>
+          <p class="small">Every link must carry 1280 octets. That is what lets a source fragment once, at the start, and know the pieces will fit anywhere. A link that cannot carry 1280 must fragment below IPv6, at the link layer.</p>
+          <p class="small muted" style="margin-bottom:0">So 1280 is the number to use when a question says &ldquo;the source does not know the path MTU&rdquo;, and 1500 is the number to use when it says &ldquo;Ethernet&rdquo;.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>Misconception 1 &mdash; &ldquo;Payload Length counts the whole packet&rdquo;</h3>
+          <ol class="step-list small">
+            <li><strong>The belief.</strong> Payload Length is IPv6&rsquo;s name for Total Length, so a 1048-octet packet says 1048.</li>
+            <li><strong>Why it seems right.</strong> Both fields sit in the second word of the header, both are 16 bits, and both describe size.</li>
+            <li><strong>Why it is wrong.</strong> Payload Length counts what follows the base header. The base header is fixed at 40 octets and is therefore never counted.</li>
+            <li><strong>Minimal counterexample.</strong> An empty payload with no extension header is a valid packet of 40 octets on the wire, and its Payload Length is 0. If the field counted the packet, it would say 40.</li>
+            <li><strong>Correct rule.</strong> Field value plus 40 is the wire size, when no jumbo option is in play. Extension headers are inside the field.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 2 &mdash; &ldquo;Any zero group can be compressed&rdquo;</h3>
+          <ol class="step-list small">
+            <li><strong>The belief.</strong> The double colon is shorthand for zeros, so a single zero group can be written as a double colon too.</li>
+            <li><strong>Why it seems right.</strong> Most real addresses have long runs of zeros, so the pattern &ldquo;zero means colon colon&rdquo; is what a learner actually sees.</li>
+            <li><strong>Why it is wrong.</strong> The double colon stands for one <em>or more</em> groups. Using it for one group is forbidden by RFC&nbsp;5952 section 4.2.2 and saves no characters.</li>
+            <li><strong>Minimal counterexample.</strong> <code>2001:0db8:0000:0001:0001:0001:0001:0001</code> is written <code>2001:db8:0:1:1:1:1:1</code>. The zero stays.</li>
+            <li><strong>Correct rule.</strong> Compress the longest run, and only a run of at least two.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 3 &mdash; &ldquo;A subnet reserves two addresses&rdquo;</h3>
+          <ol class="step-list small">
+            <li><strong>The belief.</strong> A $$/64$$ has $$2^{64}-2$$ usable addresses, because IPv4 subtracts a network address and a broadcast address.</li>
+            <li><strong>Why it seems right.</strong> That is exactly what every IPv4 subnetting question does, and it is a habit that transfers badly.</li>
+            <li><strong>Why it is wrong.</strong> IPv6 has no broadcast address, so there is nothing to reserve for one. The single reservation is the subnet-router anycast address.</li>
+            <li><strong>Minimal counterexample.</strong> RFC&nbsp;4291 section 2.6.1 defines one required anycast address per subnet, and no broadcast address anywhere in the architecture.</li>
+            <li><strong>Correct rule.</strong> Subtract one, and only when the question asks for usable interface IDs rather than addresses.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 4 &mdash; &ldquo;The header checksum was removed because it was wrong&rdquo;</h3>
+          <ol class="step-list small">
+            <li><strong>The belief.</strong> IPv6 dropped the checksum because checksums are unreliable, or because the transport layer does it better.</li>
+            <li><strong>Why it seems right.</strong> The usual one-line explanation is &ldquo;the link layer already checks&rdquo;, which sounds like a claim about correctness.</li>
+            <li><strong>Why it is wrong.</strong> It was removed because it cost every router a recomputation, since Hop Limit changes at each hop. The check was correct; it was expensive and largely redundant.</li>
+            <li><strong>Minimal counterexample.</strong> TCP and UDP checksums cover a pseudo-header that includes the addresses, so end-to-end integrity was already checked without the header field.</li>
+            <li><strong>Correct rule.</strong> No header checksum in IPv6; the UDP checksum becomes mandatory, which is the compensating change.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 5 &mdash; &ldquo;Routers still fragment, just less often&rdquo;</h3>
+          <ol class="step-list small">
+            <li><strong>The belief.</strong> IPv6 routers fragment only when they must, so fragmentation is rarer but still possible in transit.</li>
+            <li><strong>Why it seems right.</strong> The Fragment header exists, so fragmentation plainly exists.</li>
+            <li><strong>Why it is wrong.</strong> The Fragment header is used by the <em>source</em>. A router that cannot forward a packet discards it and returns ICMPv6 Packet Too Big (type 2).</li>
+            <li><strong>Minimal counterexample.</strong> RFC&nbsp;8200 section 4.5 says fragmentation in IPv6 is performed only by source nodes, not by routers along the delivery path.</li>
+            <li><strong>Correct rule.</strong> Source fragments, router reports. Path MTU discovery is the mechanism that makes that workable.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 6 &mdash; &ldquo;Anycast is a separate address type&rdquo;</h3>
+          <ol class="step-list small">
+            <li><strong>The belief.</strong> IPv6 has four address types &mdash; unicast, multicast, anycast and broadcast &mdash; and each has its own prefix.</li>
+            <li><strong>Why it seems right.</strong> The list of types is usually taught as a list of four, and IPv4 does have a distinct class for multicast.</li>
+            <li><strong>Why it is wrong.</strong> Anycast addresses are taken from the unicast space and are syntactically indistinguishable from unicast; and there is no broadcast type at all.</li>
+            <li><strong>Minimal counterexample.</strong> RFC&nbsp;4291 section 2.4 gives five rows in its type table and says anycast addresses are not syntactically distinguishable from unicast addresses.</li>
+            <li><strong>Correct rule.</strong> Three types exist in the type table &mdash; unicast, multicast, anycast-as-a-use &mdash; and the all-nodes group ff02::1 does the job broadcast used to do.</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>What a question on this topic actually asks</h3>
+          <p class="small">Across the papers this page could verify, an IPv6 item has one of four shapes, and three of them are arithmetic rather than recall:</p>
+          <ul class="small">
+            <li><strong>A field width.</strong> &ldquo;The IPv6 Next Header field is how many bits?&rdquo; One remembered number, and one distractor that is the neighbouring field.</li>
+            <li><strong>A canonical form.</strong> &ldquo;Which of these is a valid / the canonical representation of &hellip;?&rdquo; Decided by the count of groups and the two tie rules.</li>
+            <li><strong>A count in a prefix.</strong> &ldquo;How many addresses / subnets / usable interface IDs?&rdquo; Decided by $$2^{128-n}$$ and by subtracting the right number.</li>
+            <li><strong>A header or payload size.</strong> &ldquo;What does Payload Length say, and how big is the packet?&rdquo; Two different questions that share one packet.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Question indexes tag IPv6 items as field-width and comparison items far more often than as address-planning items. That is a catalogue&rsquo;s tagging, not an official distribution, and it is not a forecast for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>The procedure, in the order that avoids the trap</h3>
+          <ol class="step-list small">
+            <li><strong>Name the object.</strong> Is the question about the address, the prefix, the header, or the payload? The four have four different arithmetics.</li>
+            <li><strong>Expand before you compare.</strong> Two addresses that look different may be the same eight groups. Write both as eight groups and compare those.</li>
+            <li><strong>Check the count of groups.</strong> Any validity question is decided by whether the expansion lands on eight.</li>
+            <li><strong>Apply the two tie rules last.</strong> Longest run first, then first run on a tie, and never a single zero group.</li>
+            <li><strong>For a size question, add 40.</strong> Field value plus 40 gives the wire size; the wire size minus 40 gives the field. Say which one was asked.</li>
+            <li><strong>For a count question, subtract one.</strong> The subnet-router anycast address, and not two, because there is no broadcast address.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">Steps 2 and 3 are the two that turn a guess into an answer, and both are mechanical: they need no memory of IPv6 trivia, only the eight-group rule.</p>
+        </div>
+
+        <div class="card card--hero span-2">
+          <h3>GATE CSE 2018, Question 13 &mdash; the verified item</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Match the following.</p>
+          <div class="sheet">
+            <dl>
+              <dt>P. UDP header&rsquo;s port number</dt><dd>I. 48</dd>
+              <dt>Q. Ethernet MAC address</dt><dd>II. 8</dd>
+              <dt>R. IPv6 Next Header</dt><dd>III. 32</dd>
+              <dt>S. TCP header&rsquo;s sequence number</dt><dd>IV. 16</dd>
+            </dl>
+          </div>
+          <p class="small">Options: (A) P&ndash;III, Q&ndash;IV, R&ndash;II, S&ndash;I &nbsp; (B) P&ndash;II, Q&ndash;I, R&ndash;IV, S&ndash;III &nbsp; (C) P&ndash;IV, Q&ndash;I, R&ndash;II, S&ndash;III &nbsp; (D) P&ndash;IV, Q&ndash;I, R&ndash;III, S&ndash;II</p>
+          <p class="small"><strong>Answer: C.</strong> A UDP port number is 16 bits; a MAC address is 48; the IPv6 Next Header field is 8, because it carries an IP protocol number, the same eight-bit field IPv4 calls Protocol; a TCP sequence number is 32 bits.</p>
+          <p class="small"><strong>What the question is testing.</strong> Not IPv6 in general &mdash; one field width. But it is testing whether you know which field that width belongs to: the 16-bit field beside Next Header is Payload Length, and option (B) is built by confusing the two.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Two independent sources carry this question and answer for GATE CSE 2018 with the official key (option C): a question index and a solved-paper site that states the official key is from the 2018 paper. The year, the paper and the answer are all verifiable; the wording above follows the paper.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>An item that is not a GATE CSE previous-year question</h3>
+          <p class="small">A question circulates as &ldquo;GATE CSE 2013, Question 56&rdquo;: <em>&ldquo;IPv6 does not support which of the following addressing modes?&rdquo;</em> with options unicast, multicast, broadcast and anycast, and the answer broadcast.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> At least two indexes attribute it to GATE CSE 2013. A solved previous-year compilation attributes the same question, with the same question number, to <strong>ISRO CSE 2013</strong>. On the available evidence this page treats it as an ISRO question, not a GATE CSE one, and does not count it as a GATE previous-year question.</p>
+          <p class="small">The fact it tests is nonetheless true and worth carrying: IPv6 has no broadcast address. The all-nodes group <code>ff02::1</code> is a multicast address, and multicast is the mechanism that replaced broadcast.</p>
+          <p class="small muted" style="margin-bottom:0">This is the same trap in a different costume: a question is a GATE previous-year question only if it is printed in a GATE paper. An index labelling it GATE does not make it one.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q1 &mdash; the canonical form</h3>
+          <p class="small">Which one of the following is the RFC&nbsp;5952 canonical representation of <code>2001:0db8:0000:0000:0001:0000:0000:0001</code>?</p>
+          <p class="small muted">(a) <code>2001:db8:0:0:1:0:0:1</code> &nbsp; (b) <code>2001:db8::1:0:0:1</code> &nbsp; (c) <code>2001:db8:0:0:1::1</code> &nbsp; (d) <code>2001:db8::1::1</code></p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: (b)</span></p>
+            <p class="small">Two runs of two zero groups tie, and the first is compressed. The page&rsquo;s formatter produces exactly this string, and the model checks it against an independent computation.</p>
+            <p class="small">(a) compresses nothing. (c) compresses the second run, which is legal to read but not canonical. (d) uses the double colon twice, which RFC&nbsp;4291 forbids outright.</p>
+            <p class="small muted" style="margin-bottom:0">Trap: (c) is the attractive wrong answer, because both runs are the same length and only the tie rule separates them.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q2 &mdash; which statements hold</h3>
+          <p class="small">Select every true statement about the IPv6 base header.</p>
+          <p class="small muted">
+            (a) It is forty octets and has no header-length field.<br>
+            (b) It contains a header checksum covering the header only.<br>
+            (c) Payload Length counts the extension headers and not the base header.<br>
+            (d) Hop Limit is decremented once per hop.<br>
+            (e) A router may fragment a packet that is too large for the next link.
+          </p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: (a), (c) and (d)</span></p>
+            <p class="small">(a) holds: eight fields summing to 320 bits, so the length is fixed and no field records it. (c) holds: RFC&nbsp;8200 counts extension headers as payload. (d) holds: each forwarding node decrements it by one.</p>
+            <p class="small">(b) fails: there is no header checksum in IPv6 at all. (e) fails: only the source fragments; a router discards the packet and sends ICMPv6 Packet Too Big, type 2.</p>
+            <p class="small muted" style="margin-bottom:0">(b) is the closest to true-sounding, because IPv4&rsquo;s checksum covers the header only. (e) is the one that stays in people&rsquo;s heads from IPv4.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q3 &mdash; the payload field</h3>
+          <p class="small">An IPv6 packet carries a 24-octet Routing header and 500 octets of TCP data, with no other extension headers. The value in its Payload Length field is ______ octets.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: 524</span></p>
+            <p class="small">Payload = extension header + transport data = $$24 + 500 = 524$$. The base header&rsquo;s 40 octets are not in the field, and the extension header&rsquo;s 24 are.</p>
+            <p class="small">The packet on the wire is $$40 + 524 = 564$$ octets, which is a different number and the answer to a different question.</p>
+            <p class="small muted" style="margin-bottom:0">Common wrong answers: 500 (forgetting the extension header) and 564 (counting the base header). Both are errors of exactly one term.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q4 &mdash; the closely confused pair</h3>
+          <p class="small">Which statement distinguishes Payload Length from IPv4&rsquo;s Total Length correctly?</p>
+          <p class="small muted">(a) They are the same field under two names.<br>
+          (b) Payload Length excludes the base header; Total Length includes the IPv4 header.<br>
+          (c) Payload Length is 16 bits; Total Length is 32 bits.<br>
+          (d) Payload Length excludes extension headers; Total Length includes options.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: (b)</span></p>
+            <p class="small">For one packet of 1048 octets, IPv4 writes 1048 and IPv6 writes 1008. The difference is exactly the header, and it is 40 because the IPv6 header is fixed.</p>
+            <p class="small">(a) is false. (c) is false: both are 16 bits. (d) is false and is the interesting distractor &mdash; IPv6 counts extension headers <em>inside</em> Payload Length, while IPv4 counts its options inside Total Length, so the two behave the same way there.</p>
+            <p class="small muted" style="margin-bottom:0">This is the distinction the lesson calls the off-by-forty error, and it is the one that survives into real packet captures.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q5 &mdash; count the subnets</h3>
+          <p class="small">An organisation is allocated <code>2001:db8:1234::/48</code> and splits it into /64 subnets. The number of /64 subnets it can create is ______.</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: 65536</span></p>
+            <p class="small">The subnet field is $$64 - 48 = 16$$ bits, so $$2^{16} = 65{,}536$$. The page computes this with exact integer powers rather than floating point.</p>
+            <p class="small">Each of those subnets then holds $$2^{64}$$ addresses, of which $$2^{64}-1$$ are usable interface IDs.</p>
+            <p class="small muted" style="margin-bottom:0">Common wrong answer: 256, which is the IPv4 habit of assuming an 8-bit subnet field. In IPv6 the field is whatever the two prefix lengths leave.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q6 &mdash; the interface ID</h3>
+          <p class="small">A host with MAC address <code>00:1a:2b:3c:4d:5e</code> forms a modified EUI-64 interface identifier. Its first two octets are:</p>
+          <p class="small muted">(a) <code>00:1a</code> &nbsp; (b) <code>02:1a</code> &nbsp; (c) <code>ff:fe</code> &nbsp; (d) <code>01:1a</code></p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: (b), 02:1a</span></p>
+            <p class="small">The universal/local bit is the 0x02 bit of the first octet. <code>00</code> exclusive-ored with <code>02</code> is <code>02</code>, and the second octet is untouched, so the identifier begins <code>021a:2bff:fe3c:4d5e</code>.</p>
+            <p class="small">(a) is the unmodified MAC. (c) is the pair inserted in the middle, which lands at octets three and four, not one and two. (d) flips the low bit instead of the universal/local bit.</p>
+            <p class="small muted" style="margin-bottom:0">The whole construction is checked against RFC&nbsp;4291 Appendix A&rsquo;s own example, which uses this exact MAC address.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q7 &mdash; valid against canonical</h3>
+          <p class="small">Select every string that is a valid IPv6 address, whether or not it is canonical.</p>
+          <p class="small muted">
+            (a) <code>2001:db8:0:0:1::1</code><br>
+            (b) <code>2001:db8::1::2</code><br>
+            (c) <code>::</code><br>
+            (d) <code>2001:db8:1:2:3:4:5:6:7</code><br>
+            (e) <code>fe80::</code>
+          </p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: (a), (c) and (e)</span></p>
+            <p class="small">(a) expands to eight groups and is legal, though not canonical. (c) is the unspecified address: eight zero groups. (e) is a link-local prefix with an all-zero interface ID, which is legal as a string.</p>
+            <p class="small">(b) uses the double colon twice, so it cannot be expanded. (d) has nine groups and no double colon, so it cannot be reduced to eight.</p>
+            <p class="small muted" style="margin-bottom:0">This is the distinction the lesson keeps returning to: validity is a count, canonical form is a separate and stricter question.</p>
+          </div>
+        </div>
+
+        <div class="card question">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+          <h3>Q8 &mdash; the header sum</h3>
+          <p class="small">Ignoring any extension headers, how many bits of an IPv6 packet are spent on the source and destination addresses together?</p>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><span class="verdict">Answer: 256</span></p>
+            <p class="small">Two addresses of 128 bits each. They are 80 per cent of the 320-bit header, which is why the other six fields fit in two 32-bit words.</p>
+            <p class="small">The remaining 64 bits are Version 4, Traffic Class 8, Flow Label 20, Payload Length 16, Next Header 8 and Hop Limit 8.</p>
+            <p class="small muted" style="margin-bottom:0">A useful sanity check on any remembered field width: the eight fields must sum to 320. A wrong width almost always breaks that sum.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small">Everything below is computed by the page, except the field widths, which are quoted from RFC&nbsp;8200 and summed on the canvas.</p>
+          <div class="grid grid--2">
+            <div class="sheet">
+              <dl>
+                <dt>Address width</dt><dd>128 bits = 8 groups &times; 16 bits = 16 octets</dd>
+                <dt>A group</dt><dd>4 hex digits = 16 bits = 4 nibbles</dd>
+                <dt>Base header</dt><dd>320 bits = 40 octets, always</dd>
+                <dt>Addresses in a /n</dt><dd>$$2^{128-n}$$</dd>
+                <dt>Subnets of /64 in a /48</dt><dd>$$2^{16} = 65{,}536$$</dd>
+                <dt>Usable interface IDs in a /64</dt><dd>$$2^{64}-1$$</dd>
+                <dt>Wire size from Payload Length</dt><dd>field + 40</dd>
+                <dt>TCP MSS over IPv6</dt><dd>MTU &minus; 40 &minus; 20 = MTU &minus; 60</dd>
+                <dt>Minimum link MTU</dt><dd>1280 octets</dd>
+              </dl>
+            </div>
+            <div class="sheet">
+              <dl>
+                <dt>Version</dt><dd>4 bits, always 6</dd>
+                <dt>Traffic Class</dt><dd>8 bits</dd>
+                <dt>Flow Label</dt><dd>20 bits</dd>
+                <dt>Payload Length</dt><dd>16 bits, payload only</dd>
+                <dt>Next Header</dt><dd>8 bits</dd>
+                <dt>Hop Limit</dt><dd>8 bits, hops not seconds</dd>
+                <dt>Source Address</dt><dd>128 bits</dd>
+                <dt>Destination Address</dt><dd>128 bits</dd>
+                <dt>Sum</dt><dd>320 bits, checked on this page</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Prefixes worth recognising</h3>
+          <div class="sheet">
+            <dl>
+              <dt>::/128</dt><dd>unspecified, never a destination</dd>
+              <dt>::1/128</dt><dd>loopback</dd>
+              <dt>::ffff:0:0/96</dt><dd>IPv4-mapped, mixed notation recommended</dd>
+              <dt>2000::/3</dt><dd>global unicast</dd>
+              <dt>2001:db8::/32</dt><dd>documentation, never routed</dd>
+              <dt>fe80::/10</dt><dd>link-local, never forwarded</dd>
+              <dt>fc00::/7</dt><dd>unique local, the private equivalent</dd>
+              <dt>ff00::/8</dt><dd>multicast; ff02::1 all nodes, ff02::2 all routers</dd>
+            </dl>
+          </div>
+          <p class="small muted" style="margin-bottom:0">There is no broadcast prefix, because there is no broadcast address.</p>
+        </div>
+
+        <div class="card">
+          <h3>The compression procedure in one place</h3>
+          <ol class="step-list small">
+            <li><strong>Suppress leading zeros</strong> in every group.</li>
+            <li><strong>Lowercase</strong> every a to f.</li>
+            <li><strong>Find every run</strong> of two or more zero groups.</li>
+            <li><strong>Compress the longest run</strong>, and the first one if two tie.</li>
+            <li><strong>Use the double colon once</strong>, never for a single zero group, never where it would stand for nothing.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">To read one back: count the groups, let the colon absorb the difference to eight, and refuse anything that does not land on eight.</p>
+        </div>
+
+        <div class="card">
+          <h3>Next Header values, and the order</h3>
+          <p class="small"><strong>Values:</strong> 0 hop-by-hop &middot; 43 routing &middot; 44 fragment &middot; 50 ESP &middot; 51 AH &middot; 59 no next header &middot; 60 destination options &middot; 6 TCP &middot; 17 UDP &middot; 58 ICMPv6.</p>
+          <p class="small"><strong>Order:</strong> base header, hop-by-hop, destination options, routing, fragment, AH, ESP, destination options again, upper layer.</p>
+          <p class="small"><strong>ICMPv6 types:</strong> 1 destination unreachable &middot; 2 packet too big &middot; 3 time exceeded &middot; 128 and 129 echo &middot; 133 router solicitation &middot; 134 router advertisement &middot; 135 neighbour solicitation &middot; 136 neighbour advertisement.</p>
+          <p class="small muted" style="margin-bottom:0">Type 2 is the one to remember: it is what replaces router fragmentation.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Six sentences to carry into the exam</h3>
+          <ol class="small">
+            <li>The address is eight groups of sixteen bits, and the written form is a choice among legal spellings.</li>
+            <li>A single zero group is never compressed, and a tie between two runs goes to the first.</li>
+            <li>Validity is a count to eight; canonical form is a separate, stricter question.</li>
+            <li>The header is fixed at forty octets with eight fields summing to 320 bits, no checksum and no options.</li>
+            <li>Payload Length excludes the base header and includes extension headers, so field plus 40 is the wire size.</li>
+            <li>A subnet reserves one address, not two, because there is no broadcast address in IPv6.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">If a question turns on anything else &mdash; a prefix&rsquo;s size, a chain&rsquo;s order, an interface ID &mdash; it is one of the procedures on this tab applied to the numbers in the question.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official specifications</h3>
+          <ul class="src-list small">
+            <li><a href="https://www.rfc-editor.org/rfc/rfc8200.html">RFC 8200, Internet Protocol, Version 6 (IPv6) Specification</a>
+              <span class="supports">Read this run. Supports: the eight header fields and their widths, the payload-length definition including extension headers, the hop-limit meaning and the note that packet lifetime is not required, the statement that fragmentation is performed only by source nodes, the 1280-octet minimum link MTU, and the prescribed order of extension headers.</span></li>
+            <li><a href="https://www.rfc-editor.org/rfc/rfc4291.html">RFC 4291, IP Version 6 Addressing Architecture</a>
+              <span class="supports">Read this run. Supports: the type table with its binary prefixes, the double colon appearing only once, the requirement that interface IDs be 64 bits for unicast addresses not beginning 000, the link-local fe80::/10 format, the subnet-router anycast address in section 2.6.1, and Appendix A&rsquo;s modified EUI-64 construction with the inverted universal/local bit.</span></li>
+            <li><a href="https://www.rfc-editor.org/rfc/rfc5952.html">RFC 5952, A Recommendation for IPv6 Address Text Representation</a>
+              <span class="supports">Read this run. Supports: all five canonical-form rules, the prohibition on compressing a single zero group, the longest-run and first-run tie rules, and the mixed-notation recommendation for well-known prefixes that embed an IPv4 address.</span></li>
+            <li><a href="https://www.rfc-editor.org/rfc/rfc4443.html">RFC 4443, ICMPv6</a>
+              <span class="supports">Supports: the message type numbers, and Packet Too Big (type 2) as the message a router sends when a packet is larger than the outgoing link MTU.</span></li>
+            <li><a href="https://www.rfc-editor.org/rfc/rfc8201.html">RFC 8201, Path MTU Discovery for IPv6</a>
+              <span class="supports">Supports: why Packet Too Big exists, and the rule that a node must not lower its path-MTU estimate below the 1280-octet minimum.</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Official syllabus and papers</h3>
+          <ul class="src-list small">
+            <li><a href="https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf">GATE 2027 CS syllabus, IIT Madras</a>
+              <span class="supports">Downloaded and read this run. Section 10 is quoted in full on the Overview tab; it names IPv4 and does not name IPv6. That is the basis for classifying this lesson C rather than A, and it is the reason no claim is made that this topic is examinable in 2027.</span></li>
+            <li>GATE CSE 2018, Question 13 (matching)
+              <span class="supports">The question and the official key (option C) are carried by a public question index and by a solved-paper site that states the key is the official one from the 2018 paper. Supports the Next Header = 8 bits fact used in the GATE patterns tab.</span></li>
+            <li>ISRO CSE 2013, Question 56
+              <span class="supports">The source of the &ldquo;IPv6 does not support broadcast&rdquo; item that some indexes tag as GATE CSE 2013. Named on this page so that it is not counted as a GATE CSE previous-year question.</span></li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">No question on this page is presented as an official GATE previous-year question unless its year and paper are stated above. Every other question is labelled <em>original</em>.</p>
+        </div>
+
+        <div class="card">
+          <h3>Teaching sources</h3>
+          <ul class="src-list small">
+            <li>Deering and Hinden, RFC 8200 section 3, for the header diagram that the eight-field table on the canvas reproduces.
+              <span class="supports">The bit layout used in scene 6 is the one in that section, not a redrawing.</span></li>
+            <li>Hinden and Deering, RFC 4291 Appendix A, for the worked EUI-64 example.
+              <span class="supports">The MAC address 00:1a:2b:3c:4d:5e and the resulting 021a:2bff:fe3c:4d5e are that appendix&rsquo;s example, reproduced and recomputed.</span></li>
+            <li>University course material on IPv6 (a public lecture deck comparing the IPv4 and IPv6 headers).
+              <span class="supports">Supports the framing of the three removed fields as a comparison rather than a list. Used for framing only; every number on this page is from the RFCs.</span></li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Community discussion was used only to identify which rules learners find hardest, and is labelled as observation wherever it appears.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What was not verified</h3>
+          <p class="small">The independent computation used to check the canonical formatter was Python&rsquo;s <code>ipaddress</code> module, which implements RFC&nbsp;5952. It is not an IETF test suite, and it agrees with the twelve addresses on this page rather than proving the formatter correct in general.</p>
+          <p class="small">The claim that the &ldquo;broadcast&rdquo; item is an ISRO question rests on one compilation attributing it to ISRO CSE 2013 against two indexes attributing it to GATE CSE 2013. The page therefore declines to count it as GATE at all rather than asserting which paper it came from.</p>
+          <p class="small muted" style="margin-bottom:0">No statement is made about how often IPv6 has appeared in GATE CSE papers beyond the single verified 2018 item, and no weightage is claimed.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
