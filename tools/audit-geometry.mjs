@@ -144,6 +144,7 @@ if (!tl) { console.error('no timeline'); process.exit(1); }
 /* ---------- sample every scene at each caption beat ---------- */
 const problems = [];
 const seen = new Set();
+const overdraws = new Set();
 
 for (const sc of tl.scenes) {
   const beats = tl.events.filter(e => e.scene === sc.id).map(e => e.end - 0.01);
@@ -171,6 +172,16 @@ for (const sc of tl.scenes) {
         const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
         const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
         if (ox > 2 && oy > 2) {
+          /* A redraw of the SAME string at the SAME coordinates is invisible:
+             the second draw lands exactly on the first. That happens whenever a
+             scene restates its graph on the next beat (the circles are repainted
+             with new fills, so the labels have to be repainted too). It is not a
+             collision, so it is counted separately instead of failing the audit. */
+          if (texts[i].s === texts[j].s &&
+              Math.abs(a.x - b.x) <= 0.5 && Math.abs(a.y - b.y) <= 0.5) {
+            overdraws.add(sc.id + '|' + texts[i].s);
+            continue;
+          }
           const key = sc.id + '|ov|' + texts[i].s + '|' + texts[j].s;
           if (!seen.has(key)) {
             seen.add(key);
@@ -183,8 +194,10 @@ for (const sc of tl.scenes) {
 }
 
 if (problems.length) {
-  console.log(`GEOMETRY  ${problems.length} issue(s) in ${target}`);
+  console.log(`GEOMETRY  ${problems.length} issue(s) in ${target}` +
+    (overdraws.size ? ` (plus ${overdraws.size} identical-string redraws, which are invisible and not counted)` : ''));
   problems.forEach(p => console.log('  - ' + p));
   process.exit(1);
 }
-console.log(`GEOMETRY  clean: ${tl.scenes.length} scenes, every caption beat sampled, no text outside ${W}x${H} and no text-on-text overlap`);
+console.log(`GEOMETRY  clean: ${tl.scenes.length} scenes, every caption beat sampled, no text outside ${W}x${H} and no text-on-text overlap` +
+  (overdraws.size ? ` (${overdraws.size} identical-string redraws ignored: same string, same coordinates)` : ''));

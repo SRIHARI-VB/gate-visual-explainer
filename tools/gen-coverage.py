@@ -5135,6 +5135,8 @@ _VERIFIED = {
         "all 512 width triples from 1 to 8 pack without an overlapping bit",
         "every in-range value for every width from 1 to 12 survives a store and a read",
         "no C compiler was available: these are computed from the stated rule, not measured"),
+    "matching-and-colouring": "2026-11-03",
+    "cpu-scheduling": "2026-11-03",
     "arrays-stacks-queues": "2026-11-03",
     "recursion": "2026-11-03",
     "functions-scope-and-preprocessor": "2026-11-03",

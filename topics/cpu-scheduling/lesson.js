@@ -741,8 +741,8 @@ SCENES.fcfs = function (P, t) {
   P.alpha(1);
 
   appear(P, t, 10.5);
-  mono(P, 560, 200, 'W:  A 0   B 8   C 12   D 13', PAL.ink, 11);
-  mono(P, 560, 218, 'average W = 33 / 4 = 8.25', PAL.accent, 11);
+  mono(P, 560, 168, 'W:  A 0   B 8   C 12   D 13', PAL.ink, 11);
+  mono(P, 560, 186, 'average W = 33 / 4 = 8.25', PAL.accent, 11);
   P.alpha(1);
 
   appear(P, t, 14.0);
@@ -783,14 +783,14 @@ SCENES.sjf = function (P, t) {
   P.alpha(1);
 
   appear(P, t, 9.4);
-  mono(P, 560, 196, 'W:  A 0   B 11   C 6   D 13', PAL.ink, 11);
-  mono(P, 560, 214, 'average W = 30 / 4 = 7.50', PAL.accent, 11);
-  note(P, 560, 232, 'FCFS was 8.25; B went from 8 to 11', PAL.dim, 9);
+  mono(P, 560, 246, 'W:  A 0   B 11   C 6   D 13', PAL.ink, 11);
+  mono(P, 560, 264, 'average W = 30 / 4 = 7.50', PAL.accent, 11);
+  note(P, 700, 282, 'FCFS was 8.25; B went from 8 to 11', PAL.dim, 9);
   P.alpha(1);
 
   /* the exchange argument, drawn */
   appear(P, t, 13.0);
-  note(P, 44, 262, 'the exchange argument', PAL.accent, 10);
+  note(P, 44, 246, 'the exchange argument', PAL.accent, 10);
   P.alpha(1);
 
   appear(P, t, 14.0);
@@ -891,7 +891,7 @@ SCENES.rr = function (P, t) {
   P.alpha(1);
 
   appear(P, t, 3.0);
-  note(P, 44, 132, 'eight segments: A B C A D B A D', PAL.ink, 9);
+  note(P, 44, 142, 'eight segments: A B C A D B A D', PAL.ink, 9);
   P.alpha(1);
 
   appear(P, t, 6.0);
@@ -911,7 +911,7 @@ SCENES.rr = function (P, t) {
   gantt(P, R_RR10, { y: 236, h: 24, tick: 4 });
   P.alpha(1);
   appear(P, t, 15.4);
-  mono(P, 44, 274, 'A B C D  -  identical to FCFS, average W 8.25', PAL.warn, 10);
+  mono(P, 44, 288, 'A B C D  -  identical to FCFS, average W 8.25', PAL.warn, 10);
   P.alpha(1);
 
   appear(P, t, 18.4);
@@ -941,30 +941,30 @@ SCENES.priority = function (P, t) {
   gantt(P, R_PP, { y: 80, h: 28, tmax: 13, tick: 1 });
   P.alpha(1);
   appear(P, t, 2.6);
-  note(P, 44, 120, 'preemptive: P1 0-2, P3 2-4, P1 4-10, P2 10-13', PAL.ink, 9);
-  mono(P, 44, 136, 'average W = 11 / 3 = 3.67', PAL.accent, 10);
+  note(P, 44, 134, 'preemptive: P1 0-2, P3 2-4, P1 4-10, P2 10-13', PAL.ink, 9);
+  mono(P, 44, 148, 'average W = 11 / 3 = 3.67', PAL.accent, 10);
   P.alpha(1);
 
   appear(P, t, 5.6, 1.2);
   gantt(P, R_PN, { y: 168, h: 28, tmax: 13, tick: 1 });
   P.alpha(1);
   appear(P, t, 7.0);
-  note(P, 44, 208, 'non-preemptive: P1 0-8, P3 8-10, P2 10-13', PAL.ink, 9);
-  mono(P, 44, 224, 'average W = 15 / 3 = 5.00', PAL.ink, 10);
+  note(P, 44, 220, 'non-preemptive: P1 0-8, P3 8-10, P2 10-13', PAL.ink, 9);
+  mono(P, 44, 236, 'average W = 15 / 3 = 5.00', PAL.ink, 10);
   P.alpha(1);
 
   appear(P, t, 10.4);
-  box(P, 44, 246, 396, 62, { stroke: PAL.warn, fill: PAL.warnDim });
-  note(P, 58, 258, 'starvation', PAL.warn, 10);
-  note(P, 58, 274, 'a steady stream of higher priorities means the low', PAL.ink, 9);
-  note(P, 58, 289, 'priority job never runs. No finite bound on its wait.', PAL.ink, 9);
+  box(P, 44, 252, 396, 62, { stroke: PAL.warn, fill: PAL.warnDim });
+  note(P, 58, 264, 'starvation', PAL.warn, 10);
+  note(P, 58, 280, 'a steady stream of higher priorities means the low', PAL.ink, 9);
+  note(P, 58, 295, 'priority job never runs. No finite bound on its wait.', PAL.ink, 9);
   P.alpha(1);
 
   appear(P, t, 14.0);
-  box(P, 460, 246, 396, 62, { stroke: PAL.valid, fill: PAL.surface });
-  note(P, 474, 258, 'aging', PAL.valid, 10);
-  note(P, 474, 274, 'raise priority with waiting time, so the starved', PAL.ink, 9);
-  note(P, 474, 289, 'process eventually outranks the newcomers.', PAL.ink, 9);
+  box(P, 460, 252, 396, 62, { stroke: PAL.valid, fill: PAL.surface });
+  note(P, 474, 264, 'aging', PAL.valid, 10);
+  note(P, 474, 280, 'raise priority with waiting time, so the starved', PAL.ink, 9);
+  note(P, 474, 295, 'process eventually outranks the newcomers.', PAL.ink, 9);
   P.alpha(1);
 
   appear(P, t, 17.6);
@@ -992,7 +992,7 @@ SCENES.mlfq = function (P, t) {
 
   appear(P, t, 3.0);
   P.arrow(136, 194, 136, 214, { stroke: PAL.dim, sw: 1.2 });
-  note(P, 146, 200, 'use the full slice: demote', PAL.dim, 9);
+  note(P, 146, 200, 'full slice: demote', PAL.dim, 9);
   P.alpha(1);
 
   appear(P, t, 4.2, 1.2);
@@ -1000,7 +1000,7 @@ SCENES.mlfq = function (P, t) {
   P.alpha(1);
 
   appear(P, t, 6.4);
-  note(P, 268, 128, 'every process is served in Q0 on arrival, so every response time is 0', PAL.valid, 9);
+  note(P, 268, 134, 'every process is served in Q0 on arrival, so every response time is 0', PAL.valid, 9);
   P.alpha(1);
 
   appear(P, t, 9.0);
@@ -1060,7 +1060,7 @@ SCENES.overhead = function (P, t) {
   var gx = 120, gy = 340, gw = 460, gh = 190;
   P.line(gx, gy, gx + gw, gy, { stroke: PAL.border, sw: 1.2 });
   P.line(gx, gy, gx, gy - gh, { stroke: PAL.border, sw: 1.2 });
-  note(P, gx + gw - 30, gy + 12, 'q (ms)', PAL.faint, 9);
+  note(P, gx + gw + 8, gy + 8, 'q (ms)', PAL.faint, 9);
   note(P, gx - 26, gy - gh - 8, 'utilisation', PAL.faint, 9);
   for (var q = 1; q <= 20; q += 0.25) {
     var u = utilisation(1, q);
@@ -1098,7 +1098,8 @@ SCENES.overhead = function (P, t) {
   P.alpha(1);
 
   appear(P, t, 19.4);
-  note(P, 44, 360, 'so q is chosen comfortably above s, and small enough that most bursts end inside one slice', PAL.ink, 10);
+  note(P, 620, 340, 'so q sits comfortably above s,', PAL.ink, 10);
+  note(P, 620, 356, 'and below most burst lengths', PAL.ink, 10);
   P.alpha(1);
 
   takeaway(P, t, 22,
@@ -1126,7 +1127,7 @@ SCENES.io = function (P, t) {
     });
     P.text(x0 + i * bw + bw / 2 - 1, y1 + 13, isCpu ? 'CPU' : 'I/O', { size: 8, mono: true, align: 'center', base: 'middle' });
   }
-  note(P, x0 + 6 * bw + 8, y1 + 16, 'the CPU is idle for every I/O burst', PAL.invalid, 9);
+  note(P, x0, y1 + 34, 'the CPU is idle for every I/O burst', PAL.invalid, 9);
   P.alpha(1);
 
   /* two processes interleaved */
