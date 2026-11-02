@@ -5079,6 +5079,7 @@ topics.append(topic(
         "the four-step routine and the five traps that are one trap in five costumes"]))
 
 _VERIFIED = {
+    "multi-event-independence": "2026-11-02",
     "antichains-and-chain-covers": "2026-11-02",
     "secondary-storage-and-raid": (
         "the LBA-to-CHS round trip was verified on all 4,000,000 addresses",
@@ -6179,6 +6180,70 @@ topics.append(topic(
         "duplicate hash values cannot be separated by any number of bits, so they chain",
         "which end the bits are read from: the 1979 paper uses the leading bits, the textbook the trailing bits",
         "static, extendible, linear and B+ tree on equality cost, range cost, growth cost and extra structure",
+    ]))
+
+
+# ---------------------------------------------------------------- Engineering Mathematics
+# Section 1: 'Probability and Statistics ... Conditional probability and Bayes theorem'
+# at the junction with the multi-event case that clause does not name.
+topics.append(topic(
+    EM, "Section 1: 'Probability and Statistics: conditional probability and Bayes theorem' - the multi-event case the clause does not name",
+    "Independence beyond two events: pairwise, mutual and conditional independence",
+    ["independence of two events as a product rule",
+     "mutual independence: every subset of size two or more",
+     "pairwise independence: the pairs only",
+     "the condition count 2^n - n - 1",
+     "Bernstein's four tickets: pairwise but not mutual",
+     "the two-dice space: the triple product holds, no pair does",
+     "the parity bit: any two determine the third",
+     "the at-least-one formula and the independence it needs",
+     "conditional independence as a statement about a conditioned space",
+     "disjointness, probability zero or one, and complements",
+     "counting independent pairs and triples on a small space"],
+    prereq=["probability-and-random-variables", "counting-and-combinatorics"],
+    related=["linearity-of-expectation", "binomial-distribution",
+             "conditional-expectation-and-total-expectation", "normal-distribution"],
+    importance="high",
+    evidence=("Section 1 of the GATE 2027 CS syllabus names 'Conditional probability and Bayes theorem', "
+              "which is built on independence, and independence of a family is what licenses every product "
+              "rule the syllabus's distributions and binomial clause assume. Two verified previous-year CSE "
+              "items test it directly: GATE CSE 2023 (two coins, three events, four statements) and GATE CSE "
+              "2024 Set 1 (two events on a random permutation). Official GATE 2027 CS syllabus, IIT Madras "
+              "(Section 1: Engineering Mathematics, Probability and Statistics)"),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="multi-event-independence",
+    path="topics/multi-event-independence/index.html",
+    execution=("published 2026-11-02: 35 of 35 model checks passed, geometry audit clean over 11 scenes, "
+               "both counterexamples checked in both directions"),
+    microtopics=[
+        "independence is the product rule on both sides, never a claim about influence or cause",
+        "the conditional form P(A|B) = P(A) needs P(B) > 0, so the product form is the definition",
+        "mutual independence quantifies over every subset of size two or more, not over pairs",
+        "2^n - n - 1 conditions: 1, 4, 11, 26, 57 for two to six events",
+        "mutual implies pairwise by definition; the converse fails",
+        "Bernstein 1928: tickets 112, 121, 211, 222; every pair 1/4 against 1/4; the triple 0 against 1/8",
+        "the four tickets are exactly the strings with an even number of ones",
+        "the reverse failure: two dice, A first die 1-3, B first die 3-5, C sum 9",
+        "there P(A and B) = 1/6 against 1/4, P(A and C) = 1/36 against 1/18, P(B and C) = 1/12 against 1/18",
+        "and P(A and B and C) = 1/36 = 1/2 x 1/2 x 1/9, so the triple product holds while no pair does",
+        "the conditions are not nested in either direction; each subset is its own test",
+        "Z = X xor Y: every pair 1/4 against 1/4, the triple never 111, so 0 against 1/8",
+        "knowing any two of X, Y, Z determines the third exactly",
+        "the at-least-one formula multiplies the complements and so needs mutual independence",
+        "four tickets: formula 7/8, truth 3/4 (only 222 is outside the union)",
+        "two dice: formula 28/36, truth 31/36 (6,3 is in C and outside A and B)",
+        "the formula is therefore not a bound either: it errs in both directions",
+        "conditioning on Z = 1 leaves 011 and 101, where P(X=1,Y=1|Z=1) = 0 against 1/4",
+        "so conditioning can create dependence, and can destroy it",
+        "disjoint with both probabilities positive means dependent, never independent",
+        "probability zero or one is independent of everything; exactly 2 of 16 events on four points qualify",
+        "complementing any event preserves independence: P(A and not B) = P(A)(1 - P(B))",
+        "a nested event of positive probability is dependent on its container",
+        "four points: 16 events, 84 of 256 ordered pairs independent, 43 unordered",
+        "four points: 46 pairwise-independent triples, 8 of them not mutual, all from the 6 two-element events",
+        "four points: 50 ordered disjoint pairs with both events non-empty, every one dependent",
+        "uniformity is what makes the count form of the product test legal",
     ]))
 
 
