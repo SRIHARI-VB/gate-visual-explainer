@@ -12,7 +12,7 @@ accessibility fallback and the printable study document for the lesson.
 
 ## Scene 1. A bigger space, not a bigger number
 
-*0:00 – 0:30 · objective: undefined*
+*0:00 – 0:30 · objective: see that 128 bits is a space, not a number, and that the 64/64 split is a convention*
 
 **0:00–0:08** — An IPv4 address is thirty-two bits. An IPv6 address is a hundred and twenty-eight. The extra width is not decoration: it is the reason the address space stopped being countable.
 
@@ -32,7 +32,7 @@ accessibility fallback and the printable study document for the lesson.
 
 ## Scene 2. Eight groups of sixteen bits
 
-*0:30 – 0:58 · objective: undefined*
+*0:30 – 0:58 · objective: read the address as eight independent sixteen-bit numbers*
 
 **0:30–0:37** — The address is written as eight groups of sixteen bits, separated by colons. Each group is four hexadecimal digits.
 
@@ -52,7 +52,7 @@ accessibility fallback and the printable study document for the lesson.
 
 ## Scene 3. Five rules take thirty-nine characters to seventeen
 
-*0:58 – 1:32 · objective: undefined*
+*0:58 – 1:32 · objective: apply the five RFC 5952 rules in order, including the tie rule*
 
 **0:58–1:06** — Take the fully padded address. Thirty-nine characters long, with zeros everywhere, and nobody writes it that way.
 
@@ -80,7 +80,7 @@ Exam-trap caption mode adds: *A single zero group is never compressed. 2001:db8:
 
 ## Scene 4. Reading it back: the double colon is a count
 
-*1:32 – 2:00 · objective: undefined*
+*1:32 – 2:00 · objective: expand any legal form by counting, and refuse a malformed one*
 
 **1:32–1:39** — To read an address back, count the groups on both sides of the double colon. Two before, one after, so it stands for five groups of zeros.
 
@@ -100,7 +100,7 @@ Exam-trap caption mode adds: *A single zero group is never compressed. 2001:db8:
 
 ## Scene 5. A prefix is a cut, and the counts are powers of two
 
-*2:00 – 2:32 · objective: undefined*
+*2:00 – 2:32 · objective: count a prefix exactly, and reserve one address rather than two*
 
 **2:00–2:08** — A prefix of length n leaves a hundred and twenty-eight minus n bits for the interface ID, so the subnet holds two to that power addresses.
 
@@ -122,7 +122,7 @@ Exam-trap caption mode adds: *Do not subtract two out of habit. That is the IPv4
 
 ## Scene 6. The base header is fixed at forty octets
 
-*2:32 – 3:06 · objective: undefined*
+*2:32 – 3:06 · objective: name the eight fields, sum their widths, and know the three meanings that carry marks*
 
 **2:32–2:40** — The base header is eight fields: version, traffic class, flow label, payload length, next header, hop limit, and the two addresses.
 
@@ -144,7 +144,7 @@ Exam-trap caption mode adds: *Payload Length is not IPv4 Total Length. The same 
 
 ## Scene 7. Three things IPv4 needed that IPv6 removed
 
-*3:06 – 3:36 · objective: undefined*
+*3:06 – 3:36 · objective: say what IPv6 removed from IPv4 and what replaced each removal*
 
 **3:06–3:14** — IPv4 carries a header checksum, and every router recomputes it because the time to live changed. IPv6 has no header checksum at all.
 
@@ -164,7 +164,7 @@ Exam-trap caption mode adds: *Payload Length is not IPv4 Total Length. The same 
 
 ## Scene 8. Payload Length counts what follows the header
 
-*3:36 – 4:06 · objective: undefined*
+*3:36 – 4:06 · objective: compute Payload Length and the wire size for one packet, and keep them apart*
 
 **3:36–3:44** — Build one packet. Forty octets of base header, an eight-octet routing header, then a thousand-octet UDP datagram including its own header.
 
@@ -186,7 +186,7 @@ Exam-trap caption mode adds: *The off-by-forty error is the most common arithmet
 
 ## Scene 9. Next Header is a chain, not a single value
 
-*4:06 – 4:34 · objective: undefined*
+*4:06 – 4:34 · objective: walk a Next Header chain and know the ten values and the prescribed order*
 
 **4:06–4:13** — Next header names the header that follows this one, not the transport protocol directly. That is the whole design.
 
@@ -206,7 +206,7 @@ Exam-trap caption mode adds: *The off-by-forty error is the most common arithmet
 
 ## Scene 10. A link-local address writes itself
 
-*4:34 – 5:04 · objective: undefined*
+*4:34 – 5:04 · objective: build a modified EUI-64 interface ID and the link-local address that follows*
 
 **4:34–4:42** — A host can build its own interface ID from its hardware address. Start with the forty-eight-bit MAC address.
 
@@ -228,7 +228,7 @@ Exam-trap caption mode adds: *Flipping the wrong bit is the classic error. It is
 
 ## Scene 11. GATE CSE 2018, Q13: four widths to match
 
-*5:04 – 5:36 · objective: undefined*
+*5:04 – 5:36 · objective: answer the verified 2018 question from its four field widths*
 
 **5:04–5:12** — GATE CSE 2018, question thirteen. Match four fields to their lengths in bits. The IPv6 field in the list is next header.
 

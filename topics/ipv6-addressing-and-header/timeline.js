@@ -10,17 +10,17 @@ window.LESSON_TIMELINE = {
   duration: 336,
 
   scenes: [
-    { id: 'why',      n: 1,  title: 'A bigger space, not a bigger number',                start: 0,   end: 30  },
-    { id: 'groups',   n: 2,  title: 'Eight groups of sixteen bits',                       start: 30,  end: 58  },
-    { id: 'compress', n: 3,  title: 'Five rules take thirty-nine characters to seventeen', start: 58,  end: 92  },
-    { id: 'expand',   n: 4,  title: 'Reading it back: the double colon is a count',       start: 92,  end: 120 },
-    { id: 'prefix',   n: 5,  title: 'A prefix is a cut, and the counts are powers of two', start: 120, end: 152 },
-    { id: 'header',   n: 6,  title: 'The base header is fixed at forty octets',           start: 152, end: 186 },
-    { id: 'dropped',  n: 7,  title: 'Three things IPv4 needed that IPv6 removed',         start: 186, end: 216 },
-    { id: 'payload',  n: 8,  title: 'Payload Length counts what follows the header',      start: 216, end: 246 },
-    { id: 'chain',    n: 9,  title: 'Next Header is a chain, not a single value',         start: 246, end: 274 },
-    { id: 'eui64',    n: 10, title: 'A link-local address writes itself',                 start: 274, end: 304 },
-    { id: 'pyq2018',  n: 11, title: 'GATE CSE 2018, Q13: four widths to match',           start: 304, end: 336 }
+    { id: 'why',      n: 1,  title: 'A bigger space, not a bigger number', objective: 'see that 128 bits is a space, not a number, and that the 64/64 split is a convention',                start: 0,   end: 30  },
+    { id: 'groups',   n: 2,  title: 'Eight groups of sixteen bits', objective: 'read the address as eight independent sixteen-bit numbers',                       start: 30,  end: 58  },
+    { id: 'compress', n: 3,  title: 'Five rules take thirty-nine characters to seventeen', objective: 'apply the five RFC 5952 rules in order, including the tie rule', start: 58,  end: 92  },
+    { id: 'expand',   n: 4,  title: 'Reading it back: the double colon is a count', objective: 'expand any legal form by counting, and refuse a malformed one',       start: 92,  end: 120 },
+    { id: 'prefix',   n: 5,  title: 'A prefix is a cut, and the counts are powers of two', objective: 'count a prefix exactly, and reserve one address rather than two', start: 120, end: 152 },
+    { id: 'header',   n: 6,  title: 'The base header is fixed at forty octets', objective: 'name the eight fields, sum their widths, and know the three meanings that carry marks',           start: 152, end: 186 },
+    { id: 'dropped',  n: 7,  title: 'Three things IPv4 needed that IPv6 removed', objective: 'say what IPv6 removed from IPv4 and what replaced each removal',         start: 186, end: 216 },
+    { id: 'payload',  n: 8,  title: 'Payload Length counts what follows the header', objective: 'compute Payload Length and the wire size for one packet, and keep them apart',      start: 216, end: 246 },
+    { id: 'chain',    n: 9,  title: 'Next Header is a chain, not a single value', objective: 'walk a Next Header chain and know the ten values and the prescribed order',         start: 246, end: 274 },
+    { id: 'eui64',    n: 10, title: 'A link-local address writes itself', objective: 'build a modified EUI-64 interface ID and the link-local address that follows',                 start: 274, end: 304 },
+    { id: 'pyq2018',  n: 11, title: 'GATE CSE 2018, Q13: four widths to match', objective: 'answer the verified 2018 question from its four field widths',           start: 304, end: 336 }
   ],
 
   events: [
