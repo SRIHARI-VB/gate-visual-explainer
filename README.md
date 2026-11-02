@@ -24,6 +24,7 @@ lessons are static files and work from a local clone.
 | Relations and Their Properties | Discrete Mathematics | A — explicitly in the syllabus | `topics/relations-and-their-properties/index.html` |
 | Sets and Set Operations | Discrete Mathematics | A — explicitly in the syllabus | `topics/sets-and-set-operations/index.html` |
 | Arrays, Stacks and Queues | Programming And Data Structures | A — explicitly in the syllabus | `topics/arrays-stacks-queues/index.html` |
+| Bitwise Operators and Bit Manipulation in C: Masks, Fields, Shifts and the Four Cases With No Answer | Programming And Data Structures | A — explicitly in the syllabus | `topics/bitwise-operators-and-bit-manipulation/index.html` |
 | C Fundamentals: Types, Operators and Control Flow | Programming And Data Structures | A — explicitly in the syllabus | `topics/c-fundamentals/index.html` |
 | C Strings: the Null Terminator, Literals, and strlen against sizeof | Programming And Data Structures | A — explicitly in the syllabus | `topics/c-strings-and-the-null-terminator/index.html` |
 | Dynamic Memory and Program Layout: malloc, calloc, realloc, free and Where the Bytes Live | Programming And Data Structures | A — explicitly in the syllabus | `topics/dynamic-memory-and-program-layout/index.html` |

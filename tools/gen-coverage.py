@@ -5129,6 +5129,7 @@ topics.append(topic(
         "the four-step routine and the five traps that are one trap in five costumes"]))
 
 _VERIFIED = {
+    "bitwise-operators-and-bit-manipulation": "2026-11-02",
     "comparison-lower-bound-decision-trees": "2026-11-02",
     "two-edge-connected-components-and-the-bridge-tree": "2026-11-02",
     "strongly-connected-components": "2026-11-02",
@@ -6464,6 +6465,71 @@ topics.append(topic(
         "2-vertex-connected implies 2-edge-connected, never the reverse: the bowtie",
         "strongly connected components are the directed analogue, and the two differ on one graph",
         "the five-step procedure and the four errors that cost the mark",
+    ],
+))
+
+# ---------------------------------------------------------------- C: bitwise operators
+topics.append(topic(
+    "Programming and Data Structures",
+    "Section 4: 'Programming in C' - the operators of the named language that no lesson owned",
+    "Bitwise operators and bit manipulation in C: masks, fields, shifts and the four cases with no answer",
+    ["the three binary bitwise operators and the unary complement",
+     "integer promotion and the type of the result",
+     "masks: setting, clearing, toggling and testing one bit",
+     "field extraction and insertion",
+     "two's complement, the complement identity and sign extension",
+     "the shift rules, the undefined cases and the implementation-defined one",
+     "the two bit tricks and the counting loop",
+     "precedence of the bitwise operators, and the trap it causes"],
+    prereq=["c-fundamentals", "number-representation-and-arithmetic",
+            "boolean-algebra-and-minimisation"],
+    related=["dynamic-memory-and-program-layout", "structures-unions-and-enums",
+             "hashing", "ip-fragmentation-cidr-and-nat",
+             "buddy-system-memory-allocation", "floating-point-arithmetic",
+             "combinational-circuits"],
+    importance="high",
+    evidence=("Section 4 of the GATE 2027 CS syllabus names 'Programming in C', and these are "
+              "operators of that language rather than an application of it. Two previous-year "
+              "papers ask the material directly: GATE CS 2022 Q44 (three bitwise operators on two "
+              "character codes, key A: z K S) and GATE CSE 2017 Set 1 Q55 (a counting loop built "
+              "from v & 1 and v >>= 1, answer 23). Official GATE 2027 CS syllabus, IIT Madras, "
+              "read on 2026-11-02."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="bitwise-operators-and-bit-manipulation",
+    path="topics/bitwise-operators-and-bit-manipulation/index.html",
+    execution=("published 2026-11-02; 14 of 14 model checks pass, geometry audit clean, "
+               "1345 frames drawn across 12 scenes"),
+    microtopics=[
+        "the columns are independent, so no carry ever appears and the result has the input width",
+        "& against &&: a number against a truth value, and no short-circuit in the bitwise form",
+        "the sixteen binary Boolean functions, of which C provides three plus the unary complement",
+        "De Morgan applied bitwise, as the same law as the logic lesson eight times in parallel",
+        "the mask for bit k is 1 << k, with value two to the k",
+        "set with OR, clear with AND of the complement, toggle with XOR, read with AND",
+        "clearing needs ~m: x & m keeps the bit and clears the rest",
+        "a test written x & m returns m, not 1, so the comparison with zero is part of the test",
+        "field extraction is (x >> k) & ((1 << w) - 1), shift first and mask second",
+        "masking before shifting answers a different question: 182 gives 1 instead of 13",
+        "insertion is mask, shift, then OR, the same two steps in reverse",
+        "the mask of w ones is (1 << w) - 1, and w equal to the width is undefined",
+        "~x = -x - 1 for every signed value, so ~0 is -1 and the complement is not the negation",
+        "a negative operand has leading ones, so masking happens after the bit work",
+        "sign extension: 0xF8 is -8 as a signed char and 248 as an unsigned char",
+        "left shift multiplies by two to the k and fills with zeros",
+        "the legal shift counts are 0 to width-1, and the count equal to the width is undefined",
+        "left shift of a negative value, and a left shift that leaves the signed type, are undefined",
+        "right shift of a negative value is implementation-defined, not undefined",
+        "arithmetic right shift floors: -7 >> 1 is -4, while -7 / 2 is -3",
+        "subtracting one borrows from the lowest set bit and turns the zeros below it into ones",
+        "x & (x-1) removes exactly that bit, so a loop of it counts the ones in popcount steps",
+        "the power-of-two test is x != 0 && (x & (x-1)) == 0, because zero passes the bare form",
+        "x & -x isolates the lowest set bit, and needs x positive for the negation to exist",
+        "parity by three XOR folds, one bit out of a whole word",
+        "the XOR swap exchanges distinct values and zeroes an aliased object in all 256 cases",
+        "precedence: equality binds tighter than &, so x & 1 == 0 is x & (1 == 0), always false",
+        "the trap disagrees with the intended test on exactly the 128 even bytes",
+        "the five-step procedure: width, mask, order, sign and count, then one hand check",
     ],
 ))
 
