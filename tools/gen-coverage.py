@@ -4715,6 +4715,77 @@ topics.append(topic(
         "GATE CSE 2024, Set 1: K4 labelled gives 16, computed by Cayley, by enumeration and by the determinant"
     ]))
 
+# The count that sits between "partial orders and lattices" and "Combinatorics:
+# counting", and that Section 5 (graph traversals), Section 8 (concurrency) and
+# Section 9 (transactions) each ask for under a different name.
+topics.append(topic(
+    "Discrete Mathematics",
+    "Section 1: the junction of 'partial orders and lattices' with 'Combinatorics: counting'",
+    "Counting linear extensions of a partial order: topological orderings, interleavings and schedules",
+    [
+        "the definition of a linear extension and the count e(P)",
+        "the range 1 to n!, both ends attained",
+        "the count as a search over all n! orderings",
+        "series composition multiplies, parallel composition chooses slots",
+        "the binomial for two parallel chains and the multinomial for several",
+        "the hook-length formula for a rooted forest",
+        "the series-parallel boundary, and a poset beyond it",
+        "case splits on a maximal element",
+        "the subset dynamic program f(S) and its n * 2^n cost",
+        "the three exam names for the same count"
+    ],
+    prereq=["partial-orders-and-lattices", "counting-and-combinatorics",
+            "graph-traversals-mst-shortest-paths"],
+    related=["partial-orders-and-lattices", "counting-and-combinatorics",
+             "graph-representations", "graph-traversals-mst-shortest-paths",
+             "processes-threads-and-ipc", "transactions-and-concurrency-control",
+             "counting-spanning-trees", "analytical-aptitude"],
+    importance="medium-high",
+    evidence="No GATE 2027 clause says 'count the linear extensions', so the lesson is classified B: the counting method that "
+             "four named clauses depend on. Section 1 names 'partial orders and lattices' and 'Combinatorics: counting'; "
+             "Section 5 names 'Graph traversals'; Section 8 names 'concurrency and synchronization'; Section 9 names "
+             "'Transactions and concurrency control' (GATE 2027 CS syllabus PDF, IIT Madras, read this run). Three previous-year "
+             "items were verified against their paper wording and independent key listings: GATE CSE 2016 Set 1 Q11 "
+             "(number of topological orderings of a six-vertex graph, answer 6), GATE CSE 2024 Set 1 Q40 (two threads, two "
+             "statements each, answer the set of three value pairs from six interleavings) and GATE CSE 2017 Set 2 Q44 "
+             "(conflict-serialisable schedules of two four-operation transactions, answer 54). Each was recomputed this run from "
+             "its own definition, by exhaustive enumeration. No marks distribution is claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="counting-linear-extensions",
+    path="topics/counting-linear-extensions/index.html",
+    execution="published 2026-11-02: 49/49 model checks pass, 1345 frames drawn across 11 scenes without error, geometry audit clean, scenes tile the 336s timeline, 44 caption cues cover the full duration",
+    microtopics=[
+        "a linear extension is a full ordering in which every constraint still points forward",
+        "a topological ordering of a DAG is a linear extension of its reachability order",
+        "1 <= e(P) <= n!, with a chain at the bottom and an antichain at the top",
+        "adding a constraint never raises the count; adding an implied one never changes it",
+        "the definition executed: 4! = 24 orderings of four elements, three arrows, 5 kept",
+        "series: e(P then Q) = e(P) * e(Q), because no interleaving is possible",
+        "parallel: e(P or Q) = C(m+n, m) * e(P) * e(Q), choosing which slots hold P",
+        "two parallel chains of two give C(4,2) = 6; of sizes 3 and 2 give C(5,2) = 10",
+        "three parallel chains of two give the multinomial 6!/(2!2!2!) = 90",
+        "four parallel chains of two give 8!/(2!)^4 = 2520",
+        "divide n! by 2 per arrow: right only on disjoint pairs, and 1.5 on a chain of three",
+        "multiply level factorials: 30 on a chain of three plus a pair, where the answer is 10",
+        "hook length: n! over the product of subtree sizes, 24/8 = 3 for a tree of four",
+        "hook length on a forest of two chains: 24/4 = 6, agreeing with the binomial",
+        "the N poset A<C, B<C, B<D is not series-parallel, and counts 5 by two cases",
+        "cases on the last element are exhaustive because it must be maximal",
+        "counting linear extensions is #P-complete (Brightwell and Winkler, 1991)",
+        "polynomial algorithms exist for trees, series-parallel posets and bounded width",
+        "the subset recurrence f(S) = sum of f(S+v) over v with all predecessors in S",
+        "f(full) = 1 and f(empty) is the answer, at a cost of n * 2^n",
+        "unreachable prefixes are computed by the same rule and never feed the answer",
+        "adding a free element multiplies the count by n+1, not by n-1",
+        "GATE CSE 2016 Set 1 Q11: A first, F last, C(4,2) = 6 in the middle, answer 6",
+        "GATE CSE 2024 Set 1 Q40: 6 interleavings, 3 distinct value pairs, so orderings are not outcomes",
+        "GATE CSE 2017 Set 2 Q44: C(8,4) = 70 schedules, 16 cyclic, 54 conflict serialisable",
+        "a schedule question is a binomial minus a count of cyclic precedence graphs",
+        "counting step-by-step choices is not counting orderings: the choices depend on the history",
+        "the count is a property of the partial order, not of the undirected picture"
+    ]))
+
 # ---------------------------------------------------------------- Compiler Design (runtime environments)
 topics.append(topic(
     "Compiler Design",
