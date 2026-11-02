@@ -772,8 +772,8 @@ function drawOrder(t, p) {
   if (p >= 0.36) {
     panel(370, 156, 500, 80, { fill: SURF, stroke: BAD });
     T(386, 168, '5 is a value no committed transaction ever wrote', { size: 11.5, bold: true, color: BAD });
-    T(386, 190, 'It is the intermediate value of T1, which never committed. Both values it applied really are', { size: 10.5 });
-    T(386, 208, 'old values from the log — which is why this wrong answer looks right.', { size: 10.5 });
+    T(386, 190, 'It is the intermediate value of T1, which never committed. Both values it applied', { size: 10.5 });
+    T(386, 208, 'really are old values from the log — which is why this wrong answer looks right.', { size: 10.5 });
   }
   if (p >= 0.7) {
     panel(40, 156, 300, 80, { fill: SURF2, stroke: BORDER });

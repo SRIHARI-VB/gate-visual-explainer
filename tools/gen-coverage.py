@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-11-02"  # the date this tracker was regenerated
+RUN_DATE = "2026-11-03"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -5129,6 +5129,9 @@ topics.append(topic(
         "the four-step routine and the five traps that are one trap in five costumes"]))
 
 _VERIFIED = {
+    "arrays-stacks-queues": "2026-11-03",
+    "recursion": "2026-11-03",
+    "functions-scope-and-preprocessor": "2026-11-03",
     "bitwise-operators-and-bit-manipulation": "2026-11-02",
     "comparison-lower-bound-decision-trees": "2026-11-02",
     "two-edge-connected-components-and-the-bridge-tree": "2026-11-02",
@@ -6546,7 +6549,14 @@ topics = _dedup
 for _t in topics:
     _d = _VERIFIED.get(_t.get("lesson_slug"))
     if _d:
-        _t["last_verified_date"] = _d
+        # A plain string is the verification date. A tuple carries the notes that
+        # back it up, and used to be written straight into last_verified_date,
+        # which left the date field holding a list of sentences. Keep the date in
+        # the date field and the notes in their own field.
+        if isinstance(_d, str):
+            _t["last_verified_date"] = _d
+        else:
+            _t["verification_notes"] = list(_d)
 
 doc = {
     "repo": "gate-visual-explainer",
