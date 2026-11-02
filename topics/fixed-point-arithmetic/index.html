@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fixed-Point Arithmetic — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Fixed-Point Arithmetic</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../number-representation-and-arithmetic/index.html">Related: number representation</a>
+      <a href="../floating-point-arithmetic/index.html">Related: floating point</a>
+      <a href="../alu-and-control-unit-design/index.html">Related: ALU</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Fixed-point arithmetic &mdash; a value stored as an ordinary integer together with a fixed scaling factor. In an <code>n</code>-bit word with <code>f</code> fraction bits, the stored integer is divided by 2<sup>f</sup>, so the values sit on one evenly spaced grid: step 2<sup>&minus;f</sup>, window &minus;2<sup>i&minus;1</sup> to 2<sup>i&minus;1</sup>&nbsp;&minus;&nbsp;2<sup>&minus;f</sup>, where <code>i = n &minus; f</code>.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Decode and encode a Q(i.f) value and state its window and step. Explain why width forces a trade between resolution and range. Add and subtract two values, say why the scale does not change, and say how many integer bits the sum needs. Multiply two values, place the binary point in the product, and explain what the rescaling shift discards. Distinguish truncation from rounding by measuring both over every possible product. Explain why an arithmetic right shift and integer division disagree on negatives, and count the cases. Explain how a stored encoding error grows under accumulation and how the accumulator is sized for it. State the one sentence that separates fixed point from floating point, and apply a five-step procedure to any word-width question.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as <em>one convention and its four consequences</em>. The convention is a single scale, chosen once. The consequences are the trade (resolution against range), the alignment rule for addition, the moving point in multiplication, and the error model that follows from discarding bits. Every number on this page &mdash; the 256 values, the 16,384 overflowing pairs, the 12,288 exact products, the &minus;13/512 bias, the 64 disagreeing patterns, the 1/16 drift &mdash; is computed at load by the lesson&rsquo;s own model and re-checked by a second route before it is drawn.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A.</strong> The GATE 2027 CS syllabus, Section 2, names it directly.</p>
+          <p class="small">The clause reads: <em>&ldquo;Boolean algebra and minimization &ndash; algebraic technique, Karnaugh map, tabular method. Design of combinational and sequential circuits. Number representation and arithmetic (fixed point and floating point).&rdquo;</em> (GATE 2027 CS syllabus, IIT Madras, read this run.)</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The syllabus names two number systems and one word, &ldquo;arithmetic&rdquo;. Representation is one question and arithmetic is another: representation asks what a pattern means, arithmetic asks what happens when two patterns are operated on. This page is the fixed-point half of the arithmetic question, and it sits beside the existing <a href="../number-representation-and-arithmetic/index.html">number representation</a> and <a href="../floating-point-arithmetic/index.html">floating-point arithmetic</a> lessons.</p>
+          <p class="small muted" style="margin-bottom:0">Two verified previous-year questions touch this material; both are on the GATE patterns tab with their paper and question number.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <p class="small"><strong>Must already be comfortable with:</strong></p>
+          <ul class="small">
+            <li>Two&rsquo;s complement integers: the range &minus;2<sup>n&minus;1</sup> to 2<sup>n&minus;1</sup>&nbsp;&minus;&nbsp;1, negation, and the negative top weight. <a href="../number-representation-and-arithmetic/index.html">Number representation and arithmetic</a>.</li>
+            <li>Powers of two and binary place value.</li>
+            <li>Integer division and remainder, and what a right shift does to a bit pattern.</li>
+          </ul>
+          <p class="small"><strong>Helpful, not required:</strong> the floating-point lesson, because the comparison at the end is sharper once you know what a stored exponent buys.</p>
+          <p class="small muted" style="margin-bottom:0">Approximate learning time: 55&ndash;75 minutes with the animation, or 25 minutes for the Revision tab alone. The figure is an estimate, not a measurement.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas</h3>
+          <ol class="small">
+            <li><strong>A fixed point is an integer plus a promise.</strong> The hardware stores <code>k</code>; the value is <code>k / 2<sup>f</sup></code>.</li>
+            <li><strong>Width is fixed, so resolution and range trade.</strong> <code>i + f = n</code>; step 2<sup>&minus;f</sup>, window 2<sup>i</sup> wide.</li>
+            <li><strong>Addition keeps the scale and costs an integer bit.</strong> Adding <code>k</code> values needs <code>i + log<sub>2</sub>k</code> integer bits.</li>
+            <li><strong>Multiplication moves the point.</strong> The fraction bits add: Q4.4 &times; Q4.4 = Q8.8, then a shift back.</li>
+            <li><strong>Discarding bits is where the error lives.</strong> Truncation is biased; rounding costs one addition; a right shift floors.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">The legend: green marks a value or rule that holds; red marks a stored result that lost the value; amber marks a trap. Every colour is also labelled in words.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition: the ruler with one printed scale</h3>
+          <p class="small">Think of a ruler whose smallest printed mark is one sixteenth of a centimetre, and which is only thirty centimetres long. You can measure any length on it to within a sixteenth, and no better, wherever you measure. The marks are evenly spaced and they do not change size.</p>
+          <p class="small">A fixed-point number is that ruler. The number of marks is fixed by the word width; where you put the printed scale &mdash; how many marks per unit &mdash; is the choice of <code>f</code>. Print a finer scale and the same number of marks covers a shorter ruler. Print a coarser scale and the ruler gets longer while the marks get further apart.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is exact in one respect and deliberately loose in another: the marks really are evenly spaced and really do trade against length, but a ruler has no negative half, while a two&rsquo;s complement fixed-point word does.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition</h3>
+          <p class="small">A <strong>Q(i.f)</strong> format uses a total width <code>n = i + f</code> bits, where <code>i</code> integer bits <em>include</em> the sign bit and <code>f</code> bits lie to the right of the binary point. The stored integer <code>k</code> is a two&rsquo;s complement integer in &minus;2<sup>n&minus;1</sup> &hellip; 2<sup>n&minus;1</sup>&nbsp;&minus;&nbsp;1, and the value is</p>
+          <p class="formula">value = k / 2<sup>f</sup></p>
+          <p class="small">The <strong>step</strong> (also called the resolution, or one least significant bit) is 2<sup>&minus;f</sup>, and the <strong>window</strong> is</p>
+          <p class="formula">&minus;2<sup>i&minus;1</sup> &nbsp;&le;&nbsp; value &nbsp;&lt;&nbsp; 2<sup>i&minus;1</sup></p>
+          <p class="small">with the largest value actually reachable being 2<sup>i&minus;1</sup> &minus; 2<sup>&minus;f</sup>. Encoding a real number means multiplying by 2<sup>f</sup> and rounding; decoding means dividing by 2<sup>f</sup>.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The resolution of a Q<i>m</i>.<i>n</i> format is always 2<sup>&minus;n</sup>, and the signed range is &minus;2<sup>m</sup> to 2<sup>m</sup> &minus; 2<sup>&minus;n</sup> under the convention that counts the sign bit separately from <i>m</i> (Texas Instruments&rsquo; notation, as documented in the Q-notation reference on the Sources tab).</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Which convention this page uses, and why it matters</h3>
+          <p class="small">Two conventions are in circulation and they differ by one bit in the name.</p>
+          <p class="small"><strong>This page:</strong> Q(i.f) with <code>i</code> counting the sign bit, so Q4.4 is an 8-bit word and the window is &minus;8 to 7.9375.</p>
+          <p class="small"><strong>Texas Instruments:</strong> Q<i>m</i>.<i>n</i> with <i>m</i> excluding the sign bit, so the word is 1 + <i>m</i> + <i>n</i> bits and their Q7.8 is this page&rsquo;s Q8.8, a 16-bit word.</p>
+          <p class="small"><strong>ARM:</strong> Q<i>m</i>.<i>n</i> with <i>m</i> including the sign bit, which agrees with this page but calls a 16-bit signed integer Q16.0 where TI calls it Q15.0.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The three conventions and their one-bit difference are documented on the Q-notation reference listed on the Sources tab. A question that gives you <code>n</code> and <code>f</code> directly has no ambiguity at all; a question that gives you &ldquo;Q7.8&rdquo; does, so state which convention you are using.</p>
+        </div>
+
+        <div class="card">
+          <h3>Why the top bit weighs minus eight</h3>
+          <p class="small">In Q4.4 the eight weights are 8, 4, 2, 1, 1/2, 1/4, 1/8, 1/16 &mdash; except that the first is not 8, it is &minus;8. That single sign is the whole of two&rsquo;s complement: the pattern is read as an unsigned sum and then 2<sup>n</sup> is subtracted if the top bit is set, which is the same as giving the top bit the weight &minus;2<sup>n&minus;1</sup>.</p>
+          <p class="small">So <code>1000.0000</code> is &minus;8 exactly, and <code>1111.1111</code> is &minus;1/16. The negative half of the grid holds 128 patterns and the non-negative half holds 128 including zero, which is why the window stops one step short at the top and has no partner for &minus;8.</p>
+          <p class="small muted" style="margin-bottom:0">This is the same asymmetry the integer lesson proves for two&rsquo;s complement; the scale changes the numbers, not the structure.</p>
+        </div>
+
+        <div class="card">
+          <h3>The trade, in one line</h3>
+          <p class="small">At a fixed width, <code>i + f = n</code>. Adding one fraction bit halves the step and halves the window, and there is no way to buy one without paying the other.</p>
+          <table class="small" style="width:100%;border-collapse:collapse">
+            <thead><tr><th style="text-align:left;padding:4px 8px">8-bit format</th><th style="text-align:left;padding:4px 8px">step</th><th style="text-align:left;padding:4px 8px">window</th></tr></thead>
+            <tbody>
+              <tr><td style="padding:3px 8px">Q2.6</td><td style="padding:3px 8px">1/64 = 0.015625</td><td style="padding:3px 8px">&minus;2 to 1.984375</td></tr>
+              <tr><td style="padding:3px 8px">Q4.4</td><td style="padding:3px 8px">1/16 = 0.0625</td><td style="padding:3px 8px">&minus;8 to 7.9375</td></tr>
+              <tr><td style="padding:3px 8px">Q6.2</td><td style="padding:3px 8px">1/4 = 0.25</td><td style="padding:3px 8px">&minus;32 to 31.75</td></tr>
+            </tbody>
+          </table>
+          <p class="small" style="margin-top:6px">All three hold exactly 256 values. Choosing the format is choosing which of the two you need, and the answer comes from the signal: its largest magnitude sets the window, its smallest meaningful change sets the step. If the window you need and the step you need cannot both fit in the word, the word is too narrow.</p>
+          <p class="small muted" style="margin-bottom:0">Inverse question, which is the examinable one: given a required window and a required step, the width is <code>n = &lceil;log<sub>2</sub>(window / step)&rceil; + 1</code>.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases, Misconceptions and Revision tabs carry the whole lesson in words, with every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A fixed-point number is an ordinary integer with the binary point nailed to one place.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A fixed point is an integer plus a promise</p>
+            <p class="counter" id="scene-count">Scene 1 of 12</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A fixed-point number is an ordinary integer with the binary point nailed to one place.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="340" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:40</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-voice" aria-pressed="false">Narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 1 &mdash; decode two patterns</h3>
+              <p class="small">Q4.4, eight bits. Decode <code>0110.1000</code> and <code>1111.1111</code>.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Name the weights: &minus;8, 4, 2, 1, 1/2, 1/4, 1/8, 1/16. <em>Justification:</em> the top weight is &minus;2<sup>i&minus;1</sup> because the pattern is two&rsquo;s complement.</p>
+                <p><strong>2.</strong> Sum the set bits. <code>0110.1000</code> sets 4, 2 and 1/2, giving 6.5. <em>Check:</em> the same pattern as an unsigned integer is 104, and 104/16 = 6.5.</p>
+                <p><strong>3.</strong> <code>1111.1111</code> sets every bit. As unsigned that is 255, and 255 &minus; 256 = &minus;1, so the value is &minus;1/16 = &minus;0.0625. <em>Check:</em> 255/16 &minus; 16 = &minus;0.0625.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Two routes to the same answer, one through weights and one through the unsigned integer and the scale. Doing both is what catches a misplaced point.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 &mdash; an addition that does not fit</h3>
+              <p class="small">Add 6.5 and 5.25 in Q4.4.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Both operands carry f = 4, so no alignment is needed.</p>
+                <p><strong>2.</strong> Add the stored integers: 104 + 84 = 188.</p>
+                <p><strong>3.</strong> Read 188 with the same scale: 188/16 = 11.75.</p>
+                <p><strong>4.</strong> Compare against the window: 11.75 &gt; 7.9375, so eight bits cannot hold it.</p>
+                <p><strong>5.</strong> Kept in eight bits, 188 is <code>1011.1100</code>, which is 188 &minus; 256 = &minus;68, so &minus;4.25.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Step 4 is the step people skip. The addition was correct; the storage was not. Nine bits hold 11.75 exactly, and that ninth bit is the extra integer bit the rule predicts.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 3 &mdash; a product, both ways</h3>
+              <p class="small">Compute 1.1875 &times; 1.1875 in Q4.4 and store it back in Q4.4.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> Encode: 1.1875 &times; 16 = 19, so both operands are 19 sixteenths.</p>
+                <p><strong>2.</strong> Multiply the integers: 19 &times; 19 = 361. The point of the product sits at 2f = 8, so this is Q8.8.</p>
+                <p><strong>3.</strong> The exact value is 361/256 = 1.41015625. No precision has been lost yet: sixteen bits hold it exactly.</p>
+                <p><strong>4.</strong> To return to Q4.4, shift right by 4. Truncation gives 361 &gt;&gt; 4 = 22, that is 1.375, low by 0.03515625.</p>
+                <p><strong>5.</strong> Rounding adds 2<sup>3</sup> = 8 first: (361 + 8) &gt;&gt; 4 = 23, that is 1.4375, high by 0.02734375.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Both errors are under one step (0.0625). Rounding halves the worst case and removes the downward bias; neither is exact, and neither can be.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 &mdash; halving a negative value</h3>
+              <p class="small">Halve &minus;0.5625 (stored as &minus;9) in Q4.4, by shift and by division.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> The exact half is &minus;4.5 sixteenths, which is not on the grid.</p>
+                <p><strong>2.</strong> An arithmetic right shift takes the floor: &minus;9 &gt;&gt; 1 = &minus;5, that is &minus;0.3125.</p>
+                <p><strong>3.</strong> Truncating division moves toward zero: &minus;9 / 2 = &minus;4, that is &minus;0.25.</p>
+                <p><strong>4.</strong> The two differ by exactly one step, 1/16.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">64 of the 256 patterns behave this way &mdash; every odd negative one. A rescale loop that only ever saw positive values can carry this bug for a long time.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 5 &mdash; how wide must the word be?</h3>
+              <p class="small">A signal lies in [&minus;8, 8) and must be resolved to 1/16. How many bits, and what format?</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> The window is 16 units wide and the step is 1/16, so the grid needs 16 &divide; (1/16) = 256 steps.</p>
+                <p><strong>2.</strong> 256 values need 8 bits. Equivalently n = &lceil;log<sub>2</sub>(8 &divide; (1/16))&rceil; + 1 = 7 + 1 = 8.</p>
+                <p><strong>3.</strong> f = 4 because the step is 2<sup>&minus;4</sup>, and i = 8 &minus; 4 = 4. The format is Q4.4.</p>
+                <p><strong>4.</strong> Check: the window of Q4.4 is &minus;8 to 7.9375, which covers [&minus;8, 8) to within one step at the top. That is the best any 8-bit format can do.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">The same arithmetic gives 16 bits for [&minus;1, 1) at step 2<sup>&minus;15</sup>: 1 &divide; 2<sup>&minus;15</sup> = 32,768 values, and log<sub>2</sub> 32,768 = 15, plus the sign bit. That format is Q1.15.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 &mdash; the drift, in full</h3>
+              <p class="small">Store 0.1 in an 8-bit unsigned fraction and add it ten times.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> 0.1 &times; 256 = 25.6, which is not an integer, so 0.1 is not representable.</p>
+                <p><strong>2.</strong> The nearest is 26, and 26/256 = 0.1015625. The encoding error is 0.0015625 = 1/640.</p>
+                <p><strong>3.</strong> Ten additions add the stored values: 10 &times; 26 = 260, and 260/256 = 1.015625.</p>
+                <p><strong>4.</strong> The drift is 0.015625, which is exactly ten times the encoding error, or 1.5625 per cent.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Note what did <em>not</em> happen: the additions were all exact. The error was in the encoding and it was replicated, not accumulated by the adder. That is why the drift is exactly proportional to the count.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Example 7 &mdash; a sum that needs a wider accumulator</h3>
+              <p class="small">Sum 1,024 Q4.4 values, each at most 7.9375. What integer width does the accumulator need?</p>
+              <p class="small">The largest possible total is 1,024 &times; 7.9375 = 8,128, and the smallest is &minus;8,192. A signed accumulator must reach beyond 8,192, so its integer part needs 14 bits including the sign (2<sup>13</sup> = 8,192). The rule gives i + log<sub>2</sub>k = 4 + 10 = 14. Total width 14 + 4 = 18 bits.</p>
+              <p class="small muted" style="margin-bottom:0">With 16 bits the accumulator would overflow at 8,191.9, which is inside the range this sum can reach. The rule is cheap to apply and expensive to skip.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 8 &mdash; is the decimal representable?</h3>
+              <p class="small">An unsigned 8-bit word with the point between b<sub>3</sub> and b<sub>2</sub>: 5 integer bits and 3 fraction bits. Which of 31.5, 0.875, 12.1, 3.001 are exact?</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> The step is 2<sup>&minus;3</sup> = 0.125, so only multiples of 0.125 can be stored.</p>
+                <p><strong>2.</strong> 31.5 &times; 8 = 252, an integer: exact.</p>
+                <p><strong>3.</strong> 0.875 &times; 8 = 7, an integer: exact.</p>
+                <p><strong>4.</strong> 12.1 &times; 8 = 96.8 and 3.001 &times; 8 = 24.008: neither is an integer, so neither is exact.</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">This is the shape of a verified previous-year question (GATE 2018 CS, Q33), worked again on the GATE patterns tab. The test is always the same one: multiply by 2<sup>f</sup> and ask whether the result is an integer.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="counter" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: addition is not closed</h3>
+          <p class="small"><strong>The claim that fails:</strong> &ldquo;adding two values of a format gives a value of that format.&rdquo;</p>
+          <p class="small"><strong>The minimal case:</strong> in Q4.4, 6.5 + 5.25 = 11.75, which is outside the window. 16,384 of the 65,536 possible pairs overflow &mdash; exactly 25 per cent &mdash; and every one of them stores a wrong value.</p>
+          <p class="small"><strong>What the condition was:</strong> the sum of two values each below 2<sup>i&minus;1</sup> in magnitude is below 2<sup>i</sup>, so the result needs <code>i + 1</code> integer bits. Closure holds only if you carry that extra bit.</p>
+          <p class="small muted" style="margin-bottom:0">The 25 per cent figure was obtained twice: once by adding every pair as exact fractions and testing the window, and once by comparing the stored 8-bit result against the exact sum. The two counts agree, which is the check.</p>
+        </div>
+
+        <div class="card">
+          <h3>The window is asymmetric by exactly one step</h3>
+          <p class="small">Q4.4 reaches &minus;8 but not +8. The gap between the two ends is 7.9375 &minus; (&minus;8) = 15.9375, which is 16 &minus; 1/16 &mdash; one step short of a full 16 units.</p>
+          <p class="small">Consequences worth knowing: negating &minus;8 overflows; the smallest positive value is 1/16 and the largest negative is &minus;1/16, so there is no value between them but zero; and a &ldquo;symmetric&rdquo; claim such as &ldquo;the range is &plusmn;8&rdquo; is wrong in a way that examiners exploit.</p>
+          <p class="small muted" style="margin-bottom:0">The smallest positive value is 2<sup>&minus;f</sup>, not 2<sup>&minus;f&minus;1</sup>: there is no half-step below the first step. Half a step is the largest rounding error, not a representable value.</p>
+        </div>
+
+        <div class="card">
+          <h3>Extremes of the product</h3>
+          <p class="small">The most negative value times itself, (&minus;8) &times; (&minus;8) = 64, is the largest product Q4.4 can produce. In Q8.8 the stored product is 16,384, which fits a signed 16-bit word (limit 32,767), so the full-precision product never overflows.</p>
+          <p class="small">But shifting back to Q4.4 gives 16,384 &gt;&gt; 4 = 1,024, and 1,024 does not fit 8 bits. So the product is safe and the rescale is not: overflow in fixed point usually happens on the way back, not on the multiply.</p>
+          <p class="small muted" style="margin-bottom:0">The same is true in floating point with (&minus;1) &times; (&minus;1) = +1, which is the one product a Q1.15 multiply cannot store. The fixed-point case is not a special value; it is an ordinary overflow, and it is caught by the width, not by a flag.</p>
+        </div>
+
+        <div class="card">
+          <h3>Rounding does not have zero mean error</h3>
+          <p class="small">Round-half-up on this data set has a mean error of <strong>+1/256</strong>, not zero. It is six and a half times smaller than truncation&rsquo;s &minus;13/512, and it is still a bias.</p>
+          <p class="small">Round-half-to-even removes that residual bias, at the cost of a tie rule that has to be implemented. On 65,536 products the difference between the two is small; in a loop with feedback it is the difference between an offset and no offset.</p>
+          <p class="small muted" style="margin-bottom:0">This is the edge case that catches confident statements: &ldquo;rounding is unbiased&rdquo; is false for half-up, and &ldquo;truncation is unbiased&rdquo; is false always.</p>
+        </div>
+
+        <div class="card">
+          <h3>f = 0 and f = n &minus; 1</h3>
+          <p class="small">At f = 0 the format is a plain integer: step 1, window &minus;2<sup>n&minus;1</sup> to 2<sup>n&minus;1</sup>&nbsp;&minus;&nbsp;1. Every rule on this page still holds, and multiplication needs no shift back.</p>
+          <p class="small">At f = n &minus; 1 there is one integer bit (the sign) and the window is [&minus;1, 1). That is Q1.15 at 16 bits and it is the standard audio format. It cannot represent +1, which surprises people: 0.99997 is the largest value.</p>
+          <p class="small muted" style="margin-bottom:0">The limit case f = n is not available: with no integer bits at all the sign has nowhere to live.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What this page assumes</h3>
+          <p class="small">Two&rsquo;s complement, with <code>i</code> counting the sign bit. Arithmetic right shift floors. Integer division truncates toward zero, as C99 and later require. Round-half-up is &ldquo;add 2<sup>f&minus;1</sup> then shift&rdquo;.</p>
+          <p class="small">The toy floating format in the comparison scene is a teaching construction with 1 sign bit, 4 exponent bits (bias 7) and 3 fraction bits. It is not IEEE 754 and is not claimed to be; it exists only so that the two representations can be compared on the same eight bits.</p>
+          <p class="small muted" style="margin-bottom:0">Every count on this page is over the full set of 256 values or 65,536 pairs. No sampling, and no estimates.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>&ldquo;Adding two Q4.4 values gives a Q8.8 value&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> multiplication doubles the fraction bits, and it is easy to over-generalise.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> 1/16 + 1/16 = 1/8. Both inputs are multiples of 1/16 and the sum is a multiple of 1/16, not of 1/256.</p>
+          <p class="small"><strong>The correct rule:</strong> addition and subtraction preserve <code>f</code> exactly. Only multiplication and division move the point.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;The product of two Q4.4 values is Q4.4&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the two inputs have the same format, so it feels as though the output should too.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> 19 &times; 19 = 361, and 361/16 = 22.5625, not 1.41015625. Reading the product with f = 4 is wrong by a factor of 16.</p>
+          <p class="small"><strong>The correct rule:</strong> the fraction bits add, so Q4.4 &times; Q4.4 is Q8.8 in sixteen bits. To store it back in Q4.4 you shift right by 4 and lose those bits.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Q4.4 covers &minus;8 to +8&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> 4 integer bits suggests 16 units of window, and half of 16 is 8.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> no 8-bit pattern decodes to +8. The largest is 7.9375.</p>
+          <p class="small"><strong>The correct rule:</strong> the window is [&minus;2<sup>i&minus;1</sup>, 2<sup>i&minus;1</sup> &minus; 2<sup>&minus;f</sup>], asymmetric by exactly one step, because two&rsquo;s complement has one more negative pattern than positive ones.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Truncation and rounding differ only in the last bit, at random&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> both errors are under one step, so they look interchangeable.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> over all 65,536 products the mean truncation error is &minus;13/512 and it is never positive; the mean rounding error is +1/256. A bias is not noise.</p>
+          <p class="small"><strong>The correct rule:</strong> truncation is a floor and always moves one way. Rounding costs one addition and removes most of the bias.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;x &gt;&gt; 1 and x / 2 are the same thing&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> for every non-negative value they agree, and most examples use non-negative values.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> &minus;9 &gt;&gt; 1 is &minus;5, while &minus;9 / 2 is &minus;4. They differ by one step, and 64 of the 256 patterns are affected.</p>
+          <p class="small"><strong>The correct rule:</strong> a right shift floors; integer division truncates toward zero. Choose one deliberately and test it on a negative value.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;More fraction bits are always better&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> more bits of fraction sounds like more precision, and precision sounds good.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> Q2.6 has a step of 1/64, four times finer than Q4.4, but its window is only [&minus;2, 1.984375). A signal reaching 5 cannot be stored at all.</p>
+          <p class="small"><strong>The correct rule:</strong> at fixed width, resolution and range trade one for one. Choose f from the signal: window first, then check the step.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Fixed point has a constant precision of about 1 per cent&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> a percentage is the natural way to talk about floating-point precision, so it gets carried over.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> half a step is 1/32. Against the smallest positive value, 1/16, that is 50 per cent; against 4 it is 0.78 per cent. One number cannot describe both.</p>
+          <p class="small"><strong>The correct rule:</strong> fixed point has constant <em>absolute</em> error, so its relative error depends entirely on the magnitude. Floating point is the other way round.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;Q1.15 can represent 1.0&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the name suggests one integer bit and therefore the integer part 1.</p>
+          <p class="small"><strong>The minimal counterexample:</strong> the largest Q1.15 value is 32,767/32,768 = 0.999969482421875. The stored integer for 1.0 would be 32,768, which is outside the 16-bit signed range.</p>
+          <p class="small"><strong>The correct rule:</strong> a one-integer-bit signed format covers [&minus;1, 1). Audio code that clips at &plusmn;1 relies on this and never stores exactly +1.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>The six question shapes, and what each one demands</h3>
+              <p class="small">Fixed point is examined as arithmetic on the format, almost never as a definition to recite. Every shape below is answered by naming <code>n</code>, <code>f</code>, <code>i</code>, then the step and the window, then applying one rule.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 1 &mdash; window and step from n and f</h3>
+              <p class="small"><strong>Reasoning demanded:</strong> write the two endpoints and the step, then read the option list. Nothing else.</p>
+              <p class="small"><strong>Common wrong approach:</strong> assuming the window is symmetric, which produces &ldquo;&plusmn;2<sup>i&minus;1</sup>&rdquo; and is wrong by one step at the top.</p>
+              <p class="small muted" style="margin-bottom:0">Verified previous-year question, below.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Verified PYQ &mdash; GATE 2017 Set 1, Q7</h3>
+              <p class="small"><em>&ldquo;The n-bit fixed-point representation of an unsigned real number X uses f bits for the fraction part. Let i = n &minus; f. The range of decimal values for X in this representation is&rdquo;</em></p>
+              <p class="small">(A) 2<sup>&minus;f</sup> to 2<sup>i</sup> &nbsp; (B) 2<sup>&minus;f</sup> to (2<sup>i</sup> &minus; 2<sup>&minus;f</sup>) &nbsp; (C) 0 to 2<sup>i</sup> &nbsp; (D) 0 to (2<sup>i</sup> &minus; 2<sup>&minus;f</sup>)</p>
+              <p class="small"><strong>Answer: (D).</strong> The number is unsigned, so all zeros is a legal pattern and the minimum is 0. The maximum is all ones: the integer part gives 2<sup>i</sup> &minus; 1 and the fraction gives 1 &minus; 2<sup>&minus;f</sup>, and the two sum to 2<sup>i</sup> &minus; 2<sup>&minus;f</sup>.</p>
+              <p class="small muted" style="margin-bottom:0">Why the wrong options fail: (A) and (B) exclude zero, which an unsigned format certainly represents; (C) omits the contribution of the fraction bits entirely. The signed case is different and is derived on the Build-up tab: [&minus;2<sup>i&minus;1</sup>, 2<sup>i&minus;1</sup> &minus; 2<sup>&minus;f</sup>].</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 2 &mdash; is a given decimal exactly representable?</h3>
+              <p class="small"><strong>Reasoning demanded:</strong> multiply the decimal by 2<sup>f</sup> and ask whether the result is an integer. A decimal whose fraction is a short decimal is not thereby exact.</p>
+              <p class="small"><strong>Common wrong approach:</strong> checking only that the integer part fits in the window, which passes 12.1 and 3.001 in the question below.</p>
+              <p class="small muted" style="margin-bottom:0">Verified previous-year question, below.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Verified PYQ &mdash; GATE 2018 CS, Q33</h3>
+              <p class="small"><em>&ldquo;Consider the unsigned 8-bit fixed point binary number representation below, where the position of the binary point is between b<sub>3</sub> and b<sub>2</sub>. Assume b<sub>7</sub> is the most significant bit. Some of the decimal numbers listed below cannot be represented exactly: (i) 31.500 (ii) 0.875 (iii) 12.100 (iv) 3.001&rdquo;</em> Which statement is true?</p>
+              <p class="small">(A) none can be represented exactly &nbsp; (B) only (ii) cannot &nbsp; (C) only (iii) and (iv) cannot &nbsp; (D) only (i) and (ii) cannot</p>
+              <p class="small"><strong>Answer: (C).</strong> Five integer bits and three fraction bits, so the step is 2<sup>&minus;3</sup> = 0.125 and the window is 0 to 31.875. 31.5 &times; 8 = 252 and 0.875 &times; 8 = 7 are integers; 12.1 &times; 8 = 96.8 and 3.001 &times; 8 = 24.008 are not.</p>
+              <p class="small muted" style="margin-bottom:0">Both decimal values in (iii) and (iv) have integer parts that fit comfortably. The question is decided entirely by the fraction, which is why the &ldquo;does the integer part fit&rdquo; shortcut selects (A) or (D) depending on where it is applied.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Shape 3 &mdash; how many bits for a stated window and step?</h3>
+              <p class="small"><strong>Reasoning demanded:</strong> <code>n = &lceil;log<sub>2</sub>(half-window &divide; step)&rceil; + 1</code>, then split: <code>f</code> from the step, <code>i = n &minus; f</code>.</p>
+              <p class="small"><strong>Worked:</strong> window [&minus;8, 8), step 1/16 &rarr; 8 &divide; (1/16) = 128, log<sub>2</sub> 128 = 7, n = 8, f = 4, i = 4.</p>
+              <p class="small muted" style="margin-bottom:0"><strong>Common wrong approach:</strong> forgetting the sign bit, which gives 7 bits and a window that cannot hold &minus;8.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 4 &mdash; product width and point position</h3>
+              <p class="small"><strong>Reasoning demanded:</strong> fraction bits add, integer bits add, so Q(i<sub>1</sub>.f<sub>1</sub>) &times; Q(i<sub>2</sub>.f<sub>2</sub>) is Q(i<sub>1</sub>+i<sub>2</sub> . f<sub>1</sub>+f<sub>2</sub>) in i<sub>1</sub>+i<sub>2</sub>+f<sub>1</sub>+f<sub>2</sub> bits.</p>
+              <p class="small"><strong>Worked:</strong> Q4.4 &times; Q4.4 &rarr; Q8.8, sixteen bits, point eight from the right. To return to Q4.4, shift right by 4.</p>
+              <p class="small muted" style="margin-bottom:0"><strong>Common wrong approach:</strong> reporting the product as 8 bits, or shifting left instead of right. Both are off by 2<sup>f</sup>.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 5 &mdash; does this sum fit?</h3>
+              <p class="small"><strong>Reasoning demanded:</strong> compute the exact sum, compare against the window, and only then say what the word stores. If it does not fit, say whether the hardware wraps or saturates.</p>
+              <p class="small"><strong>Worked:</strong> 6.5 + 5.25 = 11.75 &gt; 7.9375, so an 8-bit store wraps to &minus;4.25.</p>
+              <p class="small muted" style="margin-bottom:0"><strong>Common wrong approach:</strong> checking the sign of the result only. A wrapped sum has a plausible sign, and the check is against the window, not against zero.</p>
+            </div>
+
+            <div class="card">
+              <h3>Shape 6 &mdash; resolution against range, and the error</h3>
+              <p class="small"><strong>Reasoning demanded:</strong> state the step, then state at what magnitude an error is being quoted. Absolute error is constant; relative error is not.</p>
+              <p class="small"><strong>Worked:</strong> half a step is 1/32. At 1/16 that is 50 per cent; at 4 it is 0.78 per cent.</p>
+              <p class="small muted" style="margin-bottom:0"><strong>Common wrong approach:</strong> quoting one percentage as though the format had a precision.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>The procedure that covers all six</h3>
+              <p class="small">Name <code>n</code>, <code>f</code>, <code>i</code>. Write the step and the window. Apply the operation rule (add: f fixed, +1 integer bit; multiply: f adds, n doubles). Round before shifting. Compare against the window before storing. Six shapes, one procedure, and the numbers written down each time.</p>
+              <p class="small muted" style="margin-bottom:0">Nothing on this tab depends on remembering a formula you cannot re-derive in ten seconds from &ldquo;the value is k over 2<sup>f</sup>&rdquo;.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="counter" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q1 &mdash; the window</h3>
+              <p class="small">A signed 8-bit fixed-point format uses 4 fraction bits. The set of values it can represent is</p>
+              <p class="small muted">(a) &minus;8 to 8 &nbsp; (b) &minus;8 to 7.9375 &nbsp; (c) &minus;7.9375 to 7.9375 &nbsp; (d) &minus;8 to 7.5</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(b).</strong> i = 4 integer bits including the sign, so the window is [&minus;2<sup>3</sup>, 2<sup>3</sup> &minus; 2<sup>&minus;4</sup>) = [&minus;8, 7.9375].</p>
+                <p class="small">(a) assumes symmetry, which two&rsquo;s complement never has. (c) assumes the negative end is also one step short, but &minus;8 is exactly representable as <code>1000.0000</code>. (d) confuses the largest value with 8 &minus; 1/2.</p>
+                <p class="small muted" style="margin-bottom:0">The check: count the patterns. 128 negative and 128 non-negative including zero is 256, and 15.9375 &divide; 0.0625 = 255 steps.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q2 &mdash; the width</h3>
+              <p class="small">A signed fixed-point format must cover [&minus;1, 1) with a step of 2<sup>&minus;15</sup>. The number of bits required is ______.</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>16.</strong> The half-window is 1 and the step is 2<sup>&minus;15</sup>, so 1 &divide; 2<sup>&minus;15</sup> = 32,768 steps, which needs 15 bits of magnitude plus 1 sign bit. That is Q1.15.</p>
+                <p class="small">The formula n = &lceil;log<sub>2</sub>(window/step)&rceil; + 1 gives &lceil;log<sub>2</sub>(1 &divide; 2<sup>&minus;15</sup>)&rceil; + 1 = 15 + 1 = 16.</p>
+                <p class="small muted" style="margin-bottom:0">The common wrong answer is 15, from forgetting that the sign needs its own bit. Check: Q1.15&rsquo;s largest value is 0.99997, which is just under 1, exactly as required.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q3 &mdash; the stored sum</h3>
+              <p class="small">In Q4.4, the sum 6.5 + 5.25 is computed and stored back into an 8-bit word by the plain adder. The stored value is</p>
+              <p class="small muted">(a) 11.75 &nbsp; (b) 7.9375 &nbsp; (c) &minus;4.25 &nbsp; (d) 3.75</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(c).</strong> 104 + 84 = 188, and 188 does not fit in a signed 8-bit word. Kept in eight bits the pattern is <code>1011.1100</code>, which is 188 &minus; 256 = &minus;68, so &minus;68/16 = &minus;4.25.</p>
+                <p class="small">(a) is the exact sum, which the word cannot hold: that is the point of the question. (b) is what a saturating adder would return, and the question says plain adder. (d) is what you get by keeping the top three bits and losing the carry twice.</p>
+                <p class="small muted" style="margin-bottom:0">The exam trap: a wrapped result has a perfectly plausible magnitude. Nothing about &minus;4.25 looks wrong unless you compare the exact sum against the window first.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q4 &mdash; which statements hold</h3>
+              <p class="small">Select every statement that is true of a Q(i.f) format.</p>
+              <p class="small muted">
+                (a) Addition of two values of the same format keeps f unchanged.<br>
+                (b) The product of two Q4.4 values is a Q4.4 value.<br>
+                (c) An arithmetic right shift by one halves the value with a floor.<br>
+                (d) Rounding half-up has zero mean error on the products of two Q4.4 values.<br>
+                (e) At fixed width, increasing f decreases the step and decreases the window.
+              </p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(a), (c), (e).</strong></p>
+                <p class="small">(b) is false: the fraction bits add, so the product is Q8.8 in sixteen bits; reading it as Q4.4 is wrong by 2<sup>4</sup>.</p>
+                <p class="small">(d) is false: the mean error of round-half-up over all 65,536 products is +1/256. It is far smaller than truncation&rsquo;s &minus;13/512, and it is not zero.</p>
+                <p class="small muted" style="margin-bottom:0">(c) is true and is the sharpest of the five: the shift floors, so it agrees with division only for non-negative values.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q5 &mdash; the rounded product</h3>
+              <p class="small">1.1875 &times; 1.1875 is computed in Q4.4, kept at full precision, then rounded back to Q4.4 by adding 2<sup>3</sup> and shifting right by 4. The stored value is ______ (give four decimal places).</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>1.4375.</strong> 19 &times; 19 = 361 at Q8.8. Adding 8 gives 369, and 369 &gt;&gt; 4 = 23. Then 23/16 = 1.4375.</p>
+                <p class="small">The exact product is 1.41015625, so the stored value is high by 0.02734375, which is under half a step (0.03125).</p>
+                <p class="small muted" style="margin-bottom:0">Truncation would have given 22, that is 1.375. Both are defensible; only one is asked for, and the rounding rule is stated in the question.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q6 &mdash; the drift</h3>
+              <p class="small">A running total holds the value 0.1 in an 8-bit unsigned fraction and adds the stored value ten times. The total, and the reason, are</p>
+              <p class="small muted">(a) exactly 1, because the additions are exact<br>
+                (b) 1.015625, because 0.1 is stored as 26/256 and the encoding error is replicated<br>
+                (c) about 1.0002, because the errors are random and mostly cancel<br>
+                (d) 1.015625, because the adder overflows</p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(b).</strong> 0.1 &times; 256 = 25.6 rounds to 26, so every term is 26/256 = 0.1015625. Ten of them make 260/256 = 1.015625, a drift of 1/64 = 1.5625 per cent.</p>
+                <p class="small">(a) is false: every addition is exact, and the encoding was not. (c) is the interesting distractor &mdash; the errors are identical, not random, so they add instead of cancelling. (d) has the right number and the wrong cause: the total 260 does exceed 255, so a single 8-bit register overflows and the accumulator must be wider, but that overflow is a second, separate fault. The drift would appear identically in a 32-bit accumulator, because it comes from the encoding, not from the addition.</p>
+                <p class="small muted" style="margin-bottom:0">This is the closest confused pair on the page: an overflow and a quantisation drift can produce the same wrong number for different reasons, and only the cause tells you which fix applies.</p>
+              </div>
+            </div>
+
+            <div class="card question">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">original</span></div>
+              <h3>Q7 &mdash; counterexample hunting</h3>
+              <p class="small">Which of these statements are false?</p>
+              <p class="small muted">
+                (a) Every Q4.4 value has an exact Q8.8 representation.<br>
+                (b) Every sum of two Q4.4 values fits in Q4.4.<br>
+                (c) Every product of two Q4.4 values is exactly representable in Q8.8.<br>
+                (d) Every Q4.4 value can be halved exactly in Q4.4.
+              </p>
+              <button class="reveal btn">Show answer</button>
+              <div class="answer" hidden>
+                <p class="small"><strong>(b) and (d) are false.</strong></p>
+                <p class="small">(b) fails on 25 per cent of pairs: 16,384 of 65,536 overflow, for example 6.5 + 5.25.</p>
+                <p class="small">(d) fails on every odd stored integer: &minus;9 halved is &minus;4.5 sixteenths, which is not on the grid. 128 of the 256 patterns are odd.</p>
+                <p class="small muted" style="margin-bottom:0">(a) is true because Q8.8 contains Q4.4 as a subset: appending four zero bits at the bottom is exact. (c) is true because two 8-bit integers multiply to at most 16 bits with no loss, which the page verifies over all 65,536 pairs.</p>
+              </div>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>How to use this set</h3>
+              <p class="small">Answer before revealing. For each question, write the format, the step and the window on paper first &mdash; four of the seven are decided before any arithmetic is done.</p>
+              <p class="small muted" style="margin-bottom:0">If Q3 and Q6 both felt easy, the pair to revisit is the Edge cases tab: an overflow and a drift are different failures with different fixes, and they can print the same number.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="counter" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions in one place</h3>
+          <p class="small"><strong>Q(i.f):</strong> n = i + f bits, i including the sign, f to the right of the point. <strong>Value</strong> = k / 2<sup>f</sup>.</p>
+          <p class="small"><strong>Step:</strong> 2<sup>&minus;f</sup>. <strong>Window:</strong> &minus;2<sup>i&minus;1</sup> to 2<sup>i&minus;1</sup> &minus; 2<sup>&minus;f</sup> (signed); 0 to 2<sup>i</sup> &minus; 2<sup>&minus;f</sup> (unsigned).</p>
+          <p class="small"><strong>Encode:</strong> round(x &times; 2<sup>f</sup>). <strong>Decode:</strong> k / 2<sup>f</sup>. <strong>Exact iff</strong> x &times; 2<sup>f</sup> is an integer inside the window.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Width needed:</strong> n = &lceil;log<sub>2</sub>(half-window / step)&rceil; + 1.</p>
+        </div>
+
+        <div class="card">
+          <h3>The four operations</h3>
+          <p class="small"><strong>Add / subtract:</strong> requires equal f. Scale unchanged. Result needs one more integer bit than the widest operand; adding k values needs i + log<sub>2</sub>k.</p>
+          <p class="small"><strong>Multiply:</strong> f<sub>result</sub> = f<sub>1</sub> + f<sub>2</sub>, width i<sub>1</sub>+i<sub>2</sub>+f<sub>1</sub>+f<sub>2</sub>. To return to a chosen f, shift right by the difference.</p>
+          <p class="small"><strong>Divide:</strong> shift the dividend left by the target f first, then integer-divide; the truncation direction decides the last step.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>Shift:</strong> an arithmetic right shift by s is floor division by 2<sup>s</sup>, not truncation toward zero.</p>
+        </div>
+
+        <div class="card">
+          <h3>The numbers on this page</h3>
+          <p class="small">Q4.4: 256 values, step 1/16, window &minus;8 to 7.9375, 128 negative patterns.</p>
+          <p class="small">Sums: 16,384 of 65,536 pairs overflow (25 per cent), and every one of them wraps.</p>
+          <p class="small">Products: 12,288 of 65,536 exact under truncation (18.75 per cent). Mean error &minus;13/512 truncating, +1/256 rounding. Worst error 15/256 against 1/32 &mdash; one step against half a step.</p>
+          <p class="small">Halving: 64 of 256 patterns give different answers by shift and by division.</p>
+          <p class="small muted" style="margin-bottom:0">Drift: 0.1 in an 8-bit fraction is 26/256, and ten additions give 1.015625, a 1.5625 per cent drift.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The traps, in one list</h3>
+          <p class="small">1. Addition does not change f. 2. The product&rsquo;s f is the sum, not either operand&rsquo;s. 3. The window is asymmetric by one step. 4. Truncation is biased; rounding half-up still is, slightly. 5. A right shift floors. 6. More f means less range. 7. Fixed point has constant absolute error, not constant relative error. 8. Q1.15 cannot hold 1.0.</p>
+          <p class="small muted" style="margin-bottom:0">Each of these appears as a full card on the Misconceptions tab, with a minimal counterexample.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Sixty-second self-test</h3>
+          <p class="small">Cover the page and answer: what is the step and window of Q5.3? Is 12.1 exactly representable there? What does 19 &times; 19 become after rounding back to Q4.4? How many integer bits do you need to sum 16 Q4.4 values? What does &minus;9 &gt;&gt; 1 give, and what does &minus;9/2 give? If any of the five takes more than ten seconds, the tab that owns it is named above.</p>
+          <p class="small muted" style="margin-bottom:0">Answers: step 1/8, window &minus;16 to 15.875; no; 1.4375; 8; &minus;5 and &minus;4.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <p class="small"><strong>GATE 2027 CS syllabus, IIT Madras.</strong> Read this run at gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf. Section 2 reads: &ldquo;Boolean algebra and minimization &ndash; algebraic technique, Karnaugh map, tabular method. Design of combinational and sequential circuits. Number representation and arithmetic (fixed point and floating point).&rdquo;</p>
+          <p class="small"><strong>GATE 2017 Set 1, Question 7.</strong> The unsigned fixed-point range question reproduced on the GATE patterns tab. Question text and answer (D) checked against the published paper discussion at gateoverflow.in and a second question-bank transcription.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>GATE 2018 CS, Question 33.</strong> The exact-representability question. Question text and answer (C) checked against a previous-year question listing and a solution page that cites the official answer key of GATE 2018 CS (IIT Guwahati).</p>
+        </div>
+
+        <div class="card">
+          <h3>Reference</h3>
+          <p class="small"><strong>&ldquo;Q (number format)&rdquo;, Wikipedia.</strong> The Qm.n notation in the Texas Instruments and ARM variants, the resolution 2<sup>&minus;n</sup>, the signed and unsigned range table, and the four operation identities. Supports the convention card on the Build-up tab and the range formulas.</p>
+          <p class="small"><strong>&ldquo;Rules for Arithmetic Operations&rdquo;, MathWorks fixed-point documentation.</strong> An n-bit by m-bit product is up to m + n bits; the radix point of the raw product is the sum of the operand points; arithmetic right shift recycles the sign bit. Supports the multiplication and shift scenes.</p>
+          <p class="small"><strong>&ldquo;Fixed-Point Arithmetic in Hardware&rdquo;, ChipVerify.</strong> The Q1.15 table, the Qa.b &times; Qc.d = Q(a+c).(b+d) rule, truncation against rounding, and the zero-fill-shift mistake. Used as a cross-check on the worked 1.1875 &times; 1.1875 example, whose truncate and round values it states independently.</p>
+          <p class="small muted" style="margin-bottom:0"><strong>&ldquo;Getting Started with Fixed-Point Arithmetic&rdquo;, doppler DSP guide.</strong> The Qm.n table, the truncation and rounding error ranges with their biases, and the accumulator sizing rule n + &lceil;log<sub>2</sub>k&rceil;. Cross-checks the bias and accumulator material.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was not verified</h3>
+          <p class="small">No GATE CS previous-year question on fixed-point <em>multiplication, rounding or accumulation</em> could be matched to an official paper, set and question number. The two verified questions above test representation, not arithmetic, and they are labelled as such.</p>
+          <p class="small">Every question on the Practice tab is original practice, labelled <em>original</em>. None is presented as a previous-year question.</p>
+          <p class="small muted" style="margin-bottom:0">No historical marks distribution or weightage for this topic is claimed. The GATE relevance is a classification of the syllabus wording, not a prediction that the topic will appear.</p>
+        </div>
+
+        <div class="card">
+          <h3>What was computed rather than quoted</h3>
+          <p class="small">Every count on this page was computed at load by the lesson&rsquo;s own model over the complete sets: 256 values, 65,536 pairs, 65,536 products. Nothing was sampled and nothing was copied from a source.</p>
+          <p class="small">The model re-checks itself in 35 named checks, which run on every page load and are reported in the Animation tab. They compare the enumeration against closed forms (for example, the accumulator widths against i + log<sub>2</sub>k), and the stored result against the exact result (for example, that wraparound disagrees with the exact sum in exactly the 16,384 overflowing pairs).</p>
+          <p class="small muted" style="margin-bottom:0">The toy floating format used in the comparison scene is a construction of this lesson, not a standard, and is labelled as such wherever it appears.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
