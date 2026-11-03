@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command-Line Arguments in C: argc, argv and the Null Sentinel — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Command-line arguments: argc, argv, the sentinel</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../c-fundamentals/index.html">C fundamentals</a>
+      <a href="../pointers-in-c/index.html">Pointers</a>
+      <a href="../c-strings-and-the-null-terminator/index.html">Strings</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Command-line arguments in C — the two parameters of <code>main</code>, what the shell puts in them, the null pointer the standard requires at <code>argv[argc]</code>, and the conversion of a word into a number.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a command line and a small C program that reads <code>argc</code> and <code>argv</code>, say exactly what the program prints, how many slots it reads, and whether it reads a null pointer — or say that its behaviour is undefined and therefore has no answer. State for each slot whether it holds the program name, a parameter or the sentinel, and choose between <code>atoi</code> and <code>strtol</code> on the evidence of whether the program must distinguish zero from nonsense.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as the last untouched piece of Section 4's <em>"Programming in C"</em>. <a href="../c-fundamentals/index.html">C fundamentals</a> covers types and control flow, <a href="../pointers-in-c/index.html">Pointers</a> covers addresses and dereferencing, <a href="../c-strings-and-the-null-terminator/index.html">Strings</a> covers the zero byte, and <a href="../file-io-in-c/index.html">File I/O</a> covers the library's file functions. None of them owns the argument vector, and <code>argc</code> appeared in no lesson body before this one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A for the clause.</strong> Section 4 of the official GATE 2027 CS syllabus, published by IIT Madras, reads <em>"Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> The clause names the language, and the parameters of <code>main</code> are part of the language.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>The clause does not print the word <code>argc</code>.</strong> This page is class A on the reading that "Programming in C" includes the standard signature of <code>main</code>. That is a defensible reading of a named clause, not a phrase lifted from the paper, and a learner who wants to deprioritise this page should know the difference.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Every language rule here is quoted from the program startup clause of the C standard, as published in the committee draft N2731: the nonnegative <code>argc</code>, the null at <code>argv[argc]</code>, <code>argv[0]</code> as the program name, and the modifiability of the strings.</p>
+          <p class="small" style="margin-bottom:0">No previous-year question is quoted: a command-line item with a year, set and question number that could be checked against a paper was not located for this run. All ten practice questions are labelled original, no weightage is claimed, and no forecast is made about GATE CSE 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../c-fundamentals/index.html">C fundamentals</a> — declarations, the <code>int</code> type, and an <code>if</code> statement.</li>
+            <li><a href="../pointers-in-c/index.html">Pointers in C</a> — an address, a dereference, and a pointer that holds zero. Everything here is a pointer plus a subscript.</li>
+            <li><a href="../c-strings-and-the-null-terminator/index.html">Strings and the null terminator</a> — a C string ends at a zero byte, and that is one level below the sentinel on this page.</li>
+            <li><a href="../arrays-stacks-queues/index.html">Arrays</a> — an index is an offset, and an array name is not a value you can copy.</li>
+            <li>Helpful, not required: <a href="../file-io-in-c/index.html">File I/O in C</a>, for the habit of reading a library call's return value as a signal.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The six ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong><code>argc</code> counts the program name.</strong> Three typed parameters give <code>argc</code> equal to four.</li>
+            <li><strong><code>argv</code> holds pointers, not characters.</strong> The characters are separate objects behind them.</li>
+            <li><strong><code>argv[argc]</code> is a null pointer by requirement,</strong> so the array has one slot more than the count.</li>
+            <li><strong>Test the sentinel; never print it.</strong> Comparing a null pointer is defined; following it is not.</li>
+            <li><strong><code>atoi</code> cannot report failure.</strong> The word <code>abc</code> and the word <code>0</code> both give zero.</li>
+            <li><strong><code>sizeof(argv)</code> is one pointer.</strong> The array was rewritten as a pointer at the parameter list.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the page computes, and how it is checked</h3>
+          <p class="small" style="margin-bottom:0">The page carries a word splitter, an argument vector with its sentinel, <code>atoi</code>, <code>strtol</code> and the six small programs the scenes trace. Every number on the canvas — the count of four, the two totals of thirty, the five slots, the conversion table, the two <code>sizeof</code> figures — is produced by running those programs against that vector, and each is then re-derived by a route that does not share the first route's code. The pass count is printed beside the animation, and a failing check is shown rather than hidden.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>1. Intuition — the tray of numbered slips</h3>
+          <p>A clerk hands you a tray before you start work. The tray holds numbered slips, and the first slip is a label with your own desk number on it. Everything you were told is on a slip, and the slips are already separated: nobody hands you the sentence with its spaces, only the words. <code>argv</code> is that tray, <code>argc</code> is the number of slips, and <code>argv[0]</code> is your own desk number. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span></p>
+          <p>Two details of the tray matter more than the rest. It always has one empty slot at the end, and the empty slot is not a mistake — it is a marker the clerk is required to leave, so you can stop when you reach it without knowing the count in advance. And the slips are not the words: a slip carries the address of a word written somewhere else in the building.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Formal definitions</h3>
+          <p class="small"><strong><code>argc</code>.</strong> An <code>int</code> holding the number of strings in <code>argv</code>. The standard requires it to be nonnegative.</p>
+          <p class="small"><strong><code>argv</code>.</strong> An array of pointers to <code>char</code>, written <code>char *argv[]</code>. Slots <code>0</code> to <code>argc − 1</code> hold pointers to strings supplied by the host environment. Slot <code>argc</code> holds a null pointer.</p>
+          <p class="small"><strong>Null pointer.</strong> A pointer whose value is zero. It points at no object. The constant for it in C is <code>NULL</code>.</p>
+          <p class="small"><strong><code>atoi(s)</code>.</strong> Skips leading blanks, takes an optional sign, reads digits, and returns the value of that prefix as an <code>int</code>. It reports no error, so a string with no digits returns zero.</p>
+          <p class="small" style="margin-bottom:0"><strong><code>strtol(s, &amp;end, base)</code>.</strong> The same conversion, which also stores in <code>end</code> the address of the first character not converted. Comparing <code>end</code> with <code>s</code> is the error test.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>3. Visual understanding — what the drawing has to show</h3>
+          <p class="small">The structure is two levels deep, and prose flattens it. A sentence like "argv holds the arguments" hides the fact that the slots hold addresses and the characters live elsewhere, which is exactly what a question about <code>sizeof</code> or about <code>argv[2][0]</code> tests. So the animation draws five pointer boxes, an arrow out of each, and the character cells behind them, with the terminator drawn as its own cell.</p>
+          <p class="small" style="margin-bottom:0">The second thing the drawing must show is that a loop bound is a <em>count of slots fetched</em>, not a warning. So the canvas draws the strict loop and the inclusive loop side by side and prints three reads against five, and marks the slot where the second one meets the null.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. Worked example — one run, traced</h3>
+          <p class="small">The command line is <code>./prog 10 20 +</code>. The shell produces four words. So <code>argc</code> is 4, and the slots are:</p>
+          <p class="small mono">argv[0] = "./prog"<br>argv[1] = "10"<br>argv[2] = "20"<br>argv[3] = "+"<br>argv[4] = NULL</p>
+          <p class="small" style="margin-bottom:0">A loop <code>for (i = 1; i &lt; argc; i++)</code> reads indices 1, 2 and 3. <code>atoi</code> gives 10, 20 and 0, because the plus sign has no digits after it. The total is 30, and the loop reads three slots.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Boundaries — when the rules apply</h3>
+          <p class="small"><strong>Hosted only.</strong> The two-parameter form of <code>main</code> and the null at <code>argv[argc]</code> are promises of a hosted environment, one running under an operating system. A freestanding program may define startup however it likes. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small"><strong>Not a keyword.</strong> <code>argc</code> and <code>argv</code> are ordinary parameter names. <code>int main(int n, char **v)</code> is the same program.</p>
+          <p class="small" style="margin-bottom:0"><strong>No recovery of the line.</strong> Once the shell has split the line, the original spacing is gone. A program that needs it must be given it another way.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. Edge cases that decide marks</h3>
+          <p class="small"><strong>No parameters.</strong> <code>argc</code> is 1, and <code>argv[1]</code> is the null pointer. Reading it is undefined, not zero.</p>
+          <p class="small"><strong><code>argc</code> may be 0.</strong> The standard requires only that it be nonnegative, and the clause making <code>argv[0]</code> the program name begins "if the value of argc is greater than zero".</p>
+          <p class="small" style="margin-bottom:0"><strong>An empty name.</strong> If no program name is available, <code>argv[0][0]</code> is the null character, so the name is a string of length zero.</p>
+        </div>
+
+        <div class="card">
+          <h3>7. GATE application</h3>
+          <p class="small">Questions on this material are almost always one of three shapes: give a command line and ask for <code>argc</code>; give a loop and ask for its output or its read count; give a declaration and ask what <code>sizeof</code> reports. All three are decided by the two-level picture and the off-by-one, so a candidate who can draw the five slots answers all three.</p>
+          <p class="small" style="margin-bottom:0">The fourth shape, which carries the most risk, is the one where the correct answer is <em>undefined</em>. A program that prints a plausible number is not evidence that its behaviour is defined.</p>
+        </div>
+
+        <div class="card">
+          <h3>8. Independent practice</h3>
+          <p class="small" style="margin-bottom:0">Ten questions sit on the Practice tab, with answers withheld until you reveal them, and a mock-test switch that hides every answer until you submit. Each one names the misconception it tests and says why the tempting option is wrong.</p>
+        </div>
+
+        <div class="card">
+          <h3>9. Consolidation</h3>
+          <p class="small" style="margin-bottom:0">Draw five boxes, not four. Put the name in the first and the null in the last. Bound every counter loop by <code>argc</code> with a strict inequality, start it at 1, and never pass a slot to a string function until you have tested it. Convert with <code>atoi</code> when any answer will do, and with <code>strtol</code> when zero has to mean zero.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The shell splits the command line into words before your program starts.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Four words arrive</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">When you type a command, the shell splits the line into words first, and your program begins with the words already separated.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Example 1 — counting</h3>
+          <p class="small mono">printf("%d\n", argc);</p>
+          <p class="small">Run as <code>./a.out 10 20</code> this prints 3, not 2. Run as <code>./a.out</code> it prints 1, not 0.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The count is the number of words the shell produced. The name is always one of them, so the count is the parameter count plus one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 — printing every parameter</h3>
+          <p class="small mono">for (i = 1; i &lt; argc; i++)<br>&nbsp;&nbsp;printf("[%s]\n", argv[i]);</p>
+          <p class="small">On <code>./a.out alpha beta</code> this prints <code>[alpha]</code> then <code>[beta]</code>.</p>
+          <p class="small" style="margin-bottom:0">Starting at 0 would print the program name first, which is the same loop with one word too many.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 — the sentinel loop</h3>
+          <p class="small mono">i = 1;<br>while (argv[i] != NULL) {<br>&nbsp;&nbsp;puts(argv[i]);<br>&nbsp;&nbsp;i++;<br>}</p>
+          <p class="small">Same output as Example 2, and <code>argc</code> is never mentioned.</p>
+          <p class="small" style="margin-bottom:0">It is safe because the loop body only runs when the pointer is non-null. The sentinel ends the loop instead of entering it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Example 4 — the counterexample</h3>
+          <p class="small mono">for (i = 0; i &lt;= argc; i++)<br>&nbsp;&nbsp;printf("%s\n", argv[i]);</p>
+          <p class="small">At <code>i = argc</code> the counter is still inside the bound, and <code>argv[argc]</code> is a null pointer. <code>printf</code> with <code>%s</code> then asks the library to read a string at address zero.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> This is undefined behaviour, so there is no output to predict. The null is there to be <em>tested</em>, and this loop uses it instead. That single word separates this example from Example 3.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — reading a number safely</h3>
+          <p class="small mono">char *end;<br>long v = strtol(argv[1], &amp;end, 10);<br>if (end == argv[1]) {<br>&nbsp;&nbsp;puts("not a number");<br>&nbsp;&nbsp;return 1;<br>}</p>
+          <p class="small" style="margin-bottom:0">On <code>./a.out 42</code> the value is 42 and <code>end</code> points past the last digit. On <code>./a.out hello</code> nothing is consumed, so <code>end</code> still equals <code>argv[1]</code> and the program says so.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 6 — the same conversion through atoi</h3>
+          <p class="small mono">int n = atoi(argv[1]);</p>
+          <p class="small">On <code>./a.out 0</code> the value is 0. On <code>./a.out hello</code> the value is also 0. On <code>./a.out +</code> the value is 0 again.</p>
+          <p class="small" style="margin-bottom:0">Three different inputs, one value. The function did its job; its job is smaller than the question a program usually has.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>One worked line, end to end</h3>
+          <p class="small" style="margin-bottom:0">Run <code>./sum 5 7</code> through <code>int s = 0; for (i = 1; i &lt; argc; i++) s += atoi(argv[i]);</code>. The words are <code>"./sum"</code>, <code>"5"</code>, <code>"7"</code>, so <code>argc</code> is 3. The loop reads indices 1 and 2, converts to 5 and 7, and the total is 12. The bound <code>i &lt; 3</code> stops the loop before index 3, which is where the null sits. Every number in that sentence came from the run, and the page recomputes it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>No parameters at all</h3>
+          <p class="small">Run <code>./a.out</code> and <code>argc</code> is 1, with <code>argv[1]</code> holding the null pointer.</p>
+          <p class="small" style="margin-bottom:0">A program that goes straight to <code>atoi(argv[1])</code> follows a null pointer on exactly this run. The repair is a test of <code>argc</code> placed before any slot is read.</p>
+        </div>
+
+        <div class="card">
+          <h3><code>argc</code> can be zero</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The standard requires only that <code>argc</code> be nonnegative, and the clause that makes <code>argv[0]</code> the program name begins "if the value of argc is greater than zero".</p>
+          <p class="small" style="margin-bottom:0">So a portable program reads <code>argv[0]</code> only after checking that <code>argc</code> is at least one. The case is rare in practice and legitimate in the language.</p>
+        </div>
+
+        <div class="card">
+          <h3>An empty program name</h3>
+          <p class="small">If the host environment cannot supply a name, <code>argv[0][0]</code> is the null character. The string then has length zero, and printing it prints nothing.</p>
+          <p class="small" style="margin-bottom:0">A program that parses its own name to decide a mode of operation has to survive that empty string.</p>
+        </div>
+
+        <div class="card">
+          <h3>Modifying the strings</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The parameters <code>argc</code>, <code>argv</code> and the strings the array points to are modifiable, and keep their last-stored values until the program terminates.</p>
+          <p class="small" style="margin-bottom:0">So overwriting a character in place is allowed. Writing past the string's own terminator is not: the permission covers the characters that exist, and says nothing about space that does not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Writing to the sentinel</h3>
+          <p class="small">The constraint says <code>argv[argc]</code> <em>shall be</em> a null pointer. Storing a non-null pointer there breaks the constraint the standard places on the parameters.</p>
+          <p class="small" style="margin-bottom:0">Index <code>argc + 1</code> is a different matter: it is outside the array, and reading it is out of bounds. The array has exactly <code>argc + 1</code> slots.</p>
+        </div>
+
+        <div class="card">
+          <h3>Where the characters live</h3>
+          <p class="small">The standard fixes the shape of the argument vector and not its storage. On one system the strings sit at the base of the stack; on another they are copied to the heap.</p>
+          <p class="small" style="margin-bottom:0">So the addresses are implementation-defined. A question that asks for an address has no portable answer, and a question that asks for the count does.</p>
+        </div>
+
+        <div class="card">
+          <h3>A very long argument</h3>
+          <p class="small">The operating system imposes a limit on the total size of the argument list, and a program that exceeds it is never started. The C language states no limit.</p>
+          <p class="small" style="margin-bottom:0">So a failure to start is a fact about the environment, not about <code>argc</code>. Nothing in the language promises how many words fit.</p>
+        </div>
+
+        <div class="card">
+          <h3>Blanks inside one parameter</h3>
+          <p class="small">A word containing a space reaches the program as one string, because the shell joined it before startup. The program sees the space inside <code>argv[1]</code> and never sees the quoting.</p>
+          <p class="small" style="margin-bottom:0">The animation's splitter is a simplified shell: it separates on blanks and knows nothing of quoting. That is a modelling choice for this page, not a rule of the language.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>“<code>argc</code> is the number of arguments”</h3>
+          <p class="small"><strong>Wrong.</strong> It is the number of strings in <code>argv</code>, and the program name is one of them. Three typed parameters give <code>argc</code> equal to 4.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Say the sentence out loud as "argc counts the name too" until the off-by-one is automatic. Then write the bound as <code>argc</code> and never as a remembered constant.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“<code>argv[argc]</code> is out of bounds”</h3>
+          <p class="small"><strong>Wrong.</strong> It is inside the array and its value is a null pointer by requirement. That is why a loop can stop on it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Count the slots: <code>argc + 1</code>. What is out of bounds is <code>argv[argc + 1]</code>, and the difference between the two indices is the whole point.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“The null at the end can be printed”</h3>
+          <p class="small"><strong>Wrong.</strong> It can be compared and it cannot be read through. <code>printf</code> with <code>%s</code> on a null pointer is undefined.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Keep two verbs apart: <em>test</em> the sentinel, <em>use</em> the strings. A loop whose body runs only on a non-null pointer does both correctly.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“<code>char *argv[]</code> and <code>char **argv</code> differ”</h3>
+          <p class="small"><strong>Wrong.</strong> In a parameter list the array type is adjusted to a pointer type, so the two declarations describe the same parameter.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> The distinction that does exist is between an array <em>object</em> and a parameter. The object has a size; the parameter has only an address.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“<code>sizeof(argv)</code> tells you how many arguments there are”</h3>
+          <p class="small"><strong>Wrong.</strong> It reports the width of one pointer, because the array became a pointer. Dividing it by anything cannot recover the count.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> The count is <code>argc</code>. The measurement is a fact about the machine's addresses, and it is the same number for a run with one parameter and a run with ten.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“The argument strings are read-only, like literals”</h3>
+          <p class="small"><strong>Wrong.</strong> The standard says the strings pointed to by <code>argv</code> are modifiable. The rule about string literals is a different rule about different objects.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Modifiable is not roomy. A two-character argument has no third slot to write, so overwriting in place is allowed and growing is not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>“If <code>atoi</code> returns 0, the argument was not a number”</h3>
+          <p class="small"><strong>Wrong.</strong> The argument may have been the word zero. <code>atoi</code> returns 0 for both, and has no way to say which happened.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Use <code>strtol</code> and compare the end pointer with the start. Equality means nothing was converted; a difference means something was.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The pair most often confused</h3>
+          <p class="small"><strong>Two nulls, two jobs.</strong> A string is ended by a <em>zero byte</em>, which is data: one character in a character array. The argument vector is ended by a <em>zero pointer</em>, which is an address: one slot in an array of pointers.</p>
+          <p class="small" style="margin-bottom:0">They are the same value written two ways and they live in different objects. A question that asks how many bytes the terminator occupies is asking about the byte; a question that asks how many slots the sentinel occupies is asking about the pointer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this topic is set, and the reasoning each shape demands</h3>
+          <p class="small" style="margin-bottom:0">Three shapes cover almost every question on command-line arguments. Each is answered by the same drawing, and each has one trap. No question below is claimed as an official previous-year question; they are patterns, labelled as patterns.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — give the command line, ask for the output</h3>
+          <p class="small">The question supplies a run and a loop, and asks what is printed. The reasoning is a count of words and a count of slots read.</p>
+          <p class="small"><strong>Procedure.</strong> Split the line. Add one for the name. Apply the bound. Convert each word with the function named.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> A loop that starts at 0 still prints the right total when the name converts to 0. The output is not the evidence; the bound is.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — ask what is guaranteed</h3>
+          <p class="small">The question offers four statements and asks which hold. The reasoning is the split between the standard's promises and the implementation's choices.</p>
+          <p class="small"><strong>Promised.</strong> Nonnegative <code>argc</code>; null at <code>argv[argc]</code>; string pointers below it; modifiable strings.</p>
+          <p class="small" style="margin-bottom:0"><strong>Not promised.</strong> Where the characters live; whether <code>argv[0]</code> is a bare name or a path; any particular argument count.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — the answer is "undefined"</h3>
+          <p class="small">A program reads a slot that may be null, or prints one. The correct answer is that the behaviour is undefined, and the tempting wrong answer is a plausible number or an empty line.</p>
+          <p class="small"><strong>Procedure.</strong> Find the highest index the program can reach. Compare it with <code>argc</code>. If it reaches <code>argc</code> and uses the value, stop and answer undefined.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Reasoning from a remembered compiler. One implementation printing <code>(null)</code> is not the language's answer, and the standard imposes no requirement at all.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Shortcuts, and the assumptions they need</h3>
+          <p class="small"><strong>"argc = parameters + 1"</strong> needs <code>argc</code> at least one. At zero the subtraction gives minus one, and a loop bounded by it silently does nothing.</p>
+          <p class="small"><strong>"<code>atoi</code> gives the number"</strong> needs the word to begin with a number. On a word that does not, the value is zero and the error is invisible.</p>
+          <p class="small" style="margin-bottom:0"><strong>"<code>sizeof(argv)</code> is the list size"</strong> needs the array to have survived the parameter list. It did not; the value is one pointer.</p>
+        </div>
+
+        <div class="card">
+          <h3>Links to lessons that carry the prerequisites</h3>
+          <p class="small"><a href="../c-strings-and-the-null-terminator/index.html">Strings and the null terminator</a> — the byte that ends each argument, and the reason <code>strlen</code> and <code>sizeof</code> disagree.</p>
+          <p class="small"><a href="../pointers-in-c/index.html">Pointers in C</a> — the address, the dereference and the null pointer used here.</p>
+          <p class="small" style="margin-bottom:0"><a href="../dynamic-memory-and-program-layout/index.html">Dynamic memory and program layout</a> — where strings live at run time, and why that is an implementation choice.</p>
+        </div>
+
+        <div class="card">
+          <h3>Where this connects outside Section 4</h3>
+          <p class="small"><a href="../processes-threads-and-ipc/index.html">Processes</a> — the argument vector is passed across the boundary between two programs, so it is an operating-system concept as well as a language one.</p>
+          <p class="small" style="margin-bottom:0"><a href="../system-calls-and-the-kernel-boundary/index.html">System calls</a> — the call that starts a program is what places the words in the new program's memory, before its first instruction runs.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">All ten questions are original practice questions written for this lesson, and each is labelled as such. No item on this page is presented as an official previous-year question, because a command-line item with a verifiable year, set and question number was not located for this run. Every numerical answer is recomputed on the page rather than quoted from a key.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>The program is started as</p>
+            <p class="small mono">./a.out 10 20</p>
+            <p class="small">and its first statement is <code>printf("%d", argc);</code>. What is printed?</p>
+            <p class="small">(A) 2 &nbsp; (B) 3 &nbsp; (C) 4 &nbsp; (D) undefined</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Three words reach the program: the name, then <code>10</code>, then <code>20</code>. <code>argc</code> counts all three, so it is 3.</p>
+            <p><strong>Why A is wrong.</strong> It counts only the two parameters you typed, and forgets that the program name is a word like any other.</p>
+            <p class="small"><strong>The distinction being tested.</strong> <code>argc</code> is a count of strings in <code>argv</code>, not a count of what you typed after the name.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which one of the following is guaranteed by the C standard for a hosted program's <code>main</code>?</p>
+            <p class="small">(A) <code>argv[0]</code> is an absolute path<br>(B) <code>argv[argc]</code> is a null pointer<br>(C) <code>argc</code> is at least 1<br>(D) <code>argv</code> holds <code>argc</code> slots</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The program startup clause states that <code>argv[argc]</code> shall be a null pointer, as one of the constraints on the parameters of <code>main</code>.</p>
+            <p><strong>Why A is wrong.</strong> The text of <code>argv[0]</code> is implementation-defined: a bare name, a relative path or an absolute path are all permitted.</p>
+            <p><strong>Why C is wrong.</strong> The standard requires only that <code>argc</code> be nonnegative, and zero satisfies that.</p>
+            <p><strong>Why D is wrong.</strong> The array has <code>argc + 1</code> slots, because the sentinel needs one of its own.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>The program is started as <code>./a.out ab</code> and runs</p>
+            <p class="small mono">for (i = 0; i &lt;= argc; i++)<br>&nbsp;&nbsp;printf("[%s]", argv[i]);</p>
+            <p class="small">Which statement is correct?</p>
+            <p class="small">(A) It prints <code>[./a.out][ab]</code><br>(B) It prints <code>[./a.out][ab][]</code><br>(C) Its behaviour is undefined<br>(D) It fails to compile</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>Here <code>argc</code> is 2, so the loop reaches <code>i = 2</code>, and <code>argv[2]</code> is the null pointer. Handing a null pointer to <code>printf</code> with <code>%s</code> is undefined behaviour.</p>
+            <p><strong>Why B is wrong.</strong> It assumes a null pointer prints as an empty string. Nothing in the standard promises that, and an implementation is free to abort instead.</p>
+            <p><strong>Why D is wrong.</strong> The program is well formed. Its problem is at run time, and the compiler is not required to diagnose it.</p>
+            <p class="small"><strong>The counterexample in this set.</strong> The null at <code>argv[argc]</code> exists, and this loop proves that existing is not the same as being printable.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>The program is started as</p>
+            <p class="small mono">./a.out a b c d</p>
+            <p class="small">How many usable slots does <code>argv</code> have, counting the slot that holds the sentinel?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 6</p>
+            <p>Five words reach the program, so <code>argc</code> is 5. The array has <code>argc + 1</code> slots: indices 0 to 5, with index 5 holding the null pointer.</p>
+            <p><strong>The trap.</strong> Answering 4 counts only the parameters; answering 5 counts only the strings. The array is one slot larger than the count.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>On a machine where every pointer is 8 bytes, and for the run <code>./a.out 10 20 +</code>, what does <code>printf("%zu", sizeof(argv));</code> print inside <code>main</code>?</p>
+            <p class="small">(A) 8 &nbsp; (B) 32 &nbsp; (C) 40 &nbsp; (D) 5</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p><code>argv</code> is a parameter, and a parameter declared with an array type is adjusted to a pointer type. So <code>sizeof(argv)</code> is the size of one pointer, which is 8.</p>
+            <p><strong>Why C is wrong.</strong> 40 is five slots times eight bytes. That is what the array would measure if the type had survived, and it did not.</p>
+            <p><strong>Why D is wrong.</strong> 5 is the slot count, which comes from <code>argc + 1</code>. No measurement recovers it.</p>
+            <p class="small"><strong>The closely confused pair.</strong> An array object has a size; a parameter has an address. This question is decided by that difference alone.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>The program is started as <code>./a.out +</code>. What does <code>printf("%d", atoi(argv[1]));</code> print?</p>
+            <p class="small">(A) 0 &nbsp; (B) undefined, because <code>+</code> is not a number<br>(C) the value of <code>+</code> as a character &nbsp; (D) it does not compile</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A</p>
+            <p><code>atoi</code> reads the optional sign and then finds no digit. With nothing to convert, it returns zero, and it has no channel for reporting the failure.</p>
+            <p><strong>Why B is wrong.</strong> The behaviour is defined. It is the <em>value</em> that is uninformative, not the behaviour.</p>
+            <p><strong>Why C is wrong.</strong> <code>atoi</code> converts text to an integer value. It never returns a character code.</p>
+            <p class="small"><strong>The trap.</strong> Reading "defined but uninformative" as "undefined". The two are different diagnoses and they need different repairs.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following statements about the strings that <code>argv</code> points to are true?</p>
+            <p class="small">(A) They are modifiable by the program.<br>(B) Each is terminated by a null character.<br>(C) Their storage location is fixed by the standard.<br>(D) They retain their last-stored values until the program terminates.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, D</p>
+            <p>A is the standard's explicit permission: the strings pointed to by the array are modifiable. B follows from their being strings at all. D is the second half of the same sentence, which says they retain their last-stored values between startup and termination.</p>
+            <p><strong>Why C is wrong.</strong> Where the characters live is implementation-defined. One system puts them at the base of the stack, another on the heap, and the standard fixes neither.</p>
+            <p class="small"><strong>Note on A.</strong> Modifiable does not mean roomy: writing past a string's own terminator is still out of bounds.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>The program is started as <code>./a.out</code>, with nothing after the name, and its first statement is <code>int n = atoi(argv[1]);</code>. Which statement is correct?</p>
+            <p class="small">(A) <code>n</code> is 0, because there was no argument<br>(B) <code>n</code> is undefined in value, because a null pointer was read through<br>(C) <code>n</code> is the value of <code>argv[0]</code><br>(D) <code>n</code> is 1</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>With no parameters <code>argc</code> is 1, so <code>argv[1]</code> holds the null pointer. Passing it to <code>atoi</code> asks the library to read a string at address zero, which is undefined behaviour.</p>
+            <p><strong>Why A is wrong.</strong> It treats a missing string as an empty string. There is no string there at all; the slot holds a null pointer, not a pointer to a zero byte.</p>
+            <p class="small"><strong>The distinction being tested.</strong> An empty string is a real object of length zero. A null pointer is the absence of any object. <code>atoi</code> handles the first and is undefined on the second.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>The program is started as <code>./sum 5 7</code> and runs</p>
+            <p class="small mono">int s = 0;<br>for (i = 1; i &lt; argc; i++)<br>&nbsp;&nbsp;s += atoi(argv[i]);<br>printf("%d", s);</p>
+            <p class="small">What is printed?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 12</p>
+            <p><code>argc</code> is 3, so the loop reads indices 1 and 2, which hold <code>"5"</code> and <code>"7"</code>. The conversions are 5 and 7, and the total is 12.</p>
+            <p><strong>The trap.</strong> Starting the loop at 0 adds <code>atoi("./sum")</code>, which is 0, so the printed total would still be 12. The bound is what makes the loop right, not the output.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A program must run with exactly two parameters and reject every other count. Which test is correct?</p>
+            <p class="small">(A) <code>if (argc != 2)</code><br>(B) <code>if (argc != 3)</code><br>(C) <code>if (argc != 1)</code><br>(D) <code>if (sizeof(argv) != 2)</code></p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Two parameters plus the program name gives <code>argc</code> equal to 3, so any other count is the error case.</p>
+            <p><strong>Why A is wrong.</strong> It is the off-by-one in its most common form: the count of parameters written where the count of strings belongs.</p>
+            <p><strong>Why D is wrong.</strong> <code>sizeof(argv)</code> is the width of one pointer and never changes with the number of arguments.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which call distinguishes the argument <code>0</code> from the argument <code>abc</code>?</p>
+            <p class="small">(A) <code>atoi(argv[1])</code><br>(B) <code>strtol(argv[1], &amp;end, 10)</code> followed by a test of <code>end</code><br>(C) <code>(int)argv[1]</code><br>(D) <code>strlen(argv[1])</code></p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>On <code>"0"</code> one digit is consumed and <code>end</code> moves past it. On <code>"abc"</code> nothing is consumed and <code>end</code> still equals the start. The comparison separates the two cases.</p>
+            <p><strong>Why A is wrong.</strong> Both return 0, which is exactly the ambiguity the question is about.</p>
+            <p><strong>Why C is wrong.</strong> A cast reinterprets an address as an integer. It reads no digits at all.</p>
+            <p><strong>Why D is wrong.</strong> The lengths are 1 and 3, which distinguishes these two particular words and tells you nothing about whether either is a number.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions to hold exactly</h3>
+          <p class="small"><strong><code>argc</code></strong> — the number of strings in <code>argv</code>, including the program name. Nonnegative.</p>
+          <p class="small"><strong><code>argv</code></strong> — an array of <code>char *</code> with <code>argc + 1</code> slots. Slot <code>argc</code> is a null pointer.</p>
+          <p class="small"><strong>Sentinel</strong> — the null pointer that ends the array, present so a loop can stop without the count.</p>
+          <p class="small" style="margin-bottom:0"><strong><code>atoi</code> / <code>strtol</code></strong> — the same prefix conversion; the second also reports where reading stopped.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Split the command line into words.</li>
+            <li>Add one for the program name: that is <code>argc</code>.</li>
+            <li>Write the slots: 0 is the name, 1 to <code>argc − 1</code> are parameters, <code>argc</code> is the sentinel.</li>
+            <li>Find the highest index the program can reach and compare it with <code>argc</code>.</li>
+            <li>If the program uses a slot that may be null, the answer is undefined.</li>
+            <li>Otherwise convert each word and follow the loop.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, in the order they cost marks</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Answering <code>argc</code> as the number of typed parameters.</li>
+            <li>Answering 0 for a run with no parameters.</li>
+            <li>Calling <code>argv[argc]</code> out of bounds.</li>
+            <li>Assuming a null pointer prints as an empty line.</li>
+            <li>Reading <code>sizeof(argv)</code> as the list size.</li>
+            <li>Testing <code>atoi</code>'s result against zero to detect a bad argument.</li>
+            <li>Treating the argument strings as read-only literals.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Quick revision questions</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>How many words does <code>./p 1 2 3</code> give, and what is <code>argc</code>?</li>
+            <li>What sits in <code>argv[argc]</code>, and who requires it?</li>
+            <li>Which slot holds the first parameter?</li>
+            <li>What does <code>argc</code> equal on a run with no parameters?</li>
+            <li>What does <code>atoi("abc")</code> return, and why is that a problem?</li>
+            <li>What does <code>sizeof(argv)</code> measure inside <code>main</code>?</li>
+            <li>Which two forms declare the same parameter?</li>
+            <li>When may a program read <code>argv[0]</code> safely?</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>One sentence to remember</h3>
+          <p class="small" style="margin-bottom:0">Draw five boxes for four words: the name first, the null last, the parameters between them, and test the last box instead of using it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Official syllabus</h3>
+          <p class="small">GATE 2027 Computer Science and Information Technology syllabus, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, re-read for this run from the organising institute's own site. Section 4 reads: <em>"Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0">The clause names the language and not the signature of <code>main</code>. This page is class A on the reading that "Programming in C" includes that signature, and it says so rather than implying that <code>argc</code> is printed in the syllabus.</p>
+        </div>
+
+        <div class="card">
+          <h3>Language behaviour</h3>
+          <p class="small">ISO/IEC 9899 committee draft N2731, clause 5.1.2.2.1 <em>Program startup</em>, read directly. It supplies, in the standard's own words: the two permitted definitions of <code>main</code> and the note that <code>char **argv</code> is equivalent; that <code>argc</code> shall be nonnegative; that <code>argv[argc]</code> shall be a null pointer; that <code>argv[0]</code> represents the program name and <code>argv[0][0]</code> is the null character when no name is available; and that the parameters and the strings are modifiable and retain their values.</p>
+          <p class="small" style="margin-bottom:0">cppreference, <code>atoi</code> and <code>strtol</code> — the prefix conversion, the absence of error reporting in <code>atoi</code>, and the end-pointer test in <code>strtol</code>. The <code>atoi</code> page was used for the claim that a string with no digits converts to zero.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What was not verified</h3>
+          <p class="small" style="margin-bottom:0">No previous-year GATE question on command-line arguments is quoted on this page. Searches this run returned discussion of the standard's wording rather than a paper with a year, set and question number that could be confirmed, so no item is labelled official and all ten practice questions are marked original. No weightage is claimed for this topic, because no official per-topic marks distribution is published, and no claim is made that such a question appears in any particular year.</p>
+        </div>
+
+        <div class="card">
+          <h3>Community discussion, used as observation only</h3>
+          <p class="small" style="margin-bottom:0">Two points on this page were checked against community discussion rather than taken from the standard: whether the array of pointers itself may be modified, and whether writing to <code>argv[argc]</code> is permitted. The discussion records that the committee deliberately left the modifiability of the pointer array unspecified, and that the constraint on <code>argv[argc]</code> is a requirement on the program's parameters. <span class="claim-chip claim-chip--community">Community observation</span> Both points are marked as open on this page rather than settled, because the standard's text does not settle them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Where the standard leaves a choice</h3>
+          <p class="small" style="margin-bottom:0">Four behaviours are marked implementation-defined or undefined here rather than answered: the text of <code>argv[0]</code>; where the argument strings are stored; whether the array of pointers may itself be modified; and every program that reads through a null pointer. Each is labelled where it appears, so that a learner can tell a fact about C from a fact about one compiler.</p>
+        </div>
+
+        <div class="card">
+          <h3>What this page does not cover</h3>
+          <p class="small" style="margin-bottom:0">The third parameter of <code>main</code>, the environment vector, is not developed: the standard makes it implementation-defined, and the syllabus does not name it. Shell quoting, redirection and globbing are named once as the shell's work and not taught, because they belong to a different program. Both omissions are recorded in the execution log so a later run can pick them up if the syllabus makes them explicit.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

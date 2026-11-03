@@ -7300,6 +7300,84 @@ topics.append(topic(
     ],
 ))
 
+topics.append(topic(
+    "Programming and Data Structures",
+    'Section 4: "Programming in C" — the two parameters of main and the argument vector',
+    "Command-line arguments in C: argc, the argv pointer array, the null sentinel at argv[argc], and the conversion of a word into a number",
+    ["the shell splits the command line into words before the program starts",
+     "the program name is one of the words, so argc counts it",
+     "argv holds pointers to char, not characters; the strings are separate objects",
+     "argv[argc] is a null pointer by requirement of the standard",
+     "the sentinel may be compared and must not be read through",
+     "a counter loop bounded by argc with a strict inequality reads argc-1 slots",
+     "a loop bounded by argc inclusive fetches the null and is undefined if it uses it",
+     "with no parameters argc is 1 and argv[1] is the null pointer",
+     "the count test comes before any slot is read",
+     "atoi reads a prefix and cannot report failure, so abc and 0 both give 0",
+     "strtol writes an end pointer, and comparing it with the start is the error test",
+     "char *argv[] and char **argv are the same parameter",
+     "sizeof(argv) inside main is one pointer, not the array",
+     "the parameters and the strings are modifiable; writing past a string's terminator is not",
+     "where the strings live, and the text of argv[0], are implementation-defined"],
+    prereq=["c-fundamentals", "pointers-in-c", "c-strings-and-the-null-terminator", "arrays-stacks-queues"],
+    related=["functions-scope-and-preprocessor", "file-io-in-c", "dynamic-memory-and-program-layout", "processes-threads-and-ipc"],
+    importance="medium",
+    evidence=("Section 4 of the official GATE 2027 CS syllabus (IIT Madras) names 'Programming in C' as the clause; "
+              "the signature of main is not printed by name, so this is class A on the reading that the clause covers "
+              "the language, including the standard form of main"),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="command-line-arguments-in-c",
+    path="topics/command-line-arguments-in-c/index.html",
+    execution=("published 2026-11-03; node tools/check-lesson.mjs PASS (51 of 51 model checks, 10 scenes); "
+               "node tools/audit-geometry.mjs clean; captions.vtt, captions.srt and transcript.md generated from "
+               "timeline.js by tools/gen-captions.mjs (50 cues, 10 scenes, 300s)"),
+    microtopics=[
+        "the shell splits the line on blanks; the program never sees the original spacing",
+        "the first word is the program name, so three typed parameters give argc equal to four",
+        "argc minus one is the parameter count only after argc is known to be at least one",
+        "argv is an array of char pointers; the characters live in separate arrays",
+        "argv[0] is the name, so the first parameter is argv[1]",
+        "argv[2][0] is the first character of the second parameter; two subscripts, two dereferences",
+        "the array has argc+1 slots, and slot argc holds a null pointer",
+        "the standard says argv[argc] shall be a null pointer, as a constraint on main's parameters",
+        "comparing a null pointer is defined; printf with percent s on one is undefined",
+        "the sentinel exists so a loop can stop without the count",
+        "a counter loop starts at 1 and uses a strict bound of argc",
+        "atoi turns a non-numeric word into 0, so a loop starting at 0 can still print the right total",
+        "a bound of argc inclusive fetches the null at index argc and uses it, which is undefined",
+        "an empty run gives argc 1, never 0, and argv[1] holds the null pointer",
+        "atoi(argv[1]) on the empty run dereferences null, so the guard tests argc first",
+        "the standard requires only a nonnegative argc, so 0 is permitted and argv[0] is then not the name",
+        "argv[0][0] is the null character when no program name is available",
+        "atoi reads blanks, an optional sign and digits, then stops; 12abc gives 12",
+        "atoi cannot distinguish the word 0 from a word that is not a number",
+        "strtol writes the address where reading stopped, and end equals the start when nothing was converted",
+        "char *argv[] adjusts to char **argv in a parameter list",
+        "sizeof(argv) is the size of one pointer because the array type did not survive the parameter list",
+        "sizeof(*argv) is a pointer and sizeof(**argv) is one byte",
+        "the parameters and the strings are modifiable and keep their values until termination",
+        "modifiable is not roomy: writing past a string's own terminator is out of bounds",
+        "where the characters are stored, and the exact text of argv[0], are implementation-defined"],
+))
+
+_VERIFIED["command-line-arguments-in-c"] = (
+    "verified 2026-11-03: Section 4 of the GATE 2027 CS syllabus PDF published by IIT Madras was re-read this run and reads "
+    "'Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search "
+    "trees, binary heaps, graphs.' The words argc and argv are absent, and the lesson labels the reading as an interpretation",
+    "ISO/IEC 9899 committee draft N2731 clause 5.1.2.2.1 was read directly for the nonnegative argc, the null at argv[argc], "
+    "argv[0] as the program name, the empty-name rule and the modifiability of the parameters and the strings",
+    "cppreference was used for atoi and strtol: the prefix conversion, the absence of error reporting, and the end-pointer test",
+    "no previous-year GATE question on command-line arguments was located with a verifiable year, set and question number, so "
+    "all ten practice questions are labelled original and no weightage is claimed",
+    "every count on the page is computed by running the simulated programs: argc 4, the two totals of 30, the five slots, the "
+    "three against five reads, and the two sizeof figures; the totals are re-derived by two loop forms that share no code",
+    "the conversion table is produced by running atoi over the seven words, not quoted, and the atoi-versus-strtol distinction "
+    "is checked by the end pointer rather than by the value",
+    "two points are marked open rather than settled: whether the array of pointers itself may be modified, and whether writing "
+    "to argv[argc] is permitted; the standard's text does not settle either",
+)
+
 _VERIFIED["variance-of-a-sum-covariance-and-chebyshev"] = (
     "verified 2026-11-03: Section 1 of the GATE 2027 CS syllabus names 'Probability and Statistics: Random variables', "
     "which is why the variance core is class A; the words Markov and Chebyshev are absent and the lesson says so, labelling them C",
@@ -7341,6 +7419,17 @@ for _t in topics:
             _t["last_verified_date"] = _d
         else:
             _t["verification_notes"] = list(_d)
+
+# A row carried forward from the previous tracker keeps the date of the run that
+# first wrote it, even when this run re-read the syllabus and the sources behind
+# it. Stamp the rows this run actually verified, so the date field stays honest.
+_RECHECKED = {
+    "command-line-arguments-in-c": "2026-11-03",
+}
+for _t in topics:
+    _d = _RECHECKED.get(_t.get("lesson_slug"))
+    if _d:
+        _t["last_verified_date"] = _d
 
 doc = {
     "repo": "gate-visual-explainer",
