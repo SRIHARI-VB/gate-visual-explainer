@@ -16,6 +16,7 @@ lessons are static files and work from a local clone.
 | First-Order Logic | Discrete Mathematics | A — explicitly in the syllabus | `topics/first-order-logic/index.html` |
 | Functions and Their Properties | Discrete Mathematics | A — explicitly in the syllabus | `topics/functions-and-their-properties/index.html` |
 | Generating Functions | Discrete Mathematics | A — explicitly in the syllabus | `topics/generating-functions/index.html` |
+| First-Order Resolution and Unification | Discrete Mathematics | A — explicitly in the syllabus | `topics/first-order-resolution-and-unification/index.html` |
 | Graphs: Connectivity and Structure | Discrete Mathematics | A — explicitly in the syllabus | `topics/graphs-connectivity/index.html` |
 | Graphs: Matching and Colouring | Discrete Mathematics | A — explicitly in the syllabus | `topics/matching-and-colouring/index.html` |
 | Mathematical Induction and Well-Ordering | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/mathematical-induction/index.html` |
