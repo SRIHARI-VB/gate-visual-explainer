@@ -5177,6 +5177,20 @@ topics.append(topic(
     microtopics=['d(u,v) is the fewest edges on a path, computed by breadth-first search, never measured on the drawing', 'the distance table is symmetric with a zero diagonal, so eccentricity is a row maximum', 'eccentricity is a maximum, not an average; the row mean is no graph quantity here', 'diameter = max of the eccentricities = max over pairs of d(u,v)', 'radius = min of the eccentricities; centre and periphery are the two arg-sets', 'ceil(d/2) <= r <= d, proved from the triangle inequality with a centre vertex', 'the floor is attained by trees, the ceiling by cycles, complete graphs and Petersen', 'self-centred means r = d, so the centre is the whole vertex set', 'the four-cycle has diameter 2 and radius 2, which refutes r = ceil(d/2) off a tree', 'on a tree r = ceil(d/2), with one centre for even d and two adjacent centres for odd d', 'the centre of a tree is the middle of any diameter path; off a tree a centre vertex can miss every diameter path', 'leaf peeling removes all current leaves per round and stops at one or two vertices; it is linear', 'the peel round count is not the radius: three rounds on P8 whose radius is 4', 'two sweeps find the diameter on every tree and report 1 on the four-vertex diamond whose diameter is 2', 'the height of a BFS tree is the eccentricity of its root, so it lies between ceil(d/2) and d', 'diam(G^2) = ceil(diam(G)/2) for every connected graph', 'a disconnected graph has no finite eccentricity, so no radius and no diameter', 'centre, centroid and median are three different vertices; the pan graph separates all three', 'all 18248 labelled trees on 2 to 7 vertices satisfy the tree theorem, checked by enumeration', 'all 27475 connected graphs with at most 6 vertices satisfy the square-graph equality']))
 
 _VERIFIED = {
+    "euler-trails-and-hamiltonian-cycles": (
+        "verified 2026-11-03: the GATE 2027 CS syllabus PDF was fetched from the IIT Madras site again and its "
+        "Section 1 wording quoted on the Overview tab",
+        "the Euler criterion was compared with a brute-force trail search on all 1086 non-empty graphs with 4 or 5 "
+        "vertices and on 256 sampled graphs with 6 vertices: no disagreement",
+        "the directed criterion was compared with a brute-force search on all 63 non-empty digraphs on three vertices",
+        "the 132 Euler circuits of K(5) were counted twice, once canonically and once as 528 traversals divided by "
+        "four, and the two agree",
+        "Hamiltonian counts for K(n), n = 3 to 7, match (n-1)!/2 by exhaustive enumeration",
+        "Dirac was checked on 140 graphs and Ore on 97 with no counterexample; c(G-S) <= |S| on all 228 Hamiltonian "
+        "graphs with at most five vertices",
+        "the Petersen graph was shown non-Hamiltonian by exhaustive search and hypohamiltonian by ten more searches",
+        "GATE CSE 2007 Q23 was recomputed option by option; the answer is C",
+    ),
     "ear-decomposition-and-robbins-orientation": (
         "verified 2026-11-03: the GATE 2027 CS syllabus PDF was downloaded from the IIT Madras site and read again; "
         "Sections 1 and 5 were quoted from it on the Overview tab",
@@ -6735,6 +6749,63 @@ topics.append(topic(
         "the five-step procedure, and why a yes answer needs a construction and a check",
     ],
 ))
+
+topics.append(topic(
+    'Discrete Mathematics', 'Section 1: \'Graphs: connectivity, matching, colouring\' — the traversal question, which no lesson owned',
+    'Euler trails and circuits, and Hamiltonian paths and cycles',
+    ['walks, trails, paths, circuits and cycles, and which object each rations',
+     'Euler trail and Euler circuit: definition and the parity condition',
+     'the Euler criterion in full: even degrees and one component, undirected and directed',
+     'Hierholzer\'s walk-and-splice, and what it costs against Fleury\'s rule',
+     'the cycle decomposition that proves sufficiency, and counting Euler circuits',
+     'Hamiltonian path and cycle, and why deciding them is NP-complete',
+     'Dirac\'s and Ore\'s sufficient conditions, and the counterexample that shows they are not necessary',
+     'necessary conditions that work: bipartite balance and c(G - S) <= |S|',
+     'the Petersen graph, hypohamiltonicity, and the line-graph link between the two questions'],
+    prereq=['graphs-connectivity', 'matching-and-colouring', 'complexity-classes-p-np-np-complete', 'counting-and-combinatorics'],
+    related=['graphs-connectivity', 'matching-and-colouring', 'graph-traversals-mst-shortest-paths', 'counting-and-combinatorics', 'complexity-classes-p-np-np-complete', 'graph-eccentricity-radius-diameter-centre'],
+    importance='medium-high',
+    evidence="The syllabus clause is 'Graphs: connectivity, matching, colouring' (Section 1, Discrete Mathematics, official GATE 2027 CS syllabus, IIT Madras, read again this run). The words Euler and Hamiltonian do not appear in it; traversing every edge and traversing every vertex are the two standard questions asked about a connected graph, and both are examined through that clause. One previous-year item is quoted with year and question number (GATE CSE 2007 Q23, the Eulerian-circuit MCQ, answer C recomputed here), and one by year only (GATE CSE 2019, the (n-1)!/2 Hamiltonian-cycle count), because the archives disagree on its number. No weightage is claimed.",
+    difficulty='medium',
+    status='PUBLISHED',
+    slug='euler-trails-and-hamiltonian-cycles',
+    path='topics/euler-trails-and-hamiltonian-cycles/index.html',
+    execution='published; node tools/check-lesson.mjs PASS (32/32 model checks, 1201 frames across 10 scenes); node tools/audit-geometry.mjs clean (10 scenes, no text outside the canvas, no text-on-text overlap); captions.vtt, captions.srt and transcript.md generated from timeline.js',
+    microtopics=[
+        'walk, trail, path, circuit and cycle as five different objects, each rationing a different thing',
+        'an Euler circuit rations edges and may revisit vertices freely; a vertex of degree 2k is passed k times',
+        'a Hamiltonian cycle rations vertices and uses exactly n edges, ignoring every other edge',
+        'each pass through a vertex uses two of its edges, so a closed trail forces every degree even',
+        'an open trail leaves one unpaired edge at each of exactly two vertices, and those are its endpoints',
+        'the number of odd-degree vertices is always even, because the degrees sum to twice the edge count',
+        'Konigsberg: four land masses of degree 3, 3, 3, 5, four odd vertices, so no trail, confirmed by search',
+        'the Euler criterion needs both clauses: even degrees and the edge-carrying vertices in one component',
+        'two disjoint triangles are all even and have no circuit; joined at a vertex the bowtie is Eulerian',
+        'isolated vertices are ignored: the clause is about the vertices that carry edges',
+        'directed: in-degree equals out-degree everywhere, plus one component on the arcs; balance plus weak connectivity forces strong connectivity',
+        'the directed trail case: one vertex one greater out, one one greater in, everything else balanced',
+        'Hierholzer: walk until stuck, then splice a cycle at a vertex the tour already visits',
+        'the first walk on the bowtie closes in three edges, and one splice at vertex 1 completes 0-1-3-4-1-2-0',
+        'Hierholzer is O(V + E); Fleury pays for a bridge test at every step',
+        'an Eulerian graph decomposes into edge-disjoint cycles, and that decomposition is the proof of sufficiency',
+        'K(5) decomposes into 0-1-2-3-4-0 and 0-2-4-1-3-0, sharing every vertex and no edge',
+        'K(5) has 132 Euler circuits; 528 traversals from vertex 0 over 2 directions and 2 visits agrees',
+        'rotation and reversal are the same circuit, so a naive sequence count is four times too large on K(5)',
+        'deciding a Hamiltonian cycle is NP-complete (Karp 1972); a proposed cycle is verified in linear time',
+        'brute force examines (n-1)!/2 cycles: 181,440 at n = 10 and about 3.1 x 10^23 at n = 25',
+        'Dirac 1952: n >= 3 and minimum degree at least n/2 is sufficient',
+        'Ore 1960: every non-adjacent pair with degree sum at least n is sufficient, and weaker than Dirac',
+        'the six-cycle fails both and is Hamiltonian, so neither condition is necessary',
+        'a bipartite graph needs equal sides; K(2,3) has a Hamiltonian path and no cycle',
+        'c(G - S) <= |S| for every S is necessary, and checking it is NP-hard; the Petersen graph satisfies it',
+        'the Petersen graph: 10 vertices, 15 edges, degree 3, girth 5, non-Hamiltonian, and hypohamiltonian',
+        'the Petersen graph has no Euler trail either, because all ten degrees are odd',
+        'L(G) is Hamiltonian exactly when G is Eulerian, which is the structural link between the questions',
+        'GATE CSE 2007 Q23: option A fails on connectivity, option B on parity, option C holds at degree 22',
+        'the complement of C(25) is 22-regular with 275 edges and connected, so it is Eulerian',
+        'the Euler criterion agrees with brute force on all 1086 graphs with 4 or 5 vertices and 256 sampled with 6',
+        'the directed criterion agrees with brute force on all 63 digraphs on three vertices',
+    ]))
 
 _seen = set()
 _dedup = []

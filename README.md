@@ -12,6 +12,7 @@ lessons are static files and work from a local clone.
 |---|---|---|---|
 | Counting and Combinatorics | Discrete Mathematics | A — explicitly in the syllabus | `topics/counting-and-combinatorics/index.html` |
 | Eccentricity, Radius, Diameter and Centre | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/graph-eccentricity-radius-diameter-centre/index.html` |
+| Euler Trails and Hamiltonian Cycles | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/euler-trails-and-hamiltonian-cycles/index.html` |
 | First-Order Logic | Discrete Mathematics | A — explicitly in the syllabus | `topics/first-order-logic/index.html` |
 | Functions and Their Properties | Discrete Mathematics | A — explicitly in the syllabus | `topics/functions-and-their-properties/index.html` |
 | Generating Functions | Discrete Mathematics | A — explicitly in the syllabus | `topics/generating-functions/index.html` |
