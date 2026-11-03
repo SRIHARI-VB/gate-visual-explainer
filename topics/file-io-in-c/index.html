@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File I/O in C: Streams, Modes and Return Values — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">File I/O in C: streams, modes, return values</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../c-fundamentals/index.html">C fundamentals</a>
+      <a href="../c-strings-and-the-null-terminator/index.html">Strings</a>
+      <a href="../dynamic-memory-and-program-layout/index.html">Dynamic memory</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> File input and output in C — the stream and its four fields, the six <code>fopen</code> modes, the return value of every call that can fail, the file position, and the two rules that decide what a program is even allowed to do (append writes at the end; an update stream needs a positioning call between directions).</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a small C program that opens a file and a description of the file's contents, say what the program writes, how many bytes it writes, and where the position ends up — or say that the program is undefined and therefore has no answer. State for each of the six mode strings whether the open succeeds on an existing file and on a missing one, what happens to the old content, and where the position starts. Read <code>fgetc</code>, <code>fgets</code>, <code>fscanf</code>, <code>fread</code> and <code>fclose</code> as functions that return a count or a signal, and use that count as the only reliable error test.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as the part of Section 4's <em>"Programming in C"</em> that no lesson in this repository owned. The existing <a href="../c-fundamentals/index.html">C fundamentals</a> page covers types, operators and control flow; <a href="../c-strings-and-the-null-terminator/index.html">Strings</a> covers the null terminator; <a href="../dynamic-memory-and-program-layout/index.html">Dynamic memory</a> covers the heap. This page owns the library's file functions, which is where a program stops talking to itself and starts talking to a disk.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A for the clause.</strong> Section 4 of the official GATE 2027 CS syllabus, published by IIT Madras, is <em>"Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> The clause names the language as a whole, so the language's standard library falls inside it.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>The clause does not print the word <code>fopen</code>.</strong> I am reading "Programming in C" as including the standard input/output library, which is how the phrase is taught and how such questions have been set. A learner who wants to deprioritise this page should know that it is a defensible reading of a named clause, not a phrase lifted from the paper.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> The language behaviour on this page follows the C standard as summarised by cppreference for <code>fopen</code>, <code>fgetc</code> and <code>feof</code>, and ISO/IEC 9899 clause 7.21.5.3 for update streams. Everywhere the standard leaves something to the implementation, this page says so instead of giving an answer.</p>
+          <p class="small" style="margin-bottom:0">No previous-year question is quoted on this page: a file-I/O item with a verifiable year, set and question number was not located for this run, so all ten practice questions are labelled as original. No weightage is claimed and no forecast is made about GATE CSE 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../c-fundamentals/index.html">C fundamentals</a> — declarations, the difference between a value and a pointer, and the <code>if</code> statement. Everything here is a pointer plus a call.</li>
+            <li><a href="../pointers-in-c/index.html">Pointers in C</a> — a <code>FILE *</code> is a pointer, and passing it to a function does not copy the stream.</li>
+            <li><a href="../c-strings-and-the-null-terminator/index.html">Strings and the null terminator</a> — <code>fgets</code> writes a terminator, and the count of characters is one less than the count of bytes.</li>
+            <li><a href="../functions-scope-and-preprocessor/index.html">Functions, scope and the preprocessor</a> — <code>#include &lt;stdio.h&gt;</code>, and why the declaration has to be in scope.</li>
+            <li>Helpful, not required: <a href="../bitwise-operators-and-bit-manipulation/index.html">bitwise operators</a>, for the byte value 255 in the counterexample.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The six ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A <code>FILE *</code> is a handle,</strong> not a file: it carries a position, a buffer, an end flag and an error flag.</li>
+            <li><strong>The mode decides three things</strong> before your first call: whether the open succeeds, what happens to the old bytes, and where the position starts.</li>
+            <li><strong>Every call that can fail returns a signal,</strong> and the signal is a count or a null pointer, never an exception.</li>
+            <li><strong><code>fgetc</code> returns an <code>int</code></strong> because all 256 byte values are legal data and <code>EOF</code> had to be outside them.</li>
+            <li><strong>Append ignores the position;</strong> <code>r+</code> honours it. Same three statements, one different byte.</li>
+            <li><strong>An update stream needs a positioning call</strong> between a write and a read, and between a read and a write. Without it the program has no defined output.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the page computes, and how it is checked</h3>
+          <p class="small" style="margin-bottom:0">The page carries a byte-level file system and a stream that implements the six modes, <code>fgetc</code>, <code>fgets</code>, <code>fseek</code>, <code>ftell</code>, <code>fflush</code> and <code>fclose</code>. Every count on the canvas — the mode table, the twenty-one bytes, the four-iteration end-of-file loop, the duplicated line, the two append results — is produced by running the calls against those simulated files, and each is then re-derived by a route that does not share the first route's code. The pass count is printed beside the animation, and a failing check is shown rather than hidden.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>1. Intuition — the counter, the tray and the drawer</h3>
+          <p>Think of a library reading room. You ask at the desk for a book, and the librarian hands you a numbered ticket. The ticket is not the book. It is what you show to ask for the next page, and it is what the librarian updates every time you take a page. <code>FILE *</code> is that ticket. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span></p>
+          <p>Now add a tray. When you write something, the librarian does not walk to the shelf for each page: the pages go into a tray, and the tray is carried to the shelf when it is full or when you say you are finished. That tray is the buffer, and it is why a program can report a successful write that has not reached the disk yet.</p>
+          <p>Two marks on the ticket matter. One says where you are in the book. The other says whether the last request failed, and <em>why</em> it failed — you ran out of pages, or the book was withdrawn. Those are two different marks, and confusing them is the single most common file-I/O mistake: asking "have we reached the end?" before asking for a page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Formal definitions</h3>
+          <p class="small"><strong>Stream.</strong> A <code>FILE</code> object is a record of an open file: a file position indicator, a buffer, an end-of-file indicator and an error indicator. <code>FILE *</code> is a pointer to that record.</p>
+          <p class="small"><strong><code>fopen(name, mode)</code>.</strong> Returns a pointer to a new stream, or a null pointer on failure. The mode is one of <code>r</code>, <code>w</code>, <code>a</code>, each optionally followed or preceded by <code>b</code> and optionally with one <code>+</code>. Any other string makes the behaviour undefined.</p>
+          <p class="small"><strong><code>EOF</code>.</strong> A negative integer constant, conventionally −1, returned by input functions to report that no value was produced. It is outside the range 0 to 255, which is exactly what makes it usable as a failure signal.</p>
+          <p class="small"><strong><code>feof</code> and <code>ferror</code>.</strong> Report the state of the stream as left by the most recent operation, not the state of the file.</p>
+          <p class="small" style="margin-bottom:0"><strong>Position.</strong> A <code>long</code> offset from the start of the file, read with <code>ftell</code> and set with <code>fseek(stream, offset, origin)</code> where the origin is <code>SEEK_SET</code>, <code>SEEK_CUR</code> or <code>SEEK_END</code>.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>3. Visual understanding — what the drawing has to show</h3>
+          <p class="small">The mode table cannot be drawn as prose. Six strings against two starting conditions is a twelve-cell answer, and the cells differ in ways that prose blurs: <code>r</code> and <code>r+</code> agree on the missing-file cell and differ on access. So the animation runs the six strings against a simulated four-byte file and a simulated empty directory, and prints the four facts the run produced.</p>
+          <p class="small" style="margin-bottom:0">The second thing the drawing must show is that a loop bug is a <em>count</em>, not a warning. So the canvas draws the same three-byte file twice, once read into an <code>int</code> and once into a <code>char</code>, and prints 3 and 1. A picture of a loop would teach the syntax; a count teaches the failure.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. The four moves every file question needs</h3>
+          <ol class="step-list small">
+            <li><strong>Open.</strong> Which mode, and does it succeed on the file described?</li>
+            <li><strong>Position.</strong> Where does the mode put it, and what does each call do to it?</li>
+            <li><strong>Count.</strong> What does the call return, and is the return a count of characters, items or elements?</li>
+            <li><strong>Legality.</strong> Does the sequence obey the append rule and the update-stream rule? If not, stop: the program has no answer.</li>
+          </ol>
+        </div>
+
+        <div class="card card--definition">
+          <h3>5. Boundaries — when each rule applies</h3>
+          <p class="small"><strong>Append.</strong> In <code>a</code>, <code>ab</code>, <code>a+</code> and <code>ab+</code>, data is written at the end of the file regardless of the position. The position still moves, and <code>ftell</code> still reports it.</p>
+          <p class="small"><strong>Update streams.</strong> With a <code>+</code>, output cannot be followed by input without an intervening <code>fflush</code>, <code>fseek</code>, <code>fsetpos</code> or <code>rewind</code>, and input cannot be followed by output without an intervening <code>fseek</code>, <code>fsetpos</code> or <code>rewind</code>, unless the input operation met the end of file.</p>
+          <p class="small"><strong>Text streams.</strong> Only a zero offset, or an offset produced by <code>ftell</code>, is portable for <code>fseek</code>. On a binary stream any offset is defined.</p>
+          <p class="small" style="margin-bottom:0"><strong>Buffering.</strong> A stream from <code>fopen</code> is fully buffered unless the file is an interactive device. Bytes written are in the buffer until it fills, or until <code>fflush</code> or <code>fclose</code>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. Edge cases — the four that decide questions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>An empty file is not a failed open.</strong> The open succeeds, the first read returns <code>EOF</code> and sets the end flag.</li>
+            <li><strong>A byte of value 255.</strong> Held in a signed <code>char</code>, it is −1, which is <code>EOF</code>. The loop stops one byte into the file.</li>
+            <li><strong><code>fgets</code> at the end of a line.</strong> With a buffer of four on "hello" and a newline, the first call returns three characters, not four, because the terminator needs a slot.</li>
+            <li><strong>A failed <code>fgets</code>.</strong> The buffer is untouched, so printing it prints the previous line again.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>7. GATE application — what the reasoning demands</h3>
+          <p class="small" style="margin-bottom:0">A file question in the exam is almost never about remembering a function name. It is one of four shapes: a mode question (which open succeeds, what survives), a count question (how many bytes or characters), a position question (what <code>ftell</code> reports), or a legality question (is this sequence defined at all). The fourth shape is the one that separates a candidate who has memorised the table from one who has read the rule, because its correct answer is "no output can be predicted".</p>
+        </div>
+
+        <div class="card">
+          <h3>8. Practice and 9. Consolidation</h3>
+          <p class="small">The Practice tab holds ten questions in learning mode: answers are withheld until you reveal them, and mock-test mode hides all of them until you submit. Three of them are legality questions whose answer is "undefined".</p>
+          <p class="small" style="margin-bottom:0">The Revision tab is the one-screen sheet: six modes, five return values, three positions, two rules, and the ranked traps.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION =========================== -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A FILE pointer is a handle to a stream, not the file itself.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A stream, not a file</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A FILE pointer is a handle to a stream. It is not the file, and it does not hold the file.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked examples — every number below is computed on this page</h3>
+          <p class="small" style="margin-bottom:0">Two running files throughout: a text file holding <code>GATE</code> (four bytes) and a binary file holding the bytes 97, 255, 98. The first answers mode and count questions; the second answers the <code>char</code>-versus-<code>int</code> question, because 255 is the one byte value that collides with <code>EOF</code> in a signed <code>char</code>.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — the mode table, run rather than quoted</h3>
+          <p class="small mono">file "GATE" = 4 bytes</p>
+          <ol class="step-list small">
+            <li><code>fopen("f","r")</code> — opens, size stays 4, position 0, read only.</li>
+            <li><code>fopen("f","w")</code> — opens, size becomes <strong>0</strong>, position 0, write only.</li>
+            <li><code>fopen("f","a")</code> — opens, size stays 4, position 4, write only.</li>
+            <li><code>fopen("f","r+")</code> — opens, size 4, position 0, both directions.</li>
+            <li><code>fopen("f","w+")</code> — opens, size 0, both directions.</li>
+            <li><code>fopen("f","a+")</code> — opens, size 4, reads from 0, writes at 4.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">On a name that does not exist, <code>r</code> and <code>r+</code> fail and the other four create the file. The size column is the whole difference between <code>w</code> and <code>a</code>.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — one byte of value 255, two loops</h3>
+          <p class="small mono">file: 97, 255, 98 &nbsp; ('a', 0xFF, 'b')</p>
+          <ol class="step-list small">
+            <li><code>int c; while ((c=fgetc(fp))!=EOF)</code> — reads 97, 255, 98, then fails. <strong>3 bytes.</strong></li>
+            <li><code>char c;</code> same loop — 255 narrowed to a signed <code>char</code> is −1, which equals <code>EOF</code>. <strong>1 byte.</strong></li>
+            <li><code>EOF</code> is −1, outside 0 to 255, so it can never collide with data in an <code>int</code>.</li>
+            <li>Whether plain <code>char</code> is signed is implementation-defined, so the second answer is a fact about a platform, not about C.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">This is the counterexample that makes the rule memorable: the danger is not a rare character, it is the one byte value that is also the failure signal.</p>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Example 3 — the end-of-file loop that runs once too often</h3>
+          <p class="small mono">file: "abc" (3 bytes)</p>
+          <p class="small">The wrong loop tests <code>feof</code> <em>before</em> reading:</p>
+          <p class="small mono">while (!feof(fp)) { c = fgetc(fp); putchar(c); }</p>
+          <ol class="step-list small">
+            <li>Iteration 1: <code>feof</code> is 0, read 'a'.</li>
+            <li>Iteration 2: <code>feof</code> is 0, read 'b'.</li>
+            <li>Iteration 3: <code>feof</code> is 0, read 'c' — the last byte. <code>feof</code> is still 0, because the read succeeded.</li>
+            <li>Iteration 4: <code>feof</code> is 0, the read fails and returns −1, and only now is <code>feof</code> set. <code>putchar((char)−1)</code> writes one byte of value 255.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Four iterations on a three-byte file, and one junk byte. The correct loop reads into an <code>int</code> and stops on the read's own return value: three iterations, no junk.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — <code>fgets</code> with a buffer of four</h3>
+          <p class="small mono">file: "hello\n" (6 bytes), n = 4</p>
+          <ol class="step-list small">
+            <li>Call 1 returns <code>hel</code> plus a terminator: 3 characters, because <code>n − 1 = 3</code>.</li>
+            <li>Call 2 continues: <code>lo</code> plus the newline, plus a terminator. The newline is kept.</li>
+            <li>Call 3 returns <code>NULL</code>, and the buffer is untouched.</li>
+            <li>A loop of <code>while (!feof(fp)) { fgets(buf,16,fp); printf("%s",buf); }</code> on a two-line file makes 2 successful reads and <strong>3</strong> prints.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">The duplicate is not a duplicated read. It is a print of a string nobody read, because a failed <code>fgets</code> leaves the buffer exactly as it was.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — counting bytes written</h3>
+          <p class="small mono">for (i = 1; i &lt;= 10; i++) fprintf(fp, "%d\n", i);</p>
+          <ol class="step-list small">
+            <li>Digits: nine single-digit numbers (1 to 9) plus two digits for 10 = 11.</li>
+            <li>Newlines: 10.</li>
+            <li>Total: <strong>21 bytes</strong>, confirmed by writing the bytes out and measuring the simulated file.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">The return value of each <code>fprintf</code> is the number of characters that conversion produced, so the loop's own returns sum to the same 21.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 6 — the same three statements in two modes</h3>
+          <p class="small mono">fopen("t.txt", MODE); fseek(fp,0,SEEK_SET); fputc('X',fp);<br>t.txt before: "abc"</p>
+          <ol class="step-list small">
+            <li>Mode <code>"a"</code>: opened at 4? no — at 3, the end. Sought to 0. Position after the write is <strong>4</strong>, and the file is <code>abcX</code>.</li>
+            <li>Mode <code>"r+"</code>: opened at 0, sought to 0, position after the write is 1, and the file is <code>Xbc</code>.</li>
+            <li>The write in <code>"a"</code> ignored the seek entirely, because the mode says writes go to the end.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Same statements, same seek, one different byte. This is the pair that a mode question is really testing.</p>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>The four boundary cases</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>An empty file.</strong> The open succeeds with size 0; the first read returns <code>EOF</code> and sets the end flag. There is no null pointer anywhere in this story.</li>
+            <li><strong>A missing file.</strong> <code>r</code> and <code>r+</code> return a null pointer, create nothing, and set no end flag, because there is no stream to hold one.</li>
+            <li><strong>A byte of value 255.</strong> Legal data, and the one value that collides with <code>EOF</code> after a narrowing conversion to a signed <code>char</code>.</li>
+            <li><strong>A buffer of size 1.</strong> <code>fgets(buf, 1, fp)</code> can store only the terminator, so it reads nothing and returns an empty string, not <code>NULL</code>, for as long as there is input left.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Where the standard says "implementation-defined"</h3>
+          <p class="small">These are the places a well-posed question avoids, and where an answer depends on the platform rather than the language:</p>
+          <ul class="small" style="margin-bottom:0">
+            <li>Whether plain <code>char</code> is signed — this decides the 255 counterexample.</li>
+            <li>The initial read position of <code>a+</code>; the common libraries start it at 0.</li>
+            <li>An <code>fseek</code> offset in a text stream that is not 0 and not from <code>ftell</code>.</li>
+            <li>The file size after seeking past the end and writing — a hole is created, and its size is not fixed by C.</li>
+            <li>Whether <code>errno</code> is set by a failing <code>fopen</code>; POSIX requires it, C alone does not.</li>
+            <li><code>fflush</code> on an input stream: undefined in C, a discard of read-ahead on POSIX.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Closely confused pairs</h3>
+          <p class="small"><strong><code>EOF</code> versus <code>feof</code>.</strong> <code>EOF</code> is the value an input call returns when it produced nothing. <code>feof</code> is a query about the last operation. After reading the final byte, the call returned data and <code>feof</code> is 0; after the next call, the call returned <code>EOF</code> and <code>feof</code> is nonzero. One is a value, the other is a report.</p>
+          <p class="small"><strong><code>fflush</code> versus <code>fclose</code>.</strong> <code>fflush</code> pushes the buffer out and leaves the stream open and usable. <code>fclose</code> flushes and then releases the stream, after which any use is undefined.</p>
+          <p class="small"><strong><code>w</code> versus <code>a</code>.</strong> Both write. <code>w</code> destroys the old content at the moment of the open; <code>a</code> keeps it and puts every write after it.</p>
+          <p class="small" style="margin-bottom:0"><strong><code>fseek</code> versus <code>rewind</code>.</strong> <code>rewind</code> is a seek to the start <em>and</em> clears the error indicator; a bare <code>fseek</code> to the start clears the end indicator but not the error one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The one legality case that matters most</h3>
+          <p class="small mono">FILE *fp = fopen("t.txt", "r+");<br>int c = fgetc(fp);      /* input  */<br>fputc('Z', fp);         /* output, with no positioning call */</p>
+          <p class="small">This is not "the write goes at position 1" and it is not "the write overwrites the byte just read". It is undefined: the standard requires an intervening <code>fseek</code>, <code>fsetpos</code> or <code>rewind</code> before output can follow input on an update stream. Adding <code>fseek(fp, 0, SEEK_SET);</code> makes the program defined, and then the write lands at 0.</p>
+          <p class="small" style="margin-bottom:0">So the correct answer to a question that shows this code and asks for the output is that there is no output to compute — and that is a stronger answer than any particular guess.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>Misconception 1 — "a failed <code>fopen</code> gives an empty stream"</h3>
+          <p class="small"><strong>Wrong.</strong> It returns a null pointer. There is no stream: no position, no buffer, no flags. An empty file is the different case where the stream exists and the first read reports the end.</p>
+          <p class="small" style="margin-bottom:0"><strong>The test that separates them:</strong> compare the pointer with <code>NULL</code> for the first, and check the first read's return value for the second.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 2 — "<code>feof</code> tells me whether I am at the end"</h3>
+          <p class="small"><strong>Wrong, in the sense that matters.</strong> <code>feof</code> reports the last operation. After the read that returned the last byte it is still 0, and it becomes nonzero only when a read fails.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample:</strong> the three-byte file read by <code>while (!feof(fp))</code> makes four iterations, not three, and writes one byte of value 255.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 3 — "<code>char</code> is fine for <code>fgetc</code>, because a character is a character"</h3>
+          <p class="small"><strong>Wrong.</strong> <code>fgetc</code> returns an <code>int</code> precisely because 256 byte values are all legal data and the failure signal had to sit outside them.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample:</strong> the file 97, 255, 98 read into a signed <code>char</code> stops after one byte, because 255 narrowed is −1, which is <code>EOF</code>.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 4 — "<code>fseek</code> then write always writes there"</h3>
+          <p class="small"><strong>Wrong in append mode.</strong> In <code>a</code> and its variants the write goes to the end regardless of the position. The position still moves; the write ignores it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample:</strong> <code>abc</code>, opened <code>"a"</code>, seek to 0, write <code>X</code>, gives <code>abcX</code> — while the same calls in <code>"r+"</code> give <code>Xbc</code>.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 5 — "if <code>fprintf</code> succeeded, the data is on the disk"</h3>
+          <p class="small"><strong>Wrong.</strong> The bytes go into the buffer. A count reported by <code>fprintf</code> is a count of characters formatted, not of bytes written to the disk.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample:</strong> five characters written to a <code>"w"</code> stream leave the file empty until <code>fflush</code> or <code>fclose</code>. That is why a crash can lose output the program already reported.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 6 — "mixing reads and writes is always allowed on <code>r+</code>"</h3>
+          <p class="small"><strong>Wrong.</strong> The two directions share one buffer, so a positioning call is required between them. Without it the program is undefined, not merely surprising.</p>
+          <p class="small" style="margin-bottom:0"><strong>The fix is one line:</strong> <code>fseek</code>, <code>fsetpos</code> or <code>rewind</code> between the read and the write — and <code>fflush</code> is also allowed when the order is output then input.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five question shapes, and the procedure for each</h3>
+          <p class="small" style="margin-bottom:0">No previous-year item is quoted on this page, because one with a verifiable year, set and question number was not located for this run. What follows is the shape of the question and the procedure that answers it, which is what transfers to an unseen paper.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 1 — which mode opens</h3>
+          <p class="small"><strong>Shape.</strong> A file exists or does not; a mode string is given; which of the options is true?</p>
+          <p class="small"><strong>Procedure.</strong> Read the first letter first: <code>r</code> needs the file, <code>w</code> empties it, <code>a</code> keeps it. Then read the <code>+</code>: it adds a direction and changes nothing about existence. Then read the <code>b</code>: it changes nothing except newline handling and seek offsets.</p>
+          <p class="small" style="margin-bottom:0"><strong>The trap.</strong> Options that differ only in whether the old content survives. Answer that column first and most options fall away.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 2 — how many bytes</h3>
+          <p class="small"><strong>Shape.</strong> A loop of <code>fprintf</code> or <code>fputc</code>; how large is the file, or how many characters are written?</p>
+          <p class="small"><strong>Procedure.</strong> Count characters, not calls: digits, separators, newlines. Then check the mode — in <code>a</code> the old bytes are still there and must be added; in <code>w</code> they are gone.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> The ten numbers 1 to 10 with a newline each give 11 digits and 10 newlines, so 21.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 3 — what the loop prints</h3>
+          <p class="small"><strong>Shape.</strong> A read loop, a small file, and four options that differ in length or in the last item.</p>
+          <p class="small"><strong>Procedure.</strong> Simulate the loop on paper, one iteration per line, and mark at each step: the value returned, the position, and the two flags. Stop when the read fails, not when you think the file ends.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> A three-byte file under <code>while(!feof)</code> gives four iterations; the same file under a read-and-test loop gives three.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 4 — where the position is</h3>
+          <p class="small"><strong>Shape.</strong> Some reads, one <code>fseek</code>, then <code>ftell</code>, or a read after the seek.</p>
+          <p class="small"><strong>Procedure.</strong> Start at the position the mode set. Add one per byte read. Apply the seek as <code>base + offset</code> with the base taken from the origin. A successful seek clears the end flag, which is what makes the next read work.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> On eleven bytes, five reads put the position at 5; <code>fseek(−3, SEEK_END)</code> puts it at 8.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Pattern 5 — is this program even defined?</h3>
+          <p class="small"><strong>Shape.</strong> Read then write, or write then read, on a <code>+</code> stream, or a use of a pointer that may be null.</p>
+          <p class="small"><strong>Procedure.</strong> Check the pointer first. Then check the interleaving: input then output needs a positioning call; output then input needs <code>fflush</code> or a positioning call. If either is missing, the answer is "undefined", and a paper that offers a definite output has made an error.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it matters.</strong> This is the one shape where the correct answer is a statement about the language rather than a number, and it is the shape most often answered by guessing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">All ten questions are original practice questions written for this lesson, and each is labelled as such. No item on this page is presented as an official previous-year question, because a file-I/O item with a verifiable year, set and question number was not located for this run. Every numerical answer is recomputed on the page rather than quoted from a key.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A file <code>f.txt</code> exists and holds the four bytes <code>GATE</code>. A program runs</p>
+            <p class="small mono">FILE *fp = fopen("f.txt", "w");<br>fclose(fp);</p>
+            <p class="small">What is the size of <code>f.txt</code> afterwards?</p>
+            <p class="small">(A) 4 &nbsp; (B) 0 &nbsp; (C) undefined, because nothing was written &nbsp; (D) 1</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p><code>w</code> truncates the file at the moment of the open, before any write happens. The size column of the mode table shows 4 before and 0 after.</p>
+            <p><strong>Why A is wrong.</strong> It assumes the old bytes survive an open in write mode. They do not.</p>
+            <p class="small"><strong>The distinction being tested.</strong> <code>w</code> destroys; <code>a</code> keeps. Nothing else in the mode string changes that.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which one of the following calls returns a null pointer when the named file does <em>not</em> exist?</p>
+            <p class="small">(A) <code>fopen("x","a")</code> &nbsp; (B) <code>fopen("x","w+")</code> &nbsp; (C) <code>fopen("x","r+")</code> &nbsp; (D) <code>fopen("x","a+")</code></p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>Only the <code>r</code> family requires the file to exist. <code>r+</code> is still the <code>r</code> family, so it fails on a missing file and creates nothing.</p>
+            <p><strong>Why B is wrong.</strong> <code>w+</code> creates the file and empties it; the plus adds reading, and does not add an existence requirement.</p>
+            <p class="small"><strong>The trap.</strong> Reading the plus sign as "the safe, general mode". It is not safer; it is the same family with one more direction.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A text file is created by</p>
+            <p class="small mono">for (i = 1; i &lt;= 10; i++) fprintf(fp, "%d\n", i);</p>
+            <p class="small">How many bytes does the file hold? (Assume one byte per character, no translation.)</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 21</p>
+            <p>Digits: 1 to 9 contribute 9, and 10 contributes 2, so 11. Newlines: 10. Total 21.</p>
+            <p><strong>Why 20 is wrong.</strong> It counts ten numbers as ten characters and forgets that 10 has two digits.</p>
+            <p class="small"><strong>The trap.</strong> Counting calls instead of characters. The count is what the file holds, not how many times the function ran.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A binary file holds 11 bytes. The stream is at position 0. The program executes</p>
+            <p class="small mono">fseek(fp, -3, SEEK_END);</p>
+            <p class="small">What does <code>ftell(fp)</code> report?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 8</p>
+            <p><code>SEEK_END</code> puts the base at 11, and the offset is −3, so the position is 8. The three bytes at 8, 9 and 10 are the last three of the file.</p>
+            <p><strong>Why 3 is wrong.</strong> It reads the offset as an absolute position and ignores the origin.</p>
+            <p class="small"><strong>The assumption being used.</strong> The stream is binary. On a text stream this offset is implementation-defined unless it came from <code>ftell</code>.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p><code>t.txt</code> holds <code>abc</code>. The program runs</p>
+            <p class="small mono">fp = fopen("t.txt", "a");<br>fseek(fp, 0, SEEK_SET);<br>fputc('X', fp);<br>fclose(fp);</p>
+            <p class="small">What does <code>t.txt</code> hold afterwards?</p>
+            <p class="small">(A) <code>Xbc</code> &nbsp; (B) <code>abcX</code> &nbsp; (C) <code>X</code> &nbsp; (D) undefined</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>In an append mode the write goes to the end of the file regardless of the position, so <code>X</code> lands after <code>abc</code>.</p>
+            <p><strong>Why A is wrong.</strong> It is what the same three statements do in <code>"r+"</code>, where the position is honoured. That is the pair this question tests.</p>
+            <p class="small"><strong>Why D is wrong.</strong> Seeking and writing in an append stream is perfectly defined; only the <code>+</code> interleaving rule can make a program undefined here.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following statements are TRUE?</p>
+            <p class="small">(A) After a read that returns the last byte of a file, <code>feof</code> returns nonzero.<br>(B) <code>fgets</code> stores at most <code>n−1</code> characters plus a terminating zero.<br>(C) <code>fclose</code> returns <code>EOF</code> if the flush failed.<br>(D) <code>fseek</code> on a stream opened <code>"r"</code> can clear the end-of-file indicator.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B, C, D</p>
+            <p><strong>B.</strong> The size argument includes the terminator's slot, so the characters stored are at most <code>n−1</code>.</p>
+            <p><strong>C.</strong> A successful close returns 0; a failed flush makes it return <code>EOF</code>, and that is the last report the library gives.</p>
+            <p><strong>D.</strong> A successful <code>fseek</code> clears the end-of-file indicator, which is why the next read can succeed.</p>
+            <p class="small"><strong>Why A is false.</strong> That read succeeded, so the indicator is still 0; only a read that fails sets it. This is the whole content of the four-iteration example.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A binary file holds exactly three bytes: 97, 255, 98. The program is</p>
+            <p class="small mono">char c;<br>while ((c = fgetc(fp)) != EOF)<br>&nbsp;&nbsp;&nbsp;&nbsp;putchar(c);</p>
+            <p class="small">On a platform where plain <code>char</code> is signed, how many times does the body of the loop run?</p>
+            <p class="small">(A) 0 &nbsp; (B) 1 &nbsp; (C) 2 &nbsp; (D) 3</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The first byte, 97, is stored as <code>'a'</code> and is not <code>EOF</code>, so the body runs once. The second byte, 255, narrowed to a signed <code>char</code>, is −1, which compares equal to <code>EOF</code>, so the loop stops.</p>
+            <p><strong>Why D is wrong.</strong> It is the answer for <code>int c</code>, where all three bytes are distinguishable from <code>EOF</code>.</p>
+            <p class="small"><strong>The assumption in the question.</strong> Signed <code>char</code>. Where <code>char</code> is unsigned the answer is D, which is why the platform is stated — the C standard does not fix it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A file holds the text <code>hello</code> followed by a newline. The program is</p>
+            <p class="small mono">char buf[4];<br>fgets(buf, 4, fp);   /* call 1 */<br>fgets(buf, 4, fp);   /* call 2 */</p>
+            <p class="small">What does <code>buf</code> hold after call 2?</p>
+            <p class="small">(A) <code>hell</code> &nbsp; (B) <code>o\n</code> &nbsp; (C) <code>lo\n</code> &nbsp; (D) <code>llo</code></p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>Call 1 stores <code>h</code>, <code>e</code>, <code>l</code> and a zero — three characters, because <code>n−1 = 3</code>. Call 2 continues from there: <code>l</code>, <code>o</code>, the newline, and a zero.</p>
+            <p><strong>Why A is wrong.</strong> It uses all four slots for characters and leaves no room for the terminator.</p>
+            <p class="small"><strong>The trap.</strong> The newline is kept. A question that offers <code>lo</code> without the newline is testing exactly that.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p><code>t.txt</code> holds <code>abc</code>. The program is</p>
+            <p class="small mono">fp = fopen("t.txt", "r+");<br>c = fgetc(fp);<br>fputc('Z', fp);<br>fclose(fp);</p>
+            <p class="small">Which one of the following is TRUE?</p>
+            <p class="small">(A) <code>t.txt</code> becomes <code>Zbc</code><br>(B) <code>t.txt</code> becomes <code>aZc</code><br>(C) The program is undefined, because no positioning call separates the read from the write<br>(D) <code>t.txt</code> becomes <code>abcZ</code></p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>On an update stream, input cannot be followed by output without an intervening <code>fseek</code>, <code>fsetpos</code> or <code>rewind</code>, unless the input met the end of file. Here it did not, so the program is undefined.</p>
+            <p><strong>Why B is wrong.</strong> It is the plausible guess — the position is 1 after one read — and it is exactly what the standard refuses to promise.</p>
+            <p class="small"><strong>The fix.</strong> Insert <code>fseek(fp, 0, SEEK_SET);</code> and the answer becomes <code>Zbc</code>, which is option A.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A text file holds the eight characters <code>12 34 x</code>. The program executes</p>
+            <p class="small mono">int a, b, c, n;<br>n = fscanf(fp, "%d %d %d", &amp;a, &amp;b, &amp;c);</p>
+            <p class="small">What value does <code>n</code> hold?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>The first two conversions read 12 and 34. The third meets the letter <code>x</code>, which is not an integer, so it fails and the call returns the number of items assigned: 2.</p>
+            <p><strong>Why 3 is wrong.</strong> It assumes every conversion succeeds. A conversion that fails does not assign, and does not consume the offending character.</p>
+            <p class="small"><strong>The trap.</strong> The position is left on the <code>x</code>, so a second <code>fscanf</code> with the same format fails again — a loop that ignores the count does not terminate.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>One-screen revision sheet</h3>
+          <p class="small mono" style="margin-bottom:0">open → position → count → legality → close</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The six modes</h3>
+          <p class="small mono" style="margin-bottom:0">
+            r&nbsp;&nbsp; existing only, read, pos 0<br>
+            w&nbsp;&nbsp; truncates or creates, write, pos 0<br>
+            a&nbsp;&nbsp; creates if missing, write, pos end<br>
+            r+&nbsp; existing only, both, pos 0<br>
+            w+&nbsp; truncates or creates, both, pos 0<br>
+            a+&nbsp; creates if missing, read from 0, write at end
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>The five return values</h3>
+          <p class="small mono" style="margin-bottom:0">
+            fopen&nbsp;&nbsp;&nbsp; a pointer, or NULL<br>
+            fgetc&nbsp;&nbsp;&nbsp; an int 0..255, or EOF (−1)<br>
+            fgets&nbsp;&nbsp;&nbsp; the buffer, or NULL<br>
+            fscanf&nbsp;&nbsp; items assigned<br>
+            fread&nbsp;&nbsp;&nbsp;&nbsp; elements read<br>
+            fclose&nbsp;&nbsp; 0, or EOF
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>The three positions</h3>
+          <p class="small mono" style="margin-bottom:0">
+            SEEK_SET&nbsp; from the start<br>
+            SEEK_CUR&nbsp; from the current position<br>
+            SEEK_END&nbsp; from the end (negative counts back)<br><br>
+            ftell → the offset as a long<br>
+            rewind → seek to 0 and clear the error flag
+          </p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The two rules that make a program legal</h3>
+          <p class="small"><strong>Append.</strong> In <code>a</code> and its variants, writes go to the end whatever the position is.</p>
+          <p class="small" style="margin-bottom:0"><strong>Update.</strong> On a <code>+</code> stream, output then input needs <code>fflush</code> or a positioning call; input then output needs a positioning call, unless the input met the end of file.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The traps, ranked by how often they cost marks</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Testing <code>feof</code> before a read, and printing the buffer anyway.</li>
+            <li>Storing <code>fgetc</code> in a <code>char</code>.</li>
+            <li>Assuming a failed <code>fopen</code> gives an empty stream.</li>
+            <li>Forgetting that <code>w</code> destroys the old content at the open.</li>
+            <li>Reading then writing on <code>r+</code> with no positioning call.</li>
+            <li>Counting bytes when <code>fread</code> counts elements.</li>
+            <li>Forgetting that <code>fgets</code> keeps the newline.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Quick revision questions</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Why does <code>fgetc</code> return <code>int</code> and not <code>char</code>?</li>
+            <li>What does <code>feof</code> report, and when is it set?</li>
+            <li>Which two modes fail on a missing file, and what do they return?</li>
+            <li>How many characters can <code>fgets(buf, n, fp)</code> store?</li>
+            <li>In which mode does <code>fseek</code> fail to move the next write?</li>
+            <li>What must sit between a read and a write on <code>r+</code>?</li>
+            <li>What does <code>fclose</code> return when the flush fails?</li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Official syllabus</h3>
+          <p class="small">GATE 2027 Computer Science and Information Technology syllabus, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read for this run. Section 4 reads: <em>"Programming and Data Structures: Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps, graphs."</em> <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0">The clause names the language and not its library. This page is class A on the reading that "Programming in C" includes the standard input/output library, and it says so rather than implying that <code>fopen</code> is printed in the syllabus.</p>
+        </div>
+
+        <div class="card">
+          <h3>Language behaviour</h3>
+          <p class="small">cppreference, <code>fopen</code> — the six mode strings, the table of what each does to an existing and a missing file, the append rule ("data is written to the end of the file regardless of the current position"), the <code>b</code> and <code>x</code> flags, and the update-stream interleaving rule. Used for the mode table and for the legality checks.</p>
+          <p class="small">cppreference, <code>fgetc</code> — the return value as an <code>unsigned char</code> converted to <code>int</code>, and <code>EOF</code> on failure, with the end indicator set only when the failure was end of file.</p>
+          <p class="small" style="margin-bottom:0">cppreference, <code>feof</code> — the note that the function reports the state left by the most recent I/O operation, so that after a read returning the last byte it still returns zero. ISO/IEC 9899 clause 7.21.5.3 is the primary text behind the interleaving rule; the standard itself was not downloaded for this run, and the wording quoted here is cppreference's summary of it.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What was not verified</h3>
+          <p class="small" style="margin-bottom:0">No previous-year GATE question on file input/output is quoted on this page. Searches for such an item this run returned coaching-site compilations without a year, set and question number that could be confirmed against a paper, so no item is labelled official and all ten practice questions are marked original. No weightage is claimed for this topic, because no official marks distribution per topic is published, and no claim is made that a file-I/O question appears in any particular year.</p>
+        </div>
+
+        <div class="card">
+          <h3>Where the standard leaves a choice</h3>
+          <p class="small" style="margin-bottom:0">Six behaviours are marked implementation-defined or undefined on this page rather than answered: whether plain <code>char</code> is signed; the initial read position in <code>a+</code>; a <code>fseek</code> offset in a text stream that did not come from <code>ftell</code>; the file size after seeking past the end and writing; whether <code>errno</code> is set by a failing <code>fopen</code>; and <code>fflush</code> on an input stream. Each is labelled where it appears, so that a learner can tell a fact about C from a fact about one library.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
