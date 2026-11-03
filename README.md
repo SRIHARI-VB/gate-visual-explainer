@@ -11,6 +11,7 @@ lessons are static files and work from a local clone.
 | Topic | Subject | Syllabus class | Path |
 |---|---|---|---|
 | Counting and Combinatorics | Discrete Mathematics | A — explicitly in the syllabus | `topics/counting-and-combinatorics/index.html` |
+| Counting Eulerian circuits: the BEST theorem, arborescences and the de Bruijn graph | Discrete Mathematics | A — explicitly in the syllabus | `topics/counting-eulerian-circuits-best-theorem/index.html` |
 | Eccentricity, Radius, Diameter and Centre | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/graph-eccentricity-radius-diameter-centre/index.html` |
 | Euler Trails and Hamiltonian Cycles | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/euler-trails-and-hamiltonian-cycles/index.html` |
 | First-Order Logic | Discrete Mathematics | A — explicitly in the syllabus | `topics/first-order-logic/index.html` |
