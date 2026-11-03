@@ -4688,8 +4688,13 @@ if os.path.exists("syllabus-coverage.json"):
         with open("syllabus-coverage.json") as f:
             _old = json.load(f)
         _old_by_key = {(t["subject"], t["topic"]): t for t in _old.get("topics", [])}
+        # Two tracker entries can share a topic string (a clause taught twice).
+        # Match by lesson slug first, so the preserve step can never copy one
+        # lesson's status onto another's row.
+        _old_by_slug = {t.get("lesson_slug"): t for t in _old.get("topics", [])
+                        if t.get("lesson_slug")}
         for _t in topics:
-            _o = _old_by_key.get((_t["subject"], _t["topic"]))
+            _o = _old_by_slug.get(_t.get("lesson_slug")) or _old_by_key.get((_t["subject"], _t["topic"]))
             if not _o:
                 continue
             if _o.get("coverage_status") in ("PUBLISHED", "NEEDS_REVIEW"):
@@ -4699,9 +4704,15 @@ if os.path.exists("syllabus-coverage.json"):
         # A published lesson whose tracker entry is not defined by this generator
         # must not be dropped by a regeneration: carry it forward verbatim.
         _defined = {(t["subject"], t["topic"]) for t in topics}
+        # A lesson already represented under a different topic string is not a
+        # missing entry: a later run may rename its tracker label, and carrying
+        # the old label forward would list one lesson twice.
+        _defined_slugs = {t.get("lesson_slug") for t in topics if t.get("lesson_slug")}
         _carried = 0
         for _o in _old.get("topics", []):
             if (_o.get("subject"), _o.get("topic")) in _defined:
+                continue
+            if _o.get("lesson_slug") in _defined_slugs:
                 continue
             if _o.get("coverage_status") in ("PUBLISHED", "NEEDS_REVIEW") and _o.get("lesson_slug"):
                 topics.append(_o)
@@ -5127,6 +5138,43 @@ topics.append(topic(
         "back-solving: 1112 and 1124 give a 3-element gap and a base of 1060",
         "the free check: recompute a given cell from the recovered base",
         "the four-step routine and the five traps that are one trap in five costumes"]))
+
+
+# ---------------------------------------------------------------- later runs, appended in place
+# The previous two runs published these two Digital Logic and Discrete Mathematics
+# lessons. They are written here as well as in the tracker, so that regenerating
+# the tracker never drops them. The comparator entry's topic string is renamed
+# from the clause name to the lesson's own name, because two tracker entries
+# sharing the string 'Design of combinational circuits' made the tracker
+# ambiguous.
+
+topics.append(topic(
+    'Digital Logic', 'Combinational design', 'Magnitude comparators, code converters and the BCD adder',
+    ['magnitude comparators and cascading', 'code converters: binary, Gray, BCD, excess-3', 'the BCD adder and its correction network'],
+    prereq=['combinational-circuits', 'boolean-algebra-and-minimisation', 'number-representation-and-arithmetic'],
+    related=['combinational-circuits', 'boolean-algebra-and-minimisation', 'quine-mccluskey-tabular-method', 'arithmetic-algorithms-booth-division-cla', 'sequential-circuits'],
+    importance='medium-high',
+    evidence="The clause is named verbatim in Section 2 of the official GATE 2027 CS syllabus, IIT Madras (CS_GATE2027_Syllabus.pdf): 'Design of combinational and sequential circuits'. The three circuits are the standard non-adder, non-multiplexer, non-decoder instances of that clause. A community archive of past Digital Logic papers (GATE Overflow, 234 tagged items 1987-2026) files such items under its 'Binary Codes' and 'Combinational Circuit' tags. Neither source establishes weightage, and no frequency claim is made.",
+    difficulty='medium',
+    status='PUBLISHED',
+    slug='comparator-code-converter-bcd-adder',
+    path='topics/comparator-code-converter-bcd-adder/index.html',
+    execution='published; node tools/check-lesson.mjs PASS (21/21 model checks, 1201 frames across 10 scenes); node tools/audit-geometry.mjs clean; captions.vtt, captions.srt and transcript.md generated from timeline.js',
+    microtopics=['a specification maps an input word to an output word, so it is a table of 2^n rows and 4^n for two words', 'two eight-bit words would need 65536 rows, which is why the table method is replaced by a state', 'one-bit comparator: G = a AND NOT b, E = a XNOR b, L = NOT a AND b, one gate each', 'G + E + L = 1 in every row: mutual exclusion plus exhaustiveness, checked on all four rows', 'the state passed up the chain is the triple (greater, equal, less) about the higher bits', 'G_out = G_in OR (E_in AND a>b), L_out = L_in OR (E_in AND a<b), E_out = E_in AND (a=b)', 'the identity element is (0, 1, 0), the statement that the bits above the top are tied', 'comparison reads most significant first; the first differing bit decides and no lower bit is consulted', '1011 against 1001 is decided at bit 1 and bit 0 is never consulted', 'the ripple agrees with numeric comparison on all pairs up to six bits, checked by enumeration', 'of the 4^n ordered pairs, 2^n tie and the remaining split evenly: 16, 120, 120 at four bits', 'swapping the two words is a bijection between the greater and the less pairs', "cascading two four-bit comparators: the low stage's flags drive the high stage's tie input", 'a cascade input of (0, 0, 0) makes the high stage report less on every pair with differing high nibbles', 'equality of two n-bit words costs n XNOR plus n-1 AND, so 15 gates at eight bits', 'equality is an AND over the whole word, never an OR of per-bit equalities', 'a code is a spelling of a value; a converter changes the word and not the value', 'BCD uses ten of the sixteen four-bit words; 1010 to 1111 have no digit to mean', 'Gray(n) = n XOR (n >> 1); g_i = b_i XOR b_i+1 with b_n = 0', 'decoding is cumulative: b_i = g_i XOR b_i+1 with the binary bit above already decoded', 'binary 1011 becomes Gray 1110, and Gray 1110 decodes back to 1011', 'Gray is a bijection, consecutive words differ in one bit, and the wrap 15 to 0 differs in one bit', 'the Karnaugh map axis 00 01 11 10 is the two-bit Gray sequence, which is why one-bit-different labels touch', 'counting order 00 01 10 11 would place two-bit-different labels adjacent and break every group across that edge', 'excess-3: code(d) = binary(d + 3), self-complementing because inverting four bits computes 15 minus the value', 'inverting excess-3 gives the nines complement, not the tens or ones complement', 'no excess-3 codeword is all zeros or all ones, which is its second useful property', 'BCD adder: two digits plus a carry in give a true sum of 0 to 19 split as carry out and low nibble', 'the repair is to add six, because six is 16 - 10, so the nibble becomes s - 10 and the carry appears', 'the correction condition is C_out + S3 S2 + S3 S1, exact on all sixteen nibbles', 'S3 S2 covers 1100 to 1111 and S3 S1 covers 1010, 1011, 1110, 1111; together exactly 1010 to 1111', 'S3 alone is not the condition: 1000 and 1001 are valid digits with S3 = 1', '9 + 9 + 1 = 19 has a valid-looking nibble 0011, so only the carry out reveals the correction', 'the correction always raises the carry out of the second adder', "all sixteen nibbles occur across the 200 valid inputs, so 1010 to 1111 are reachable here and not don't-cares", "the same six words are genuine don't-cares at a BCD-to-excess-3 converter's input, where they never arrive", 'verified against decimal addition on all 200 valid inputs: digit and carry both agree', 'the three problems share one method: name the words, find the small state, write the per-position rule, check it exhaustively']))
+
+topics.append(topic(
+    'Discrete Mathematics', 'Graph theory', 'Graphs: connectivity — eccentricity, radius, diameter and centre',
+    ['distance as a count of edges, and the distance table', 'eccentricity of a vertex', 'diameter, radius, centre, periphery', 'the bounds ceil(d/2) <= r <= d and self-centred graphs', 'the tree theorem r = ceil(d/2) and one or two adjacent centres', 'leaf peeling for the centre of a tree', 'the two-sweep diameter algorithm and where it fails', 'height of a breadth-first-search tree against the diameter', 'the square of a graph and its diameter'],
+    prereq=['graphs-connectivity', 'graph-traversals-mst-shortest-paths', 'trees-bst-and-heaps', 'counting-and-combinatorics'],
+    related=['graphs-connectivity', 'graph-traversals-mst-shortest-paths', 'trees-bst-and-heaps', 'matching-and-colouring', 'articulation-points-bridges-and-blocks', 'asymptotic-complexity'],
+    importance='medium',
+    evidence="The syllabus clause is 'Graphs: connectivity, matching, colouring' (Section 1, Discrete Mathematics, official GATE 2027 CS syllabus, IIT Madras). The words eccentricity, radius, diameter and centre do not appear in it; the topic is the standard measure of distance within a connected graph and is examined through that clause. Two previous-year items are quoted in the lesson with year, paper and question number: GATE CSE 2025 Set 1 Q43 (a diameter-30 graph bounds every BFS height) and GATE CSE 2021 Set 1 Q20 (the diameter of the square of a graph). No weightage is claimed.",
+    difficulty='medium',
+    status='PUBLISHED',
+    slug='graph-eccentricity-radius-diameter-centre',
+    path='topics/graph-eccentricity-radius-diameter-centre/index.html',
+    execution='published; node tools/check-lesson.mjs PASS (41/41 model checks, 1201 frames across 10 scenes); node tools/audit-geometry.mjs clean (10 scenes, no text outside the canvas, no text-on-text overlap); captions.vtt, captions.srt and transcript.md generated from timeline.js',
+    microtopics=['d(u,v) is the fewest edges on a path, computed by breadth-first search, never measured on the drawing', 'the distance table is symmetric with a zero diagonal, so eccentricity is a row maximum', 'eccentricity is a maximum, not an average; the row mean is no graph quantity here', 'diameter = max of the eccentricities = max over pairs of d(u,v)', 'radius = min of the eccentricities; centre and periphery are the two arg-sets', 'ceil(d/2) <= r <= d, proved from the triangle inequality with a centre vertex', 'the floor is attained by trees, the ceiling by cycles, complete graphs and Petersen', 'self-centred means r = d, so the centre is the whole vertex set', 'the four-cycle has diameter 2 and radius 2, which refutes r = ceil(d/2) off a tree', 'on a tree r = ceil(d/2), with one centre for even d and two adjacent centres for odd d', 'the centre of a tree is the middle of any diameter path; off a tree a centre vertex can miss every diameter path', 'leaf peeling removes all current leaves per round and stops at one or two vertices; it is linear', 'the peel round count is not the radius: three rounds on P8 whose radius is 4', 'two sweeps find the diameter on every tree and report 1 on the four-vertex diamond whose diameter is 2', 'the height of a BFS tree is the eccentricity of its root, so it lies between ceil(d/2) and d', 'diam(G^2) = ceil(diam(G)/2) for every connected graph', 'a disconnected graph has no finite eccentricity, so no radius and no diameter', 'centre, centroid and median are three different vertices; the pan graph separates all three', 'all 18248 labelled trees on 2 to 7 vertices satisfy the tree theorem, checked by enumeration', 'all 27475 connected graphs with at most 6 vertices satisfy the square-graph equality']))
 
 _VERIFIED = {
     "ear-decomposition-and-robbins-orientation": (
