@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLSM Subnet Design, Longest Prefix Match and Aggregation — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">VLSM, longest prefix match, aggregation</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Prerequisite: CIDR and fragmentation</a>
+      <a href="../ipv6-addressing-and-header/index.html">Related: IPv6 addressing</a>
+      <a href="../distance-vector-and-link-state-routing/index.html">Related: routing</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Subnet design with unequal prefixes (VLSM), the forwarding rule that reads those prefixes, and the merging of prefixes back into larger blocks.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Convert a list of host requirements into the smallest block that holds each one. Place those blocks largest-first at aligned addresses, and prove the placement is legal. Read what is left as a set of maximal aligned blocks and decide whether a new requirement fits. Resolve a destination address to the longest prefix among the routes that match it, and say why row order is irrelevant. Merge sibling prefixes into one, refuse to merge non-siblings, and keep a more specific route where part of an aggregate belongs elsewhere.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>the design and forwarding half of "CIDR Notation"</em>: not how to read a prefix, which the CIDR lesson owns, but how to choose the prefixes for a network and how a router reads them back.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside the named CIDR clause.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus reads: <em>"IPv4 - Fragmentation, CIDR Notation, Network Address Translation"</em>. Subnet design is the use of CIDR notation: choosing the prefix lengths for a block you were given.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words VLSM, longest prefix match and supernetting are <em>not</em> printed in the syllabus. The class label rests on the CIDR clause and on the fact that a CIDR prefix is only meaningful inside a forwarding rule, not on the clause naming these terms.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Three independent syllabus-comparison pages read the 2027 Computer Networks section as narrower and more calculation-heavy than 2026, and put "CIDR and subnetting" in the top priority tier. That is an observation about advice, not a statement about marks, and no weightage is claimed here.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../ip-fragmentation-cidr-and-nat/index.html">IPv4, CIDR and NAT</a> — reading <code>a.b.c.d/p</code>, the block size $$2^{32-p}$$, and the network and broadcast addresses.</li>
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering and switching</a> — what a router forwards and what a header carries.</li>
+            <li>Arithmetic: powers of two up to $$2^{10}$$, division and remainders, and binary in one octet.</li>
+            <li>Helpful, not required: <a href="../distance-vector-and-link-state-routing/index.html">distance vector and link state routing</a>, because a routing table is where these prefixes end up.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Nothing here needs a simulator or a real network. Every number on the page is computed by the page.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A block is a power of two at an aligned address.</strong> The start must be a multiple of the size.</li>
+            <li><strong>A need becomes the smallest block that holds it.</strong> 400 hosts means a /23, not a /24.</li>
+            <li><strong>Free space is a set of blocks, not a count.</strong> 62 free addresses may contain no /26.</li>
+            <li><strong>Forwarding takes the longest matching prefix.</strong> Length competes only among routes that match.</li>
+            <li><strong>An aggregate is a parent whose two halves you own.</strong> Otherwise it advertises addresses you do not have.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> One address as 32 bit cells, its prefix, and the alignment test on a block of 1024. <strong>2</strong> The same /22 halved into two /23s and four /24s, and the waste of equal sizes against a 2-host link. <strong>3</strong> The host table from /24 to /32, with the /31 and /32 exceptions marked. <strong>4</strong> The design: five requirements converted to prefixes, then placed largest-first on one bar of 1024 addresses. <strong>5</strong> The leftover decomposed into five blocks, and a /26 that does not fit beside a /27 that does. <strong>6</strong> The failing /24 example: hosts 250 against 254, blocks 288 against 256. <strong>7</strong> The seven-row forwarding table and three destinations resolved by longest match. <strong>8</strong> The same lookup as a bit-by-bit walk with marks at prefix depths. <strong>9</strong> Four /24s merging into a /22, then two non-siblings whose only common block covers 512 unowned addresses. <strong>10</strong> The five steps, the computed numbers and the two traps.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>How to study this lesson</h3>
+          <p class="small">Approximate study time: 50–70 minutes, which is an estimate and not a measurement. Watch the Animation tab once with captions on, read Examples for the five worked items, then take Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">The page computes every figure it shows when it loads: it converts the five requirements, allocates them, decomposes the free space, tests a /26 against it, sums the failing example two ways, resolves seven destinations by longest match, and merges two routing tables. The count of passing checks is printed under the canvas, so a wrong number would show up there before you read it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a shelf of boxes that halve</h3>
+          <p class="small">Imagine a shelf 1024 centimetres long and a rule that a box may only be 1, 2, 4, 8, 16 … 1024 centimetres long, and must start at a multiple of its own length. You cannot cut a 100 cm box. To hold 100 objects you take the smallest box that holds them, which is 128 cm. The box must sit at 0, 128, 256 … and nothing may overlap.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The shelf carries the alignment rule and the rounding-up rule, which are the two things that decide most answers. It does not carry the reserved network and broadcast addresses, or the forwarding rule, which the next cards supply.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Vocabulary, every term in words</h3>
+          <p class="small"><strong>Block (CIDR block)</strong> — a run of $$2^{32-p}$$ consecutive addresses whose first address is a multiple of that size. Written $$a.b.c.d/p$$.</p>
+          <p class="small"><strong>Prefix length p</strong> — the number of leading bits fixed. Larger p means a smaller block.</p>
+          <p class="small"><strong>Host bits h</strong> — $$32-p$$, the bits left free inside the block.</p>
+          <p class="small"><strong>Usable addresses</strong> — $$2^h-2$$, with two exceptions: a /31 on a point-to-point link holds 2, and a /32 is one host route.</p>
+          <p class="small"><strong>VLSM</strong> — variable-length subnet masking: the same parent split into blocks of different prefix lengths.</p>
+          <p class="small"><strong>Longest prefix match</strong> — the forwarding rule: among the routes that match a destination, take the one with the largest p.</p>
+          <p class="small" style="margin-bottom:0"><strong>Aggregate (supernet)</strong> — one shorter prefix that covers exactly the addresses of several longer ones.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The arithmetic, in four lines</h3>
+          <p class="formula">size = 2<sup>32−p</sup> &nbsp;·&nbsp; usable = 2<sup>h</sup> − 2 &nbsp;·&nbsp; aligned ⇔ start mod size = 0<br>
+network = address AND mask(p) &nbsp;·&nbsp; broadcast = network + size − 1</p>
+          <p class="small">The mask has p ones followed by $$32-p$$ zeros, so "AND the mask" clears the host bits. RFC 4632 §5.1 requires the mask to be contiguous, which is why the free bits are always one run at the right-hand end.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Alignment and size are not independent: a block of size S at address A covers A to A+S−1, and two blocks of the same size are either disjoint or identical exactly when both are aligned. That is why an aligned free region can always be written as a sum of blocks, and why the decomposition in the animation is unique.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The host table you should know by sight</h3>
+          <p class="formula">/24 → 256 · 254 &nbsp;&nbsp; /25 → 128 · 126 &nbsp;&nbsp; /26 → 64 · 62<br>
+/27 → 32 · 30 &nbsp;&nbsp; /28 → 16 · 14 &nbsp;&nbsp; /29 → 8 · 6<br>
+/30 → 4 · 2 &nbsp;&nbsp; /31 → 2 · 2 &nbsp;&nbsp; /32 → 1 · 1</p>
+          <p class="small">Read each entry as <em>addresses · usable hosts</em>. Converting a requirement to a prefix is then a lookup: 200 hosts needs 254, so a /24; 100 needs 126, so a /25.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 3021 (December 2000) states that in a point-to-point link with a 31-bit prefix the two addresses MUST be interpreted as host addresses, and that the limited broadcast replaces the directed broadcast.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The design procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Convert every requirement to the smallest prefix that holds it.</li>
+            <li>Sort the blocks largest first.</li>
+            <li>Place each at the lowest address that is aligned for its size and does not overlap a placed block.</li>
+            <li>Decompose the free space into maximal aligned blocks and record their sizes.</li>
+            <li>Answer the "does it still fit" question by size, never by total.</li>
+          </ol>
+          <p class="small" style="margin-top:8px;margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Step 3 is a first-fit allocation of power-of-two blocks. It is the standard buddy-system procedure, and the reason it is safe is the one in the next card.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Why largest first, and what it does not promise</h3>
+          <p class="small">A block of size S needs an aligned hole of at least S. Allocating a large block later is therefore risky: earlier allocations can cut every hole below S even when the free total is large. Largest first keeps the big holes intact for the big blocks.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> I do not claim that largest-first first-fit succeeds for every requirement list whose total fits — the lesson checks this one design, not a theorem. What is proved on the page is narrower and enough: the five placements are aligned, disjoint, inside the parent, and the free space sums to the remainder.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The forwarding rule, stated exactly</h3>
+          <p class="small">A route $$(N, p)$$ matches a destination A when the first p bits of A equal the first p bits of N, which is the same as $$\text{network}(A,p)=N$$. Among all matching routes, the one with the largest p forwards the packet. If none matches, the packet is dropped.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 4632 §5.1: "Forwarding in the Internet is done on a longest-match basis."</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>When two prefixes may be merged</h3>
+          <p class="small">Two blocks of the same size are siblings when their addresses agree on all but the last prefix bit: $$\text{net}(A,p)$$ and $$\text{net}(B,p)$$ with $$p-1$$ bits in common. Their parent is the block of prefix $$p-1$$, and replacing the two rows by it changes no address.</p>
+          <p class="small" style="margin-bottom:0">Any other pair has a longest common prefix $$q \lt p-1$$, and the only block containing both is of prefix q — which also contains addresses neither row owns. <span class="claim-chip claim-chip--verified">Verified fact</span> RFC 4632 §5.1 rule 2 requires a router that generates an aggregate to discard traffic matching the aggregate but no more specific route, and requires a re-homed network to be advertised explicitly: that is the "hole" the lesson keeps as its own row.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">An IPv4 address is 32 bits, and a prefix length counts how many of them are fixed from the left.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">An address is 32 bits, a prefix is a length</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Start with the object itself: thirty-two bits and a prefix length.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked items, every number computed by this page</h3>
+          <p class="small" style="margin-bottom:0">Each item below is reproduced from the model in <code>lesson.js</code>. If the page's model check count under the canvas is short of the total, one of these numbers is wrong and the page says so.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>1. The full design: five needs inside 100.64.0.0/22</h3>
+          <p class="small">The parent holds 1024 addresses, from 100.64.0.0 to 100.64.3.255, and 1022 of them are usable. The requirements are 400, 200, 100, 50 and 2 hosts.</p>
+          <p class="formula">400 → /23 · 512 addr · 510 usable → 100.64.0.0/23<br>
+200 → /24 · 256 addr · 254 usable → 100.64.2.0/24<br>
+100 → /25 · 128 addr · 126 usable → 100.64.3.0/25<br>
+&nbsp;50 → /26 · &nbsp;64 addr · &nbsp;62 usable → 100.64.3.128/26<br>
+&nbsp;&nbsp;2 → /31 · &nbsp;&nbsp;2 addr · &nbsp;&nbsp;2 usable → 100.64.3.192/31</p>
+          <p class="small">962 addresses are allocated and 62 remain. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Each prefix is the smallest whose usable count covers the requirement: 400 does not fit 254, and 200 does not fit 126. The two-host link takes a /31 under RFC 3021 rather than a /30; with a /30 the design would leave 60 free instead of 62, and the free set would be four blocks instead of five.</p>
+          <p class="small" style="margin-bottom:0"><strong>The free space, decomposed:</strong> 100.64.3.194/31 (2), 100.64.3.196/30 (4), 100.64.3.200/29 (8), 100.64.3.208/28 (16), 100.64.3.224/27 (32). The largest is 32 addresses, so a new LAN needing 30 hosts fits and a new LAN needing 40 does not.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Why the /31 is not a mistake</h3>
+          <p class="small">The formula $$2^h-2$$ gives 0 for a /31 and would call the block unusable. RFC 3021 gives both addresses to the two ends of the link, so a /31 holds 2 hosts, costs 2 addresses, and carries no directed broadcast.</p>
+          <p class="formula">/30: 4 addresses · 2 usable · 2 wasted<br>
+/31: 2 addresses · 2 usable · 0 wasted</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 3021 §2.1: with a 31-bit mask "the two addresses above MUST be interpreted as host addresses". A question that expects a /30 for a router-to-router link is using the older convention; if the question gives no hint, state the convention you use.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>3. The failing /24: hosts fit, blocks do not</h3>
+          <p class="small">A /24 (192.168.10.0) has 254 usable addresses. Four LANs need 100, 60, 60 and 30 hosts.</p>
+          <p class="formula">hosts: 100 + 60 + 60 + 30 = 250 ≤ 254 ✓<br>
+blocks: 128 + 64 + 64 + 32 = 288 &gt; 256 ✗</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The four prefixes are /25, /26, /26 and /27, and their address totals exceed the parent by 32, so no placement exists and the page's allocator fails on the third block whatever order it tries. The host sum hid the gap because each block rounds up to a power of two and carries two reserved addresses.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>4. Longest prefix match on the design's own table</h3>
+          <p class="small">The table has seven rows: the default route, the parent /22, and the five allocations. Each destination below is resolved by the rule, and the page also resolves it a second way — comparing the first p bits of the address with the first p bits of the route — and requires both to agree.</p>
+          <p class="formula">100.64.1.7 &nbsp; matches /0 /22 /23 &nbsp; → 100.64.0.0/23 (LAN-A)<br>
+100.64.2.7 &nbsp; matches /0 /22 /24 &nbsp; → 100.64.2.0/24 (LAN-B)<br>
+100.64.3.9 &nbsp; matches /0 /22 /25 &nbsp; → 100.64.3.0/25 (LAN-C)<br>
+100.64.3.150 matches /0 /22 /26 &nbsp; → 100.64.3.128/26 (LAN-D)<br>
+100.64.3.193 matches /0 /22 /31 &nbsp; → 100.64.3.192/31 (WAN)<br>
+100.64.3.201 matches /0 /22 &nbsp;&nbsp;&nbsp; → 100.64.0.0/22 (core)<br>
+100.64.9.9 &nbsp; matches /0 only &nbsp;&nbsp; → 0.0.0.0/0 (ISP)</p>
+          <p class="small" style="margin-bottom:0">The sixth line is the interesting one. 100.64.3.201 is inside the parent block and outside every subnet, so the parent route catches it. The seventh line is outside the parent block, so only the default route matches: a longer prefix that does not match is not a candidate.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>5. Aggregation, both ways</h3>
+          <p class="small">Four /24s that are siblings merge twice into one /22, and the page checks that the union of addresses is unchanged.</p>
+          <p class="formula">100.64.0.0/24 + 100.64.1.0/24 → 100.64.0.0/23<br>
+100.64.2.0/24 + 100.64.3.0/24 → 100.64.2.0/23<br>
+the two /23s → 100.64.0.0/22 · 1024 addresses</p>
+          <p class="small" style="margin-bottom:0">With a hole, the minimal set is two rows: 100.64.0.0/22 and 100.64.6.0/24, covering 1280 addresses. The /24 wins for its own addresses by longest match, and the /22 covers the rest.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: the merge that looks right</h3>
+          <p class="small">100.64.4.0/24 and 100.64.6.0/24 look like a pair. Their addresses differ in the second bit of the third octet, so their longest common prefix is 22 bits, and the only block containing both is 100.64.4.0/22.</p>
+          <p class="formula">100.64.4.0/22 → 100.64.4.0 … 100.64.7.255<br>
+owned: 4.0/24 and 6.0/24 = 512 addresses<br>
+covered: 1024 addresses → 512 unowned</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The rule is arithmetic, not judgement: siblings differ in exactly one prefix bit. Here they differ in one bit of the address but not at the last prefix position, which is a different thing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Boundaries: where the formulas stop applying</h3>
+          <p class="small" style="margin-bottom:0">Each case below is a place where a rule that works everywhere else gives a wrong answer if it is applied without its assumption.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>/31 on a point-to-point link</h3>
+          <p class="small">$$2^1-2=0$$, yet the block is usable: RFC 3021 gives both addresses to the two ends. The assumption behind the subtraction is a broadcast medium, and a point-to-point link is not one.</p>
+          <p class="small" style="margin-bottom:0">If a question asks for the number of usable addresses on a router-to-router link and gives no convention, a /30 and a /31 are both defensible; say which you used.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>/32, the host route</h3>
+          <p class="small">One address, no host bits, no network or broadcast address. The subtraction would go negative, which is the formula telling you it was not written for this case. Used for loopback addresses and for a single host that must be routed explicitly.</p>
+          <p class="small" style="margin-bottom:0">In a routing table a /32 is legal and very specific: it beats every other route for that one address.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>An address given with a prefix that is not its network</h3>
+          <p class="small">100.64.0.48/26 is a legal way to <em>name</em> the block 100.64.0.0/26, because 64 does not divide 48. The canonical form clears the host bits.</p>
+          <p class="small" style="margin-bottom:0">Two different questions hide here: "what block is this address in" wants the cleared form, and "is this a valid subnet address" wants the alignment test. Read which one is asked.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A subnet equal to the parent</h3>
+          <p class="small">If one requirement needs the whole parent, the answer is the parent prefix with no split. This is not a degenerate case to be avoided: it is the correct answer, and any further allocation is then impossible.</p>
+          <p class="small" style="margin-bottom:0">In the design on this page, a 1000-host LAN would need a /22 and consume 100.64.0.0/22 entirely, leaving nothing for the other four.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The default route and the /0 test</h3>
+          <p class="small">0.0.0.0/0 matches every address, so it is always the shortest match and never the winner unless nothing else matches. Its network address is 0.0.0.0 and its mask is 0.0.0.0, so the alignment test is trivially true.</p>
+          <p class="small" style="margin-bottom:0">RFC 4632 §5.1 states that the default route must be accepted by all implementations, and that it should only be advertised into another routing domain when explicitly configured.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Overlapping aggregates</h3>
+          <p class="small">Two aggregate rows may overlap, and that is legal: the more specific one wins for the addresses they share. What is not legal is an aggregate that covers addresses the advertising domain cannot reach — RFC 4632 requires such an aggregate to be discarded, or the traffic loops.</p>
+          <p class="small" style="margin-bottom:0">So "minimal" here means "no row contained in another and no sibling pair left", not "the fewest rows at any cost".</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Free space that is a single block, and free space that is not</h3>
+          <p class="small">In this lesson's design the free space is five blocks. In the same design with a /30 for the WAN it would be four, and in a design that allocated perfectly it can be one. The count is not a property of the parent; it is a property of the placements.</p>
+          <p class="small" style="margin-bottom:0">Decomposition is unique once the placements are fixed, which is why the page can check it: any different list of maximal blocks is wrong.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>A requirement of exactly 2 hosts</h3>
+          <p class="small">Two hosts is the boundary where /30 and /31 both give 2 usable. The /31 is smaller, so a design that minimises addresses takes it; a design that follows an older textbook takes the /30 and wastes 2.</p>
+          <p class="small" style="margin-bottom:0">The same boundary appears at 1 host, where the answer is a /32 and there is no subnet at all, only a route.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce a wrong answer, each with the case that kills it</h3>
+          <p class="small" style="margin-bottom:0">Each card states the belief, gives a minimal counterexample, and states the correction. The counterexamples are the ones this page computes.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1. "If the host counts fit, the design fits"</h3>
+          <p class="small"><strong>The belief:</strong> add the requirements and compare with the usable count of the parent.</p>
+          <p class="small"><strong>The counterexample:</strong> 100, 60, 60 and 30 hosts sum to 250, under the 254 usable in a /24, but the blocks are 128 + 64 + 64 + 32 = 288 &gt; 256.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction:</strong> compare block sizes with the parent's size. Hosts and addresses differ by two reserved per block and by rounding up to a power of two.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2. "62 free addresses means a /26 fits"</h3>
+          <p class="small"><strong>The belief:</strong> the free total is what growth can use.</p>
+          <p class="small"><strong>The counterexample:</strong> after this design, 62 addresses are free in blocks of 2, 4, 8, 16 and 32. No free block is 64 long, so a /26 cannot be placed, although 62 &gt; 32.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction:</strong> the largest free block is the answer to "what still fits". Decompose before you answer.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. "A /31 has no usable addresses"</h3>
+          <p class="small"><strong>The belief:</strong> $$2^h-2$$ is the definition of usable, so 2−2 = 0.</p>
+          <p class="small"><strong>The counterexample:</strong> RFC 3021 gives both addresses of a /31 to the two ends of a point-to-point link. A /31 holds 2 hosts.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction:</strong> the subtraction assumes a broadcast medium with a network address and a directed broadcast. State the assumption, or state which convention the question uses.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4. "The longest prefix in the table is the answer"</h3>
+          <p class="small"><strong>The belief:</strong> find the longest prefix and forward there.</p>
+          <p class="small"><strong>The counterexample:</strong> 100.64.3.201 does not match the /31 or the /26 at all, so the longest prefix in the table is irrelevant; the /22 forwards it.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction:</strong> the rule is the maximum length <em>among the matching routes</em>. Filter first, then maximise.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. "Any two blocks can be summarised into one prefix"</h3>
+          <p class="small"><strong>The belief:</strong> take the longest common prefix and advertise it.</p>
+          <p class="small"><strong>The counterexample:</strong> 100.64.4.0/24 and 100.64.6.0/24 share 22 bits, so the summary is 100.64.4.0/22, which also covers 100.64.5.0/24 and 100.64.7.0/24 — 512 addresses nobody owns.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction:</strong> merge only siblings, that is, equal sizes differing in the last prefix bit. Anything else changes the set of addresses.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6. "Splitting a block creates addresses"</h3>
+          <p class="small"><strong>The belief:</strong> four /24s hold more than one /22 because there are four of them.</p>
+          <p class="small"><strong>The counterexample:</strong> four /24s are 4 × 256 = 1024 addresses, exactly the /22 they came from. The reserved addresses double from 2 to 8, so splitting strictly reduces the usable total.</p>
+          <p class="small" style="margin-bottom:0"><strong>The correction:</strong> a split trades usable addresses for isolation. It never adds capacity.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What the questions look like, and the procedure that answers them</h3>
+          <p class="small" style="margin-bottom:0">Four shapes account for almost every question in this topic. Each is a small amount of arithmetic on the 32-bit address, and each is answered by the same five steps.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — design</h3>
+          <p class="small">"A block of size X must serve LANs needing a, b, c hosts. Give the subnets." Or: "how many addresses remain free?"</p>
+          <p class="small">Convert, sort, place, then decompose. The answer is a list of blocks at aligned addresses, and the free total is a subtraction of sizes.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Design questions are usually the multi-step ones, and the marking is on the addresses, so an unaligned block loses the whole item.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — longest prefix match</h3>
+          <p class="small">"Which next hop is chosen for destination D?" or "which prefixes match D?"</p>
+          <p class="small">Convert D to bits, test each route's prefix, keep the matches, take the largest p. The page does this twice, once with masks and once bit by bit, and requires the two to agree.</p>
+          <p class="small" style="margin-bottom:0">A variant gives the table in a random order to see whether you apply the rule or the row order.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — aggregation</h3>
+          <p class="small">"What is the smallest number of prefixes that covers these networks?" or "which pair can be summarised?"</p>
+          <p class="small">Drop contained blocks, merge sibling pairs, repeat. The check is that the union of addresses is unchanged; a summary that covers more is wrong even if it is tidier.</p>
+          <p class="small" style="margin-bottom:0">A hole in the range stays as its own more specific row.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 — host and address counting</h3>
+          <p class="small">"How many hosts can this subnet hold?" "How many subnets of size s fit in block B?"</p>
+          <p class="small">Use the table, and check the two exceptions. For "how many fit", the answer is $$\lfloor B/s \rfloor$$ only when B is the size of the parent and the subnets tile it; otherwise count the aligned starts, which is what the page's decomposition does.</p>
+          <p class="small" style="margin-bottom:0">Watch for the question that asks for addresses and the one that asks for usable hosts: they differ by two per subnet.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The five steps, as you would write them in an exam</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>Convert.</strong> Each host requirement becomes the smallest prefix whose usable count covers it. Write the prefix and the address count side by side.</li>
+            <li><strong>Sort.</strong> Largest block first. Write the sizes in a column so the sum is visible.</li>
+            <li><strong>Place.</strong> Lowest aligned free address. Check the divisibility, then the overlap, then move on.</li>
+            <li><strong>Decompose.</strong> Read the free space as maximal aligned blocks and record the largest. Answer "does it still fit" from that list.</li>
+            <li><strong>Summarise.</strong> Merge siblings only; keep a more specific row for any hole; check that the address union did not change.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Two traps that cost a whole item</h3>
+          <p class="small"><strong>The units trap.</strong> Comparing host counts with usable addresses, or usable addresses with block sizes. Every comparison must be between the same kind of number.</p>
+          <p class="small" style="margin-bottom:0"><strong>The filter trap.</strong> Taking the longest prefix in the table instead of the longest among the matches. Filter, then maximise.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Where this connects</h3>
+          <p class="small">A routing protocol advertises these prefixes: <a href="../distance-vector-and-link-state-routing/index.html">distance vector and link state</a> move them, and the table they build is read by the rule on this page.</p>
+          <p class="small" style="margin-bottom:0">NAT rewrites addresses at a boundary and depends on the inside being a block you control; IPv6 uses the same prefix arithmetic at 128 bits, where the same rules hold with a wider address.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question: I did not verify a GATE CSE paper, set and question number for this topic in this session, and an unverified attribution is worse than none. Every answer was computed and checked by hand and, where the page models it, by the page.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>An organisation is given 100.64.0.0/22. It needs four LANs for 400, 200, 100 and 50 hosts. Using the smallest block for each need, allocated largest first, the number of addresses that remain unallocated is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 64</p>
+            <p>The prefixes are /23, /24, /25 and /26, so the blocks are 512 + 256 + 128 + 64 = 960 addresses. The parent holds 1024, so 1024 − 960 = 64 remain, and they form exactly one block: 100.64.3.192/26.</p>
+            <p><strong>Why 62 appears.</strong> Subtracting the usable counts instead of the block sizes. <strong>Why 60 appears.</strong> Using a /30 for a two-host link that was not asked for here. <strong>Why 256 appears.</strong> Stopping after the first two LANs.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>172.16.8.0/24 is split for LANs needing 100, 50, 25 and 10 hosts, smallest block for each need, largest first. Which allocation for the 10-host LAN is correct?</p>
+            <ol class="choices">
+              <li>172.16.8.192/27</li>
+              <li>172.16.8.224/28</li>
+              <li>172.16.8.240/28</li>
+              <li>172.16.8.224/27</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The prefixes are /25, /26, /27 and /28. Largest first: /25 at .0 (0–127), /26 at .128 (128–191), /27 at .192 (192–223), so the /28 starts at .224 and runs to .239.</p>
+            <p><strong>Why A.</strong> That is the 25-host LAN's /27. <strong>Why C.</strong> 240 is aligned for a /28, but it is the second half of the /27 at .224, which is already used. <strong>Why D.</strong> A /27 holds 30 hosts, which is more than the need and is not the smallest block.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A router's table holds 10.0.0.0/8, 10.1.0.0/16, 10.1.2.0/24 and 0.0.0.0/0. For the destination 10.1.2.77, the prefix length of the chosen route is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 24</p>
+            <p>The destination matches all four rows. The longest matching prefix is 10.1.2.0/24, so the prefix length is 24.</p>
+            <p><strong>Why 8.</strong> The first matching row, which is what a first-match lookup would give. <strong>Why 16.</strong> Stopping at the second match. <strong>Why 0.</strong> The default route, which is the shortest, not the longest.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which pair of prefixes can be replaced by a single prefix without covering any address that neither of them covers?</p>
+            <ol class="choices">
+              <li>100.64.4.0/24 and 100.64.6.0/24</li>
+              <li>100.64.4.0/24 and 100.64.5.0/24</li>
+              <li>100.64.0.0/23 and 100.64.3.0/23</li>
+              <li>100.64.2.0/24 and 100.64.2.128/25</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>4.0/24 and 5.0/24 are siblings: equal size, differing only in the last prefix bit, so together they are 100.64.4.0/23 and cover exactly the same 512 addresses.</p>
+            <p><strong>Why A.</strong> Their common prefix is 22 bits, so the only single prefix covering both is 100.64.4.0/22, which also covers 5.0 and 7.0. <strong>Why C.</strong> 100.64.3.0/23 is not a block at all: 3 is not a multiple of 2. <strong>Why D.</strong> The /25 is inside the /24, so the pair already covers only the /24; the merge is not a merge but a deletion.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following statements are TRUE?</p>
+            <ol class="choices">
+              <li>A /31 on a point-to-point link provides two usable host addresses.</li>
+              <li>A /32 has a network address and a broadcast address.</li>
+              <li>If 62 addresses are free after a design, a /26 can always be placed in them.</li>
+              <li>A destination inside a parent block but outside every subnet is forwarded by the parent's route.</li>
+              <li>Two prefixes of different lengths can never be merged into one prefix.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and D</p>
+            <p>A is RFC 3021. D is the sixth line of the longest-prefix example: 100.64.3.201 is caught by the /22 because no subnet claims it.</p>
+            <p><strong>Why B is false.</strong> A /32 has no host bits, so it has no network or broadcast address; it is a single host route. <strong>Why C is false.</strong> In this lesson's design, 62 addresses are free in blocks of 2, 4, 8, 16 and 32, and no block is 64 long. <strong>Why E is false.</strong> Merging needs equal sizes, but a /24 and its own /25 collapse into the /24 by containment, and a longer prefix inside an aggregate is exactly the "hole" case: the pair is represented by one row plus nothing else.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A block 10.20.0.0/22 must be divided into the smallest blocks that hold 500, 250, 120 and 2 hosts, allocated largest first. The number of addresses in the largest block that remains free is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 64</p>
+            <p>The needs give /23 (512), /24 (256), /25 (128) and /31 (2): 512 + 256 + 128 + 2 = 898, so 1024 − 898 = 126 addresses are free. Placement: /23 at 10.20.0.0, /24 at 10.20.2.0, /25 at 10.20.3.0, /31 at 10.20.3.128. Free: 10.20.3.130 to 10.20.3.255, which decomposes into 130/31 (2), 132/30 (4), 136/29 (8), 144/28 (16), 160/27 (32) and 192/26 (64). The largest free block is 64.</p>
+            <p><strong>Why 126 appears.</strong> The free total, which is not a block. <strong>Why 32 appears.</strong> Stopping the decomposition at 160, the /27; 192 is aligned for a /26 and doubles it. <strong>A warning.</strong> Taking the largest power of two below the free total also gives 64 here, which is the right answer reached the wrong way: the free total is not what decides, the largest aligned block is. Write the decomposition, not just the answer.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Definitions, formulas, the decision procedure, the numbers table and the five slips. This is the page to read the night before.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Block</strong> — $$2^{32-p}$$ consecutive addresses starting at a multiple of that size.</li>
+            <li><strong>Host bits</strong> — $$h = 32-p$$.</li>
+            <li><strong>Usable</strong> — $$2^h-2$$, except /31 = 2 on a point-to-point link and /32 = 1.</li>
+            <li><strong>VLSM</strong> — one parent, blocks of different prefix lengths.</li>
+            <li><strong>Longest prefix match</strong> — the largest p among the routes that match.</li>
+            <li><strong>Aggregate</strong> — a shorter prefix covering exactly several longer ones.</li>
+            <li><strong>Siblings</strong> — equal prefixes differing in the last prefix bit.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas</h3>
+          <p class="formula">size(p) = 2<sup>32−p</sup><br>
+aligned(a,p) ⇔ a mod size(p) = 0<br>
+network(a,p) = a AND mask(p)<br>
+broadcast = network + size − 1<br>
+split into 2<sup>k</sup>: prefix p + k<br>
+hosts needed h → prefix = 32 − ⌈log<sub>2</sub>(h+2)⌉</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The last line is the table in one expression: you need $$2^h \ge h+2$$, so h is the ceiling of $$\log_2(\text{hosts}+2)$$, and the prefix is 32 − h. For 400 hosts: $$\lceil\log_2 402\rceil = 9$$, so p = 23.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The numbers, side by side</h3>
+          <p class="formula">prefix &nbsp; addresses &nbsp; usable &nbsp;&nbsp;|&nbsp;&nbsp; prefix &nbsp; addresses &nbsp; usable<br>
+/24 &nbsp;&nbsp;&nbsp;&nbsp; 256 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 254 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp; /28 &nbsp;&nbsp;&nbsp;&nbsp; 16 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 14<br>
+/25 &nbsp;&nbsp;&nbsp;&nbsp; 128 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 126 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp; /29 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 8 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 6<br>
+/26 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 64 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 62 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp; /30 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 4 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 2<br>
+/27 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 32 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 30 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp; /31 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 2 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 2 &nbsp;(RFC 3021)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp; /32 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 1 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 1 &nbsp;(host route)</p>
+          <p class="small" style="margin-bottom:0">Third octet alignment shortcuts for a /24 and longer: a /25 starts at 0 or 128, a /26 at 0, 64, 128 or 192, a /27 at a multiple of 32, a /28 at a multiple of 16.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Convert each need: the smallest prefix that holds it.</li>
+            <li>Sort largest first, and write the address sizes beside the prefixes.</li>
+            <li>Place at the lowest aligned free address; check divisibility then overlap.</li>
+            <li>Decompose the free space; answer "does it fit" from the largest block.</li>
+            <li>Merge only siblings; keep a hole as its own more specific row.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The five slips</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Adding host counts instead of block sizes.</li>
+            <li>Treating a free total as a free block.</li>
+            <li>Applying $$2^h-2$$ to a /31 or a /32.</li>
+            <li>Taking the longest prefix in the table instead of the longest match.</li>
+            <li>Merging non-siblings and covering addresses nobody owns.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>One sentence</h3>
+          <p class="small" style="margin-bottom:0">A subnet is a power-of-two block of addresses that starts at a multiple of its own size, and every question in this topic — design, forwarding, aggregation — is that sentence plus arithmetic.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Specifications are separated from secondary summaries and from community material. Every number on this page was computed by the page's own model, so no source was used to settle an arithmetic answer.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official syllabus</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong>, Section 10: "Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; Data link layer: error detection, Medium Access Control, Ethernet; Distance vector and link state routing; IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP - flow control and congestion control, socket API; DNS and HTTP." The CIDR clause is the one this lesson is filed under.</li>
+            <li><strong>What I did not do.</strong> I did not open the official PDF on the organiser's site in this session. The wording above was read from a syllabus mirror and from two independent comparison pages that agree word for word. If the official PDF differs, the official PDF wins.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Specifications</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>RFC 4632</strong>, "Classless Inter-Domain Routing (CIDR): an Address Assignment and Aggregation Strategy", August 2006. §5.1 supplies the longest-match forwarding rule, the requirement that an aggregate which covers unowned addresses be discarded, the re-homed "hole" case, and the contiguity of the mask.</li>
+            <li><strong>RFC 3021</strong>, "Using 31-Bit Prefixes on IPv4 Point-to-Point Links", December 2000. §2.1: the two addresses of a /31 are host addresses; the limited broadcast replaces the directed broadcast.</li>
+            <li><strong>RFC 950</strong>, "Internet Standard Subnetting Procedure", 1985. It allowed non-contiguous subnet masks, which RFC 4632 §5.1 later forbade. This is why the lesson treats the free bits as one run at the right-hand end.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Secondary sources</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Two syllabus-comparison pages</strong> quoting the 2026 and 2027 Section 10 texts side by side; one of them lists "CIDR and subnetting" in a top priority tier. That is advice about where to spend time, and it is reported as an observation, not as evidence of marks.</li>
+            <li><strong>An encyclopaedia summary of CIDR</strong> for the block-size table and for the RFC 3021 exception. Used to cross-check the table, not as the authority for any number the page computes.</li>
+            <li><strong>No previous-year question is quoted anywhere in this lesson.</strong> I did not verify a GATE CSE paper, set and question number for this topic in this session, so every practice item is labelled original.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover, and the assumptions the model makes</h3>
+          <p class="small" style="margin-bottom:0">The design assumes a single contiguous parent block and a list of host requirements, with no constraint on which subnet must sit where; a real plan often has fixed placements, and then the arithmetic is a constraint check rather than a first-fit. The two-host link takes a /31 under RFC 3021; a question that follows the older /30 convention will differ by two addresses in the free total and by one block in the free decomposition, and both figures are stated in the Examples tab. The model checks that largest-first places this particular set of five requirements; it does not claim that largest-first first-fit succeeds for every requirement list whose total fits, and no such theorem is asserted. Aggregation is treated as "drop contained rows, then merge siblings", which gives the minimal set for the cases on this page but is not claimed as an algorithm for every routing table. The 32-step lookup bound belongs to a plain binary trie; compressed tries and TCAMs have different bounds and are not discussed. Nothing here was checked against a printed textbook page by page, and no claim is made about how often this material appears in GATE CSE papers — only that the CIDR clause it belongs to is in the syllabus.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

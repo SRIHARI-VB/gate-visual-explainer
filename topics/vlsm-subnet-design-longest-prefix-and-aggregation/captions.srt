@@ -1,0 +1,160 @@
+1
+00:00:00,000 --> 00:00:07,500
+An IPv4 address is 32 bits. 100.64.0.0 is 01100100 01000000 00000000 00000000.
+
+2
+00:00:07,500 --> 00:00:15,000
+A /22 fixes 22 bits and leaves 10 free, so the block holds 2^10 = 1024 addresses.
+
+3
+00:00:15,000 --> 00:00:22,500
+A block must start at a multiple of its own size: 1024 divides 100.64.0.0, so the block is legal.
+
+4
+00:00:22,500 --> 00:00:30,000
+100.64.0.48/26 is not a block: 64 does not divide 48, so it means 100.64.0.0/26.
+
+5
+00:00:30,000 --> 00:00:37,500
+Halve a /22 and you get two /23s. Halve each again and you get four /24s.
+
+6
+00:00:37,500 --> 00:00:45,000
+Splitting into 2^k equal subnets gives prefix p+k, each holding 2^(32-p-k) addresses.
+
+7
+00:00:45,000 --> 00:00:52,500
+Equal subnets are easy to write and wasteful when the needs differ: 400 hosts and 2 hosts would both get 512.
+
+8
+00:00:52,500 --> 00:01:00,000
+A /22 holds only four /24s, so an equal split spends a quarter of the block on a link that needs two addresses.
+
+9
+00:01:00,000 --> 00:01:07,500
+A block with h host bits holds 2^h addresses, and two of them are reserved: 2^h − 2 for hosts.
+
+10
+00:01:07,500 --> 00:01:15,000
+/24 gives 254, /25 gives 126, /26 gives 62, /27 gives 30, /28 gives 14, /29 gives 6, /30 gives 2.
+
+11
+00:01:15,000 --> 00:01:22,500
+/31 is the exception: RFC 3021 gives both addresses to the two ends of a point-to-point link, so a /31 holds 2 hosts.
+
+12
+00:01:22,500 --> 00:01:30,000
+/32 is a single host route, where 2^h − 2 is negative, so the formula is read with its assumptions attached.
+
+13
+00:01:30,000 --> 00:01:37,500
+Requirements: 400, 200, 100, 50 and 2 hosts inside 100.64.0.0/22. Convert each need to a prefix.
+
+14
+00:01:37,500 --> 00:01:45,000
+400 hosts needs 510 usable, so /23; 200 needs /24; 100 needs /25; 50 needs /26; 2 needs /31.
+
+15
+00:01:45,000 --> 00:01:52,500
+Allocate largest first: 100.64.0.0/23, 100.64.2.0/24, 100.64.3.0/25, 100.64.3.128/26, 100.64.3.192/31.
+
+16
+00:01:52,500 --> 00:02:00,000
+The five blocks use 962 of the 1024 addresses. Largest first works because only an untouched region holds a big aligned hole.
+
+17
+00:02:00,000 --> 00:02:07,500
+62 addresses remain, 100.64.3.194 to 100.64.3.255, and they are not one block: 194 is not divisible by 64.
+
+18
+00:02:07,500 --> 00:02:15,000
+They decompose into five aligned blocks: 3.194/31, 3.196/30, 3.200/29, 3.208/28 and 3.224/27.
+
+19
+00:02:15,000 --> 00:02:22,500
+The largest free block is 32 addresses, so 30 usable. A new LAN needing 40 hosts wants a /26 and does not fit.
+
+20
+00:02:22,500 --> 00:02:30,000
+Free space is a set of blocks, not a number. A count answers "how many"; the design question is "of what size".
+
+21
+00:02:30,000 --> 00:02:37,500
+A /24 has 254 usable addresses. Needs of 100, 60, 60 and 30 hosts add to 250, which looks like it fits.
+
+22
+00:02:37,500 --> 00:02:45,000
+The blocks those needs require are /25, /26, /26 and /27: 128 + 64 + 64 + 32 = 288 addresses.
+
+23
+00:02:45,000 --> 00:02:52,500
+288 > 256, so the design fails, even though the host total is four under the usable count.
+
+24
+00:02:52,500 --> 00:03:00,000
+Add block sizes, not host counts. The gap is two reserved addresses per block plus rounding up to a power of two.
+
+25
+00:03:00,000 --> 00:03:07,500
+One table holds the five subnets and the block above them. A destination can match several prefixes at once.
+
+26
+00:03:07,500 --> 00:03:15,000
+100.64.3.201 matches /0 and /22 only, so it takes the /22 route: unallocated space inside the block.
+
+27
+00:03:15,000 --> 00:03:22,500
+100.64.3.193 matches /0, /22 and /31, and the /31 wins. The rule is the longest prefix, not the first row.
+
+28
+00:03:22,500 --> 00:03:30,000
+100.64.9.9 matches only the default route. Row order is irrelevant: the answer is the maximum matching length.
+
+29
+00:03:30,000 --> 00:03:37,500
+Build a binary trie: each bit is a branch, and each stored prefix marks the node where it ends.
+
+30
+00:03:37,500 --> 00:03:45,000
+Walk the destination bits from the left and remember the deepest marked node you pass.
+
+31
+00:03:45,000 --> 00:03:52,500
+100.64.3.201 passes the root and the /22, then branches to 3.128/25 while the design has 3.0/25 there.
+
+32
+00:03:52,500 --> 00:04:00,000
+The walk costs at most 32 steps, and the answer is the last mark on the path: exactly the longest match.
+
+33
+00:04:00,000 --> 00:04:07,500
+Two blocks of the same size differing only in their last prefix bit are siblings: 100.64.0.0/24 and 100.64.1.0/24 make /23.
+
+34
+00:04:07,500 --> 00:04:15,000
+Four sibling /24s make 100.64.0.0/22, so 1024 addresses leave the table as one row.
+
+35
+00:04:15,000 --> 00:04:22,500
+100.64.4.0/24 and 100.64.6.0/24 are not siblings: their common prefix is 22 bits, and 4.0/22 would also cover 5.0 and 7.0.
+
+36
+00:04:22,500 --> 00:04:30,000
+When part of an aggregate belongs elsewhere, keep the more specific route: a /22 plus a /24 covers 1280 addresses in two rows.
+
+37
+00:04:30,000 --> 00:04:37,500
+Five steps: convert each need to a prefix, sort largest first, place at the lowest aligned free address, read what is left, aggregate siblings.
+
+38
+00:04:37,500 --> 00:04:45,000
+The numbers this page computed: 1024 addresses, 962 allocated, 62 free in five blocks, largest 32.
+
+39
+00:04:45,000 --> 00:04:52,500
+The two traps: the sum of hosts is not the sum of blocks, and a longer prefix that does not match is not a candidate.
+
+40
+00:04:52,500 --> 00:05:00,000
+One sentence: a subnet is a power-of-two block at an aligned address, and every question here is that sentence plus arithmetic.
+
