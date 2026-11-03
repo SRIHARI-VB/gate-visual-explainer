@@ -573,7 +573,7 @@ function drawHandshake(t, sc) {
 
   P.alpha(b1);
   P.circle(cx, 204, 5, { fill: ACC });
-  T(cx + 14, 194, 'connect() returns at 1.0 RTT', { size: 10, color: ACC });
+  T(cx + 18, 176, 'connect() returns at 1.0 RTT', { size: 10, color: ACC });
 
   P.alpha(b2);
   P.circle(sx, 274, 5, { fill: VAL });
@@ -1003,6 +1003,14 @@ function boot() {
       timeline: window.LESSON_TIMELINE,
       draw: function () { if (P) drawFrame(P); }
     });
+  }
+
+  K.onResize(function () {
+    if (P) drawFrame(P);
+  });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { if (P) drawFrame(P); });
   }
 
   window.__drawAt = function (t) {
