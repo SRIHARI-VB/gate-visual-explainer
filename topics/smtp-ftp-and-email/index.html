@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMTP, FTP and Email — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">SMTP, FTP and Email</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../dns-and-http/index.html">Related: DNS and HTTP</a>
+      <a href="../ip-support-protocols-arp-dhcp-icmp/index.html">Related: ARP, DHCP and ICMP</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> SMTP, FTP and email — the three application protocols the GATE 2027 Computer Networks section no longer names.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Place the mail user agent, submission server, transfer agents, delivery agent and mailbox in order, with the port each hop uses. Trace one SMTP session command by command and read each reply code by its first digit. Count the round trips of a session as six plus one per recipient, and keep that number separate from the connection count. Separate the envelope the protocol routes on from the header the reader sees. Count the connections and round trips of any number of FTP transfers. Convert an attachment size into the bytes actually sent, using the four-thirds rule and the seventy-six character line.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>three questions asked about three protocols</em>: who opens the connection, how many round trips the dialog costs, and how many bytes the message takes. Every counting item below is one of those three.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class C for 2027 — a useful extension beyond the named syllabus.</strong></p>
+          <p class="small">The 2026 CS syllabus ended Section 10 with the words <em>"Application layer protocols: DNS, SMTP, HTTP, FTP, Email"</em>. The 2027 wording, published by IIT Madras, ends the section with <em>"DNS and HTTP"</em>. SMTP, FTP and email are no longer named. That is a statement about the printed clause, not about the layer: DNS and HTTP still sit on the same transport, and the same three questions carry both.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> Before 2027 these protocols were tested as short recall items — which protocol sends, which uses two connections, which port. Those are one-mark questions when they appear, and they now appear inside other questions rather than as their own.</p>
+          <p class="small" style="margin-bottom:0">Because the clause is gone, this lesson quotes <strong>no previous-year question</strong>: I could not verify a paper, set and question number for one, and an unverified attribution is worse than none. Every practice item is written for this lesson and labelled as original.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering and performance metrics</a> — what a layer is, and what a round trip is.</li>
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow control, congestion control and the socket API</a> — every protocol here rides on TCP, so a connection is a TCP connection.</li>
+            <li><a href="../dns-and-http/index.html">DNS and HTTP</a> — the two application protocols the 2027 clause does keep, and the counting conventions this lesson reuses.</li>
+            <li>Arithmetic: a ceiling, a division, and a percentage. The byte section is one ceiling and one multiplication.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Nothing here needs a mail account, a server or any software. Every number is computed on the page.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Sending and fetching are different protocols.</strong> SMTP pushes; POP3 and IMAP pull.</li>
+            <li><strong>One session, one connection, many commands.</strong> Recipients lengthen the dialog, never the connection count.</li>
+            <li><strong>The envelope routes; the header is read.</strong> Six recipients, four names.</li>
+            <li><strong>FTP is one control connection plus one data connection per transfer.</strong> So <em>1 + n</em> connections and <em>3 + 3n</em> round trips.</li>
+            <li><strong>Encoding costs a third, and line ends cost more.</strong> Four characters per three bytes, wrapped at 76.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use this lesson</h3>
+          <p class="small">Approximate study time: 50–70 minutes, which is an estimate and not a measurement. Watch the Animation tab once, then read Examples for the five worked items and Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">Captions are on by default and switch to Detailed, Keyword or Exam trap without restarting. Every number on the canvas is computed by the page's model and re-checked against the rule it should satisfy; the count of passing checks is shown under the canvas.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> The 2026 clause against the 2027 clause, five names against two. <strong>2</strong> The mail chain, MUA to MDA, with three sessions and three Received headers. <strong>3</strong> One SMTP session traced command by command, each reply coloured by its class. <strong>4</strong> The round-trip count as a bar chart: six fixed plus one per recipient, and a connection count that stays at one. <strong>5</strong> Envelope against header: six RCPT commands, four named addresses. <strong>6</strong> Five queued messages sorted into accepted, retried and bounced by their first digit. <strong>7</strong> FTP's two connections, with the data connections counted per transfer. <strong>8</strong> Active against passive, drawn as arrows in opposite directions. <strong>9</strong> Three bytes into four characters, then the three sizes drawn to scale. <strong>10</strong> POP3 against IMAP by bytes, and the four-step procedure.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: the letter, the envelope and the postbox</h3>
+          <p class="small">A letter has two sets of addresses. The envelope carries what the postal system routes on, and the sheet inside carries what the reader sees. You may send one letter to six people by writing their addresses on the envelope and naming only four of them on the sheet — that is Bcc. A post office that cannot deliver returns the letter to the address on the envelope, not to the name on the sheet. And a courier who carries parcels on a separate trip for each parcel, on a route agreed once by telephone, is FTP.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the two address sets, the bounce and the two connections. It does not carry the wire format or the reply codes, which the next two cards supply.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal vocabulary, every term in words</h3>
+          <p class="small"><strong>Mail user agent</strong> — the program a person types a message in. Outlook, Thunderbird, or a web page.</p>
+          <p class="small"><strong>Submission server</strong> — the server that accepts a message from a user, authenticates the user, and queues it. Port 587.</p>
+          <p class="small"><strong>Mail transfer agent</strong> — the server that moves a queued message to the next server, or to the destination. Port 25.</p>
+          <p class="small"><strong>Mail delivery agent</strong> — the server-side program that writes a message into the recipient's mailbox.</p>
+          <p class="small"><strong>Envelope</strong> — the addressing SMTP routes on: one reverse path from <code>MAIL FROM</code>, one forward path per <code>RCPT TO</code>.</p>
+          <p class="small"><strong>Header</strong> — the lines the reader sees: <code>From</code>, <code>To</code>, <code>Cc</code>, <code>Subject</code>, and one <code>Received</code> per hop.</p>
+          <p class="small" style="margin-bottom:0"><strong>Round trip</strong> — one request and its reply. Not the same thing as a connection.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three protocols at a glance</h3>
+          <p class="small"><strong>SMTP</strong> — RFC 5321. Pushes a message from one server to the next. One TCP connection per session, on port 25 between servers and 587 for submission.</p>
+          <p class="small"><strong>FTP</strong> — RFC 959. Moves files. Two TCP connections: control on 21 for the session, data on 20 by default for each transfer.</p>
+          <p class="small"><strong>POP3</strong> — RFC 1939, port 110. Downloads a mailbox and, by default, deletes from the server.</p>
+          <p class="small"><strong>IMAP</strong> — RFC 3501, port 143. Keeps the mailbox on the server and synchronises flags and folders.</p>
+          <p class="small" style="margin-bottom:0"><strong>MIME</strong> — RFC 2045 to 2049. Encodes a binary attachment into seven-bit characters so SMTP can carry it.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The SMTP dialog, in full, for one recipient</h3>
+          <p class="small">Lines from the server begin with a three-digit code. Lines from the client begin with a command verb. The exchange is lock-step: one command, one reply, then the next command.</p>
+          <p class="formula">S: 220 mx.example.com ESMTP ready<br>
+C: EHLO mail.acme.com                     → 250 mx.example.com<br>
+C: MAIL FROM:&lt;sender@acme.com&gt;            → 250 OK<br>
+C: RCPT TO:&lt;user@example.com&gt;             → 250 OK<br>
+C: DATA                                   → 354 Start mail input, end with .<br>
+C: (headers, blank line, body, then a line with one dot)  → 250 OK: queued<br>
+C: QUIT                                   → 221 Bye<span class="gloss">Read the right column as the server's answer to the line on its left. The 220 arrives without being asked for: the server speaks first. 354 is the only intermediate reply in base SMTP.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 5321 section 3.3 fixes the three steps of a transaction — <code>MAIL</code>, one or more <code>RCPT</code>, then <code>DATA</code> — and section 4.1.1.4 fixes the end of data as a line containing only a period.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>FTP: what the two connections are for</h3>
+          <p class="small"><strong>Control connection</strong> — port 21, opened once, full duplex, follows the Telnet conventions, carries commands and replies as text. Login, current directory and transfer type live here.</p>
+          <p class="small"><strong>Data connection</strong> — opened for one transfer, closed at the end. Carries the bytes of a file, or a directory listing.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 959 section 5.2: the server listens on the control port L = 21, and initiates the data connection from its default data port L − 1 = 20.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>POP3 against IMAP, in one table</h3>
+          <p class="small"><strong>Where the mail lives.</strong> POP3 moves it to the client. IMAP leaves it on the server.</p>
+          <p class="small"><strong>Second device.</strong> POP3 sees an empty mailbox. IMAP sees the same mailbox.</p>
+          <p class="small"><strong>What crosses the wire.</strong> POP3 sends every body once. IMAP sends a header list and only the bodies a client opens.</p>
+          <p class="small" style="margin-bottom:0"><strong>State.</strong> POP3 has three states — authorisation, transaction, update — and commits deletions in the last. IMAP keeps flags per message on the server.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Which of the four is stateful?</h3>
+          <p class="small">HTTP is stateless: a request carries everything the server needs, and a cookie is the text that supplies memory. SMTP is stateful <em>inside</em> a session — the reverse path, the forward paths and the message data are three buffers that <code>MAIL</code> clears — and keeps nothing between sessions. FTP is stateful across a whole session: the current directory and the transfer type are held by the server until the connection closes. POP3 is stateful in its transaction state, where messages are marked and only deleted at the end.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The four statements follow from the standards: RFC 5321 section 3.3 for the three buffers, RFC 959 section 3.1 for the remembered transfer parameters, RFC 1939 section 3 for the three states. "Stateful" is therefore always <em>per session</em> here, never global.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The 2026 syllabus named five application protocols. The 2027 syllabus names two.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The clause that changed</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">In 2026 this clause named five protocols. In 2027 it names two.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Five worked items, each with its arithmetic shown</h3>
+          <p class="small muted" style="margin-bottom:0">Every item here is an original practice question written for this lesson, not a previous-year question — see the Sources tab for why. Each step names the rule it uses, so a wrong answer can be traced to the step that produced it. The numbers are the ones the animation draws.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 1 — one session, three recipients</h3>
+          <p class="small">A message goes to three recipients who all have mailboxes on the same server. How many TCP connections and how many round trips does the SMTP session cost?</p>
+          <ol class="step-list small">
+            <li>Write the fixed exchanges: handshake, EHLO, MAIL, DATA, body, QUIT. <span class="why">Six, because each is one request and one reply.</span></li>
+            <li>Add one RCPT TO per recipient: three. <span class="why">Each is its own command with its own reply.</span></li>
+            <li>Round trips = 6 + 3 = <strong>9</strong>.</li>
+            <li>Connections = <strong>1</strong>. <span class="why">A session is one connection; commands lengthen the dialog inside it.</span></li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Why 3 appears.</strong> That is the recipient count read as a connection count. <strong>Why 18 appears.</strong> Charging every exchange twice, once in each direction.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 — fan-out to three domains</h3>
+          <p class="small">The same message goes to three recipients, one each at three different domains. Count the sessions and the round trips, assuming the sending server accepts all three before relaying.</p>
+          <ol class="step-list small">
+            <li>Submission: the sending server is given all three recipients, so 6 + 3 = 9 round trips. <span class="why">One session, three RCPT commands.</span></li>
+            <li>Relaying: one session per destination server, each carrying one recipient, so 6 + 1 = 7. <span class="why">A session ends at one server.</span></li>
+            <li>Total = 9 + 3 × 7 = <strong>30</strong> round trips.</li>
+            <li>Sessions and connections = 1 + 3 = <strong>4</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> The recipients are counted twice, once in the submission and once in each relay. That is correct: each is named twice, by two different servers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 — three files and a listing</h3>
+          <p class="small">An FTP client logs in, downloads three files and lists the directory, then quits. Count the connections and the round trips.</p>
+          <ol class="step-list small">
+            <li>Control connection: handshake, USER, PASS — 3 round trips, and it stays open. <span class="why">Login is paid once.</span></li>
+            <li>Transfers: three RETR plus one LIST is four. <span class="why">A listing uses a data connection like a file does.</span></li>
+            <li>Each transfer: PASV, the data handshake, the transfer and its completion — 3 round trips.</li>
+            <li>Connections = 1 + 4 = <strong>5</strong>. Round trips = 3 + 3 × 4 = <strong>15</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Why 4 connections.</strong> Forgetting the control connection. <strong>Why 12 round trips.</strong> Forgetting the login.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 — what a one-megabyte attachment costs</h3>
+          <p class="small">A 1,000,000-byte attachment is sent in a MIME base64 part, wrapped at 76 characters per line with CRLF line ends. How many bytes of mail data are transmitted?</p>
+          <ol class="step-list small">
+            <li>Groups: ⌈1,000,000 / 3⌉ = 333,334. <span class="why">The ceiling, because the last group may be partial.</span></li>
+            <li>Characters: 4 × 333,334 = 1,333,336. <span class="why">Four characters per group, padded to a multiple of four.</span></li>
+            <li>Lines: ⌈1,333,336 / 76⌉ = 17,544.</li>
+            <li>Wire bytes: 1,333,336 + 2 × 17,544 = <strong>1,368,424</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Overhead is 36.84%: one third from the encoding and 2.63% from the line ends. <strong>Why 1,333,333 appears.</strong> Dividing without the ceiling, which loses the partial last group.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 5 — POP3 against IMAP by bytes</h3>
+          <p class="small">A mailbox holds 100 messages of 20,000 bytes each. A client reads headers of about 500 bytes each and opens three messages. Compare the bytes transferred.</p>
+          <ol class="step-list small">
+            <li>POP3 transfers every body once: 100 × 20,000 = <strong>2,000,000</strong> bytes. <span class="why">It has no way to fetch a header without the body.</span></li>
+            <li>IMAP transfers every header: 100 × 500 = 50,000. <span class="why">A header list is one fetch.</span></li>
+            <li>IMAP then transfers three bodies: 3 × 20,000 = 60,000.</li>
+            <li>IMAP total = <strong>110,000</strong> bytes, about 18 times less.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> The saving is proportional to what is opened, not absolute. Open all hundred and IMAP sends 2,050,000 — slightly <em>more</em> than POP3, because of the headers.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries: where each rule stops working</h3>
+          <p class="small muted" style="margin-bottom:0">Each card states the condition a rule needs and what changes when the condition fails. These are the cases that separate a correct answer from an almost-correct one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Port 20 is a default, not a law</h3>
+          <p class="small">RFC 959 defines the server data port as L − 1, so 20 when the control port is 21. But most implementations do not use 20: in active mode they open the data connection from an ephemeral port, and a client announces its own port with <code>PORT</code> rather than accepting the default.</p>
+          <p class="small" style="margin-bottom:0"><strong>What to answer.</strong> If a question asks for the default, 20 is correct. If it asks what a real client does, the honest answer is an ephemeral port, and RFC 1579 is the document that explains why clients moved to <code>PASV</code> instead.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>354 is not a success</h3>
+          <p class="small">A 3xx reply in SMTP means the server wants more input. It is the only intermediate class, and in base SMTP exactly one code uses it: 354, sent in answer to <code>DATA</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample to "3xx is a redirect".</strong> That reading comes from HTTP. Here nothing has been accepted at 354; the server may still refuse the message after the final dot, with a 5xx.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A full mailbox and a busy mailbox</h3>
+          <p class="small">552 means the mailbox has exceeded its storage allocation — a permanent condition, so the message bounces. 450 means the mailbox is unavailable for a reason that may pass — temporary, so the message is queued and retried.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> The first digit decides the action and the second decides the subject. Two codes can describe the same mailbox and demand opposite actions.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A line that begins with a dot</h3>
+          <p class="small">A line containing only a period ends the data. So a message line that genuinely begins with a period is sent with two periods, and the receiver removes one. This is dot-stuffing, and it is why the end of data is a sequence of five characters — CR, LF, dot, CR, LF — and not just a dot.</p>
+          <p class="small" style="margin-bottom:0"><strong>Consequence for counting.</strong> A body of n lines that all begin with a dot costs n extra bytes on the wire, which is a legitimate byte-arithmetic question.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Base64 when the size is not a multiple of three</h3>
+          <p class="small">One byte becomes four characters with two <code>=</code> padding characters. Two bytes become four characters with one <code>=</code>. Three bytes become four characters with none. The encoded length is always a multiple of four, so 1, 2 and 3 bytes all cost four characters.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample to "it is always four thirds".</strong> For tiny inputs the padding makes the ratio much worse: one byte costs four, a factor of four, not 1.333.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Pipelining changes the round trips, not the connection</h3>
+          <p class="small">RFC 2920 lets a client send <code>EHLO</code>, <code>MAIL</code>, <code>RCPT</code> and <code>DATA</code> without waiting for each reply. The dialog then costs four round trips — handshake, command batch, body, quit — whatever the recipient count.</p>
+          <p class="small" style="margin-bottom:0"><strong>What does not change.</strong> Still one connection, and still one reply per command, arriving in a batch. A question that says "lock-step" or quotes RFC 5321 alone wants 6 + r.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Two MTAs on one machine, one hop or none</h3>
+          <p class="small">A submission server and a transfer agent are often the same program on the same host. The hop from one to the other is then an internal hand-off, not a TCP session, and adds no <code>Received</code> line.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule to state.</strong> Count hops as the number of TCP sessions between distinct servers. The header count equals receiving servers, which is what the model here assumes: three sessions, three headers.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Eight-bit extensions exist</h3>
+          <p class="small">RFC 6152 defines 8BITMIME, which lets a server accept eight-bit data without base64. It is negotiated in the <code>EHLO</code> reply, so a client uses it only when the server advertises it.</p>
+          <p class="small" style="margin-bottom:0"><strong>For the exam.</strong> The classic question assumes the seven-bit channel, because the classic encoding answer is base64. If a question names 8BITMIME, the encoding cost disappears and only the line ends remain.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six beliefs that produce a plausible wrong answer</h3>
+          <p class="small muted" style="margin-bottom:0">Each card gives the belief, why it is tempting, the smallest case that refutes it, and the rule to use instead. These come from the shapes of wrong options in this layer's questions, not from a survey of learners.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "SMTP sends and receives mail"</h3>
+          <p class="small"><strong>Why it tempts.</strong> One protocol is described as "the mail protocol", so it seems to do the whole job.</p>
+          <p class="small"><strong>Refutation.</strong> A client that only speaks SMTP can send but cannot read a mailbox. Retrieval is POP3 on 110, IMAP on 143, or a web page over HTTP.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> SMTP pushes. POP3 and IMAP pull. Two directions, two protocols.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "Each recipient opens a connection"</h3>
+          <p class="small"><strong>Why it tempts.</strong> HTTP trains you that objects equal connections, and recipients feel like objects.</p>
+          <p class="small"><strong>Refutation.</strong> One session carries <code>MAIL</code> and then as many <code>RCPT</code> commands as there are recipients. Three recipients on one server are one connection and nine round trips, not three connections.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Recipients lengthen the dialog. Servers, not recipients, decide the connection count.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "FTP uses one connection, like HTTP"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Every other protocol in this layer uses one, so two looks like an error.</p>
+          <p class="small"><strong>Refutation.</strong> RFC 959 separates control from data deliberately: commands must not queue behind a large transfer. That is out-of-band control, and it is why <em>n</em> files cost <em>1 + n</em> connections.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Count the control connection once and add one data connection per transfer, including a listing.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Base64 grows the data by a quarter"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Four characters for three bytes sounds like one extra in four, which is a quarter.</p>
+          <p class="small"><strong>Refutation.</strong> The extra is one character per three bytes, which is one third of the original: 3 → 4 is a growth of 33.3%, not 25%. Then line ends add more, giving 36.84% in the worked example.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Divide the original by three, take the ceiling, multiply by four.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "A Bcc recipient costs nothing"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Bcc is invisible in the delivered message, so it looks like it did not happen.</p>
+          <p class="small"><strong>Refutation.</strong> Every Bcc recipient needs a <code>RCPT TO</code>, so it costs one round trip and one mailbox. Three To, one Cc and two Bcc is six RCPT commands for four named addresses.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Hidden from readers, not from servers. The envelope is the count that matters.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "4xx and 5xx both mean the message failed"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Both are negative replies, and both are failures of a sort.</p>
+          <p class="small"><strong>Refutation.</strong> A 4xx is temporary and must be retried with the same message; a 5xx is permanent and must not. Treating them alike either loses deliverable mail or damages a sender's reputation.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Read the first digit before reading the words.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one distinction to carry into the exam</h3>
+          <p class="small" style="margin-bottom:0">Four pairs get confused, and each is settled by writing a definition rather than by intuition: <em>connection</em> against <em>round trip</em>, <em>envelope</em> against <em>header</em>, <em>control</em> against <em>data</em>, and <em>temporary</em> against <em>permanent</em>. In each pair the two members differ by one countable thing — a handshake, an address, a socket, a retry — and the question always says which it wants if you read the unit before computing.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this material gets tested now that the clause is gone</h3>
+          <p class="small muted" style="margin-bottom:0">Four patterns cover it. The first three are arithmetic and could be asked about any dialog on TCP; the fourth is a statement question. Since 2027, these appear inside DNS, HTTP or TCP items rather than as their own, which makes recognising the pattern more useful than memorising the protocol.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 1 — count the connections and the round trips</h3>
+          <p class="small"><strong>Shape.</strong> A dialog with some number of participants, and a question asking for connections, for round trips, or for both. The answer is a small integer.</p>
+          <p class="small"><strong>Procedure.</strong> Write the fixed exchanges first, then add one per variable element: a recipient, a transfer, an object. Then ask separately how many connections the protocol opens.</p>
+          <p class="small" style="margin-bottom:0"><strong>For this clause.</strong> SMTP is 6 + r round trips on 1 connection. FTP is 3 + 3n on 1 + n connections. Both are the same shape as HTTP's connection counting, which is why the pattern transfers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 2 — choose the protocol for a job</h3>
+          <p class="small"><strong>Shape.</strong> A one-line description of a task, and four protocol names. Which one is used?</p>
+          <p class="small"><strong>Procedure.</strong> Ask the direction. Pushing a message is SMTP. Reading a mailbox is POP3 or IMAP. Moving a file is FTP. Fetching a page is HTTP.</p>
+          <p class="small" style="margin-bottom:0"><strong>The trap.</strong> "Retrieve mail from a server" is not SMTP. The direction decides, and the direction is always in the question.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 3 — byte arithmetic with an encoding</h3>
+          <p class="small"><strong>Shape.</strong> A file size, an encoding, a line length, and a question about bytes on the wire or time on a link.</p>
+          <p class="small"><strong>Procedure.</strong> Encode first, then wrap, then add the line ends. Divide by the link rate last. Every step is exact integer arithmetic except the ceiling, and the ceiling is the step that is usually forgotten.</p>
+          <p class="small" style="margin-bottom:0"><strong>Extension.</strong> Add a transmission time and the question becomes a delay question, which is how this pattern joins the switching and performance clause.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 4 — a statement set about the layer</h3>
+          <p class="small"><strong>Shape.</strong> Four or five statements about ports, statefulness or connection counts; select all that are true.</p>
+          <p class="small"><strong>Procedure.</strong> Test each statement against a definition you can state out loud: which protocol opens two connections, which is stateful and for how long, which port belongs to which service, which direction the data flows.</p>
+          <p class="small" style="margin-bottom:0"><strong>Where it appears now.</strong> As a distractor inside a DNS or HTTP item, or as one option in a transport-layer MSQ. A wrong option does not need the clause to be in the syllabus to cost a mark.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The four-step procedure, and where each step can go wrong</h3>
+          <p class="small"><strong>1. Name.</strong> Name the server and its port from the protocol, not from memory of a number. <em>Fails when</em> 587 and 25 are swapped, or when a retrieval protocol is given a sending port.</p>
+          <p class="small"><strong>2. Open.</strong> Say who opens each connection, and how many there are. <em>Fails when</em> FTP's control connection is forgotten, or active and passive are reversed.</p>
+          <p class="small"><strong>3. Run.</strong> Count the exchanges in the dialog, fixed part first. <em>Fails when</em> the handshake is folded into the first command.</p>
+          <p class="small" style="margin-bottom:0"><strong>4. Count.</strong> Count the unit the question asked for. <em>Fails when</em> connections are reported where round trips were wanted, or file bytes where wire bytes were wanted.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Why this lesson is still worth an hour, in a 2027 plan</h3>
+          <p class="small" style="margin-bottom:0">Three reasons, and none of them is nostalgia. The counting pattern is identical to the one HTTP questions use, so the practice transfers directly. The envelope-against-header distinction is the clearest example in the syllabus of a protocol obeying data the reader cannot see. And the byte arithmetic is the only place in Computer Networks where an encoding changes the size of what crosses a link, which is exactly the reasoning a fragmentation or delay question wants. Spend the hour on the three patterns; skip memorising the full command list.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Every question on this page is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question, because the clause left the syllabus in 2027 and I could not verify a paper, set and question number for an older item. Every answer was computed by the page's model.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A sending server delivers one message to five recipients, all with mailboxes on the same destination server, in one SMTP session. Counting the TCP handshake as one round trip and the greeting as free, the number of round trips is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 11</p>
+            <p>Six fixed exchanges — handshake, EHLO, MAIL, DATA, body, QUIT — plus one RCPT TO per recipient: 6 + 5 = 11. The connection count stays at one.</p>
+            <p><strong>Why 10 appears.</strong> Forgetting the handshake, which is a round trip because no command can be sent before the connection exists. <strong>Why 5 appears.</strong> Counting only the recipient commands.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A client logs in to an FTP server, downloads four files, and logs out. How many TCP connections are opened in total, counting the control connection?</p>
+            <ol class="choices">
+              <li>1</li>
+              <li>4</li>
+              <li>5</li>
+              <li>8</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C — 5</p>
+            <p>One control connection for the session, plus one data connection per transfer: 1 + 4 = 5.</p>
+            <p><strong>Why 4.</strong> The data connections alone. <strong>Why 8.</strong> Counting a control and a data connection per file, which invents a control connection per transfer.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A 2,000,000-byte attachment is encoded in base64 and wrapped at 76 characters per line, with a carriage return and a line feed at the end of every line. The number of bytes of encoded mail data, rounded to the nearest thousand, is ______ thousand.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2737</p>
+            <p>⌈2,000,000 / 3⌉ = 666,667 groups, so 2,666,668 characters. ⌈2,666,668 / 76⌉ = 35,088 lines, so 70,176 bytes of line ends. Total 2,736,844 bytes, which is 2,737 thousand.</p>
+            <p><strong>Why 2667.</strong> The encoding without the line ends. <strong>Why 2736.</strong> Rounding down instead of to the nearest thousand.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following statements are TRUE?</p>
+            <ol class="choices">
+              <li>An SMTP session is stateful between one session and the next.</li>
+              <li>A 451 reply means the message should be queued and retried.</li>
+              <li>The Bcc field is normally removed before the message is transmitted.</li>
+              <li>In passive FTP the client opens the data connection.</li>
+              <li>The FTP control connection carries the file bytes.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B, C and D</p>
+            <p>A 451 is a transient negative reply, so the message is queued (B). A sending client strips Bcc before transmission, which is the whole point of the field (C). In passive mode the server listens and the client dials, so the data connection is opened by the client (D).</p>
+            <p><strong>Why A is false.</strong> SMTP keeps state inside a session — three buffers that <code>MAIL</code> clears — and nothing between sessions. <strong>Why E is false.</strong> The data connection carries the bytes; the control connection carries commands and replies.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A message is sent to three recipients at three different domains. The sending server accepts all three in one submission session and then relays once to each destination server, one recipient per relay. Counting the TCP handshake in every session, the total number of round trips across all sessions is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 30</p>
+            <p>Submission: 6 + 3 = 9. Relays: three sessions of 6 + 1 = 7, so 21. Total 30, over four connections.</p>
+            <p><strong>Why 21.</strong> The relays alone, forgetting the submission. <strong>Why 27.</strong> Using 6 + 1 = 7 for the submission too, which drops the two extra recipients from the count.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A user wants the same mailbox readable from a phone and a laptop, with read and deleted flags staying in step, and does not want messages downloaded and removed from the server. Which protocol fits, and on which port does it listen by default?</p>
+            <ol class="choices">
+              <li>POP3 on 110</li>
+              <li>IMAP on 143</li>
+              <li>SMTP on 25</li>
+              <li>FTP on 21</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — IMAP on 143</p>
+            <p>IMAP keeps the mailbox and the flags on the server, so two devices see one mailbox. POP3's default behaviour moves mail to the client, which is the opposite of what was asked.</p>
+            <p><strong>Why C.</strong> SMTP pushes mail; it cannot read a mailbox. <strong>Why A.</strong> POP3 can be configured to leave mail, but it does not synchronise flags or folders.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Definitions, counts, formulas, decision procedures and traps, in the order you would use them. Nothing here needs the animation.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>SMTP: the facts worth memorising</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>RFC 5321. Relay on port 25, submission on 587.</li>
+            <li>Transaction: <code>MAIL FROM</code>, then one or more <code>RCPT TO</code>, then <code>DATA</code>.</li>
+            <li>End of data is a line containing only a period; a real leading dot is doubled.</li>
+            <li>Reply classes: 2 success, 3 intermediate, 4 temporary, 5 permanent.</li>
+            <li>354 is the only 3xx in base SMTP. 220 greeting, 221 bye, 250 ok.</li>
+            <li>One connection per session; round trips = 6 + r.</li>
+            <li>One <code>Received</code> header per receiving server, newest at the top.</li>
+            <li>Mail data is seven-bit ASCII, so binary needs MIME.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>FTP, POP3 and IMAP: the facts worth memorising</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>RFC 959. Control on 21, data on 20 by default — the data port is one below the control port.</li>
+            <li>Control stays open; one data connection per transfer, and a listing is a transfer.</li>
+            <li>Connections = 1 + n. Round trips = 3 + 3n.</li>
+            <li>Active: client sends <code>PORT</code>, server dials. Passive: client sends <code>PASV</code>, server answers 227, client dials.</li>
+            <li>Stateful per session: current directory, transfer type, login.</li>
+            <li>POP3 on 110, three states, deletes on quit. IMAP on 143, mailbox on the server, flags synchronised.</li>
+            <li>Base64: four characters per three bytes, wrapped at 76, CRLF on every line.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The three counting formulas</h3>
+          <p class="formula">SMTP: connections = 1, round trips = 6 + r<br>FTP: connections = 1 + n, round trips = 3 + 3n<br>base64: chars = 4·⌈n/3⌉, wire = chars + 2·⌈chars/76⌉<span class="gloss">r is the number of recipient commands, n the number of transfers. For the encoded size, the ceiling is the step that is usually forgotten: it is what makes 1,000,000 bytes become 1,333,336 characters rather than 1,333,333.</span></p>
+          <p class="small" style="margin-bottom:0">Plugged in: r = 3 gives 9 round trips; n = 4 gives 5 connections and 15 round trips; 1,000,000 bytes gives 1,368,424 bytes on the wire.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Decision procedure, in four lines</h3>
+          <ol class="step-list small">
+            <li>Name the protocol and its port from the job, not from memory. <span class="why">Push is SMTP, pull is POP3 or IMAP, files are FTP.</span></li>
+            <li>Say who opens each connection and how many there are. <span class="why">FTP has two kinds; SMTP has one.</span></li>
+            <li>Count the exchanges, fixed part first, then one per variable element. <span class="why">Six plus r, or three plus three n.</span></li>
+            <li>Count the unit the question asked for. <span class="why">Connections, round trips and bytes are three different answers.</span></li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Numbers from this lesson worth remembering</h3>
+          <p class="small">Seven round trips for one recipient · nine for three · thirty across a four-session fan-out · six RCPT commands for three To, one Cc and two Bcc · four named addresses · two connections and six round trips for one FTP file · five connections and fifteen round trips for three files and a listing · 1,333,336 base64 characters for a megabyte · 17,544 lines · 1,368,424 bytes on the wire · 36.84 per cent overhead · 2,000,000 bytes against 110,000 for a hundred-message mailbox · one Received header per hop.</p>
+          <p class="small" style="margin-bottom:0">Every one of these was computed by this page's model and checked against its defining property before it was drawn, not copied from an answer key.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The five slips, one last time</h3>
+          <p class="small" style="margin-bottom:0">Believing SMTP also receives mail · counting one connection per recipient · forgetting FTP's control connection · growing the data by a quarter instead of a third · treating a 4xx as permanent. Write the unit and the fixed part of the dialog at the top of your working, and none of the five survives.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Standards and the official syllabus are separated from secondary comparison pages and from community material. Every number on this page was computed from a definition in a standard, so no catalogue was used to settle an answer.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Standards and official syllabus</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>RFC 5321</strong> — SMTP. Section 3.3 for the three steps of a transaction and the three buffers, 4.1.1.2 to 4.1.1.4 for <code>MAIL</code>, <code>RCPT</code> and <code>DATA</code>, 4.1.1.4 for the end-of-data sequence and dot-stuffing, 4.4 for trace fields, 4.5.4 for the rule that a 5xx is never retried.</li>
+            <li><strong>RFC 5322</strong> — the message format: the header fields, the blank line, the body.</li>
+            <li><strong>RFC 2045</strong> — MIME, including the base64 encoding and the 76-character line.</li>
+            <li><strong>RFC 959</strong> — FTP. Section 5.2 for the control connection on port 21 and the data connection from L − 1, and section 3.1 for the remembered transfer parameters.</li>
+            <li><strong>RFC 1579</strong> and <strong>RFC 1123</strong> — why clients moved to <code>PASV</code>, and the note that the <code>PASV</code> reply format was loosely defined.</li>
+            <li><strong>RFC 1939</strong> — POP3 and its three states. <strong>RFC 3501</strong> — IMAP version 4 revision 1.</li>
+            <li><strong>RFC 2920</strong> — SMTP service extension for command pipelining, cited only in Edge cases.</li>
+            <li><strong>RFC 6152</strong> — 8BITMIME, cited only for the statement that eight-bit transport exists.</li>
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>: Section 10 now reads "Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; Data link layer: error detection, Medium Access Control, Ethernet; Distance vector and link state routing; IPv4 - Fragmentation, CIDR Notation, Network Address Translation; TCP - flow control and congestion control, socket API; DNS and HTTP."</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Secondary sources, used only for the syllabus change</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Three independent syllabus-comparison pages</strong>, each quoting both the 2026 and the 2027 Section 10 text side by side, agree that "Application layer protocols: DNS, SMTP, HTTP, FTP, Email" became "DNS and HTTP", and that ARP, DHCP, ICMP, UDP, framing and bridging left the same section. Two of them print the full clause-by-clause table.</li>
+            <li><strong>A mirror of the 2027 CS syllabus PDF</strong> reproduces the shortened Section 10, ending "DNS and HTTP", with the 2027 IIT Madras imprint.</li>
+            <li><strong>What I did not do.</strong> I did not open the official PDF on the organiser's own site in this session. The wording quoted above is from the mirror and from the three comparison pages, which agree word for word. If the official PDF differs, the official PDF wins and the class label in this lesson changes with it.</li>
+            <li><strong>No previous-year question is quoted</strong>, because no paper, set and question number could be verified for one. The practice set is original and labelled.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover, and the assumptions the model makes</h3>
+          <p class="small" style="margin-bottom:0">The round-trip convention is the one this repository uses throughout: one round trip for a handshake and one for a command and its reply, with the server's 220 greeting folded into the connection rather than charged separately. A question that piggybacks a command on the third segment of the handshake would give a smaller total and would have to say so. The FTP round-trip count assumes one <code>PASV</code> exchange per transfer and a fresh data connection each time, which is what RFC 959 describes and what the counting questions assume; a client that reuses a data connection would differ, and RFC 1579 notes that real clients do not reuse. The MIME figures assume base64 with a 76-character line and CRLF line ends, and ignore the header lines of the MIME part, which are a few hundred bytes and not proportional to the attachment. The mail-chain figure assumes a submission server and two relays on three distinct hosts, so three TCP sessions; when a submission server and a transfer agent share a host, the hop is internal and the count drops by one. Nothing here was checked against a printed textbook edition, and no claim is made about how often this material will appear in 2027 — the clause no longer names it.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
