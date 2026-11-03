@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-11-03"  # the date this tracker was regenerated
+RUN_DATE = "2026-11-04"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -3275,7 +3275,7 @@ topics.append(topic(
 
 topics.append(topic(
     "Computer Networks", "Data link layer", "Error detection, MAC and Ethernet",
-    ["parity, checksum and CRC", "ALOHA, CSMA/CD and CSMA/CA", "Ethernet framing and bridging",
+    ["parity, checksum and CRC", "ALOHA, CSMA/CD and CSMA/CA", "Ethernet framing",
      "sliding window protocols"],
     prereq=["layering and performance metrics"],
     related=["IP layer"],
@@ -3319,6 +3319,78 @@ topics.append(topic(
         "GATE CSE 2016 Set 2 Q24: backoff reduces the chance of collision on retransmission",
         "collision domains: a hub is one, each switch port is its own",
         "the ratio a = tau/Tt and stop-and-wait utilisation 1/(1+2a)"
+    ]))
+
+topics.append(topic(
+    "Computer Networks",
+    "Section 10: 'Data link layer: error detection, Medium Access Control, Ethernet' - the word "
+    "'Ethernet' as a bridged LAN, which the framing lesson did not own",
+    "Ethernet bridging and the learning switch: the forwarding table, flood-forward-filter, the loop and the spanning tree",
+    ["the transparent bridge and the switch as the same algorithm",
+     "the forwarding table and the three actions",
+     "collision domains against broadcast domains, counted",
+     "the loop, the broadcast storm and MAC flapping",
+     "spanning tree: root, root port, designated port, blocked port",
+     "the port state timers and the two convergence figures",
+     "store-and-forward, fragment-free and cut-through"],
+    prereq=["error detection, MAC and Ethernet", "layering, switching and performance metrics",
+            "shortest paths"],
+    related=["error detection, MAC and Ethernet", "layering, switching and performance metrics",
+             "Wi-Fi CSMA/CA and hidden terminals", "IP support protocols"],
+    importance="high",
+    evidence="GATE 2027 Section 10 names 'Ethernet' in the data link layer; bridging and the spanning "
+             "tree are how an Ethernet LAN is built from segments, and published question indexes carry "
+             "past items on the bridge/router distinction and on the switch/hub distinction. That is a "
+             "catalogue observation, not a weightage claim.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="ethernet-bridging-and-the-learning-switch",
+    path="topics/ethernet-bridging-and-the-learning-switch/index.html",
+    execution="published 2026-11-04; check-lesson.mjs PASS 30/30 model checks, 1201 frames drawn, "
+              "scenes tile 300 s",
+    microtopics=[
+        "a bridge reads the destination MAC address and changes no byte of the frame",
+        "a router strips the frame, reads the IP destination and writes a new one",
+        "the forwarding table maps MAC to port plus an age, and is written from sources",
+        "learn the source on the ingress port; that is the only write the table receives",
+        "the destination is read, never written: one entry per source that has spoken",
+        "unknown destination floods out of every port except the ingress port",
+        "a destination learned on the ingress port is filtered: zero copies leave",
+        "a destination on another port is forwarded to that one port only",
+        "entries age out after 300 s of silence, so a receiving-only station is never learned",
+        "the eight-frame trace: two floods, five forwards, one filter, 11 copies, 4 entries",
+        "C is addressed twice and never learned, because it never sends",
+        "one unknown frame across two switches costs 3 + 2 = 5 copies; the reply costs 1 + 1 = 2",
+        "a collision domain is one shared medium; a hub is one for all of its ports",
+        "a switch port is its own collision domain, so four PCs on a switch give four",
+        "an inter-switch link is one medium, so two three-PC switches give 3 + 1 + 3 = 7, not 8",
+        "a broadcast domain ends only at a router or a VLAN boundary",
+        "a hub on one switch port costs one collision domain, not one per PC behind it",
+        "an Ethernet frame carries no hop count, so a loop has no end",
+        "a copy flooded three ways becomes three frames, then nine, then eighteen",
+        "ten rounds of the four-bridge mesh cost 4602 frames and the count is still rising",
+        "the source MAC is learned on two ports in turn, so the table flaps and unicast breaks",
+        "the bridge ID is a 2-octet priority and a 6-octet MAC; the lowest wins",
+        "the default priority is 32768, so by default the lowest MAC becomes root",
+        "a BPDU carries root ID, root path cost, sender ID, port ID and the three timers",
+        "root path cost adds the port cost per hop: 100, 19, 4 and 2 at 10 Mb/s to 10 Gb/s",
+        "B2 and B4 sit at 19 from the root and B3 at 38 by two equal routes",
+        "a cost tie goes to the lower neighbouring bridge ID, so B3's root port is towards B2",
+        "exactly one root port per non-root bridge, on its cheapest path to the root",
+        "exactly one designated port per segment, at the end with the lower root path cost",
+        "a port that is neither root nor designated is blocked and still receives BPDUs",
+        "blocked ports equal E - (B - 1): 5 links and 4 bridges give 3 forwarding links and 2 blocked ports",
+        "the forwarding links are verified connected and acyclic with union-find",
+        "blocking to forwarding is 15 + 15 = 30 s, one forward delay in each of two states",
+        "worst case after a change is 20 + 15 + 15 = 50 s; a directly failed link skips max age",
+        "hello is 2 s, so max age 20 s is ten missed BPDUs; the MAC ageing time is 300 s and unrelated",
+        "1514 octets is 12112 bits, sent in 121.12 microseconds at 100 Mb/s",
+        "fragment-free waits for 64 octets, 5.12 microseconds; cut-through for 6 octets, 0.48",
+        "store and forward waits about 252 times the cut-through wait, and buys the CRC check",
+        "at 1 Gb/s the three waits divide by ten, not by a hundred",
+        "GATE CSE 2004 Q16: a bridge uses MAC addresses and a router uses IP addresses",
+        "the trap in Q16: a bridge builds its table by inspecting incoming packets, which is true",
+        "the three traps: splitting the broadcast domain, learning destinations, calling a blocked port broken"
     ]))
 
 topics.append(topic(
@@ -7622,6 +7694,7 @@ for _t in topics:
 # first wrote it, even when this run re-read the syllabus and the sources behind
 # it. Stamp the rows this run actually verified, so the date field stays honest.
 _RECHECKED = {
+    "ethernet-bridging-and-the-learning-switch": "2026-11-04",
     "socket-api-and-connection-lifecycle": "2026-11-03",
     "command-line-arguments-in-c": "2026-11-03",
     "symbol-table-organisation-and-scope": "2026-11-03",

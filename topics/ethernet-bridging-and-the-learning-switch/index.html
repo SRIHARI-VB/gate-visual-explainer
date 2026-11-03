@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ethernet bridging and the learning switch — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Ethernet bridging and the learning switch</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../link-layer-error-detection-mac-and-ethernet/index.html">Prerequisite: error detection, MAC and Ethernet</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Ethernet bridging and the learning switch — the transparent bridge, the forwarding table, the three actions, the loop and the spanning tree, inside the word "Ethernet" in Section 10 of the GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Say what a bridge decides on and what it leaves unchanged. State the learning rule and the three actions with the condition that selects each. Run a frame trace and read the resulting table, the actions and the copies on the wire. Count collision domains and broadcast domains on a mixed hub, switch and router topology. Explain why a correct bridge in a loop produces frames forever, and count them. Elect a spanning tree root by bridge ID, assign root, designated and blocked ports, and verify that the forwarding links form a tree. Compute both convergence figures from the three default timers. Compute the wait before a frame can leave for store-and-forward, fragment-free and cut-through.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>four counts and one procedure</em>: domains, table entries, copies, ports, and the seconds a port spends becoming useful. Every question I have seen on it is one of those five asked on a small diagram.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — inside the syllabus.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads: "Principles of Layering; Basics of switching (circuit, packet and virtual circuit) and performance metrics; Data link layer: error detection, Medium Access Control, <em>Ethernet</em>; Distance vector and link state routing; IPv4 – Fragmentation, CIDR Notation, Network Address Translation; TCP – flow control and congestion control, socket API; DNS and HTTP."</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The printed word is "Ethernet", not "bridging". Bridging is how Ethernet LANs are built and extended — IEEE 802.1D defines the transparent bridge and the spanning tree — so I treat the bridge, the switch and the spanning tree as inside that word, and say so rather than pretending the word is printed.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Published question indexes place several past items on exactly the two counts this lesson teaches — a bridge against a router, and a switch against a hub. That is an observation about a catalogue of past papers, not a forecast for 2027 and not a weightage.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">Three things, each of which has its own lesson in this repository.</p>
+          <ul class="small">
+            <li><strong>Framing and the Ethernet frame</strong> — the 14-octet header, the 6-octet source and destination MAC fields, the 64-octet minimum. See <em>Error detection, MAC and Ethernet</em>.</li>
+            <li><strong>Layering and switching</strong> — what a layer-2 device is allowed to read, and store-and-forward against cut-through. See <em>Layering, switching and performance metrics</em>.</li>
+            <li><strong>Shortest paths</strong> — the spanning tree is a shortest-path computation with a tie-break, so Dijkstra's idea helps. See <em>Distance vector and link state routing</em>.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">No prior knowledge of spanning tree is assumed. Every symbol is glossed the first time it appears.</p>
+        </div>
+
+        <div class="card">
+          <h3>Approximate learning time</h3>
+          <p class="small">About 75 minutes for the nine levels and the practice set, in one sitting. The animation runs for five minutes and covers the same ground in one pass; the Build-up tab is the one to read first if the animation feels fast.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The estimate assumes a beginner reading every card once. It is approximate, and it is not a claim about how long the exam wants you to spend.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one line to keep</h3>
+          <p>A bridge learns the <strong>source</strong>, decides with the table, floods what it does not know, and needs a spanning tree only because a loop has no end.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>The five ideas this lesson turns on</h3>
+          <div class="grid grid--2">
+            <div>
+              <p class="small"><strong>1. One field.</strong> The destination MAC address. Not the IP address, not the payload, and nothing is rewritten.</p>
+              <p class="small"><strong>2. Source in, destination out.</strong> The table is written from source addresses and read for destination addresses. Every table question is decided by that asymmetry.</p>
+              <p class="small"><strong>3. Two counts, two devices.</strong> A switch port is one collision domain; a broadcast domain ends only at a router.</p>
+            </div>
+            <div>
+              <p class="small"><strong>4. A loop has no end.</strong> An Ethernet frame carries no hop count, so a flooded frame in a loop is copied forever. No device is faulty.</p>
+              <p class="small"><strong>5. Blocking is the fix.</strong> A spanning tree keeps B − 1 links of E, blocks E − (B − 1) ports, and spends 30 to 50 seconds doing it.</p>
+              <p class="small muted" style="margin-bottom:0">Every number quoted anywhere in this lesson is computed by the page's own model and checked against the rule it should satisfy — 30 checks, shown live in the Animation tab.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>Intuition: the mailroom clerk who reads one line</h3>
+          <p>Imagine a mailroom between two wings of an office. The clerk does not open anything. She reads the "to" line on the envelope, and nothing else. If the name is on a list she has built herself, she puts the envelope in the right tray. If the name is not on the list, she photocopies the envelope and puts a copy in every tray except the one it came from.</p>
+          <p>And here is the part that matters: she builds that list from the <em>"from"</em> lines of the envelopes that pass through her hands. Nobody ever gives her the list. Traffic teaches it to her, and an entry she has not seen for five minutes is struck out.</p>
+          <p class="small muted" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy is for the mechanism only: one field read, a self-built directory, a copy to every tray when the name is unknown. It says nothing about frame formats.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal: the bridge and the table</h3>
+          <p class="small">A <strong>bridge</strong> is a layer-2 device that joins two or more LAN segments so that they behave as one LAN. A <strong>switch</strong> is a bridge with many ports that forwards in hardware; the algorithm is the same, so this lesson uses the two words interchangeably and says so.</p>
+          <p class="small">A <strong>transparent bridge</strong> is one that stations do not have to know about: it is configured with nothing, it changes no frame, and it learns from what it sees.</p>
+          <p class="small" style="margin-bottom:0">The <strong>forwarding table</strong> — also called the MAC table, the bridge table or the content-addressable memory table — maps a 6-octet MAC address to the port on which that address was last seen, plus an age.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal: the three actions</h3>
+          <p class="small">For a frame arriving on port <em>i</em> with source <em>s</em> and destination <em>d</em>:</p>
+          <ol class="step-list small">
+            <li>Write <em>s</em> to port <em>i</em>. <span class="why">the learning step, and the only write the table ever receives</span></li>
+            <li>Look up <em>d</em>. <span class="why">read only; a miss is not an error, it is the common case for broadcasts</span></li>
+            <li>Act: unknown → <strong>flood</strong> to every port except <em>i</em>; known on <em>i</em> → <strong>filter</strong>, send nothing; known elsewhere → <strong>forward</strong> to that one port. <span class="why">three outcomes, three names, and the copy count differs for each</span></li>
+          </ol>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal: the two domains</h3>
+          <p class="small">A <strong>collision domain</strong> is a set of stations whose simultaneous transmissions collide. It is one shared medium. A hub repeats onto all its ports, so all of them are one medium. A switch port is a medium of its own, so each port is one collision domain.</p>
+          <p class="small" style="margin-bottom:0">A <strong>broadcast domain</strong> is the set of stations a broadcast frame reaches. A switch floods broadcasts, so it does not end one. A router does not forward broadcasts, so it does.</p>
+        </div>
+
+        <div class="card">
+          <h3>The counts, as identities</h3>
+          <p class="formula">collision domains = one per switch port + one per hub<span class="gloss">A link between two switch ports is one medium, so it counts once, not twice. Two switches with three host ports each give 3 + 1 + 3 = 7, not 8.</span></p>
+          <p class="formula">broadcast domains = one per router boundary + one<span class="gloss">With no router in the picture the answer is one, however many switches there are. A router in the middle makes it two.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both are computed in code by union-find over ports and devices, and checked on five topologies in the Animation tab.</p>
+        </div>
+
+        <div class="card">
+          <h3>The spanning tree, as three elections</h3>
+          <ol class="step-list small">
+            <li><strong>Root.</strong> Lowest bridge ID, which is a 2-octet priority and a 6-octet MAC. <span class="why">default priority 32768, so by default the lowest MAC wins</span></li>
+            <li><strong>Root port.</strong> On every non-root bridge, one port: the one on its cheapest path to the root. <span class="why">equal cost goes to the lower neighbouring bridge ID</span></li>
+            <li><strong>Designated port.</strong> On every segment, one port: the end with the lower root path cost. <span class="why">equal cost again goes to the lower bridge ID</span></li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Every port that is neither a root port nor a designated port is <strong>blocked</strong>: it receives BPDUs and forwards nothing else.</p>
+        </div>
+
+        <div class="card">
+          <h3>What a BPDU carries</h3>
+          <p class="small">Bridges exchange bridge protocol data units every 2 seconds. Five fields do all the work: the root bridge ID the sender believes in, the root path cost to reach it, the sender's own bridge ID, the port ID it left from, and the three timers.</p>
+          <p class="formula">root path cost = sum of port costs along the path<span class="gloss">Port costs come from a table: 100 at 10 Mb/s, 19 at 100 Mb/s, 4 at 1 Gb/s, 2 at 10 Gb/s. Lower is better, so a gigabit link is cheaper than a fast Ethernet one.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The four cost values and the three default timers are the IEEE 802.1D values, and several independent vendor documents reproduce them identically; the Sources tab names each one.</p>
+        </div>
+
+        <div class="card">
+          <h3>The timers, as arithmetic</h3>
+          <p class="formula">blocked → forwarding = 15 + 15 = 30 s<span class="gloss">One forward delay listening, one learning. The port cannot skip either, because the other bridges may not yet agree on the tree.</span></p>
+          <p class="formula">worst case = 20 + 15 + 15 = 50 s<span class="gloss">If the failure is not on a directly attached link, the max age timer must expire first: 20 s of silence, which is 10 missed hellos at 2 s.</span></p>
+          <p class="small" style="margin-bottom:0">A directly failed link skips the max age wait, so it converges in 30 s. The MAC table ageing time is 300 s and is a different clock entirely.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A bridge joins two segments. It reads the destination MAC address and nothing else.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A bridge joins two segments and reads one field</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A bridge joins two segments into one LAN. To decide, it reads one field: the destination MAC address at the front of the frame.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked examples, in the order the reasoning goes</h3>
+          <p class="small" style="margin-bottom:0">Example 1 is a verified previous-year item and is labelled as one. Examples 2 to 7 are original, written for this lesson on the numbers the page computes. Where an example quotes a figure, that figure came from the model and not from memory.</p>
+        </div>
+
+        <div class="card span-2">
+          <h3>Example 1 — a verified previous-year item: bridge against router</h3>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>GATE CSE 2004, Question 16.</strong> "Which of the following is NOT true with respect to a transparent bridge and a router?" Options: (A) both bridge and router selectively forward data packets; (B) a bridge uses IP addresses while a router uses MAC addresses; (C) a bridge builds up its routing table by inspecting incoming packets; (D) a router can connect between a LAN and a WAN. Two independent reproductions of the paper agree on the wording and on the key.</p>
+          <ol class="step-list small">
+            <li>(A) is true: both look at a destination field and choose to send or not. <span class="why">"selectively forward" is the shared property, which is why the question is about what is <em>not</em> shared</span></li>
+            <li>(B) is false: it is the other way round. A bridge reads MAC addresses; a router reads IP addresses. <span class="why">this is the answer, and it is a definition, not a calculation</span></li>
+            <li>(C) is true, and it is the whole of transparent bridging: the table is built by inspecting incoming frames. <span class="why">the word "routing" in the option is loose language for the forwarding table; the statement is still true</span></li>
+            <li>(D) is true: a router is the device that joins dissimilar networks. <span class="why">a bridge joins segments of one LAN; that is the distinction the paper is testing</span></li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Answer: B.</strong> The trap is reading (C) as false because a bridge has no "routing table". It has a forwarding table, built exactly as the option describes.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — eight frames, counted (original)</h3>
+          <p class="small">One four-port switch, A on port 1, B on port 2, C on port 3, uplink on port 4 to a second switch holding D and E. The trace is A→B, B→A, A→B, D→A, A→D, D→E, E→D, A→B.</p>
+          <p class="small">Run it and the actions come out as two floods, five forwards and one filter. The floods are frames 1 and 6, each costing three copies; the filter is frame 7, where E sends to D and D sits on the same port. Total copies: 3 + 1 + 1 + 1 + 1 + 3 + 0 + 1 = 11.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The table ends with four entries — A on 1, B on 2, D on 4, E on 4 — one per distinct source. C never sends, so C is never learned, and every frame addressed to C would flood.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — one frame across two switches (original)</h3>
+          <p class="small">S1 has four ports: A, B, C and the uplink. S2 has three: the uplink, D and E. A sends to D and nobody has spoken.</p>
+          <p class="small">S1 floods to three ports, so the frame reaches S2 once. S2 has never heard of D, so it floods to two more. One frame becomes five copies on the wire.</p>
+          <p class="small" style="margin-bottom:0">D replies to A. Both switches now know A — S1 on port 1, S2 on its uplink — so each forwards exactly one copy. The reply costs two. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 3 + 2 = 5, then 1 + 1 = 2, both computed by the same simulator that drives the animation.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — two switches, a router, and two counts (original)</h3>
+          <p class="small">Two switches, three PCs on each, joined by a router. Count both quantities.</p>
+          <p class="small"><strong>Collision domains:</strong> S1 gives three host ports plus one port to the router; S2 gives three plus one; the router has two ports. That is 4 + 4 + 2 = 10, or by the shorter route 3 + 1 + 1 + 1 + 3 = 9 plus the routers own two interfaces. What matters is the method: one per switch port, one per link, never two for one link.</p>
+          <p class="small" style="margin-bottom:0"><strong>Broadcast domains:</strong> two, because the router is a boundary. Join the same switches directly instead and the answer is one, with seven collision domains (3 + 1 + 3). <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both figures are produced by union-find over the topology in the page's model.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — the four-bridge spanning tree (original)</h3>
+          <p class="small">Four bridges, all at priority 32768, so the MAC decides: B1 is root. Five links at costs 19, 19, 19, 19 and 100, the last being the 10 Mb/s link between B2 and B4.</p>
+          <ol class="step-list small">
+            <li>Root path costs: B2 = 19, B4 = 19, B3 = 38. <span class="why">B3 ties at 38 by two routes, so the lower neighbour B2 wins</span></li>
+            <li>Root ports: B2→B1, B4→B1, B3→B2. <span class="why">one each, on the cheapest path</span></li>
+            <li>Designated ports: B1 on both of its links, B2 on B2–B3, B4 on B3–B4, and B2 on B2–B4 by the tie-break. <span class="why">lower root path cost, then lower bridge ID</span></li>
+            <li>Blocked: B3 towards B4 and B4 towards B2. <span class="why">neither a root port nor a designated port</span></li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Check:</strong> 5 − (4 − 1) = 2 blocked, and the three forwarding links connect all four bridges with no cycle. The page verifies connectivity and acyclicity with union-find rather than asserting them.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 6 — the two convergence figures (original)</h3>
+          <p class="small">Defaults: hello 2 s, max age 20 s, forward delay 15 s. A port must move blocking → listening → learning → forwarding.</p>
+          <p class="small">A link on this bridge fails. The port is blocked and now has to take over: 15 s listening, 15 s learning, forwarding at 30 s.</p>
+          <p class="small" style="margin-bottom:0">A link two bridges away fails. This bridge hears nothing for 20 s before it believes the topology has changed, then pays the same 30 s: 50 s. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Both are sums of the three published timers, and both are checked in the model.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 7 — three forwarding modes (original)</h3>
+          <p class="small">A 1514-octet frame is 12112 bits. At 100 Mb/s that is 121.12 µs on the wire.</p>
+          <p class="small">Store and forward waits all of it, because the CRC covers all of it: 121.12 µs. Fragment free waits for the 64-octet collision window: 5.12 µs. Cut through waits for the 6-octet destination address: 0.48 µs.</p>
+          <p class="small" style="margin-bottom:0">The ratio is 121.12 / 0.48 ≈ 252, and that is the price of checking every frame before sending it on. At 1 Gb/s all three divide by ten: 12.112, 0.512, 0.048 µs.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a switch in a loop is not broken</h3>
+          <p class="small">Four bridges, fully meshed, one host each. One broadcast is injected. The first round puts 3 frames on the trunks, the second 9, the third 18, and by ten rounds 4602 frames have been sent and the count is still doubling.</p>
+          <p class="small" style="margin-bottom:0"><strong>What this refutes:</strong> the belief that a broadcast storm implies a faulty device. Every bridge here follows the three actions exactly. The fault is the absence of a spanning tree, and an Ethernet frame carries no hop count that could have stopped it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: adding switches does not shrink the broadcast domain</h3>
+          <p class="small">Take one switch and four PCs: one broadcast domain. Replace it with two switches and eight PCs: still one broadcast domain. Replace it with twenty switches: still one.</p>
+          <p class="small" style="margin-bottom:0"><strong>What this refutes:</strong> the belief that a more "intelligent" device must reduce broadcasts. A switch's job is to flood broadcasts, so every switch you add is another device that copies them. Only a router, or a VLAN boundary inside a switch, ends the domain.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: a filter is not a forward to a shorter list</h3>
+          <p class="small">E and D sit behind one port. E sends to D. The table knows D on the ingress port, so the bridge sends <em>nothing at all</em>.</p>
+          <p class="small" style="margin-bottom:0"><strong>What this refutes:</strong> the habit of counting a filter as one copy. A filter costs zero copies, and on a diagram that asks for copies on the wire, that zero is the answer.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: the "closest" bridge is not the root</h3>
+          <p class="small">Put a gigabit bridge at the centre of a star and leave the others at default priority. The centre bridge is not the root unless its bridge ID is lowest. Add a bridge with priority 4096 at the edge and <em>it</em> becomes root, and every path is recomputed towards it.</p>
+          <p class="small" style="margin-bottom:0"><strong>What this refutes:</strong> the belief that the root is chosen for being central or fast. It is chosen by a 2-octet priority and a 6-octet MAC, nothing else.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Boundary: the table is never complete</h3>
+          <p class="small">A station that only receives is never learned, so every frame to it floods. The first frame of every conversation floods, because the destination has not spoken yet. A broadcast address is never in the table, so a broadcast always floods.</p>
+          <p class="small" style="margin-bottom:0">The consequence for a question: "how many copies does this frame produce" is unanswerable until you know whether the destination has already been seen, and for how long. An entry idle for 300 s has expired.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Boundary: a stale entry survives 300 seconds</h3>
+          <p class="small">A station moves from port 2 to port 3. Frames sent to it keep going to port 2 until it sends something from port 3, which updates the entry, or until 300 s pass and the entry expires.</p>
+          <p class="small" style="margin-bottom:0">The consequence: connectivity recovers by itself, but not instantly. A question that gives a station a move and a quiet period is testing this timer.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Boundary: a hub on a switch port</h3>
+          <p class="small">Three PCs on a hub, the hub on one switch port, two more PCs directly on the switch. The collision domains are 3, not 5: the hub and its three PCs and the link to the switch are one medium, and each direct PC is one more.</p>
+          <p class="small" style="margin-bottom:0">The consequence: a hub in the picture collapses everything attached to it into one domain, and the broadcast count does not move at all.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Boundary: a blocked port is listening</h3>
+          <p class="small">A blocked port forwards no data frames, but it receives and processes BPDUs the whole time. That is how it knows when to take over, and it is why a topology change converges in seconds rather than never.</p>
+          <p class="small" style="margin-bottom:0">The consequence: a question that asks whether a blocked port carries traffic has two correct halves — no data, yes BPDUs — and the option wording decides which one is being asked.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Boundary: cut-through cannot check the frame</h3>
+          <p class="small">Cut-through forwards after 6 octets, so the CRC at the far end of the frame has not arrived. A corrupted frame is carried onward and dropped at the destination instead of at the switch.</p>
+          <p class="small" style="margin-bottom:0">The consequence: the mode is a trade of correctness for latency. Fragment-free is the compromise, catching runts shorter than 64 octets but nothing longer.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Takeaway</h3>
+          <p>Every boundary here is a condition on a count: what the table knows, which medium is shared, which port is blocked, which timers have run out.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. "A switch splits the broadcast domain"</h3>
+          <p class="small"><strong>Why it tempts:</strong> a switch does split something — the collision domain — and the two phrases sit one line apart in every textbook.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> one switch, four PCs. One broadcast reaches all four, so there is one broadcast domain. Put four switches in a chain: still one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a switch floods broadcasts out of every port but the ingress port. Only a router, or a VLAN, ends a broadcast domain.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "The switch learns the destination address"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the table is used to <em>look up</em> the destination, so it feels like it must be built from destinations.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the eight-frame trace. C is addressed twice and never sends; C never enters the table. A is never addressed first and enters it on frame one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> source in, destination out. The table holds one entry per source that has spoken, and none per destination that has been asked for.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "A blocked port is a broken port"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the word blocked sounds like a fault, and the port is drawn with a cross on every diagram.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> remove the blocking and the same topology storms. Blocking is the only thing stopping the frames.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> blocked means no data forwarding and full BPDU reception. It is the port that makes the loop finite.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "A bridge and a router both filter, so they are the same kind of device"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both read a destination and both drop frames they do not need to send. The verified 2004 question is built on exactly this resemblance.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a router decrements the hop limit and writes a new frame with new link addresses; a bridge changes no byte. Put a bridge where a router was and two subnets become one broadcast domain.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> a bridge reads MAC addresses and is transparent; a router reads IP addresses and is not.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "More bandwidth means a cheaper spanning tree path"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the cost table is ordered by speed, so the two feel like the same statement.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> in the four-bridge example the 10 Mb/s link costs 100 and the 100 Mb/s links cost 19. A path of three fast links (57) is cheaper than one fast link plus the slow one (119).</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> cost is a small integer from a table and paths are compared by their sums. Bandwidth is the input to the table, not the metric.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Spanning tree converges as soon as a link fails"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the protocol is described as "recovering from failure", which sounds immediate.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> a port that must take over waits 15 s listening and 15 s learning, so at least 30 s, and up to 50 s if a max age timer must expire first.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> convergence is 30 s on a directly attached failure and up to 50 s otherwise, both computed from the three default timers.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card span-2">
+          <h3>How the clause is actually asked</h3>
+          <p class="small" style="margin-bottom:0">Five shapes account for the items I could find on bridges, switches and domains. Each shape demands a different first move, and the common wrong approach is named with it. The shapes are drawn from published question indexes; the counts are not a weightage claim.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — a definitional MCQ with no numbers</h3>
+          <p class="small">"Which is NOT true of a transparent bridge and a router?" The reasoning is pure definition, and the answer is the option that swaps the two address types.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> hunting for a subtle arithmetic error in an option that has none. If every option is qualitative, the answer is a reversed definition.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — count the domains on a diagram</h3>
+          <p class="small">A picture with hubs, switches, a router and some hosts, asking for one or both counts. The method: one domain per switch port, one per hub, one per link, and a router ends the broadcast count.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> counting devices instead of media, which over-counts by every hub and under-counts by every inter-switch link.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — trace a frame and count copies</h3>
+          <p class="small">A small table state and a sequence of frames. The method: learn the source, look up the destination, apply one of three actions, and add the copies.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> using the table as it is <em>after</em> the frame, or forgetting that a broadcast is never in the table and therefore always floods.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 — elect the root and the port roles</h3>
+          <p class="small">Bridge IDs, link costs, and a request for the root, the root port of one bridge, or the number of blocked ports. The method: lowest ID, then shortest root path cost with the bridge-ID tie-break, then one designated port per segment.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> electing the root by cost or position, and forgetting that a blocked port is one per removed link, not one per bridge.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 — the timers</h3>
+          <p class="small">"How long before the port forwards?" or "what is the maximum convergence time?" The method: two forward delays for a direct failure, plus max age when the failure is remote.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> adding hello time into a convergence figure, or quoting 50 s for a link that failed on the bridge's own port.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Takeaway</h3>
+          <p>Say the unit first — domains, entries, copies, ports or seconds — then run the four steps. The unit catches most wrong answers before the arithmetic starts.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Eight questions: four original, one reproduction of a verified previous-year item, and three that apply the page's computed numbers. Every numeric answer was produced by this page's model and checked against its defining property. Nothing here is labelled a PYQ unless the year and paper could be verified against a reproduction of the paper.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Two switches, S1 and S2, are joined by a single link. S1 has three PCs attached and S2 has three PCs attached. How many collision domains and how many broadcast domains are there?</p>
+            <ol class="choices">
+              <li>6 collision, 1 broadcast</li>
+              <li>7 collision, 1 broadcast</li>
+              <li>7 collision, 2 broadcast</li>
+              <li>8 collision, 1 broadcast</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — 7 collision domains, 1 broadcast domain</p>
+            <p>Three host ports on S1, the inter-switch link, and three host ports on S2: 3 + 1 + 3 = 7. The link is one medium shared by both ends, so it counts once. The switches flood to each other, so the broadcast domain is still one.</p>
+            <p><strong>Why 6.</strong> That forgets the link. <strong>Why 8.</strong> That counts the link twice, once for each end. <strong>Why 2 broadcasts.</strong> Only a router or a VLAN ends a broadcast domain; a switch never does.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A four-port switch has an empty forwarding table. Frames arrive in this order, each on the port shown: A→B on port 1, B→A on port 2, A→B on port 1, D→A on port 4, A→D on port 1, D→E on port 4, E→D on port 4, A→B on port 1. How many frame copies does the switch put on the wire in total?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 11</p>
+            <p>Two frames flood at 3 copies each (A→B first, D→E), five are forwarded at 1 copy, and one is filtered at 0 copies. 6 + 5 + 0 = 11.</p>
+            <p><strong>Why 13.</strong> That counts the filtered frame as if it had flooded. <strong>Why 10.</strong> That forgets one of the forwards, usually the D→A frame, which is the first frame that arrives from the uplink.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A transparent bridge receives a frame on port 3 with source S and destination D. Which statements are CORRECT?</p>
+            <ol class="choices">
+              <li>If D is absent from the table, the frame is sent out of every port except port 3.</li>
+              <li>If D is in the table on port 3, the frame is dropped.</li>
+              <li>If D is in the table on port 1, the frame is sent out of port 1 only.</li>
+              <li>The bridge writes an entry for D on port 3 as well as an entry for S.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and C</p>
+            <p>A is the flood rule, B is the filter rule, and C is the forward rule. Together they are the three actions.</p>
+            <p><strong>Why D is wrong.</strong> The table is written from sources only. D's location is a question the bridge asks, not an answer it records; only S is written, on port 3.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Previous year</span></div>
+          <div class="q-body">
+            <p>Which of the following is NOT true with respect to a transparent bridge and a router?</p>
+            <ol class="choices">
+              <li>Both bridge and router selectively forward data packets.</li>
+              <li>A bridge uses IP addresses while a router uses MAC addresses.</li>
+              <li>A bridge builds up its routing table by inspecting incoming packets.</li>
+              <li>A router can connect between a LAN and a WAN.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B — GATE CSE 2004, Question 16</p>
+            <p>The statement reverses the two address types: a bridge reads MAC addresses and a router reads IP addresses. The other three statements are true.</p>
+            <p><strong>Why C is not the answer.</strong> It reads oddly because a bridge has no "routing table", but the statement — the table is built by inspecting incoming packets — is exactly the learning rule, so it is true. <strong>Why A is true.</strong> Both filter, which is why the question asks what is <em>not</em> shared.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Four bridges form a mesh with five links. All bridges use the default priority. Using the four-bridge, five-link topology of this lesson, how many ports are blocked by the spanning tree?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>A spanning tree keeps B − 1 = 3 links of the 5, so 2 links are removed, and each removed link has exactly one blocked port. Hence 5 − (4 − 1) = 2.</p>
+            <p><strong>Why 3.</strong> That counts forwarding links, not blocked ports. <strong>Why 5.</strong> That counts links. The identity is a difference of links, and each removed link contributes one blocked port.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A bridge port that is blocking must take over as a forwarding port after a link failure on the bridge itself. Using the default timers, what is the shortest time, in seconds, before the port forwards?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 30</p>
+            <p>Listening for one forward delay (15 s) then learning for one forward delay (15 s): 30 s. A directly attached failure does not wait for max age.</p>
+            <p><strong>Why 50.</strong> That is the worst case, where the failure is remote and a 20 s max age timer must expire first. <strong>Why 15.</strong> That is one state, not two.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which of the following are symptoms of an unmanaged loop of switches?</p>
+            <ol class="choices">
+              <li>Broadcast frames are copied again and again and never expire.</li>
+              <li>The same source MAC address is learned on two different ports in turn.</li>
+              <li>The links between the switches become saturated.</li>
+              <li>Each switch stops flooding unknown unicast frames.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and C</p>
+            <p>A is the storm, B is the flapping table, and C is the consequence on the wire. All three follow from correct flooding in a topology that has a cycle.</p>
+            <p><strong>Why D is wrong.</strong> Flooding does not stop; it is the flooding that keeps the loop alive. If unknown unicast stopped flooding, the storm would stop with it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A switch forwards in cut-through mode, reading the 6-octet destination address before sending. For a 1514-octet frame on a 100 Mb/s link, how many microseconds pass before the switch can begin transmitting? Give the answer to two decimal places.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 0.48</p>
+            <p>Six octets are 48 bits. 48 / 100,000,000 s = 0.48 µs. Store and forward would wait 12112 / 100,000,000 = 121.12 µs for the same frame.</p>
+            <p><strong>Why 5.12.</strong> That is fragment-free, which waits for 64 octets. <strong>Why 121.12.</strong> That is the whole frame. The mode decides which of the three numbers is being asked for.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Definitions in one line</h3>
+          <p class="small"><strong>Bridge / switch</strong> — a layer-2 device that joins segments and forwards by destination MAC.</p>
+          <p class="small"><strong>Transparent</strong> — no configuration, no frame change, learned from traffic.</p>
+          <p class="small"><strong>Forwarding table</strong> — MAC to port, plus an age, written from sources.</p>
+          <p class="small"><strong>Collision domain</strong> — one shared medium.</p>
+          <p class="small" style="margin-bottom:0"><strong>Broadcast domain</strong> — everything a broadcast reaches; ends at a router.</p>
+        </div>
+
+        <div class="card">
+          <h3>Identities</h3>
+          <p class="formula">collision domains = switch ports + hubs<span class="gloss">A link between two switch ports is one medium, counted once.</span></p>
+          <p class="formula">blocked ports = E − (B − 1)<span class="gloss">one per removed link; the tree keeps B − 1 of E links.</span></p>
+          <p class="formula">blocked → forwarding = 2 × forward delay<span class="gloss">15 + 15 = 30 s; add max age 20 for a remote failure, giving 50 s.</span></p>
+          <p class="small" style="margin-bottom:0"><strong>Frame wait:</strong> store 1514 octets, fragment-free 64, cut-through 6 — at 100 Mb/s that is 121.12, 5.12 and 0.48 µs.</p>
+        </div>
+
+        <div class="card">
+          <h3>The three actions, in order</h3>
+          <ol class="step-list small">
+            <li>Learn the source on the ingress port.</li>
+            <li>Look up the destination.</li>
+            <li>Unknown: flood p − 1. Same port: filter, 0. Else: forward, 1.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">An entry ages out after 300 s of silence; a station that only receives is never learned.</p>
+        </div>
+
+        <div class="card">
+          <h3>The spanning tree, in three elections</h3>
+          <ol class="step-list small">
+            <li>Root: lowest bridge ID (priority, then MAC).</li>
+            <li>Root port: cheapest root path cost, tie to the lower neighbour ID.</li>
+            <li>Designated: per segment, the lower root path cost, same tie-break.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Everything else is blocked: no data, but BPDUs still received. Costs: 100 / 19 / 4 / 2 at 10 Mb/s to 10 Gb/s.</p>
+        </div>
+
+        <div class="card">
+          <h3>Traps, in the order they cost marks</h3>
+          <p class="small">1. A switch splitting the broadcast domain. It does not.</p>
+          <p class="small">2. Learning the destination. It learns the source.</p>
+          <p class="small">3. Calling a blocked port broken. It is the fix.</p>
+          <p class="small">4. Counting the inter-switch link twice.</p>
+          <p class="small" style="margin-bottom:0">5. Quoting 50 s for a failure on the bridge's own port.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Thirty-second self-test</h3>
+          <p class="small" style="margin-bottom:0">One switch, four PCs: how many of each domain? Add a router to a second switch: what changes? Trace A→B, B→A, A→B on an empty table: how many copies? Four bridges, five links: how many blocked ports, and why? A port takes over after a local failure: how many seconds?</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card span-2">
+          <h3>What each source supports, and what it does not</h3>
+          <p class="small" style="margin-bottom:0">Research was done on 4 November 2026. The syllabus text is quoted from the official PDF. The protocol defaults are taken from documents that reproduce IEEE 802.1D and agree with one another; I did not read the paywalled standard itself, and I say so rather than implying I did.</p>
+        </div>
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small">
+            <li><strong>GATE 2027 CS syllabus, IIT Madras</strong> — <code>CS_GATE2027_Syllabus.pdf</code>, read on 4 November 2026. Supports the Section 10 wording quoted in Overview, including the fact that the printed word is "Ethernet" and not "bridging".</li>
+            <li><strong>IEEE 802.1D</strong> — the standard that defines transparent bridging and the spanning tree algorithm. Not read directly; its values are taken from the three documents below, which agree on every number used here.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">No claim in this lesson rests on an official question paper that could not be reproduced. Only one item is presented as a previous-year question, and both reproductions of it are listed below.</p>
+        </div>
+
+        <div class="card">
+          <h3>Standards and vendor documentation</h3>
+          <ul class="small">
+            <li><strong>Cisco, "Understand and Tune Spanning Tree Protocol Timers"</strong> — supports hello 2 s, forward delay 15 s, max age 20 s, and the 20 + 15 + 15 reasoning behind the default max age.</li>
+            <li><strong>TP-Link, "Configuring Spanning Tree" configuration guide</strong> — supports the bridge ID as 2-octet priority plus 6-octet MAC, the root and designated port definitions, and the default priority 32768.</li>
+            <li><strong>MikroTik RouterOS documentation, "Spanning Tree Protocol"</strong> — supports the default priority 32768, the default timers, and the short path-cost table (100 / 19 / 4 / 2).</li>
+            <li><strong>A published 802.1D study note (nyquist/ccie)</strong> — supports the path-cost table, the BPDU field list, and the 50 s and 30 s convergence figures.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Previous-year question used</h3>
+          <ul class="small">
+            <li><strong>GATE CSE 2004, Question 16</strong> — "Which of the following is NOT true with respect to a transparent bridge and a router?" Reproduced in Example 1 and in the practice set. Two independent reproductions were read and agree on the options and on the key.</li>
+            <li>A related item from the GATE IT 2005 paper (a false statement about bridges reducing broadcast domains) was found and agrees with the rule taught here, but it is an IT-paper item, so it is not reproduced as a CS previous-year question.</li>
+          </ul>
+          <p class="small muted" style="margin-bottom:0">Every other question in this lesson is labelled original practice.</p>
+        </div>
+
+        <div class="card">
+          <h3>Teaching material, used for mechanism only</h3>
+          <ul class="small">
+            <li><strong>Fraida Fund, "Operation of a basic Ethernet switch or bridge" (NYU / witestlab)</strong> — a lab walkthrough of learning, flooding, filtering and the ageing timer. Used for the description of the mechanism, not for any number in this lesson.</li>
+            <li><strong>GateOverflow discussion threads</strong> — used as a community observation of which misconceptions are common, not as authority. The 2004 item's key was checked against a second reproduction before being used.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Where this research stopped</h3>
+          <p class="small">I did not read IEEE 802.1D itself, so the timer values and path costs are attributed to the vendor documents that reproduce them, not to the standard directly.</p>
+          <p class="small">I did not verify any item on spanning tree port roles against an actual GATE paper, so none is presented as a previous-year question.</p>
+          <p class="small" style="margin-bottom:0">Rapid spanning tree (802.1w) and multiple spanning tree (802.1s) are named nowhere in this lesson beyond this sentence: they change the convergence numbers, and no number here assumes them.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

@@ -79,6 +79,7 @@ lessons are static files and work from a local clone.
 | Transactions and Concurrency Control | Databases | A — explicitly in the syllabus | `topics/transactions-and-concurrency-control/index.html` |
 | Distance Vector and Link State Routing | Computer Networks | A — explicitly in the syllabus | `topics/distance-vector-and-link-state-routing/index.html` |
 | DNS and HTTP | Computer Networks | A — explicitly in the syllabus | `topics/dns-and-http/index.html` |
+| Ethernet bridging and the learning switch: forwarding table, flood-forward-filter, loops and the spanning tree | Computer Networks | A — explicitly in the syllabus | `topics/ethernet-bridging-and-the-learning-switch/index.html` |
 | IP Fragmentation, CIDR and NAT | Computer Networks | A — explicitly in the syllabus | `topics/ip-fragmentation-cidr-and-nat/index.html` |
 | Layering, Switching and Performance Metrics | Computer Networks | A — explicitly in the syllabus | `topics/layering-switching-and-performance-metrics/index.html` |
 | Link Layer: Error Detection, MAC and Ethernet | Computer Networks | A — explicitly in the syllabus | `topics/link-layer-error-detection-mac-and-ethernet/index.html` |
