@@ -6949,6 +6949,61 @@ topics.append(topic(
     ]))
 
 
+topics.append(topic(
+    "Compiler Design",
+    "Section 7: 'Lexical analysis, parsing, syntax-directed translation' — the bottom-up rung the survey lesson names and does not build",
+    "Canonical LR(1) items and the LALR(1) merge",
+    ["the LR(1) item and its lookahead",
+     "closure with FIRST(beta a)",
+     "GOTO and the canonical collection",
+     "the local reduce rule against FOLLOW",
+     "merging by core and the union of lookaheads",
+     "what merging can and cannot create",
+     "the four state counts and the ladder"],
+    prereq=["lexical-analysis-parsing-and-sdt", "context-free-grammars-and-pushdown-automata",
+            "deterministic-pda-and-dcfl"],
+    related=["lexical analysis, parsing and syntax-directed translation",
+             "deterministic push-down automata", "context-free grammars and push-down automata",
+             "regular expressions and finite automata"],
+    importance="high",
+    evidence=("Section 7 of the GATE 2027 CS syllabus names 'parsing', which is the clause this topic sits under; "
+              "the words LR(1) and LALR do not appear, which is why the depth is drawn from past papers rather than "
+              "from the syllabus wording. Three previous-year items are quoted and recomputed on the page: GATE CSE "
+              "2005 (SLR, LR(1) and LALR state counts for S -> ( S ) | a, answer n1 = n3 < n2, computed 6, 10, 6), "
+              "GATE CSE 2003 (SLR and LALR counts are necessarily equal), and GATE CSE 2008 (an LALR shift/reduce "
+              "conflict exists iff the canonical LR(1) table has one). No weightage is claimed."),
+    difficulty="hard",
+    status="PUBLISHED",
+    slug='canonical-lr1-items-and-lalr-merging',
+    path='topics/canonical-lr1-items-and-lalr-merging/index.html',
+    execution=('published; node tools/check-lesson.mjs PASS (25/25 model checks, 1201 frames across 10 scenes); '
+               'node tools/audit-geometry.mjs clean (10 scenes, no text outside the canvas, no text-on-text '
+               'overlap); ten frames rendered in headless Chromium and inspected; every transport control, the '
+               'caption toggle and all five caption modes exercised in the browser; learning-mode reveal and '
+               'mock-test mode exercised; captions.vtt, captions.srt and transcript.md generated from timeline.js'),
+    microtopics=[
+        'FOLLOW(A) is a property of the grammar, not of the state, which is why SLR writes the same reduce row twice',
+        'the LR(1) item [A -> alpha . beta , a]: the lookahead is what may follow the whole right-hand side, not the symbol after the dot',
+        'closure with FIRST(beta a): six items in I0 of S -> C C where the LR(0) closure has three',
+        'the same kernel in state I2 gives three items, because there the second C is followed by the end marker alone',
+        'GOTO moves the dot over one symbol and closes again; the canonical collection of S -> C C has 10 states against 7',
+        'three pairs of canonical states share a core and differ only in lookahead: I3/I6, I4/I7, I8/I9',
+        'the reduce rule is local: [A -> alpha . , a] writes one action, in column a',
+        'the LR(1) reduce row is always a subset of the SLR row; of 27 completed items here exactly 1 is strict (R -> L in state 2 of the assignment grammar)',
+        'LALR merges states with equal cores and unions the lookaheads per item, not per state',
+        'the LALR state count equals the LR(0) count and the SLR count, always: 7/7, 13/13, 10/10, 12/12, 5/5, 4/4',
+        'merging cannot create a shift/reduce conflict, because the shift side is core-determined and the reduce side is not',
+        'merging can create a reduce/reduce conflict: the four-string grammar A -> c and B -> c end up on both d and e',
+        'the four-string grammar is LR(1) and not LALR(1): 14 canonical states, no conflict, 13 merged states, two reduce/reduce cells',
+        'resolving that conflict to the earlier production keeps 2 of the grammar\'s 4 strings; the canonical parser keeps 4',
+        'merging is not the only source of reduce/reduce: S -> A | B with A -> a and B -> a conflicts in LR(1) with 0 merges',
+        'the four rungs read one automaton; only canonical LR(1) can have more states than LR(0)',
+        'GATE CSE 2005: S -> ( S ) | a gives 6 SLR, 10 canonical and 6 LALR states, so n1 = n3 < n2',
+        'GATE CSE 2003: the SLR and LALR counts are necessarily equal, as a counting identity on cores',
+        'GATE CSE 2008: an LALR shift/reduce conflict exists exactly when the canonical LR(1) table has one',
+    ]))
+
+
 _seen = set()
 _dedup = []
 for _t in topics:
