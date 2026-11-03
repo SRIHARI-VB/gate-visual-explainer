@@ -97,6 +97,7 @@ lessons are static files and work from a local clone.
 | Mean, Median, Mode and Standard Deviation: Three Middles, One Spread, and When Each Rule Fails | Engineering Mathematics | A — explicitly in the syllabus | `topics/mean-median-mode-standard-deviation/index.html` |
 | Probability, Random Variables and Distributions | Engineering Mathematics | A — explicitly in the syllabus | `topics/probability-and-random-variables/index.html` |
 | The Binomial Distribution: Three Conditions, One Count | Engineering Mathematics | A — explicitly in the syllabus | `topics/binomial-distribution/index.html` |
+| Variance of a Sum, Covariance and the Chebyshev Bound | Engineering Mathematics | A — explicitly in the syllabus | `topics/variance-of-a-sum-covariance-and-chebyshev/index.html` |
 | Analytical Aptitude: Deduction, Induction, Analogy and Numerical Relations | General Aptitude | A — explicitly in the syllabus | `topics/analytical-aptitude/index.html` |
 | Quantitative Aptitude: Ratios, Data, Logarithms, Shapes, Statistics and Probability | General Aptitude | A — explicitly in the syllabus | `topics/quantitative-aptitude/index.html` |
 | Spatial Aptitude: Transformations, Paper Folding and Patterns | General Aptitude | A — explicitly in the syllabus | `topics/spatial-aptitude/index.html` |
