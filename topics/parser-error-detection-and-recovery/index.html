@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error Detection and Recovery in Parsers — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Error detection and recovery</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Parsing</a>
+      <a href="../canonical-lr1-items-and-lalr-merging/index.html">LR(1) and LALR</a>
+      <a href="../context-free-grammars-and-pushdown-automata/index.html">CFG and PDA</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Error detection and error recovery in parsers — where a parser finds out that the input is wrong, and the three strategies that let it continue: panic mode, phrase-level recovery and error productions.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Say exactly where an error is detected — a blank ACTION cell — and why the GOTO table can never detect one. State the viable-prefix property and use it to explain why an LR parser stops at the first token it cannot use. Run panic mode by hand: pop to a state with a GOTO on a nonterminal, discard to a token that can follow it, push, resume. Explain why the rule as written can loop and what the progress guard does. Use FOLLOW as an LL parser's synchronising set, and tell popping from discarding. Enumerate the one-token repairs of phrase-level recovery and say why reach is not acceptance. Add an error production, measure what it costs, and run the pop-shift-delete procedure.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as the recovery half of Section 7's word "parsing": the neighbouring lesson owns detection and the table construction, and this one owns what happens after the blank cell.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a sub-procedure of a named syllabus topic.</strong></p>
+          <p class="small">Section 7 of the GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads in full: <em>"Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em> The word <em>parsing</em> is named; the words <em>error recovery</em>, <em>panic mode</em> and <em>error production</em> are not.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> I label this class B rather than A: every parser that is built has a recovery procedure, and the standard treatments put it inside the parsing chapter, but the syllabus does not name it. A learner who prefers to read it as class C loses nothing except priority.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> One previous-year item is quoted with its paper in the Practice tab: <strong>GATE CSE 2015 Set 1</strong>, the item on what the stack of a shift-reduce parser contains at a valid state, answered (C) and re-derived here from 48 measured configurations.</p>
+          <p class="small" style="margin-bottom:0">No weightage is claimed and no forecast is made about GATE CSE 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis, parsing and syntax-directed translation</a> — FIRST and FOLLOW, the LR(0) automaton, shift and reduce, the SLR table, and the LL(1) table. This lesson assumes all of it and adds nothing to it.</li>
+            <li><a href="../canonical-lr1-items-and-lalr-merging/index.html">Canonical LR(1) items and the LALR merge</a> — the lookahead that makes a reduce local. Used here only for the reduction count comparison.</li>
+            <li><a href="../context-free-grammars-and-pushdown-automata/index.html">Context-free grammars and push-down automata</a> — derivations and sentential forms, which the viable-prefix definition is stated in.</li>
+            <li><a href="../regular-expressions-and-finite-automata/index.html">Regular expressions and finite automata</a> — a lexer's own error handling is the earlier, simpler case, and the vocabulary of "no transition" carries over.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Detection is a missing cell.</strong> The ACTION table has no entry, and that is the whole of the error signal.</li>
+            <li><strong>The stack is always a viable prefix.</strong> The error is the first token that makes it unviable.</li>
+            <li><strong>Recovery changes two counts.</strong> States popped and tokens discarded — or the input itself, in phrase-level recovery.</li>
+            <li><strong>Every recovery needs a guard.</strong> Without one, the rule can return to the configuration it started from.</li>
+            <li><strong>Acceptance after recovery is not validity.</strong> It means the repaired string parsed.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the page computes, and how it is checked</h3>
+          <p class="small" style="margin-bottom:0">The page builds a 12-state SLR table, a 22-state canonical LR(1) table, an 8-state LL(1) table and a 15-state table with two error productions, then runs all of them. It parses all <strong>781</strong> strings of length at most four over the five terminals and compares each verdict with an independently written recognizer: 781 of 781 agree. It enumerates <strong>514</strong> right sentential forms and checks the viable-prefix property at 48 parse configurations and at all 777 error points. It runs four recovery procedures and counts every pop, discard and repair. <strong>29 of 29</strong> model checks pass, and the counter in the Animation tab shows the live count.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>1. Intuition — the reader who stops at a word that is not in the dictionary</h3>
+          <p>Picture someone reading a sentence aloud, word by word, holding a small card that says what may come next. The card changes with every word. At some point the next word is not on the card: the reader stops. That stop is error detection, and it happens at a word, not at the end of the sentence. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span></p>
+          <p>What the reader does next is error recovery, and there are only a few things anyone can do. Skip words until one appears that could follow where the reader has got to. Guess that a word was missing and carry on as if it had been there. Or have a rule ready for the mistake that was actually made — a rule written by whoever knows what mistakes people make.</p>
+          <p>The interesting part is that the reader's card is a table built from the grammar, so "the word is not on the card" is a statement about the table and the word, not about the sentence's meaning. That is why two different parsers can stop at the same word and disagree about nothing.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Formal definitions</h3>
+          <p class="small"><strong>Error detection (LR).</strong> The parser is in state s with a the next input terminal. If ACTION[s, a] is empty, an error has been detected. GOTO is indexed by state and nonterminal and is consulted only after a reduction, so it cannot detect one.</p>
+          <p class="small"><strong>Viable prefix.</strong> A string x is a viable prefix of a grammar G when x is a prefix of some right sentential form of G. The symbol string on an LR parser's stack is always one.</p>
+          <p class="small"><strong>Panic mode (LR).</strong> Scan down the stack for a state s with a GOTO on some nonterminal A; pop everything above s; discard input symbols until one is found that can follow A; push GOTO(s, A) and resume.</p>
+          <p class="small"><strong>Panic mode (LL).</strong> With M[A, a] empty: if a is in FOLLOW(A), pop A; otherwise discard a. Repeat.</p>
+          <p class="small"><strong>Phrase-level recovery.</strong> At the error point, apply a local correction to the input — insert, delete or replace one token — and continue.</p>
+          <p class="small" style="margin-bottom:0"><strong>Error production.</strong> A production containing the distinguished terminal <code>error</code>, for example F → ( error ). The parser shifts <code>error</code> in place of the offending token and carries on through the production.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>3. Visual understanding — what the drawing has to show</h3>
+          <p class="small">An error is invisible in a picture of a tree, because the tree does not exist yet. What exists is a stack of states and a position in the input, so the animation draws those two things and nothing else: the state stack as a column, the input as a row of tokens with a pointer, and the cell being looked up. Detection is then a cell that is empty, and recovery is visible movement — the column shrinking, the pointer advancing.</p>
+          <p class="small" style="margin-bottom:0">The second thing the drawing must show is that recovery changes the input. In phrase-level recovery the token row itself is edited, and in the guarded panic run the accepted string is shorter than the string that was typed. That is the fact a diagram of a parse tree can never show.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. Worked example — detection, by hand</h3>
+          <p class="small">Grammar: E → E + T | T, T → T * F | F, F → ( E ) | id. Input: <code>id + ) id</code>.</p>
+          <ol class="step-list small">
+            <li>Shift id, reduce F → id, T → F, E → T. The stack of symbols is now E, the states 0 3.</li>
+            <li>Shift +. Symbols E +, states 0 3 7.</li>
+            <li>State 7 holds E → E + · T and the items that expect an operand: F → · ( E ), F → · id. Look up ACTION[7, ")"].</li>
+            <li>There is no column for ")" in state 7. The lookup returns nothing: error, at token 3, after 3 reductions.</li>
+            <li>Canonical LR(1) also stops at token 3, also after 3 reductions — the two differ on other strings, not this one.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">The page prints the state, the token, the position and the stack in the first scene, computed at load.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Boundaries — which strategy applies where</h3>
+          <p class="small">Panic mode works for any table-driven parser and is the cheapest. Phrase-level recovery needs a way to judge a repair, so it needs a cost or a reach measure. Error productions need the grammar to be rewritten and re-analysed, and they change the automaton. Global correction — the least-cost change to the whole input — is defined and not used, because its cost grows faster than the parse.</p>
+          <p class="small" style="margin-bottom:0">None of them is part of the language definition. All four are policies attached to a parser, and the language accepted by the parser without recovery is unchanged by all four.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. The nine levels, in order</h3>
+          <p class="small">Intuition: a reader who stops at a word that is not on the card. Formal: the blank cell, the viable prefix, the four recovery rules. Visual: the state stack, the token pointer, the cell being looked up. Worked: <code>id + ) id</code> by hand. Boundaries: which strategy fits which parser, and what each costs. Edge cases: the loop, the end marker, two errors in one input. GATE application: the viable-prefix item and the ordering questions. Practice: eight questions with worked solutions. Consolidation: the Revision tab.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">An LR parser looks up one cell: the state on top of the stack, and the token on the input.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The parser finds out at a blank cell</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">An LR parser looks up one cell: the state on top of the stack, and the token on the input.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Example 1 — the detection point, traced</h3>
+          <p class="small">Grammar E → E + T | T, T → T * F | F, F → ( E ) | id. Input <code>id + ) id</code>.</p>
+          <ol class="step-list small">
+            <li>States 0 → shift id → 0 2. Reduce F → id: states 0 4.</li>
+            <li>Reduce T → F: 0 5. Reduce E → T: 0 3. Three reductions, all correct for the prefix <code>id</code>.</li>
+            <li>Shift +: 0 3 7. The next token is ")".</li>
+            <li>State 7 has entries for ( and id only. ACTION[7, ")"] is blank: error at position 3, stack 0 3 7.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">The page prints state 7, token ")", position 3 and the stack, from the run rather than from this list.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — panic mode on <code>id id</code></h3>
+          <p class="small">After the first id the parser has reduced to E and sits in state 3; but this input is not yet reduced when the second id arrives, so the run is: shift id, reduce F → id, and the error comes in state 2.</p>
+          <ol class="step-list small">
+            <li>State 2 completes F → id. The next token is another id, and ACTION[2, id] is blank.</li>
+            <li>Scan down the stack 0 2: state 2 has a GOTO on no nonterminal of interest; state 0 has GOTO on E = 3.</li>
+            <li>Pop 1 state. Discard 1 token, because FOLLOW(E) = { $, ), + } and the offending id is not in it.</li>
+            <li>Push GOTO(0, E) = 3. The input is exhausted and the parse accepts.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>What was accepted.</strong> The string <code>id</code>, not <code>id id</code>. The second operand was deleted and never reported.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — LL panic mode on <code>b b c</code></h3>
+          <p class="small">Grammar S → A B C, A → a | ε, B → b | ε, C → c. FOLLOW(A) = { b, c }, FOLLOW(B) = { c }, FOLLOW(C) = { $ }.</p>
+          <ol class="step-list small">
+            <li>Stack S, token b. M[S, b] = S → A B C. Stack A B C.</li>
+            <li>M[A, b] is A → ε, because b is in FOLLOW(A). Pop A. Stack B C.</li>
+            <li>M[B, b] = B → b. Match the first b. Stack C, token b at position 2.</li>
+            <li>M[C, b] is blank and b is not in FOLLOW(C) = { $ }. Discard the token.</li>
+            <li>Token $, M[C, $] = C → c, match c… the run reports one error, one discard, and accepts.</li>
+          </ol>
+          <p class="small muted" style="margin-bottom:0">The count of pops and discards is the whole answer to an LL recovery question, and the page prints both.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Example 4 — one error production, one new conflict</h3>
+          <p class="small">Add F → ( error ) and E → error to the expression grammar.</p>
+          <ol class="step-list small">
+            <li>The two productions add items wherever E and an open bracket are expected: 12 states become 15.</li>
+            <li>State 7 — reached after reading <code>( error</code> — now holds both F → ( error · ) and E → error ·.</li>
+            <li>On ")" the table must shift to finish the phrase, or reduce E → error. Two entries, one cell: a shift/reduce conflict.</li>
+            <li>Resolved in favour of shift, recovery on <code>id + ) id</code> gives one report, two pops and two silent deletions.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0"><strong>Why this is worth a card.</strong> The grammar that was conflict-free is not conflict-free any more, and nothing in the language changed. Error productions are edits to the parser, not to the language.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>The error at the very first token</h3>
+          <p class="small">Input <code>) id</code>. State 0 has entries for ( and id only, so the error is detected before anything is shifted: stack 0, position 1, zero reductions. Panic mode then has nothing to pop and no nonterminal below it to push, so it reports and stops.</p>
+          <p class="small" style="margin-bottom:0">An error with an empty stack history is the one case where panic mode has no move at all.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The error at the end marker</h3>
+          <p class="small">Input <code>( id</code>. The parser consumes both tokens and then finds ACTION[6, $] blank: the close bracket is missing, and the offending token is the end marker.</p>
+          <p class="small" style="margin-bottom:0">Deletion-based recovery cannot help: there is nothing left to delete. The repair needed is an insertion, which is why error productions alone do not cover this case. The page checks that the error-production recovery fails on exactly this input.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Two errors in one input</h3>
+          <p class="small">Input <code>id id id</code>. Panic mode discards both extra ids in a single recovery: it discards until a token can follow E, and the end marker is the first such token, so both ids go at once and one message covers two mistakes.</p>
+          <p class="small" style="margin-bottom:0">That is the documented drawback of panic mode: a considerable amount of input is skipped without being checked for further errors.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The recovery that loops</h3>
+          <p class="small">Input <code>id + ) id</code>. The ")" is in FOLLOW(T) and in FOLLOW(E), so the discard step finds a synchronising token immediately and discards nothing. The pushed state reduces back to E, the same cell fails again, and the configuration repeats.</p>
+          <p class="small" style="margin-bottom:0">The page records the repeat and adds one forced deletion. Without that guard the procedure never terminates, which is why every implementation carries a progress rule.</p>
+        </div>
+
+        <div class="card">
+          <h3>Popping past a recognised nonterminal</h3>
+          <p class="small">If the scan down the stack passes a state that covers a nonterminal, the recovery deletes a phrase that had already been parsed correctly. On <code>( id + ) id</code> the recovery pops two states, discarding the partial <code>( id +</code> construct entirely.</p>
+          <p class="small" style="margin-bottom:0">The usual advice is to avoid popping such a state, and to prefer a nonterminal as high in the stack as will still let the parse continue.</p>
+        </div>
+
+        <div class="card">
+          <h3>The repair that reaches furthest but does not accept</h3>
+          <p class="small">On <code>id + ) id</code> the ten one-token repairs are tried. Deleting the ")" accepts. Replacing ")" by "(" gets one token further before failing.</p>
+          <p class="small" style="margin-bottom:0">So a rule that picks the furthest-reaching repair picks the wrong one here. Any usable rule combines reach with a cost, and the cheapest accepting repair is the one that is applied.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>"A canonical LR(1) parser makes no reduction before announcing an error"</h3>
+          <p class="small"><strong>Why it tempts:</strong> it is repeated in lecture notes, and it sounds like the precision that separates LR(1) from SLR.</p>
+          <p class="small"><strong>What is measured here:</strong> on 777 erroneous strings the canonical LR(1) parser performed 218 reductions before it gave up, and 80 of those strings involved at least one. On <code>id + ) id</code> it performs three, the same as SLR.</p>
+          <p class="small" style="margin-bottom:0"><strong>The safe statement:</strong> every reduction an LR parser performs is one its own table licensed; canonical LR(1) licenses fewer of them, 218 against SLR's 344, and on <code>( id</code> it licenses none where SLR licenses three.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"The GOTO table can report an error"</h3>
+          <p class="small"><strong>Why it tempts:</strong> both tables are printed side by side and both can be blank.</p>
+          <p class="small"><strong>The correct rule:</strong> GOTO has no terminal columns. It is consulted after a reduction has already been chosen, and only with a nonterminal. A blank GOTO would mean the table is malformed, not that the input is wrong.</p>
+          <p class="small" style="margin-bottom:0"><strong>The check:</strong> every error on this page is an ACTION entry, and the detection trace records the state and the token, never a nonterminal.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Several reductions before the error means the parser went wrong earlier"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the error is reported after the reductions, so the reductions look like the cause.</p>
+          <p class="small"><strong>The correct rule:</strong> each reduction was a table entry for the state and the lookahead. On <code>id + ) id</code> the three reductions build E from id, which is exactly what the prefix needs.</p>
+          <p class="small" style="margin-bottom:0"><strong>What to look at instead:</strong> the state and the token at the stop, and whether any shift was ever taken on a rejected token. No LR parser takes one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Panic mode always terminates"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the description says "discard until a synchronising token", and discarding sounds like progress.</p>
+          <p class="small"><strong>The correct rule:</strong> when the offending token is itself in FOLLOW of the chosen nonterminal, nothing is discarded, and the pushed state can lead back to the same cell. On <code>id + ) id</code> the page records six identical configurations before its report cap stops the run.</p>
+          <p class="small" style="margin-bottom:0"><strong>The guard:</strong> if the same stack and position recur, delete the token. That single rule makes the run terminate and accept the repaired string.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Recovery means the parser accepted my program"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the run ends with "accepted", and accepted is the word for a valid parse.</p>
+          <p class="small"><strong>The correct rule:</strong> acceptance after recovery is acceptance of the repaired input. The panic run on <code>id + ) id</code> accepts <code>id +</code>; the phrase-level run accepts <code>id + id</code>; the original string is rejected by the table in every case.</p>
+          <p class="small" style="margin-bottom:0"><strong>The habit:</strong> read the accepted string out of the trace, not the verdict alone.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>"Adding error productions is free"</h3>
+          <p class="small"><strong>Why it tempts:</strong> the productions are never used on valid input, so they look like comments.</p>
+          <p class="small"><strong>The correct rule:</strong> they are productions, so they add items, states and table entries. Two of them take this grammar from 12 states to 15 and from 0 conflicts to 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>What follows:</strong> an error production can make an LR(1) grammar stop being LR(1), and the conflict is on the recovery path, not on any valid sentence.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Pattern 1 — "which of these is TRUE at any valid state?"</h3>
+          <p class="small">A statement about the stack, the viable prefix, or the table. The item is answered by a definition, not by a calculation, and the distractors are usually over-strong versions of the true statement.</p>
+          <p class="small"><strong>The reasoning it demands:</strong> the stack holds one string of grammar symbols, and that string is one viable prefix — not a set of them, not only at the bottom, not only at the top.</p>
+          <p class="small" style="margin-bottom:0"><strong>The shortcut and its assumption:</strong> eliminate options containing "only" or "never", then check the survivor against the definition. The assumption is that the examiner wrote one over-strong distractor per item — usually true, never a substitute for the check.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 2 — "where is the error detected, and how many reductions came first?"</h3>
+          <p class="small">A grammar, a table and an input; the question asks for the state, the token, or the number of reductions before the stop.</p>
+          <p class="small"><strong>The reasoning it demands:</strong> run the parse, and stop at the first blank cell. Reductions are steps like any other and must be counted; they are not part of the error.</p>
+          <p class="small" style="margin-bottom:0"><strong>The trap:</strong> counting the reductions that could have happened instead of the ones that did. The order is fixed by the table.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 3 — "which statement about panic mode is correct?"</h3>
+          <p class="small">Options over the two steps, their order, and what is pushed at the end. The wrong options usually swap the order or push the popped state.</p>
+          <p class="small"><strong>The reasoning it demands:</strong> pop first, discard second, push GOTO(s, A) last, where s is the state the popping stopped at.</p>
+          <p class="small" style="margin-bottom:0"><strong>The shortcut:</strong> remember it as "find the nonterminal, then find the token". The assumption is that A is chosen by the recovery policy, not by the grammar alone.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 4 — "how many tokens are discarded?"</h3>
+          <p class="small">A numerical item: a grammar, a table, an input with one bad token, and a synchronising set. The answer is the length of the run of tokens that cannot follow the chosen nonterminal.</p>
+          <p class="small"><strong>The reasoning it demands:</strong> compute FOLLOW of the chosen nonterminal, then count from the error point up to the first token in that set. If the bad token is already in the set, the answer is zero — and then the recovery makes no progress, which the next question usually exploits.</p>
+          <p class="small" style="margin-bottom:0"><strong>The edge case:</strong> the end marker is always in FOLLOW of the start symbol, so a discard that runs to the end of the input always stops there and reports zero tokens left.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Question 1 is a previous-year item, given with its paper. Questions 2 to 8 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper is given, and every numerical answer here is recomputed on the page rather than quoted from a key.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2015 Set 1</span></div>
+          <div class="q-body">
+            <p>Which one of the following is TRUE at any valid state in shift-reduce parsing?</p>
+            <p class="small">(A) viable prefixes appear only at the bottom of the stack and not inside<br>(B) viable prefixes appear only at the top of the stack and not inside<br>(C) the stack contains only a set of viable prefixes<br>(D) the stack never contains viable prefixes</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p><strong>Why C.</strong> The stack holds a string of grammar symbols, and a string is a viable prefix exactly when some right sentential form begins with it. Every shift is licensed by a table entry, so the stack can never leave that set. The page checks this on 48 configurations of four valid parses, against 514 enumerated right sentential forms: no exceptions.</p>
+            <p><strong>Why A and B fail.</strong> "Only at the bottom" and "only at the top" both deny that the stack <em>is</em> a viable prefix. The stack is one string, so it is one prefix, not several inside one another.</p>
+            <p><strong>Why D fails.</strong> It contradicts the definition outright, and it would make every parse impossible.</p>
+            <p class="small"><strong>Note on the wording.</strong> "A set of viable prefixes" is the phrasing in the compilation this item was read from; the mathematical content is that the stack string is a viable prefix.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>For a table-driven LR parser, which of the following statements are TRUE? Select all that apply.</p>
+            <ol class="choices">
+              <li>An error is detected when an ACTION table entry is empty.</li>
+              <li>An error can be detected by an empty GOTO table entry.</li>
+              <li>Every reduction performed before the error is announced is one the table licensed.</li>
+              <li>No erroneous terminal is ever shifted onto the stack.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, C and D</p>
+            <p><strong>A</strong> is the definition. <strong>C</strong> is why "several reductions before the error" is not a mistake: each was an entry in the table for that state and lookahead — 218 of them on this page's canonical LR(1) runs. <strong>D</strong> follows from A: a shift needs an entry, so a token the table rejects is never shifted.</p>
+            <p><strong>B is false.</strong> GOTO has no terminal columns and is consulted only after a reduction has been chosen, with a nonterminal.</p>
+            <p class="small"><strong>The distinction being tested.</strong> "Reduced before the error" against "reduced wrongly". Only the first is true, and it is not a fault.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Grammar: E → E + T | T, T → T * F | F, F → ( E ) | id, with FOLLOW(E) = { $, ), + }, FOLLOW(T) = { $, ), *, + }, FOLLOW(F) = { $, ), *, + }. Input: <code>id id id</code>. Using panic mode, how many input tokens are discarded in total?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>After the first id the error comes on the second. The recovery picks A = E, pops one state, and discards tokens until one can follow E. Neither id is in FOLLOW(E); the end marker is. So both extra ids are discarded in one recovery, and the run reports one error for two mistakes.</p>
+            <p><strong>Why not 1.</strong> Discarding stops at the first token that can follow E, not at the first token that is a plausible operand.</p>
+            <p><strong>Edge case.</strong> If the offending token had been ")", the answer would be 0, because ")" is in FOLLOW(E) — and then the recovery makes no progress at all, which is the loop in the next question.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Panic-mode recovery can fail to terminate. Which one of the following is the reason?</p>
+            <p class="small">(A) the stack is empty when the error is detected<br>(B) the offending token is itself in the synchronising set, so nothing is discarded and the same configuration recurs<br>(C) the table has a shift/reduce conflict<br>(D) the grammar is ambiguous</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Discarding stops at the first token that can follow A. If that token is the one that caused the error, zero tokens are discarded; the pushed state then reduces back to the same place and the same cell fails again. On <code>id + ) id</code> the page records the identical configuration six times.</p>
+            <p><strong>Why A fails.</strong> An empty stack is the case where recovery has no move and stops; it does not loop.</p>
+            <p><strong>Why C fails.</strong> A conflict changes which action is chosen, not whether recovery makes progress.</p>
+            <p><strong>Why D fails.</strong> Ambiguity affects the table, not the discard loop.</p>
+            <p class="small"><strong>The fix.</strong> A progress rule: if the same stack and position recur, delete the token.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A grammar has 5 terminals. At the error point, phrase-level recovery tries every one-token correction: one deletion of the offending token, one insertion of each terminal, and one replacement of the offending token by each other terminal. How many candidates are tried?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 10</p>
+            <p>1 + 5 + 4 = 10, which is 2n for n = 5. Each candidate is a complete re-parse, so one error costs ten parses.</p>
+            <p><strong>Why not 9.</strong> Inserting the offending terminal before itself is a different string from deleting it, and both are candidates.</p>
+            <p><strong>The general rule.</strong> 1 + n + (n − 1) = 2n candidates, linear in the alphabet and not in the input length.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>In an LL(1) parser, the table entry M[A, a] is empty. Which action does panic-mode recovery take first?</p>
+            <p class="small">(A) discard a if a is in FOLLOW(A), otherwise pop A<br>(B) pop A if a is in FOLLOW(A), otherwise discard a<br>(C) pop A and discard a together<br>(D) shift a onto the stack and continue</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>If a can follow A, the cheapest explanation is that A should have derived the empty string, so A is popped. If a cannot follow A, the token itself is the intruder and is discarded. The two decisions are counted separately — on <code>b b b</code> the page reports 2 discards and 1 pop.</p>
+            <p><strong>Why A fails.</strong> It reverses the test, which would discard exactly the tokens that were legal.</p>
+            <p><strong>Why C fails.</strong> Doing both at once hides one of the two errors and makes the counts meaningless.</p>
+            <p><strong>Why D fails.</strong> An LL parser never pushes an input token; it matches it and consumes it.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following are true of error productions — productions containing the terminal <code>error</code>?</p>
+            <ol class="choices">
+              <li>They are used to detect the error in the first place.</li>
+              <li>They can add states to the parser's automaton.</li>
+              <li>They can introduce conflicts that were not present before.</li>
+              <li>They let the parser skip a bad phrase and resume at a synchronising token.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B, C and D</p>
+            <p><strong>B and C</strong> are measured here: two error productions take the expression grammar from 12 states to 15, and from 0 conflicts to 1 — a shift/reduce conflict in state 7 on ")". <strong>D</strong> is the procedure: pop until <code>error</code> can be shifted, shift it, then delete offending tokens while in error mode.</p>
+            <p><strong>A is false.</strong> Detection is still the blank ACTION cell. The error production is used after detection, to recover.</p>
+            <p class="small"><strong>The closely confused pair.</strong> Detection and recovery. The error token belongs to the second; the empty cell belongs to the first.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A parser recovers from an error and its run ends with "accept". Which conclusion is justified?</p>
+            <p class="small">(A) the original input is a sentence of the grammar<br>(B) the input after the recovery's edits is a sentence of the grammar<br>(C) the grammar is ambiguous<br>(D) the parser is not LR(1)</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>Recovery edits the input — by deleting tokens, by inserting a state through a GOTO, or by shifting <code>error</code> — and the accept refers to the edited string. On <code>id + ) id</code> the guarded panic run accepts <code>id +</code>.</p>
+            <p><strong>Why A fails.</strong> The table rejected the original string at position 3, and nothing in recovery changes the table.</p>
+            <p><strong>Why C and D fail.</strong> Neither follows from anything about recovery. This grammar is unambiguous and SLR(1) with 12 states and no conflicts.</p>
+            <p class="small"><strong>The habit worth keeping.</strong> Print the accepted string, not just the verdict.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Detection:</strong> ACTION[state, token] is empty. GOTO never detects.</li>
+            <li><strong>Viable prefix:</strong> a prefix of some right sentential form.</li>
+            <li><strong>Panic mode (LR):</strong> pop to a state with a GOTO on A, discard to a token that can follow A, push GOTO(s, A).</li>
+            <li><strong>Panic mode (LL):</strong> token in FOLLOW(A) → pop A; otherwise discard the token.</li>
+            <li><strong>Phrase-level:</strong> one local insertion, deletion or replacement, then continue.</li>
+            <li><strong>Error production:</strong> a production containing the terminal <code>error</code>.</li>
+            <li><strong>Error mode:</strong> the state in which further offending tokens are deleted without a message.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The procedure, in five lines</h3>
+          <ol class="step-list small">
+            <li>Look up ACTION(state, token). A blank cell is the error.</li>
+            <li>Record the state, the token and the position — that triple is the message.</li>
+            <li>Choose the recovery: pop and discard, a one-token repair, or the error token.</li>
+            <li>Guard it: every pass must consume a token or shorten the stack.</li>
+            <li>Resume, and report the accepted string if the run ends with accept.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The traps, ranked by how often they are made</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Saying canonical LR(1) never reduces before an error.</li>
+            <li>Saying the GOTO table can detect an error.</li>
+            <li>Treating several reductions as evidence of a wrong parser.</li>
+            <li>Assuming panic mode terminates as written.</li>
+            <li>Reading "accepted" as "the program is valid".</li>
+            <li>Forgetting the end-of-input case, where deletion cannot help.</li>
+            <li>Assuming error productions cost nothing.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Four questions that decide almost every item</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Where did it stop?</strong> State and token at the first blank ACTION cell.</li>
+            <li><strong>What moved?</strong> States popped, tokens discarded — or the token that was edited.</li>
+            <li><strong>What was the sync set?</strong> FOLLOW of the chosen nonterminal for panic mode; the error token's column for error productions.</li>
+            <li><strong>What was accepted?</strong> The repaired string, not the original.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Numbers from this page</h3>
+          <p class="small">Expression grammar: 12 SLR states, 22 canonical LR(1) states, 0 conflicts each. LL grammar: 8 states. 781 strings parsed and compared with a recognizer, 781 agree; 777 are erroneous. Reductions before giving up: SLR 344, canonical LR(1) 218, worst single string 6. 514 right sentential forms; 48 configurations checked; 777 error points checked. Panic mode: <code>id id</code> 1 pop and 1 discard; <code>( )</code> 0 and 0; guarded <code>id + ) id</code> 4 reports and 1 forced deletion. LL: <code>b b c</code> 1 discard; <code>b b b</code> 3 reports, 2 discards, 1 pop. Phrase level: 10 candidates, 1 accepting. Error productions: 15 states, 1 conflict, 1 report, 2 pops, 2 silent deletions.</p>
+          <p class="small" style="margin-bottom:0">All of it is recomputed on every load, and 29 model checks confirm it.</p>
+        </div>
+
+        <div class="card">
+          <h3>One-sentence summary</h3>
+          <p class="small" style="margin-bottom:0">An error is a blank cell in the ACTION table, and recovery is any policy that changes the two counts — states popped and tokens discarded — or edits the input, so that the parser can continue; every such policy accepts a repaired string, never the one that was written.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras — <code>CS_GATE2027_Syllabus.pdf</code>, gate2027.iitm.ac.in. Supports the class-B label: Section 7 names "parsing" and does not name error recovery. Read for this lesson.</li>
+            <li><strong>GATE 2027 Information Brochure</strong>, gate2027ib.iitm.ac.in — Appendix D carries the same syllabus text.</li>
+            <li><strong>GATE CSE 2015 Set 1</strong>, the viable-prefix item quoted in the Practice tab, located in a chapter-wise compilation of GATE CS Compiler Design questions. The answer is re-derived here from 48 measured configurations; nothing is copied from the compilation's key.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and university material</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>Aho, Lam, Sethi and Ullman</strong>, <em>Compilers: Principles, Techniques and Tools</em>, 2nd edition, §4.1.3–4.1.4 and §4.8. Supports: detection as a blank ACTION entry, the four recovery strategies, the viable-prefix property, the panic-mode procedure for LR, and the error-token productions used by parser generators.</li>
+            <li><strong>Stanford CS143, Lecture 6, Syntax Error Handling</strong>. Supports: the four strategies in order of complexity, the <code>error</code> token as used by Bison, and the statement that complex recovery is less compelling than panic mode in practice.</li>
+            <li><strong>Universidad Carlos III de Madrid, Compiler Design, unit 8</strong>. Supports: the parser's four goals, the two LR recovery procedures, the LL synchronising sets (FOLLOW to resume, FIRST to restart), and the warning that a recovery action must eventually consume a symbol or shorten the stack.</li>
+            <li><strong>IIT Kharagpur, CS39002 notes on error handling in predictive parsers</strong>. Supports: FOLLOW(X) as the synchronising set for a nonterminal, and the sync-symbol entry written into the table.</li>
+            <li><strong>Princeton COS 320, Error Recovery notes</strong>. Supports: local against global recovery, and the Burke–Fisher repair that measures how far past the error a repair lets the parse reach.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Reference entries</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>J. A. Dain</strong>, "Error Recovery Schemes in LR Parsers", University of Warwick theory report 7 (1984). Supports: the correct-prefix property, the error token and the pop-shift-delete procedure, the error mode that suppresses further messages, and the observation that adding error productions can introduce conflicts.</li>
+            <li><strong>Scott, <em>Programming Language Pragmatics</em>, §2.3.5</strong> (Rochester course copy). Supports: panic mode as a set of safe symbols, phrase-level recovery as context-dependent safe sets, and the immediate error detection problem that follows from FOLLOW being context-free.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>What was not consulted, and what is not claimed</h3>
+          <p class="small">No coaching-site weightage chart was used and no claim is made about how often this topic appears. The previous-year item was located through a compilation; its answer is re-derived here from this page's own tables, and the wording of the option set is quoted as the compilation prints it.</p>
+          <p class="small" style="margin-bottom:0">Not taught here: global (least-cost) correction beyond naming it, the Graham–Rhodes and Pennello–DeRemer repair schemes, automatic error-recovery generation, and Yacc's exact three-shift error-mode rule beyond the sentence that describes it. No audio file and no video file is shipped; the narration is on-screen text and an optional browser speech synthesis.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

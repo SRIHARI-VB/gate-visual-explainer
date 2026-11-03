@@ -7004,6 +7004,68 @@ topics.append(topic(
     ]))
 
 
+topics.append(topic(
+    "Compiler Design",
+    "Section 7: 'Lexical analysis, parsing, syntax-directed translation' — the recovery half of the word 'parsing', which no lesson owned",
+    "Error detection and recovery: the blank ACTION cell, panic mode, phrase-level repair and error productions",
+    ["error detection as a blank ACTION entry",
+     "the viable-prefix property and the correct-prefix guarantee",
+     "panic-mode recovery in LR parsers",
+     "panic-mode recovery in LL parsers",
+     "phrase-level recovery and its one-token repairs",
+     "error productions and the error token",
+     "the cost of each strategy, and what acceptance means afterwards"],
+    prereq=["lexical-analysis-parsing-and-sdt", "canonical-lr1-items-and-lalr-merging",
+            "context-free-grammars-and-pushdown-automata"],
+    related=["lexical analysis, parsing and syntax-directed translation",
+             "canonical LR(1) items and the LALR merge",
+             "deterministic push-down automata",
+             "regular expressions and finite automata"],
+    importance="medium-high",
+    evidence=("Section 7 of the GATE 2027 CS syllabus names 'parsing'; error recovery is the recovery procedure of that "
+              "clause and is not named by it, which is why the lesson is labelled class B rather than A. One "
+              "previous-year item is quoted: GATE CSE 2015 Set 1, the item asking what the stack of a shift-reduce "
+              "parser contains at a valid state, answer (C), re-derived on the page from 48 measured configurations "
+              "against 514 enumerated right sentential forms. No weightage is claimed."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug='parser-error-detection-and-recovery',
+    path='topics/parser-error-detection-and-recovery/index.html',
+    execution=('published; node tools/check-lesson.mjs PASS (29/29 model checks, 1201 frames across 10 scenes); '
+               'node tools/audit-geometry.mjs clean (10 scenes, no text outside the canvas, no text-on-text '
+               'overlap); captions.vtt, captions.srt and transcript.md generated from timeline.js'),
+    microtopics=[
+        'an error is a missing ACTION[state, token] entry; the GOTO table has no terminal columns and cannot detect one',
+        'a canonical LR(1) parser stops at the same token as SLR but performs fewer reductions on the way: 218 against 344 on 777 erroneous strings',
+        'on id + ) id both stop at token 3 in state 7 with stack 0 3 7, after three reductions that were all licensed',
+        'on ( id SLR reduces three times before the error and canonical LR(1) reduces none',
+        'a viable prefix is a prefix of a right sentential form; 514 of them are enumerated up to length 9',
+        'the symbol string on the stack is always a viable prefix: 48 configurations on four valid parses, no exceptions',
+        'at every error the stack is viable and the stack plus the token is not: 777 of 777',
+        'no LR parser ever shifts a terminal the table rejected, which is why detection is at the earliest token',
+        'panic mode: scan down the stack for a state with a GOTO on A, pop above it, discard to a token that can follow A, push GOTO(s, A)',
+        'on id id that is 1 pop, 1 discard and a push of GOTO(0, E) = 3, then acceptance',
+        'on empty parentheses it is 0 pops and 0 discards, and the missing expression is supplied by the recovery',
+        'the rule as written loops when the offending token is already in FOLLOW of the chosen nonterminal',
+        'on id + ) id the configuration recurs six times before a report cap stops it',
+        'the progress guard: if the same stack and position recur, delete the token; one forced deletion ends the cycle',
+        'the guarded run reports four times and accepts id +, which is a repair and not the program that was written',
+        'popping past a state that covers a nonterminal deletes a phrase that had been parsed correctly',
+        'LL panic mode uses FOLLOW(A) as the synchronising set: token in FOLLOW(A) pops A, otherwise the token is discarded',
+        'on b b c one token is discarded; on b b b there are three reports, two discards and one pop',
+        'FOLLOW is context-free, so the sync set can accept a token that cannot occur at this point: the immediate error detection problem',
+        'phrase-level recovery enumerates 2n one-token repairs for n terminals: 1 deletion, n insertions and n-1 replacements',
+        'on id + ) id exactly one of the ten repairs parses to the end, and it is the deletion of the close bracket',
+        'the repair that reaches furthest is a replacement that still fails, so reach and acceptance are different tests',
+        'error productions add items wherever the nonterminal is expected: two productions take 12 states to 15',
+        'they add one conflict, a shift/reduce in state 7 on the close bracket, with no change to the language',
+        'the procedure is pop until error can be shifted, shift it, then delete offending tokens while in error mode',
+        'on id + ) id that is one report, two pops and two silent deletions; on ( id the error is at the end marker and deletion cannot repair it',
+        'acceptance after recovery means the repaired string parsed, never that the original was valid',
+        'GATE CSE 2015 Set 1: at a valid state the stack contains only a set of viable prefixes, answer (C)',
+    ]))
+
+
 _seen = set()
 _dedup = []
 for _t in topics:
