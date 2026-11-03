@@ -7066,6 +7066,92 @@ topics.append(topic(
     ]))
 
 
+
+topics.append(topic(
+    "Compiler Design",
+    "Section 7: 'Lexical analysis, parsing, syntax-directed translation' — the character level and the recovery half of lexical analysis",
+    "Lexical errors and lexer error handling: longest match, the two failures, panic mode and the progress guard",
+    ["what a token is, and the two decisions a lexer makes",
+     "longest match and the accepting state it remembers",
+     "the two ways a scan can fail",
+     "reported position against the position of the cause",
+     "the accepting-state fallback, and why a comment needs a commitment rule",
+     "classifying an error as lexical, syntactic or semantic",
+     "panic mode in a lexer, and the progress guard",
+     "syncing to a delimiter",
+     "counting tokens under a printed token specification"],
+    prereq=["regular-expressions-and-finite-automata", "lexical-analysis-parsing-and-sdt",
+            "parser-error-detection-and-recovery"],
+    related=["lexical analysis, parsing and syntax-directed translation",
+             "error detection and recovery in parsers",
+             "regular expressions and finite automata",
+             "context-free grammars and push-down automata"],
+    importance="high",
+    evidence=("Section 7 of the GATE 2027 CS syllabus names 'Lexical analysis' verbatim, so the lesson is labelled "
+              "class A. Two previous-year items are quoted with their papers and recomputed on the page: GATE CSE "
+              "2026 Set 1 Question 27 (which of three C statements has a lexical error, answer C) and GATE CSE 2026 "
+              "Set 2 Question 35 (token count, answer 13). Both were read from published question compilations and "
+              "are cross-checked across several of them; neither answer is copied from a key, both are recomputed "
+              "from the rules the questions print. No weightage is claimed."),
+    difficulty="easy-medium",
+    status="PUBLISHED",
+    slug='lexical-errors-and-lexer-recovery',
+    path='topics/lexical-errors-and-lexer-recovery/index.html',
+    execution=('published; node tools/check-lesson.mjs PASS (21/21 model checks, 1201 frames across 10 scenes); '
+               'node tools/audit-geometry.mjs clean on the first pass (10 scenes, every caption beat sampled, no '
+               'text outside 900x470, no text-on-text overlap); captions.vtt, captions.srt and transcript.md '
+               'generated from timeline.js by tools/gen-captions.mjs (40 cues, 10 scenes, 300s)'),
+    microtopics=[
+        'a token is a class plus its lexeme; whitespace and comments are recognised and then skipped, so they are not tokens of the stream',
+        'the lexer makes exactly two decisions per position: where a token starts, and where it ends',
+        'longest match remembers the last accepting state passed and keeps going while a longer token is possible',
+        'a shortest-match lexer, which stops at the first accepting state, disagrees on 6 of the 13 corpus strings',
+        'the automaton has 24 states, 18 accepting, 638 character moves; a class may need several states (the literal needs four)',
+        'the automaton was cross-checked against an independently written matcher on all 2955 strings of length at most three and on all 13 corpus strings, with no disagreement',
+        'an empty string literal is one token; a hand-built automaton that omits the direct move from the opening quote to the closing quote reports a lexical error on a valid program',
+        'failure 1: no move from the start state (the dollar in x = 3 $ y; at character 7), so there is no partial token and no class to name',
+        'failure 2: a run that leaves the start state and reaches no accepting state (the unterminated literal)',
+        'the unterminated literal opens at character 5 and is reported at character 9: the reported position is where the run gave up, not where the cause is',
+        'a newline cannot appear inside a literal, which is why the failure lands at the end of the line rather than at the end of the file',
+        'the slash is accepting, so an unterminated comment raises no error under pure longest match: /, * and the word, three tokens',
+        'a real lexer commits to the comment on seeing the pair, which is a decision in the scanner driver and not in the transition table',
+        'the packed comment form gives 2 tokens and the spaced form 6, so the spaces change the program',
+        'keywords are not decided by the automaton: 5 keywords spelled out as paths would add 21 states, so the identifier is recognised first and its text looked up',
+        'ifx is one identifier and if is a keyword, because longest match decides the extent and the keyword table decides the class',
+        'lexical test: can this character be part of a token; syntactic test: may these tokens appear in this order; semantic test: do the types and names obey',
+        'a well-formed token in the wrong place is never a lexical error: on 3 + 4 ; every token is fine and the parser rejects token 1',
+        '12ab is not a lexical error in this language: it is number 12 then identifier ab, five tokens on x = 12ab;',
+        'panic mode in a lexer has no stack to pop; the only thing recovery can change is the position, so the counts are characters deleted and errors reported',
+        'x = 3 $ y; costs 1 deletion and gives x = 3 y ;; x = @@@ 3; costs 3 deletions in one pass and one message',
+        'the rule loops at an unterminated literal, because a newline can begin whitespace and so satisfies the rule: the deletion count is zero',
+        'the progress guard deletes the offending character when a pass deletes nothing, and the procedure terminates',
+        'the guarded repair leaves x = y = 2 ;, which the parser rejects: recovery preserves the scan, not the program',
+        'syncing to a semicolon skips 4 characters on x = @ y ; z = 1; and keeps the delimiter, so the token stream keeps its shape',
+        'GATE CSE 2026 Set 2: x1 23mm 78 y 7z zz5 14A 8H AaYcD is 9 words and 13 tokens, because an identifier begins with a letter',
+        'GATE CSE 2026 Set 1: S1 is the lexical error (an unclosed literal), S2 is fine (the semicolon is inside the quotes), S3 is the semantic error (char pointer to int pointer), answer C',
+    ]))
+
+
+_VERIFIED["lexical-errors-and-lexer-recovery"] = (
+    "verified 2026-11-03: Section 7 of the GATE 2027 CS syllabus names 'Lexical analysis' verbatim, which is why this "
+    "lesson is class A; the words lexical error and panic mode are not in the syllabus and the lesson says so",
+    "the two previous-year items were read from published compilations (ExamSIDE, GATE Overflow, DeVert Campus, "
+    "GateIQ) and their answers were cross-checked across those sources before being quoted with the paper",
+    "the automaton and an independently written longest-match matcher agree on all 2955 strings of length at most "
+    "three over a 13-character alphabet, and on all 13 corpus strings, comparing both the token sequences and the "
+    "error positions",
+    "the transition table is deterministic by construction: the builder counts a conflict rather than overwriting, "
+    "and the count is 0 across 638 moves in 24 states",
+    "token spans were checked against the source: every token text is the substring at its own span and the spans are "
+    "contiguous, so nothing is invented between tokens",
+    "GATE CSE 2026 Set 2 Q35 was recomputed under that question's own token rules and gives 13 tokens from 9 words, "
+    "with the per-word split 1+2+1+1+2+1+2+2+1",
+    "panic mode was run on three inputs and every deleted character counted: 1, 3, and 1 with one guard firing; the "
+    "guarded repair was then handed to the page's own parser, which rejects it",
+    "no textbook was opened for this lesson; the Sources tab says so and gives the chapter references only as further "
+    "reading",
+)
+
 _seen = set()
 _dedup = []
 for _t in topics:

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lexical Errors and Lexer Recovery — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Lexical errors and lexer recovery</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis</a>
+      <a href="../parser-error-detection-and-recovery/index.html">Parser recovery</a>
+      <a href="../regular-expressions-and-finite-automata/index.html">Regex and automata</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Lexical errors and error handling inside the lexer — where a scanner finds out that the input has no token at the current position, and the three things it can do next: delete to a token start, sync to a delimiter, or commit to the token it has begun.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Say what a token is and which two decisions the lexer makes. Read the 24-state automaton that decides where each token ends, and see why the run passes an accepting state instead of stopping at it. Name the only two ways a scan can fail — no move from the start state, or a run that can never finish — and give the reported position and the cause separately. Run panic mode and count characters deleted, not messages. Add the guard that makes it terminate. Tell a lexical error from a syntactic and a semantic one, using the phase test rather than the symptom. Count tokens under a printed token specification.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as the first half of Section 7's word "lexical analysis": the neighbouring parsing lesson owns what a parser does after a well-formed token stream, and this one owns the character level and what happens when a character cannot become a token.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — the syllabus names lexical analysis.</strong></p>
+          <p class="small">Section 7 of the GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, reads in full: <em>"Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em> The words <em>lexical analysis</em> are named; the words <em>lexical error</em> and <em>panic mode</em> are not.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> I label it A rather than B because the phrase itself is in the syllabus. The recovery half is a sub-procedure of that phrase, and a learner who wants to read the recovery half as B loses nothing but priority.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Two previous-year items are quoted with their papers in the Practice tab: <strong>GATE CSE 2026 Set 1, Question 27</strong> (which statement has a lexical error, answered C) and <strong>GATE CSE 2026 Set 2, Question 35</strong> (token count, answered 13). Both are recomputed on this page from the rules the questions print.</p>
+          <p class="small" style="margin-bottom:0">No weightage is claimed and no forecast is made about GATE CSE 2027.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../regular-expressions-and-finite-automata/index.html">Regular expressions and finite automata</a> — a DFA, an accepting state, and the fact that a union of token patterns is an automaton. Everything here is one automaton run over a string.</li>
+            <li><a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis, parsing and syntax-directed translation</a> — the compiler phases, the token stream, and FIRST and FOLLOW. This lesson adds the character level and the failures.</li>
+            <li><a href="../parser-error-detection-and-recovery/index.html">Error detection and recovery in parsers</a> — the same question one level up. Useful for the contrast: a parser has a stack to pop and a lexer does not.</li>
+            <li><a href="../c-fundamentals/index.html">C fundamentals</a> — only for reading the two quoted previous-year statements, which are C.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A token is a class plus a lexeme.</strong> Every later phase sees only that, never characters.</li>
+            <li><strong>Longest match, not first match.</strong> The run records an accepting state and keeps going.</li>
+            <li><strong>Two failures only.</strong> No move from the start state, or a run that cannot reach an accepting state.</li>
+            <li><strong>Recovery deletes characters.</strong> There is no stack; the two counts are characters deleted and errors reported.</li>
+            <li><strong>The phase decides the label.</strong> A well-formed token in the wrong place is never a lexical error.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What the page computes, and how it is checked</h3>
+          <p class="small" style="margin-bottom:0">The page builds a 24-state automaton (18 accepting states, 638 character moves) from a seven-class token specification, and runs it. A second, independently written matcher that never walks the table re-scans every string: the two agree on all <strong>2,955</strong> strings of length at most three and on all <strong>13</strong> corpus strings. A recursive-descent parser then classifies seven corpus strings by the phase that can see the fault. Three recovery rules are run and every deleted character is counted. <strong>21 of 21</strong> model checks pass, and the counter in the Animation tab shows the live count.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-2">
+          <h3>1. Intuition — the reader who does not know where the word ends</h3>
+          <p>Imagine reading a line with no spaces at all, and being told that a word ends when the next letter could not continue it. You would read as far as you can and then stop, because stopping earlier would leave a letter that the next word cannot begin with. That is the whole of the lexer's second decision, and it is why <code>23mm</code> is two words while <code>x1</code> is one: a word may start with a letter and then hold digits, but a word may not start with a digit and then hold letters. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span></p>
+          <p>Now imagine a character that no word may contain, in the middle of the line. The reader stops, and there is nothing to report except the character and where it sits. That is a lexical error, and it is worth noticing how little information it carries: no word, no class, no meaning. Everything the compiler says about a lexical error is a statement about one character.</p>
+          <p>The last piece is the one that surprises people. Some runs stop without ever reaching an end: an opening quotation mark is a promise that a closing one will arrive, and if it never does, the reader has read four characters and has nothing to show. Where does the message point? Not at the quotation mark — at the place the reader gave up. Keeping those two positions apart is the difference between fixing the program and deleting the wrong character.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Formal definitions</h3>
+          <p class="small"><strong>Token.</strong> A pair (class, lexeme), where the lexeme is the exact substring of the source that the class matched. Whitespace and comments are recognised and then skipped, so they are not tokens of the stream.</p>
+          <p class="small"><strong>Longest match (maximal munch).</strong> At each position, take the longest prefix of the remaining input that is accepted by the token automaton. If two classes accept the same longest string, the class listed first wins.</p>
+          <p class="small"><strong>Lexical error.</strong> A position at which no token can be formed: either the start state has no move on that character, or every run from the start state on that prefix reaches no accepting state.</p>
+          <p class="small"><strong>Panic mode (lexer).</strong> Delete characters from the failing position until one is reached that can begin a token, then resume scanning there.</p>
+          <p class="small"><strong>Progress guard.</strong> If a recovery pass deletes no character, delete the offending character itself. Without it the rule can return to the configuration it started from.</p>
+          <p class="small" style="margin-bottom:0"><strong>Delimiter sync.</strong> Delete characters up to but not including a chosen delimiter, usually <code>;</code> or the end of the line, and resume at the delimiter.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>3. Visual understanding — what the drawing has to show</h3>
+          <p class="small">An error is not visible in a picture of a token stream, because the stream is what failed to be produced. What exists at the moment of failure is a position in the input and a state of the run, so the animation draws those: the characters in a row, the position marked, and the state named.</p>
+          <p class="small" style="margin-bottom:0">The second thing the drawing must show is that the two failures look different. In the first, the run never leaves the start state, so there is no partial token to name. In the second, the run is several states away from the start and still has not accepted anything. A picture that marks only the position cannot tell those apart, and the message they deserve is different.</p>
+        </div>
+
+        <div class="card">
+          <h3>4. The four decisions, in the order a lexer makes them</h3>
+          <ol class="step-list small">
+            <li><strong>Start.</strong> Take the character at the current position. If the start state has no move on it, this is failure 1.</li>
+            <li><strong>Run.</strong> Follow transitions while they exist, remembering the last accepting state passed.</li>
+            <li><strong>End.</strong> Emit the longest accepted prefix as one token and move the position to its end. If no accepting state was passed, this is failure 2.</li>
+            <li><strong>Recover.</strong> On failure, delete to a character that can begin a token, or to a delimiter, with a guard. Then go back to step 1.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Step 3 is the whole of longest match, and it is one line of code: remember, do not stop. A scanner written to stop at the first accepting state looks tidier and reads <code>==</code> as two equals signs.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A lexer reads characters and writes tokens. A token is a class plus the exact text it matched.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Characters in, tokens out</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A lexer reads characters and writes tokens. A token is a class plus the exact text it matched.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Worked examples — every number below is recomputed on this page</h3>
+          <p class="small" style="margin-bottom:0">The language is stated once and used throughout: keywords <code>if then else while print</code>; identifier <code>letter(letter|digit|_)*</code>; number <code>digit+</code>; string literal in double quotes with <code>\"</code> as the only escape; operators <code>== &lt;= = &lt; + - * / ( ) { } ;</code>; comments <code>/* ... */</code>; whitespace skipped.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 1 — the counting question, word by word</h3>
+          <p class="small">String: <code>x1 23mm 78 y 7z zz5 14A 8H AaYcD</code>. Rules: <code>id = letter(letter|digit)*</code>, <code>number = digit+</code>.</p>
+          <ol class="step-list small">
+            <li><code>x1</code> — starts with a letter, digits may follow: <strong>1 token</strong>.</li>
+            <li><code>23mm</code> — digits, then a letter. A number cannot hold a letter, and an identifier cannot start with a digit: <strong>2 tokens</strong>, <code>23</code> and <code>mm</code>.</li>
+            <li><code>78</code>, <code>y</code>, <code>zz5</code>, <code>AaYcD</code> — one token each.</li>
+            <li><code>7z</code>, <code>14A</code>, <code>8H</code> — two tokens each, by the same rule as step 2.</li>
+            <li>Sum: 1+2+1+1+2+1+2+2+1 = <strong>13</strong>.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Nine blank-separated words, thirteen tokens. The asymmetry between <code>x1</code> and <code>23mm</code> is the whole question.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 2 — one string, three scanners</h3>
+          <p class="small">Input <code>a/*b*/c</code>.</p>
+          <ol class="step-list small">
+            <li>Longest match: <code>a</code>, then at <code>/</code> the run accepts the slash, then reads <code>*</code> and enters the comment, then finds <code>*/</code> and accepts the whole comment, then <code>c</code>. Two live tokens.</li>
+            <li>The same characters with spaces, <code>a / * b / c</code>: the star stands alone, no comment begins, six live tokens.</li>
+            <li>A shortest-match scanner on the packed form: <code>/</code>, <code>*</code>, <code>b</code>, <code>*</code>, <code>/</code>, <code>c</code> — six tokens, and the comment is lost.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Same characters, different tokens, decided by one rule. This is why "what does the lexer produce" is a question about the automaton and not about the text.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 3 — a failure at the start, and a failure that cannot finish</h3>
+          <p class="small">Input <code>x = 3 $ y;</code> — the dollar admits no rule.</p>
+          <ol class="step-list small">
+            <li>Tokens <code>x</code>, <code>=</code>, <code>3</code> are emitted normally; the position reaches the space after the 3.</li>
+            <li>Whitespace is skipped, the position reaches the dollar at character 7.</li>
+            <li>The start state has no move on <code>$</code>, so the run never begins. There is no partial token and no class to name.</li>
+          </ol>
+          <p class="small">Input <code>x = "abc</code> followed by a newline — the literal opens and never closes.</p>
+          <ol class="step-list small">
+            <li>The quote opens the literal at character 5 and the run moves into the body.</li>
+            <li>The body accepts any character except a quote, a backslash and a newline. The newline stops the run.</li>
+            <li>No state on the way accepted anything, so nothing can be emitted: the failure is reported at character 9, four characters after the cause.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Two failures, two messages. The first names a character that no token can contain; the second names a literal that was never closed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 — panic mode, then the guard</h3>
+          <p class="small">Panic mode on <code>x = @@@ 3;</code>.</p>
+          <ol class="step-list small">
+            <li>Failure at the first <code>@</code>. Delete characters until one can begin a token: three <code>@</code> characters go, the space stays because whitespace can begin a token.</li>
+            <li>Resume: <code>x</code>, <code>=</code>, <code>3</code>, <code>;</code>. One message, three characters deleted.</li>
+          </ol>
+          <p class="small">The same rule on <code>x = "abc</code> and a newline.</p>
+          <ol class="step-list small">
+            <li>Failure at the newline, at character 9. A newline can begin whitespace, so the rule deletes <strong>zero</strong> characters.</li>
+            <li>Nothing changed, so the same failure returns: the rule loops. The guard deletes the offending character itself.</li>
+            <li>One deletion, one message, and the remaining tokens are <code>x</code>, <code>=</code>, <code>y</code>, <code>=</code>, <code>2</code>, <code>;</code> — the literal has vanished, and the parser rejects the result.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">Recovery keeps the scan going. It does not keep the program.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — the same characters, three phases</h3>
+          <p class="small">Take <code>3 + 4 ;</code>, <code>x = 3 y;</code> and <code>x = 3 $ y;</code>.</p>
+          <ol class="step-list small">
+            <li><code>x = 3 $ y;</code> — the dollar fails the lexical test, so the lexer reports it and the parser never runs.</li>
+            <li><code>3 + 4 ;</code> — every character forms a token. The parser rejects token 1, because a statement cannot start with a number.</li>
+            <li><code>x = 3 y;</code> — every character forms a token. The parser rejects token 4, expecting <code>;</code> after the expression.</li>
+          </ol>
+          <p class="small" style="margin-bottom:0">One lexical, two syntactic, and the labels come from which test failed — not from which one "looks worse".</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Counterexample 1 — <code>12ab</code> is not a lexical error</h3>
+          <p class="small">A learner who has just met "an identifier cannot start with a digit" often expects <code>12ab</code> to be a lexical error. It is not. The number <code>12</code> is accepted, and <code>ab</code> begins a new token. The page scans <code>x = 12ab;</code> as five tokens: <code>x</code>, <code>=</code>, <code>12</code>, <code>ab</code>, <code>;</code>.</p>
+          <p class="small" style="margin-bottom:0">Whether that is then an error depends on the grammar, and on the grammar it usually is one — a syntactic error, found later.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample 2 — an unterminated comment raises no error</h3>
+          <p class="small">Under pure longest match, <code>/* unterminated</code> gives three tokens — <code>/</code>, <code>*</code>, <code>unterminated</code> — and no error at all, because the slash is an accepting state to fall back on. A lexer that reports the missing <code>*/</code> is doing something the automaton does not: committing to the comment when it sees the pair.</p>
+          <p class="small" style="margin-bottom:0">An unterminated string is different: a lone quote has no shorter token to fall back on, so the failure is unavoidable and is reported.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample 3 — a misspelt keyword is not a lexical error</h3>
+          <p class="small"><code>whiel</code> is a perfectly good identifier. The lexer has no rule that says keywords must be spelt correctly, so it emits an identifier and the parser complains later — if it complains at all.</p>
+          <p class="small" style="margin-bottom:0">The same is true of <code>ifx</code>: longest match takes the whole word as one identifier, because the identifier match is longer than the keyword match.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 1 — the empty string literal</h3>
+          <p class="small"><code>""</code> is one token. The automaton leaves the start state on the opening quote and reaches the accepting state on the closing one, with nothing in between. A hand-built automaton that forgets the direct move from the opening quote to the closing quote will report a lexical error on a valid program — this page's own first draft did, and the cross-check against the second matcher caught it.</p>
+          <p class="small" style="margin-bottom:0">The check is the reason to write the second matcher at all.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 2 — a newline cannot appear inside a literal</h3>
+          <p class="small">In this language, and in C, a newline ends a string literal without closing it. That single rule is what turns "forgot a quote" into a failure at the end of the line rather than at the end of the file, and it is why the reported position is four characters away from the cause on <code>x = "abc</code>.</p>
+          <p class="small" style="margin-bottom:0">Remove the rule and the literal swallows the rest of the file, and the first message points at the end of the input instead.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Boundary 3 — the guard fires once, not repeatedly</h3>
+          <p class="small">After the guard deletes the newline, the scan resumes on the next line and finds ordinary tokens, so the loop ends. If the next line were also malformed the guard would fire again, but the count is per pass, not per character.</p>
+          <p class="small" style="margin-bottom:0">A rule that fires the guard on every pass without consuming anything is still broken; the guard must delete a character, and deleting one character always moves the position forward.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one edge case worth memorising</h3>
+          <p class="small" style="margin-bottom:0">Two positions, always: where the message points and where the cause sits. On <code>x = "abc</code> and a newline they are characters 9 and 5. Every lexical error message in every compiler is a claim about the first, and a learner who repairs the first without looking at the second deletes the wrong character.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. "A lexical error means the program is wrong at that character."</h3>
+          <p class="small"><strong>Why it tempts.</strong> The message points at one character, so it reads like a verdict on that character.</p>
+          <p class="small"><strong>What is true.</strong> It is a verdict on the character's form: no token can be formed there. Whether the program is wrong is decided by later phases, and often the repaired program still fails.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case.</strong> <code>x = 3 $ y;</code> is reported at the dollar; deleting the dollar leaves <code>x = 3 y;</code>, which the parser rejects.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "The lexer stops at the first accepting state."</h3>
+          <p class="small"><strong>Why it tempts.</strong> It is the simplest way to write the loop, and it is correct for every token class that has exactly one state.</p>
+          <p class="small"><strong>What is true.</strong> The lexer remembers the last accepting state and keeps going while a longer token is possible. On this page's 13-string corpus, the two rules disagree on 6 strings.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case.</strong> <code>x == 3;</code> would become five tokens instead of four, and <code>ifx = 1;</code> would become six instead of four.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "A well-formed token in the wrong place is a lexical error."</h3>
+          <p class="small"><strong>Why it tempts.</strong> The eye sees something wrong at a position, and the lexer is the phase that looks at positions.</p>
+          <p class="small"><strong>What is true.</strong> The lexer asks only whether a token can be formed. Order, declaration and type are three other questions, answered by three other phases.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case.</strong> <code>3 + 4 ;</code> — every token is well formed, and the error is syntactic, at token 1.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "The position in the message is where the mistake is."</h3>
+          <p class="small"><strong>Why it tempts.</strong> A message that says "character 9" looks like a statement about character 9.</p>
+          <p class="small"><strong>What is true.</strong> The position is where the run gave up. For a literal that never closes, that is the far end of what the literal consumed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case.</strong> <code>x = "abc</code> and a newline: reported at 9, opened at 5, four characters apart.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "An unterminated comment is reported by the automaton."</h3>
+          <p class="small"><strong>Why it tempts.</strong> It is the same shape as an unterminated string, and the string is reported.</p>
+          <p class="small"><strong>What is true.</strong> The slash is an accepting state, so longest match falls back to it: three tokens and no error. The message a real compiler prints comes from the scanner driver's decision to commit to the comment.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case.</strong> <code>/* unterminated</code> gives <code>/</code>, <code>*</code>, <code>unterminated</code>.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Panic mode in a lexer pops a stack like a parser."</h3>
+          <p class="small"><strong>Why it tempts.</strong> The name and the four strategies are the same as the parser's, and the parser lesson comes first.</p>
+          <p class="small"><strong>What is true.</strong> A lexer has no stack. Recovery can change one thing: the position in the input. So the counts are characters deleted and errors reported, not states popped and tokens discarded.</p>
+          <p class="small" style="margin-bottom:0"><strong>Minimal case.</strong> <code>x = @@@ 3;</code> — three characters deleted, one message, nothing popped.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What the exam actually asks</h3>
+          <p class="small" style="margin-bottom:0">Three question shapes cover almost every item on this topic. Learn the shapes, and each one becomes a procedure you can run on the paper in front of you. None of them needs a remembered example, and none of them is answered by knowing that "the lexer is the first phase".</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — count the tokens under printed rules</h3>
+          <p class="small">The question prints the token definitions and a string, and asks for an integer. The reasoning it demands: apply longest match word by word, and apply the start condition of each rule.</p>
+          <p class="small"><strong>The wrong approach.</strong> Counting blank-separated words. On the GATE CSE 2026 Set 2 string that gives 9 against the correct 13.</p>
+          <p class="small" style="margin-bottom:0"><strong>The procedure.</strong> For each word: take the longest prefix that matches some rule, write the rule down, and continue at the next character. Add the counts.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — classify the error by phase</h3>
+          <p class="small">The question gives statements and asks which has a lexical, syntactic or semantic error. The reasoning it demands: apply the three tests in order, and stop at the first that fails.</p>
+          <p class="small"><strong>The wrong approach.</strong> Deciding by how bad the line looks. A missing quote looks like a syntax problem to most readers, and it is the lexical one.</p>
+          <p class="small" style="margin-bottom:0"><strong>The procedure.</strong> Can every character be part of a token? If not, lexical. May the tokens appear in this order? If not, syntactic. Do the types and names obey? If not, semantic.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — trace the scanner, or the recovery</h3>
+          <p class="small">The question gives a short input and asks what the lexer emits, or how many characters a stated recovery deletes. The reasoning it demands: run the automaton, do not pattern-match.</p>
+          <p class="small"><strong>The wrong approach.</strong> Guessing that a malformed run is deleted to the end of the line. The rule stops at the first character that can begin a token.</p>
+          <p class="small" style="margin-bottom:0"><strong>The procedure.</strong> Write the states in order, mark the accepting ones, and mark the last one passed. Then apply the recovery rule literally and count.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Two sentences worth keeping</h3>
+          <p class="small">"A lexical error is a position where no token can be formed" answers every classification item. "Longest match, remembering the last accepting state" answers every counting item.</p>
+          <p class="small" style="margin-bottom:0">Neither sentence mentions a compiler phase, and that is why they work: they are statements about characters and states, which is what the questions are about.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">Questions 1 and 2 are previous-year items, given with their paper. Questions 3 to 8 are original practice questions written for this lesson and labelled as such. Nothing is presented as an official question unless the paper is given, and every numerical answer here is recomputed on the page rather than quoted from a key.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 2026 Set 2, Question 35</span></div>
+          <div class="q-body">
+            <p>A lexical analyzer uses these token definitions: <code>letter → [A-Za-z]</code>, <code>digit → [0-9]</code>, <code>id → letter (letter | digit)*</code>, <code>number → digit+</code>, <code>ws → (blank | tab | newline)+</code>. For the string <code>x1 23mm 78 y 7z zz5 14A 8H AaYcD</code>, how many tokens (excluding whitespace) are produced?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 13</p>
+            <p><strong>Why 13.</strong> Apply longest match per word. <code>x1</code> is one identifier. <code>23mm</code> is two tokens: <code>23</code> cannot extend into letters, and <code>mm</code> cannot begin with a digit. The same split applies to <code>7z</code>, <code>14A</code> and <code>8H</code>. <code>78</code>, <code>y</code>, <code>zz5</code> and <code>AaYcD</code> are one each. The page's own scanner, run with exactly these rules, produces the same thirteen and the same split.</p>
+            <p><strong>Why 9 is wrong.</strong> Nine is the number of blank-separated words. A word is not a unit of the token stream, and the question asks for tokens.</p>
+            <p class="small"><strong>The distinction being tested.</strong> The identifier rule begins with a letter, so letters may follow digits inside one token but digits may not be followed by letters inside one token. The two directions are not symmetric.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge">GATE CSE 2026 Set 1, Question 27</span></div>
+          <div class="q-body">
+            <p>Consider the C statements S1: <code>char *str1 = "Hello;</code> S2: <code>char *str2 = "Hello;";</code> S3: <code>int *str3 = "Hello";</code>. Which of the following is/are correct?</p>
+            <p class="small">(A) S1 and S2 have syntactic errors<br>(B) S2 has a lexical error and S3 has a syntactic error<br>(C) S1 has a lexical error and S3 has a semantic error<br>(D) S1 has a syntactic error and S3 has a semantic error</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p><strong>Why S1 is lexical.</strong> The string literal opens and never closes on that line, so the lexer cannot form a token: no class accepts what is there. This page's scanner reports it at the position where the run gave up.</p>
+            <p><strong>Why S2 is fine.</strong> The literal closes before the second quote, and the semicolon inside the quotes is a character of the literal, not a statement terminator. Nothing is wrong with it.</p>
+            <p><strong>Why S3 is semantic.</strong> It is lexically clean and syntactically a well-formed declaration; the fault is that a pointer to char is assigned to a pointer to int. That is a type rule, checked by semantic analysis.</p>
+            <p class="small"><strong>Why A, B and D fail.</strong> All three either call S1 syntactic or call S2 erroneous. Both mistakes come from judging by appearance: an unclosed quote looks like punctuation trouble, and a semicolon inside quotes looks like a missing terminator.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which one of the following is a lexical error in this lesson's language?</p>
+            <p class="small">(A) a missing semicolon at the end of a statement<br>(B) the character <code>@</code> outside any literal<br>(C) an assignment of a string literal to an integer pointer<br>(D) an undeclared identifier</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p><strong>Why B.</strong> No rule admits <code>@</code>, so the start state has no move on it and no token can be formed. That is the definition of a lexical error, and the page reports it at that character's position.</p>
+            <p><strong>Why A is wrong.</strong> Every character of a statement without a semicolon forms a token. The parser is the phase that misses it.</p>
+            <p><strong>Why C is wrong.</strong> Type rules are semantic analysis, and this page's parser accepts S3-shaped code lexically and syntactically.</p>
+            <p><strong>Why D is wrong.</strong> An undeclared name is still a well-formed identifier token; the symbol table decides the rest.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Under this lesson's token rules, how many tokens (excluding whitespace) does <code>x == 3;</code> produce?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 4</p>
+            <p><code>x</code>, <code>==</code>, <code>3</code>, <code>;</code>. The <code>==</code> is one token because longest match continues past the accepting state for <code>=</code> and reaches the state for <code>==</code>.</p>
+            <p><strong>Why not 5.</strong> Five is what a shortest-match lexer produces: two single equals signs. The page scans both ways and reports the disagreement.</p>
+            <p class="small"><strong>The trap.</strong> Reading <code>==</code> as two tokens because they are two characters. A token is a lexeme, and its length is not fixed.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A lexer stops at the first accepting state instead of using longest match. Under this lesson's rules, how many tokens (excluding whitespace) does it produce for <code>ifx = 1;</code>?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 6</p>
+            <p>It reads <code>i</code>, <code>f</code>, <code>x</code>, <code>=</code>, <code>1</code>, <code>;</code>. The first character <code>i</code> already matches the identifier rule, so it stops there and never reaches the keyword <code>if</code> or the identifier <code>ifx</code>.</p>
+            <p><strong>Why not 4.</strong> Four is the correct count under longest match: <code>ifx</code>, <code>=</code>, <code>1</code>, <code>;</code>. Longest match gives one identifier, and the keyword table is consulted on the whole lexeme, which does not match <code>if</code>.</p>
+            <p class="small"><strong>The distinction.</strong> Longest match decides the extent; the keyword table decides the class. Confusing the two produces both of the wrong answers above.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Under pure longest match, what does a lexer produce for <code>/* unterminated</code> (with no closing <code>*/</code>)?</p>
+            <p class="small">(A) a lexical error at the slash<br>(B) a lexical error at the end of the input<br>(C) three tokens: <code>/</code>, <code>*</code>, <code>unterminated</code>, and no error<br>(D) one comment token that runs to the end of the input</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>The slash is an accepting state, so when the comment never closes, longest match falls back to the last accepting state it passed — the slash. The next pass reads the star, then the word as an identifier.</p>
+            <p><strong>Why A and B are wrong.</strong> Both assume the failure is reported. Under pure longest match it is not: there is always a shorter accepted prefix to fall back on.</p>
+            <p><strong>Why D is wrong.</strong> A comment token is only produced by an accepting state, and that state is reached only when the closing pair arrives.</p>
+            <p class="small"><strong>What a real compiler does.</strong> The scanner driver commits to the comment on seeing the pair and reports the missing terminator at the end of the input. That is a decision outside the automaton, and it is worth saying so rather than attributing it to the table.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Panic mode deletes characters until one is reached that can begin a token. For <code>x = @@@ 3;</code>, how many characters are deleted?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 3</p>
+            <p>The failure is at the first <code>@</code>. The next two <code>@</code> characters cannot begin a token either, so all three go. The space can begin whitespace, so the deletion stops there and scanning resumes.</p>
+            <p><strong>Why not 1.</strong> The rule does not stop at the first character after the failure; it stops at the first character that can begin a token.</p>
+            <p class="small"><strong>The count that is separate.</strong> One message is printed for those three deletions. Characters deleted and errors reported are different numbers, and the question asks for the first.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following statements about a lexer's recovery are TRUE? Select all that apply.</p>
+            <ol class="choices">
+              <li>Panic mode in a lexer has no stack to pop.</li>
+              <li>A recovery rule must eventually consume input, or it can return to the same configuration.</li>
+              <li>Syncing to a semicolon keeps the semicolon so the token stream keeps its shape.</li>
+              <li>After a successful recovery, the token stream is guaranteed to be the one the programmer intended.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B and C</p>
+            <p><strong>A</strong> is why the counts are characters deleted and errors reported. <strong>B</strong> is the guard, and the page shows the rule deleting zero characters at a newline and looping without it. <strong>C</strong> is why the delimiter is skipped over, not through: on <code>x = @ y ; z = 1;</code> four characters go and the semicolon stays.</p>
+            <p><strong>D is false.</strong> The guarded run on an unterminated literal leaves <code>x = y = 2 ;</code>, which the parser rejects. Recovery buys the compiler a way to keep reading, not a correct program.</p>
+            <p class="small"><strong>The distinction being tested.</strong> "The scan continues" against "the program is valid". Only the first is promised by any recovery rule.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Definitions, in the words that earn the mark</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Token:</strong> a class plus the exact text matched (the lexeme).</li>
+            <li><strong>Longest match:</strong> the longest prefix accepted by the token automaton; ties broken by the order the rules are written.</li>
+            <li><strong>Lexical error:</strong> a position where no token can be formed.</li>
+            <li><strong>Panic mode (lexer):</strong> delete to the first character that can begin a token.</li>
+            <li><strong>Guard:</strong> if a pass deletes nothing, delete the offending character.</li>
+            <li><strong>Delimiter sync:</strong> delete up to, not including, <code>;</code> or the end of the line.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The numbers on this page</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>24 states, 18 accepting, 176 transitions.</li>
+            <li>2,955 strings of length ≤ 3 checked against a second matcher: all agree.</li>
+            <li>13 corpus strings; longest and shortest match disagree on 6.</li>
+            <li>5 keywords as automaton paths: 21 extra states.</li>
+            <li>GATE CSE 2026 Set 2: 9 words, 13 tokens.</li>
+            <li>Unterminated literal: opened at 5, reported at 9.</li>
+            <li>Panic mode: 1 deletion, then 3 deletions; the guard fires once.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The procedure, in five lines</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Scan with longest match, remembering the last accepting state.</li>
+            <li>At failure, name the character and the position.</li>
+            <li>Decide the kind: no move at all, or a run that cannot finish.</li>
+            <li>Recover with a guard, or sync to a delimiter.</li>
+            <li>Report, resume, and keep the two counts apart.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Words are not tokens: 9 against 13.</li>
+            <li>A well-formed token in the wrong place is syntactic, not lexical.</li>
+            <li>The reported position is where the run gave up, not where the cause is.</li>
+            <li>An unterminated comment raises no error under pure longest match.</li>
+            <li>A misspelt keyword is an identifier.</li>
+            <li>Recovery does not make the program valid.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The single sentence to carry into the exam</h3>
+          <p class="small" style="margin-bottom:0">A lexer makes two decisions per position — where a token starts and where it ends — and its only failure is a position where no token can be formed; everything else it does is a choice about where to resume.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras — <code>CS_GATE2027_Syllabus.pdf</code>, gate2027.iitm.ac.in. Supports the class-A label: Section 7 names "Lexical analysis" and does not name lexical errors or recovery. The syllabus text was read for the repository's syllabus tracker.</li>
+            <li><strong>GATE 2027 Information Brochure</strong>, gate2027ib.iitm.ac.in — Appendix D carries the same syllabus text.</li>
+            <li><strong>GATE CSE 2026 Set 2, Question 35</strong> — the token-count item quoted in the Practice tab. The question's token definitions and string were read from published question compilations; the answer 13 is recomputed here by running this page's scanner under exactly those rules.</li>
+            <li><strong>GATE CSE 2026 Set 1, Question 27</strong> — the lexical/syntactic/semantic item quoted in the Practice tab, answer (C). Located in the same compilations; the classification is re-derived here from the three phase tests.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Question compilations consulted</h3>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>ExamSIDE</strong>, GATE CSE 2026 Set 1 and Set 2 compiler-design pages — used to read the two items' wording and options.</li>
+            <li><strong>GATE Overflow</strong>, GATE CSE 2026 Set 2 Question 25 thread — a second reading of the same token-count item, with several independent solutions agreeing on 13.</li>
+            <li><strong>DeVert Campus</strong> and <strong>GateIQ</strong> GATE compiler-design compilations — used to cross-check that the Set 1 item's published answer is (C) and the Set 2 answer is 13.</li>
+            <li><strong>iaeacademy</strong>, compiler-design lexical-analysis notes — supports the longest-match and priority rules, the list of common recovery strategies (delete to a valid start, delete one character, insert, replace, transpose), and the phase table for lexical, syntactic and semantic errors. Used as a secondary source only; every number on this page is computed here.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook treatment, for further reading</h3>
+          <p class="small">No textbook was opened while building this lesson. The definitions used are the standard ones, and they are re-derived from first principles and checked in code on this page rather than quoted. The chapter references below are given so a learner can read the fuller treatment, and are not offered as evidence for any claim here.</p>
+          <ul class="src-list small" style="margin-bottom:0">
+            <li><strong>Aho, Lam, Sethi and Ullman</strong>, <em>Compilers: Principles, Techniques and Tools</em>, 2nd edition — the lexical-analysis chapter covers token specifications, longest match with rule priority, the lexical-error cases, and the recovery strategies this lesson runs.</li>
+            <li><strong>Cooper and Torczon</strong>, <em>Engineering a Compiler</em> — the scanner chapter covers the maximal-munch loop, the table-driven scanner, and scanner error handling.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>What was not consulted, and what is not claimed</h3>
+          <p class="small">No coaching-site weightage chart was used and no claim is made about how often this topic appears. The two previous-year items were located through compilations; their wording is quoted as those compilations print it, and their answers are re-derived here rather than copied.</p>
+          <p class="small" style="margin-bottom:0">Not taught here: the C preprocessor's pp-number rule (which is why <code>12ab</code> behaves differently in real C than in this lesson's language), automatic scanner generation by a lexer generator, and the global minimum-distance repair of a token stream. No audio file and no video file is shipped; the narration is on-screen text plus optional browser speech synthesis.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
