@@ -7398,6 +7398,79 @@ _VERIFIED["variance-of-a-sum-covariance-and-chebyshev"] = (
 )
 
 
+# ---------------------------------------------------------------- Compiler Design (symbol table)
+topics.append(topic(
+    "Compiler Design",
+    "Front end: the symbol table, shared by every phase (Section 7)",
+    "Symbol table organisation (linear list, search tree, hash table with chaining) and scope handling",
+    ["the symbol table as a dictionary of declarations: insert and lookup",
+     "the three classic organisations and what each one costs",
+     "the linear list: append plus a duplicate scan, quadratic to build",
+     "the search tree: cost is the height, which the insertion order decides",
+     "the hash table with separate chaining: buckets, collisions, chain length",
+     "occupation density and the load factor",
+     "scope as a stack of tables, pushed and popped",
+     "the lookup that walks outward and stops at the first match",
+     "the single table with duplicate keys and a log, as the alternative",
+     "where each entry goes: function name outward, parameters inward"],
+    prereq=["lexical-analysis-parsing-and-sdt", "hashing", "trees-bst-and-heaps",
+            "functions-scope-and-preprocessor"],
+    related=["type-checking-and-type-systems", "runtime-environments-and-activation-records",
+             "avl-trees-and-rotations"],
+    importance="medium",
+    evidence=("The words 'symbol table' do not appear in the GATE 2027 CS syllabus published by IIT Madras, so this "
+              "lesson is class B and says so. It is the structure that Section 7's named clauses depend on: lexical "
+              "analysis fills it, parsing adds declarations to it, syntax-directed translation and type checking read "
+              "its attributes, and code generation reads its offsets. Community archives of GATE CSE 2025 Set 1 "
+              "report a statement-selection item on it, cited as an observation and not as a verified question."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="symbol-table-organisation-and-scope",
+    path="topics/symbol-table-organisation-and-scope/index.html",
+    execution=("published 2026-11-03; 38 model checks, check-lesson PASS, geometry audit clean on its first run"),
+    microtopics=[
+        "a symbol table is a map from a name to a record of attributes, not a table of run-time values",
+        "the record holds type, scope, storage class and offset; never the value",
+        "the two core operations are insert and lookup",
+        "the table is created during lexical analysis and read by every later phase",
+        "why 'not needed after parsing' is the false statement in a statement-selection item",
+        "linear list: append is free, the duplicate scan is the cost",
+        "linear list: comparisons per insert are 0 to n-1, totalling n(n-1)/2",
+        "eight names cost 28 comparisons, not 8 and not 36",
+        "re-inserting the last name scans all eight; an earlier name stops the scan at its position",
+        "search tree: cost is the height, and the insertion order decides the height",
+        "alphabetical insertion of eight names gives a chain of height 7 costing 28",
+        "median-first insertion gives height 3 costing 13",
+        "a plain search tree is never balanced by itself; AVL and red-black trees are what balance it",
+        "a tree of height 3 holds at most 15 nodes",
+        "hash table: hash the name, then search the chain in its bucket",
+        "char-code sum modulo 11 puts main and count in bucket 3",
+        "a collision is normal and chaining resolves it by appending",
+        "chain lengths must sum to the entry count: 1+2+2+1+1+1 = 8",
+        "six buckets used of eleven, longest chain 2",
+        "occupation density is entries over buckets: 8/11, and 25/152 = 0.16",
+        "inverting the density gives buckets per entry, which is a different quantity",
+        "with chaining the density may exceed 1; with open addressing it may not",
+        "one bucket restores the linear list and its worst case",
+        "expected O(1) needs a spreading hash function and a bounded load factor",
+        "every cost quoted is a claim about an assumption; name the case, average or worst",
+        "scope is a stack of tables, pushed on block entry and popped on exit",
+        "a lookup starts at the innermost table and stops at the first match",
+        "the first match is what makes shadowing work",
+        "a lookup costs O(d) for nesting depth d: constant per probe, linear in the probes",
+        "one entry per declaration, not one per spelling: five names, six declarations",
+        "six entries live but only five names reachable at the deepest point",
+        "the function's own name goes in the enclosing table; its parameters go in its own",
+        "putting the function name inward leaves callers unable to resolve it",
+        "why a prototype is needed: a later declaration is not in the table yet",
+        "the single table with duplicate keys and a log: O(1) lookup, amortised O(1) exit",
+        "the newest binding sits at the head of its chain, so the first match is the innermost",
+        "the trade-off between the two arrangements",
+        "the symbol table is compile-time; the activation record is run-time",
+        "the three question shapes and the five-step procedure"],
+))
+
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -7425,6 +7498,7 @@ for _t in topics:
 # it. Stamp the rows this run actually verified, so the date field stays honest.
 _RECHECKED = {
     "command-line-arguments-in-c": "2026-11-03",
+    "symbol-table-organisation-and-scope": "2026-11-03",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))

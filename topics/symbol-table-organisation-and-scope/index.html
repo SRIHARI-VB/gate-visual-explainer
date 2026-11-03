@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Symbol Table: Organisation and Scope Handling — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Symbol table: organisation and scope</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Lexing and parsing</a>
+      <a href="../type-checking-and-type-systems/index.html">Type checking</a>
+      <a href="../hashing/index.html">Hashing</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The symbol table — the dictionary a compiler keeps of every declared name and its attributes — the three structures that implement it (linear list, binary search tree, hash table with chaining), and the way nested scopes are handled with a stack of tables.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a small program and one of the three structures, say how many comparisons a name costs, how many entries the table holds, and which declaration a use of a name resolves to — and say which of those three questions the structure does <em>not</em> answer. State the cost of an insert, a lookup and a scope exit in each organisation, with the assumption each cost needs.</p>
+          <p class="small muted" style="margin-bottom:0">I read this topic as the one structure the compiler's phases share that no lesson in this repository yet owns. <a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis and parsing</a> names the symbol table once, <a href="../type-checking-and-type-systems/index.html">Type checking</a> names it once, and <a href="../lexical-errors-and-lexer-recovery/index.html">Lexer recovery</a> names it once — each as a thing that exists, never as a thing that is built. Its structure, its cost and its handling of scope are what a question actually asks.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a supporting structure for named syllabus topics.</strong> Section 7 of the official GATE 2027 CS syllabus, published by IIT Madras, reads <em>"Compiler Design: Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em> The words "symbol table" do not appear in it.</p>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> <strong>Why it still earns a lesson.</strong> The table is what lexical analysis fills, what parsing consults for declarations, what syntax-directed translation attaches attributes to, and what type checking reads for the type of an identifier. A learner who cannot say where an entry goes, or what a lookup costs, has a hole under four named clauses. The lesson is honest about being class B rather than dressing it as class A.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Community archives of GATE CSE 2025 Set 1 report a multiple-choice item asking which statement about the symbol table is <em>false</em>, with "created during lexical analysis" and "not required after parsing" among the options. The paper itself was not consulted this run, so no question number or wording is quoted here, and no practice item is labelled a previous-year question.</p>
+        </div>
+
+        <div class="card">
+          <h3>Prerequisites</h3>
+          <p class="small"><a href="../lexical-analysis-parsing-and-sdt/index.html">Lexical analysis and parsing</a> — what a token is, and where the compiler first meets an identifier.</p>
+          <p class="small"><a href="../hashing/index.html">Hashing</a> — buckets, chaining, collisions and load factor, which is what a symbol table's usual implementation is made of.</p>
+          <p class="small"><a href="../trees-bst-and-heaps/index.html">Trees, BST and heaps</a> — the search-tree organisation, and the shape that makes it degenerate.</p>
+          <p class="small" style="margin-bottom:0"><a href="../functions-scope-and-preprocessor/index.html">Scope in C</a> — block scope and shadowing as the language defines them, which is the behaviour the table has to reproduce.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Approximate learning time</h3>
+          <p class="small">The animation runs five minutes. Working the Build-up tab, the five examples and the practice set is roughly 45 to 60 minutes. That figure is an estimate for planning, not a measurement.</p>
+          <p class="small" style="margin-bottom:0"><strong>Depth mode B</strong> — the full nine-level progression, the animated lesson and the practice set.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The five ideas this page is built on</h3>
+          <p class="small"><strong>1. A symbol table is a dictionary, not a list of code.</strong> Keys are names; values are attributes — type, scope, storage class, address, arity. Nothing on the page is about the program's data at run time.</p>
+          <p class="small"><strong>2. The structure decides the cost, and every cost has an assumption.</strong> Linear list: a scan. Search tree: the height, which insertion order controls. Hash table: the chain length, which the hash function controls. A cost quoted without its assumption is not a fact.</p>
+          <p class="small"><strong>3. Scope is a stack, not a filter.</strong> Entering a block pushes a table, leaving it pops one, and a lookup walks outward until the first match. The first match is what makes shadowing work.</p>
+          <p class="small"><strong>4. One entry per declaration, not one per name.</strong> A name declared twice in nested blocks owns two entries, and the inner one is what a use sees.</p>
+          <p class="small" style="margin-bottom:0"><strong>5. The table is compile-time; the activation record is run-time.</strong> The table records what the compiler knows about a name; the activation record holds what the running program stores. Confusing them is the most expensive error on this topic.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>1. Intuition — the hospital's patient register</h3>
+          <p class="small">A hospital keeps one register at the front desk. Every patient who is admitted gets a line: a name, a ward, a bed, a consultant. When a nurse asks "where is Meera?", the desk does not search the building; it searches the register. The register is not the patient. It is the record of what the hospital decided about the patient. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span></p>
+          <p class="small" style="margin-bottom:0">Two details of the register carry the whole lesson. First, the desk needs the answer fast, so the register is organised — alphabetical cards, or drawers by first letter — and the organisation is chosen for the question, not for the admission order. Second, a patient can be admitted twice, once to each of two wards, and the name on both lines is the same name; the desk resolves "Meera" to the line that is current, and the older line is still there. That is scope, and that is shadowing.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>2. Formal definitions</h3>
+          <p class="small"><strong>Symbol table.</strong> A data structure mapping each identifier of the source program to a record of its attributes. The identifier is the key; the record is the value. Its two core operations are <em>insert</em> (add a binding) and <em>lookup</em> (retrieve the binding for a name). <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small"><strong>Entry (record).</strong> One line of the table: the name, plus the attributes the compiler has established — type, scope, storage class, offset or address, for a function its parameter types and return type.</p>
+          <p class="small"><strong>Binding.</strong> The association between a name and an entry. A name declared in two blocks has two bindings.</p>
+          <p class="small"><strong>Scope.</strong> The region of the source text in which a binding is the one a use of the name resolves to.</p>
+          <p class="small"><strong>Shadowing.</strong> A declaration in an inner scope hiding a binding of the same name in an outer scope, for the length of the inner scope.</p>
+          <p class="small" style="margin-bottom:0"><strong>Occupation density (load factor).</strong> The number of entries divided by the number of buckets in the hash table. At 8 entries in 11 buckets it is 8/11, about 0.73.</p>
+        </div>
+
+        <div class="card">
+          <h3>3. Who touches the table, and when</h3>
+          <p class="small"><strong>Lexer.</strong> Produces the identifier tokens. In the usual arrangement the table itself is created here, and an identifier is entered when it is first met. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small"><strong>Parser.</strong> Adds entries for declarations it recognises, and asks whether a name used has been declared.</p>
+          <p class="small"><strong>Semantic analysis and type checking.</strong> Reads and writes the attributes: the type of an identifier, whether a call's arguments match the parameter types.</p>
+          <p class="small"><strong>Intermediate code and optimisation.</strong> Reads types and storage to choose instructions and to decide whether two names can be the same object.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Because every phase reads it, a statement that the table is "not needed after parsing" is false — that is exactly the shape of the 2025 statement-selection item noted on the Overview tab.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>4. Visual understanding — what the drawing has to show</h3>
+          <p class="small">Three things are invisible in prose and decide every question.</p>
+          <p class="small"><strong>The cost is a count of comparisons.</strong> "Linear list" and "search tree" are not two words for the same slowness; on eight names the first costs 28 comparisons to build and the second costs 13 when the insertion order is good and 28 when it is bad. The animation counts them, name by name.</p>
+          <p class="small" style="margin-bottom:0"><strong>Scope is a stack with a direction.</strong> A lookup starts at the innermost table and moves outward. Drawing the stack vertically, with the inner table on top and an arrow walking up, is what makes "the first match wins" a picture instead of a rule.</p>
+        </div>
+
+        <div class="card">
+          <h3>5. Boundaries — when the picture applies</h3>
+          <p class="small"><strong>One table per scope, or one table with duplicates.</strong> Both arrangements are used; they differ in what a lookup costs and what a scope exit costs. The page teaches both and compares them.</p>
+          <p class="small"><strong>The attributes are the language's, not the table's.</strong> What must be stored is decided by the language: a language without static types needs fewer attributes at compile time.</p>
+          <p class="small" style="margin-bottom:0"><strong>Names can live in separate namespaces.</strong> C keeps several: ordinary identifiers, tags, labels, members. A question about "how many entries" is only well posed once the namespace is fixed.</p>
+        </div>
+
+        <div class="card">
+          <h3>6. Edge cases that decide marks</h3>
+          <p class="small"><strong>A hash table can put every name in one bucket.</strong> Then lookup degrades to the linear list, and the expected-O(1) claim is worth nothing.</p>
+          <p class="small"><strong>A search tree built from sorted input is a linked list.</strong> Height n − 1, and the cost matches the linear list exactly.</p>
+          <p class="small"><strong>Re-declaring the same name in the same scope</strong> is an error the insert finds by scanning; in a hash table the scan is the chain, in a list it is the whole table.</p>
+          <p class="small" style="margin-bottom:0"><strong>The function's own name does not go in the function's own table.</strong> It goes in the enclosing table, so that the enclosing scope can call it.</p>
+        </div>
+
+        <div class="card">
+          <h3>7. GATE application</h3>
+          <p class="small">Three shapes. A statement-selection item about what the table is and which phases use it. A count of entries for a given program, where the trap is counting names instead of declarations. A cost comparison, where the trap is quoting a cost without its assumption.</p>
+          <p class="small" style="margin-bottom:0">All three are answered from the same three pictures: the bucket array, the tree, and the stack of tables.</p>
+        </div>
+
+        <div class="card">
+          <h3>8. Independent practice</h3>
+          <p class="small" style="margin-bottom:0">Ten questions on the Practice tab, answers withheld until you reveal them, with a mock-test switch that hides every answer until you submit. Each names the misconception it tests.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>9. Consolidation</h3>
+          <p class="small" style="margin-bottom:0">Draw the structure before quoting a cost. A linear list scans, so building it costs a triangle of comparisons. A search tree costs its height, so say what the insertion order was. A hash table costs the chain, so say what the hash function and the bucket count were. And when a program has nested blocks, draw the stack and walk outward: the first match is the binding, and the second match is only reachable after the first has been popped.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A symbol table maps every declared name to what the compiler knows about it.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A dictionary of declarations</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A symbol table is a dictionary. The key is a name, and the value is what the compiler has worked out about that name.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Example 1 — the linear list, counted</h3>
+          <p class="small mono">main  total  count  rate  code  limit  index  sum</p>
+          <p class="small">Eight names, appended in the order they appear. Inserting the first scans nothing; the second scans one; the eighth scans seven.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The total is 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 = 28, which is 8 &times; 7 / 2. In general n names cost n(n − 1)/2 comparisons, so building the table is quadratic in the number of names.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 — the same eight names in a search tree, twice</h3>
+          <p class="small"><strong>Alphabetical insertion.</strong> code, count, index, limit, main, rate, sum, total. Each new name is larger than all before it, so it hangs off the right of the previous one: a chain of depth seven.</p>
+          <p class="small"><strong>Median-first insertion.</strong> main, index, count, code, limit, sum, rate, total. The middle name lands at the root and the tree stays shallow: height three.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The chain costs 28 comparisons — exactly the linear list — and the shallow tree costs 13. Same names, same structure, half the work, decided by the insertion order alone.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 — a hash table of eleven buckets</h3>
+          <p class="small">Hash the name by adding its character codes and taking the remainder modulo 11.</p>
+          <p class="small mono">main &rarr; 421 mod 11 = 3<br>total &rarr; 548 mod 11 = 9<br>count &rarr; 553 mod 11 = 3<br>rate &rarr; 428 mod 11 = 10</p>
+          <p class="small" style="margin-bottom:0">All eight names land in buckets 0, 3, 4, 8, 9 and 10. Six buckets are used, two of them twice, so the longest chain is 2 and the occupation density is 8/11. A lookup of <code>main</code> probes bucket 3 and compares against two entries at most.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Example 4 — the counterexample: a hash table that is a list</h3>
+          <p class="small">Suppose the hash function returns 0 for every name — a bad function, or a table with one bucket.</p>
+          <p class="small">Then all eight entries sit in one chain, and a lookup of the last-inserted name compares against all eight.</p>
+          <p class="small" style="margin-bottom:0"><strong>What this breaks.</strong> The claim "a symbol table is O(1) per lookup" is about the <em>expected</em> chain length under a hash function that spreads keys. With one bucket the expected cost is the linear list's, and no amount of chaining recovers it. That is why the hash function and the bucket count belong in the answer, not in a footnote.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 — walking the scope stack</h3>
+          <p class="small mono">int total;            /* global  */<br>int main(void) {<br>&nbsp;&nbsp;int count;         /* main    */<br>&nbsp;&nbsp;float rate;        /* main    */<br>&nbsp;&nbsp;{ int count;       /* inner   */<br>&nbsp;&nbsp;&nbsp;&nbsp;char code;       /* inner   */<br>&nbsp;&nbsp;&nbsp;&nbsp;count = 0; }<br>&nbsp;&nbsp;rate = 1.5; }</p>
+          <p class="small" style="margin-bottom:0">Inside the inner block, <code>count</code> resolves to the inner declaration at the first probe, and <code>total</code> resolves to the global one after three probes. Six entries exist across the three tables, and the inner <code>count</code> hides the outer one for exactly the length of the block.</p>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>One program, end to end</h3>
+          <p class="small" style="margin-bottom:0">The program above declares six things and mentions five distinct names. The global table holds <code>total</code> and <code>main</code>. <code>main</code>'s table holds <code>count</code> and <code>rate</code>, and <code>main</code> itself is not among them — a function's name lives in the scope that calls it. The inner table holds a second <code>count</code> and <code>code</code>. When the closing brace of the inner block is reached, two entries are popped and the outer <code>count</code> becomes visible again, with no change to its record. Every number in that paragraph is produced by the model on the Animation tab and re-derived by a second route.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>A tree built from sorted input is a linked list</h3>
+          <p class="small">Insert names in alphabetical order and every node has exactly one child, on the same side. Height n − 1, and the search cost is the linear list's.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition that fails.</strong> A search tree is fast only when it is balanced. Nothing in the plain insertion algorithm balances it; that is what AVL and red-black trees add, and why a compiler that uses a tree usually uses a balanced one.</p>
+        </div>
+
+        <div class="card">
+          <h3>All keys in one bucket</h3>
+          <p class="small">A hash function that is constant, or a table with one bucket, degrades chaining to a single list of length n.</p>
+          <p class="small" style="margin-bottom:0">The occupation density is then n/1 = n, and every lookup compares against every entry. The expected-cost claim is a claim about the function, not about the word "hash".</p>
+        </div>
+
+        <div class="card">
+          <h3>Re-declaration in the same scope</h3>
+          <p class="small">Inserting a name that is already in the current table is an error, and finding it is what the insert's scan is for: in a list, the whole table; in a hash table, one chain; in a tree, one root-to-leaf path.</p>
+          <p class="small" style="margin-bottom:0">This is also why an unsorted linear list cannot skip the scan: the duplicate test needs it even though the append itself is free.</p>
+        </div>
+
+        <div class="card">
+          <h3>A name used before it is declared</h3>
+          <p class="small">Lookup walks every table outward and finds nothing. That is an undeclared identifier, and the error is reported at the use, not at the end of the block.</p>
+          <p class="small" style="margin-bottom:0">It is also why a procedure cannot call one declared later in the same scope without a prototype: at the moment the call is compiled, the later name is not in the table yet.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shadowing, and what "visible" counts</h3>
+          <p class="small">At the deepest point of the example program, six entries are live, but only five names are reachable: the inner <code>count</code> is found first, so the outer <code>count</code> cannot be named at all from inside the block.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distinction.</strong> "How many entries does the table hold" and "how many names can this statement see" are two different questions with two different answers: 6 and 5.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Two things that are not the table</h3>
+          <p class="small">A <em>literal table</em> holds constants; a <em>label table</em> holds jump targets; a <em>reserved-word table</em> holds keywords. They are separate structures with separate jobs, and a keyword is usually not entered as a user name at all.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distinction.</strong> A question that asks how many entries the <em>symbol</em> table holds is asking about declared names, not about every string the lexer saw.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>&ldquo;The symbol table is a lexer data structure&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The lexer is where the table is created, and where an identifier is first entered.</p>
+          <p class="small"><strong>Correct rule.</strong> It is created there and used by every phase after it: parsing, semantic analysis, intermediate code, optimisation. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Say "created in lexical analysis, shared by all phases" and both halves are safe.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;A hash-based symbol table is O(1)&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The textbook figure of a bucket array with short chains.</p>
+          <p class="small"><strong>Correct rule.</strong> The expected cost is O(1) when the hash function spreads the keys and the load factor stays bounded. The worst case is O(n), and one bucket reaches it.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Quote the expected cost with its two assumptions, and name the worst case.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;One entry per name&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> A name looks like one thing in the source text.</p>
+          <p class="small"><strong>Correct rule.</strong> One entry per declaration. The example program has five distinct names and six entries, because <code>count</code> is declared twice.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Count the declarations, not the spellings, and count each block's table separately.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;The function's name goes in the function's own table&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The name is written in the function's header, so it feels local to it.</p>
+          <p class="small"><strong>Correct rule.</strong> The name goes in the enclosing table, so that the enclosing scope can call it. The parameters go in the new table, because only the body uses them. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Ask who needs to name it. Callers need it, so it belongs where callers look.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>&ldquo;O(1) lookup means the scope stack is free&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Each table is a hash table, so each probe is constant.</p>
+          <p class="small"><strong>Correct rule.</strong> A lookup may probe one table per enclosing scope, so the cost is O(d) for nesting depth d. Each probe is O(1); the walk is not. <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Distinguish the cost of a probe from the number of probes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The pair most often confused</h3>
+          <p class="small"><strong>Symbol table against activation record.</strong> The symbol table is built at compile time and holds what the compiler knows: a name's type, its scope, its offset. The activation record is built at run time, on a call, and holds the actual values of that call's locals and parameters.</p>
+          <p class="small" style="margin-bottom:0">One is a table of declarations that exists while the compiler runs. The other is a block of memory that exists while the program runs. A question about the address of a variable in a recursive call is about the activation record; a question about how many entries a program creates is about the symbol table.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this topic is set, and the reasoning each shape demands</h3>
+          <p class="small" style="margin-bottom:0">Three shapes cover the questions on this material. Each is answered by one of the three pictures on the Animation tab. Nothing below is claimed as an official previous-year question; these are patterns, labelled as patterns.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 — which statement is false</h3>
+          <p class="small">Four statements about the table, one of them wrong. The reasoning is a check of each statement against the phase list.</p>
+          <p class="small"><strong>Procedure.</strong> For each statement, ask which phases it implies. "Created during lexical analysis" — true. "Used only up to parsing" — false. "Can be implemented as a tree" — true. "Tracks scope" — true.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> A statement that is true of <em>one</em> implementation read as true of every one. "Implemented as a hash table" is a common choice, not a requirement.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 — how many entries</h3>
+          <p class="small">A program with nested blocks, and a question about the number of entries, or the entries live at a named line.</p>
+          <p class="small"><strong>Procedure.</strong> One table per block. One entry per declaration, including a repeated name in a new block. A function's name goes in the enclosing table. Parameters go in the new table.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Counting distinct spellings. The example program answers 6, not 5.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 — the cost comparison</h3>
+          <p class="small">A question about which organisation is fastest, or how many comparisons a build takes.</p>
+          <p class="small"><strong>Procedure.</strong> Name the structure. Name the quantity that decides its cost — the count of prior entries, the height, or the chain length. Compute that quantity.</p>
+          <p class="small" style="margin-bottom:0"><strong>Trap.</strong> Comparing a worst case with a best case. A degenerate tree is a linear list, and a sorted insertion order produces exactly that.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Shortcuts, and the assumption each one needs</h3>
+          <p class="small"><strong>"n(n−1)/2 comparisons to build a list"</strong> needs every insert to scan all earlier entries — true for the duplicate check, false if the table is known to be duplicate-free.</p>
+          <p class="small"><strong>"A tree costs log n"</strong> needs the tree to be balanced. Without that, it costs the height, which can be n − 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>"A hash lookup is one comparison"</strong> needs a perfect hash function. Otherwise it is one comparison per entry in the chain.</p>
+        </div>
+
+        <div class="card">
+          <h3>Links to lessons that carry the prerequisites</h3>
+          <p class="small"><a href="../hashing/index.html">Hashing</a> — buckets, chaining, collisions and the load factor used here.</p>
+          <p class="small"><a href="../avl-trees-and-rotations/index.html">AVL trees and rotations</a> — what balancing adds, and why an unbalanced tree is a list.</p>
+          <p class="small" style="margin-bottom:0"><a href="../runtime-environments-and-activation-records/index.html">Runtime environments</a> — the other half of the pair this page separates: what exists at run time.</p>
+        </div>
+
+        <div class="card">
+          <h3>Where this connects outside Section 7</h3>
+          <p class="small"><a href="../functions-scope-and-preprocessor/index.html">Scope in C</a> — block scope and shadowing as the language defines them; the table has to reproduce exactly this.</p>
+          <p class="small" style="margin-bottom:0"><a href="../type-checking-and-type-systems/index.html">Type checking</a> — the attributes the table stores are what type checking reads and writes.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+
+      <div class="pager-page active">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">All ten questions are original practice questions written for this lesson, and each is labelled as such. No item here is presented as an official previous-year question, because the paper behind the 2025 item noted on the Overview tab was not consulted for this run. Every numerical answer is recomputed by the page's model rather than quoted from a key.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which ONE of the following statements about a compiler's symbol table is FALSE?</p>
+            <p class="small">(A) It is created during lexical analysis.<br>(B) It is consulted by the code generator.<br>(C) It is no longer needed once parsing is complete.<br>(D) It can be implemented as a binary search tree.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>The table carries attributes that later phases read: types for semantic analysis, storage and offsets for code generation, and scope information for optimisation. Nothing about parsing makes it disposable.</p>
+            <p><strong>Why A is right.</strong> The lexer is where identifiers are first met, and the table is normally created there.</p>
+            <p><strong>Why B is right.</strong> Choosing an instruction and an address for a variable needs the entry.</p>
+            <p><strong>Why D is right.</strong> A search tree is one of the three classic organisations.</p>
+            <p class="small"><strong>The distinction being tested.</strong> "Where the table is created" and "where it stops being used" are different facts.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Names are appended to an unsorted linear list in the order they appear. Each insert scans every earlier entry to check for a duplicate before appending.</p>
+            <p class="small">How many comparisons does building the table of 8 names take in total?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 28</p>
+            <p>The first insert scans 0 entries, the second scans 1, and the eighth scans 7. The sum is 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 = 28, which is n(n − 1)/2 for n = 8.</p>
+            <p><strong>The trap.</strong> Answering 8, which is the number of entries, or 36, which is n²/2 without the subtraction. The triangle is the count, not the square.</p>
+            <p class="small"><strong>The assumption.</strong> The duplicate check is why each insert scans. An insert that skipped it would cost nothing and the answer would be 0.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Eight names are inserted into an initially empty binary search tree in alphabetical order. What is the height of the resulting tree, counting the root as height 0?</p>
+            <p class="small">(A) 2 &nbsp; (B) 3 &nbsp; (C) 7 &nbsp; (D) 8</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>Each name is larger than every name already present, so each becomes the right child of the previous one. The result is a chain of eight nodes, which has height 7.</p>
+            <p><strong>Why B is wrong.</strong> 3 is the height of the balanced tree built from a median-first order — a different insertion sequence.</p>
+            <p><strong>Why D is wrong.</strong> 8 is the number of nodes, not the height. A tree of height 7 has 8 nodes.</p>
+            <p class="small"><strong>The counterexample in this set.</strong> A search tree is not automatically logarithmic. This one is a linked list with extra pointers.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A hash table has 11 buckets and uses separate chaining. Eight names are inserted, and they hash to buckets 0, 3, 3, 4, 4, 8, 9 and 10.</p>
+            <p class="small">What is the length of the longest chain?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>Bucket 3 holds two entries and bucket 4 holds two entries; the rest hold one each. Six buckets are occupied and the chain lengths sum to 8, which is the entry count.</p>
+            <p><strong>The trap.</strong> Answering 3, the number of collisions in some other counting, or 8/11 rounded. A chain length is a count of entries, so it is a whole number.</p>
+            <p class="small"><strong>The check that catches errors.</strong> Chain lengths must add up to the number of entries. Six buckets with lengths 1, 2, 2, 1, 1, 1 sum to 8.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Consider</p>
+            <p class="small mono">int total;<br>int main(void) {<br>&nbsp;&nbsp;int count; float rate;<br>&nbsp;&nbsp;{ int count; char code; count = 0; }<br>&nbsp;&nbsp;rate = 1.5;<br>}</p>
+            <p class="small">How many symbol table entries does this program create in total, across all scopes?</p>
+            <p class="small">(A) 4 &nbsp; (B) 5 &nbsp; (C) 6 &nbsp; (D) 7</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C</p>
+            <p>The global table holds <code>total</code> and <code>main</code>. <code>main</code>'s own table holds <code>count</code> and <code>rate</code>. The inner table holds a second <code>count</code> and <code>code</code>. That is 2 + 2 + 2 = 6 entries.</p>
+            <p><strong>Why B is wrong.</strong> 5 is the number of distinct spellings — total, main, count, rate, code — and the two <code>count</code> declarations share one spelling. The table counts declarations.</p>
+            <p><strong>Why A is wrong.</strong> 4 forgets both that the two <code>count</code> declarations are separate entries and that <code>main</code> needs one.</p>
+            <p><strong>Why D is wrong.</strong> 7 would count <code>main</code> twice, once in each table. It is entered once, in the enclosing scope.</p>
+            <p class="small"><strong>The distinction being tested.</strong> Entries follow declarations; spellings follow names. This program has fewer names than declarations.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A compiler implements one hash table per scope, pushed on entry to a block and popped on exit. Which statements are TRUE?</p>
+            <p class="small">(A) Pushing a table costs O(1).<br>(B) A lookup in a name at nesting depth d may probe up to d tables.<br>(C) A scope exit costs time proportional to the number of entries in the table being popped.<br>(D) Popping the table makes the outer binding of a shadowed name visible again.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, D</p>
+            <p><strong>A.</strong> Pushing an empty table is one pointer operation.</p>
+            <p><strong>B.</strong> The walk starts at the innermost table and moves outward, so a name declared at the outermost level is found only after every table has been probed.</p>
+            <p><strong>D.</strong> That is exactly what shadowing means: the hidden binding was never altered, only covered.</p>
+            <p><strong>Why C is wrong.</strong> Discarding a table whose storage is released wholesale is O(1) in the usual implementation; the entries are not visited one by one. A implementation that frees each entry individually would make C true, which is why the option is a statement about an implementation and not about the structure.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      <div class="pager-page">
+      <div class="grid grid--2">
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which statement about the cost of a hash-based symbol table is correct?</p>
+            <p class="small">(A) A lookup is O(1) in the worst case.<br>(B) A lookup is O(1) expected, given a hash function that spreads the keys and a bounded load factor.<br>(C) A lookup is O(log n) because the chains are sorted.<br>(D) A lookup is O(n) always, because collisions are possible.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>With chaining, the cost of a lookup is the length of the chain it lands in. Under a spreading hash function and a bounded load factor the expected chain length is constant.</p>
+            <p><strong>Why A is wrong.</strong> A constant hash function puts all n entries in one chain, and the worst case is O(n).</p>
+            <p><strong>Why C is wrong.</strong> Chains are appended to, not kept sorted; nothing about chaining implies a sorted order.</p>
+            <p><strong>Why D is wrong.</strong> "Collisions are possible" is true and does not make the expected cost linear.</p>
+            <p class="small"><strong>The assumption that matters.</strong> Every one of these answers is a statement about a hash function and a load factor, so the correct option is the one that names them.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A hash table has 152 buckets and holds 25 entries.</p>
+            <p class="small">What is the occupation density, to two decimal places?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 0.16</p>
+            <p>Occupation density is entries divided by buckets: 25 / 152 = 0.1644…, which is 0.16 to two places.</p>
+            <p><strong>The trap.</strong> Inverting the fraction gives 152/25 = 6.08, which is the average number of buckets per entry and means nothing. The density is at most 1 for chaining and can exceed 1 for open addressing.</p>
+            <p class="small"><strong>The related number.</strong> The average chain length is also 0.16 entries per bucket — the same fraction, because with chaining the chain lengths must sum to the entry count.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>A function <code>f</code> is declared in a scope and its body is being compiled. Where does the entry for <code>f</code> itself live?</p>
+            <p class="small">(A) In <code>f</code>'s own table, as its first entry<br>(B) In the enclosing scope's table<br>(C) In both, so that recursion can find it<br>(D) In a separate table of functions</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The enclosing scope is where callers look, so that is where the name and its signature must be. Parameters go in <code>f</code>'s own table, because only the body uses them.</p>
+            <p><strong>Why A is wrong.</strong> An entry in <code>f</code>'s own table would be invisible to the code that calls <code>f</code>, which is the only code that needs the name.</p>
+            <p><strong>Why C is wrong.</strong> Recursion needs no second entry: the call is resolved in the enclosing scope, and the new activation is a run-time object, not a compile-time one.</p>
+            <p class="small"><strong>The closely confused pair.</strong> The name is compile-time and lives outward; the call's frame is run-time and is created on each call.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice question</span></div>
+          <div class="q-body">
+            <p>Which of the following does a symbol table entry for a variable typically record?</p>
+            <p class="small">(A) Its type<br>(B) Its scope<br>(C) Its current run-time value<br>(D) Its storage offset or address</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A, B, D</p>
+            <p>Type, scope and storage location are exactly the attributes a compiler needs to compile a use of the name.</p>
+            <p><strong>Why C is wrong.</strong> The value changes at run time and cannot be known at compile time. The table may hold the <em>address</em> at which the value will be found; it does not hold the value.</p>
+            <p class="small"><strong>The distinction.</strong> A table of declarations, not a table of data. That is the difference between the symbol table and the activation record, and this option is the one that confuses them.</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="pager">
+        <button class="btn" data-pager-prev>&#9664; Previous page</button>
+        <span class="pager-count" data-pager-count></span>
+        <button class="btn" data-pager-next>Next page &#9654;</button>
+      </div>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions to hold exactly</h3>
+          <p class="small"><strong>Symbol table</strong> — a mapping from each declared name to its attributes; operations insert and lookup.</p>
+          <p class="small"><strong>Entry</strong> — one declaration's record: name plus type, scope, storage class, offset.</p>
+          <p class="small"><strong>Scope</strong> — the region of text in which a binding is the one a use resolves to.</p>
+          <p class="small"><strong>Shadowing</strong> — an inner declaration hiding an outer binding for the length of its block.</p>
+          <p class="small" style="margin-bottom:0"><strong>Occupation density</strong> — entries divided by buckets.</p>
+        </div>
+
+        <div class="card">
+          <h3>The three organisations, with their costs</h3>
+          <p class="small"><strong>Linear list.</strong> Insert scans for a duplicate: n(n−1)/2 comparisons to build n names. Lookup scans to the end in the worst case.</p>
+          <p class="small"><strong>Search tree.</strong> Cost is the height. Balanced: O(log n). Built from sorted input: n − 1, which is a list.</p>
+          <p class="small" style="margin-bottom:0"><strong>Hash table with chaining.</strong> Cost is the chain length. Expected O(1) under a spreading function and bounded load; worst case O(n) with one bucket.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Decide whether the question is about entries, about cost, or about resolution.</li>
+            <li>For entries: one table per block, one entry per declaration, function name outward, parameters inward.</li>
+            <li>For cost: name the deciding quantity — prior entries, height, or chain length.</li>
+            <li>For resolution: start at the innermost table and walk outward; the first match wins.</li>
+            <li>State the assumption behind any cost you quote.</li>
+            <li>Say "expected" when the structure is a hash table, and name the worst case.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, in the order they cost marks</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Counting distinct names instead of declarations.</li>
+            <li>Saying the table is unused after parsing.</li>
+            <li>Claiming O(1) worst case for a hash lookup.</li>
+            <li>Quoting log n for an unbalanced search tree.</li>
+            <li>Putting the function's name in its own table.</li>
+            <li>Confusing the symbol table with the activation record.</li>
+            <li>Forgetting that a lookup walks every enclosing scope.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Quick revision questions</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Which phase creates the table, and which phases use it?</li>
+            <li>How many comparisons build an 8-name linear list?</li>
+            <li>What is the height of a search tree built from 8 sorted names?</li>
+            <li>What is the longest chain when 8 names occupy 6 of 11 buckets?</li>
+            <li>Where does a function's own name live?</li>
+            <li>How many entries does the three-table example program create?</li>
+            <li>What does a lookup cost at nesting depth d?</li>
+            <li>Which two questions have the answers 6 and 5 for the same program?</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>One sentence to remember</h3>
+          <p class="small" style="margin-bottom:0">One table per block, one entry per declaration, a lookup that walks outward from the innermost table, and a cost that is only ever as good as the assumption you state beside it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Official syllabus</h3>
+          <p class="small">GATE 2027 Computer Science and Information Technology syllabus, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, re-read for this run from the organising institute's own site. Section 7 reads: <em>"Compiler Design: Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub expression elimination."</em> <span class="claim-chip claim-chip--verified">Verified fact</span></p>
+          <p class="small" style="margin-bottom:0">The words "symbol table" do not appear. This page is class B — a structure the named clauses depend on — and says so on the Overview tab rather than implying otherwise.</p>
+        </div>
+
+        <div class="card">
+          <h3>University course notes, read this run</h3>
+          <p class="small"><strong>University of Oslo, INF5110, lecture 06 "Symbol tables"</strong> — the table as an abstract data type with insert and lookup; that it is shared across phases; that scope complicates its design; and the observation that a language may need several tables for separate namespaces.</p>
+          <p class="small"><strong>Cornell CS4120, "Semantic Analysis and Symbol Tables"</strong> — the stack of hash tables, with push and pop in O(1) and a lookup in O(d) for nesting depth d; and the single-table-with-duplicates-and-a-log alternative, with O(1) lookup and amortised O(1) scope exit.</p>
+          <p class="small" style="margin-bottom:0"><strong>WPI CS544, "Other Symbol Table Techniques"</strong> — that most compilers use hashing or binary trees, that retrievals outnumber insertions, and that symbol table access can take a large share of translation time.</p>
+        </div>
+
+        <div class="card">
+          <h3>Textbook material, read this run</h3>
+          <p class="small"><strong>Rowan University, <em>Compiler Design: Theory, Tools, and Examples</em>, §2.3 "Lexical Tables"</strong> — the three organisations; that sequential search builds a table of n words in O(n²); that a binary search tree builds in O(n log n) when balanced and O(n²) when it degenerates; and the array-of-linked-lists hash table.</p>
+          <p class="small" style="margin-bottom:0"><strong>Montana State University, "Scope and Symbol Table Construction"</strong> — one table per scope, stacked; lookup from the innermost outward; the function's name in the enclosing table and its parameters in the new one; and why prototypes exist, because a later declaration is not yet in the table when an earlier body is compiled.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Community discussion, used as observation only</h3>
+          <p class="small" style="margin-bottom:0">The term "occupation density" as entries divided by table length, and the report of a GATE CSE 2025 Set 1 statement-selection item on the symbol table, both come from community archives rather than from a standard or a paper. They are marked as community observations where they appear, and no question wording, number or year is quoted. <span class="claim-chip claim-chip--community">Community observation</span></p>
+        </div>
+
+        <div class="card">
+          <h3>What was not verified</h3>
+          <p class="small" style="margin-bottom:0">No previous-year GATE question is quoted on this page. The 2025 item is mentioned as a reported pattern and not as an official question, because the paper itself was not consulted. No weightage is claimed for this topic: no official per-topic marks distribution is published, and the frequency of a topic in past papers is an observation about those papers, not a forecast for 2027.</p>
+        </div>
+
+        <div class="card">
+          <h3>What this page does not cover</h3>
+          <p class="small" style="margin-bottom:0">Open addressing, extendible hashing for on-disk indexes, and the attribute-grammar machinery that attaches attributes to parse-tree nodes are named but not developed here; the first two belong to <a href="../hashing/index.html">Hashing</a> and <a href="../extendible-hashing-directory-and-depths/index.html">Extendible hashing</a>, and the third to <a href="../type-checking-and-type-systems/index.html">Type checking</a>. Both omissions are recorded in the execution log so a later run can pick them up.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
