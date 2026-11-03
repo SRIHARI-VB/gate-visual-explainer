@@ -24,6 +24,7 @@ lessons are static files and work from a local clone.
 | Propositional Logic | Discrete Mathematics | A — explicitly in the syllabus | `topics/propositional-logic/index.html` |
 | Recurrence Relations | Discrete Mathematics | A — explicitly in the syllabus | `topics/recurrence-relations/index.html` |
 | Relations and Their Properties | Discrete Mathematics | A — explicitly in the syllabus | `topics/relations-and-their-properties/index.html` |
+| Resolution Refutation and Horn Clauses | Discrete Mathematics | A — explicitly in the syllabus | `topics/resolution-refutation-and-horn-clauses/index.html` |
 | Sets and Set Operations | Discrete Mathematics | A — explicitly in the syllabus | `topics/sets-and-set-operations/index.html` |
 | Arrays, Stacks and Queues | Programming And Data Structures | A — explicitly in the syllabus | `topics/arrays-stacks-queues/index.html` |
 | Bit Fields in C: widths, allocation units, and the six things the standard leaves open | Programming And Data Structures | A — explicitly in the syllabus | `topics/bit-fields-in-c/index.html` |

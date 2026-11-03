@@ -5177,6 +5177,25 @@ topics.append(topic(
     microtopics=['d(u,v) is the fewest edges on a path, computed by breadth-first search, never measured on the drawing', 'the distance table is symmetric with a zero diagonal, so eccentricity is a row maximum', 'eccentricity is a maximum, not an average; the row mean is no graph quantity here', 'diameter = max of the eccentricities = max over pairs of d(u,v)', 'radius = min of the eccentricities; centre and periphery are the two arg-sets', 'ceil(d/2) <= r <= d, proved from the triangle inequality with a centre vertex', 'the floor is attained by trees, the ceiling by cycles, complete graphs and Petersen', 'self-centred means r = d, so the centre is the whole vertex set', 'the four-cycle has diameter 2 and radius 2, which refutes r = ceil(d/2) off a tree', 'on a tree r = ceil(d/2), with one centre for even d and two adjacent centres for odd d', 'the centre of a tree is the middle of any diameter path; off a tree a centre vertex can miss every diameter path', 'leaf peeling removes all current leaves per round and stops at one or two vertices; it is linear', 'the peel round count is not the radius: three rounds on P8 whose radius is 4', 'two sweeps find the diameter on every tree and report 1 on the four-vertex diamond whose diameter is 2', 'the height of a BFS tree is the eccentricity of its root, so it lies between ceil(d/2) and d', 'diam(G^2) = ceil(diam(G)/2) for every connected graph', 'a disconnected graph has no finite eccentricity, so no radius and no diameter', 'centre, centroid and median are three different vertices; the pan graph separates all three', 'all 18248 labelled trees on 2 to 7 vertices satisfy the tree theorem, checked by enumeration', 'all 27475 connected graphs with at most 6 vertices satisfy the square-graph equality']))
 
 _VERIFIED = {
+    "resolution-refutation-and-horn-clauses": (
+        "verified 2026-11-03: Section 1 of the GATE 2027 CS syllabus ('Propositional and first order logic') is "
+        "quoted from the copy recorded in this tracker; the word resolution does not appear in it, and the class A "
+        "reading is stated on the Overview tab rather than hidden",
+        "soundness was checked by brute force on all 1634 resolvable clause pairs over four variables: 976 "
+        "non-tautological resolvents, 1022 tautologies dropped, no assignment satisfying both parents and falsifying "
+        "the resolvent",
+        "refutation completeness was compared with the truth table on all 2951 clause sets of up to three clauses "
+        "over three variables (99 unsatisfiable) and on 3000 seeded random sets over four variables: no disagreement",
+        "Horn unit propagation was compared with the truth table on all 1159 Horn sets of up to three clauses over "
+        "three variables: no disagreement",
+        "the four-clause refutation was checked for shape (four leaves, three steps, one empty root) and unit "
+        "propagation was shown to stall on the same unsatisfiable set",
+        "the double cancel was shown unsound by the assignment P true, Q false, and both legal steps were shown to "
+        "be tautologies that are dropped",
+        "the GATE CSE 2003 item was decided by truth table on all eight assignments; exactly one option is false and "
+        "the answer is (B); the question number is not printed because two archives give 53 and 72",
+        "31 of 31 model checks pass; geometry audit clean on all 10 scenes and every caption beat",
+    ),
     "euler-trails-and-hamiltonian-cycles": (
         "verified 2026-11-03: the GATE 2027 CS syllabus PDF was fetched from the IIT Madras site again and its "
         "Section 1 wording quoted on the Overview tab",
@@ -6805,6 +6824,70 @@ topics.append(topic(
         'the complement of C(25) is 22-regular with 275 edges and connected, so it is Eulerian',
         'the Euler criterion agrees with brute force on all 1086 graphs with 4 or 5 vertices and 256 sampled with 6',
         'the directed criterion agrees with brute force on all 63 digraphs on three vertices',
+    ]))
+
+topics.append(topic(
+    DM,
+    "Logic: 'Propositional and first order logic' — the inference procedure that clause does not name",
+    "Resolution refutation, clausal form and Horn clauses",
+    ["clausal form and the conversion from a formula",
+     "the resolution rule and the resolvent",
+     "soundness of the rule",
+     "refutation completeness",
+     "the empty clause and what it means",
+     "Horn clauses",
+     "unit propagation and linear-time Horn satisfiability"],
+    prereq=["propositional-logic", "boolean-algebra-and-minimisation",
+            "complexity-classes-p-np-np-complete"],
+    related=["first-order logic", "satisfiability and NP-completeness", "logic programming"],
+    importance="medium-high",
+    evidence=("Section 1 of the GATE 2027 CS syllabus names 'Propositional and first order logic'; resolution is a "
+              "proof procedure of that logic rather than an application of it, which is why the lesson is labelled "
+              "class A. One previous-year item is quoted: GATE CSE 2003, the question that states the resolution "
+              "rule for (P v R) and (Q v ~R) and asks which statement is FALSE, answer (B), recomputed on the page. "
+              "No weightage is claimed."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug='resolution-refutation-and-horn-clauses',
+    path='topics/resolution-refutation-and-horn-clauses/index.html',
+    execution=('published; node tools/check-lesson.mjs PASS (31/31 model checks, 1201 frames across 10 scenes); '
+               'node tools/audit-geometry.mjs clean (10 scenes, no text outside the canvas, no text-on-text '
+               'overlap); captions.vtt, captions.srt and transcript.md generated from timeline.js'),
+    microtopics=[
+        'a clause is a disjunction of literals, and a set of clauses is a conjunction of them',
+        'a literal is a variable or its negation; a unit clause has one literal; the empty clause has none',
+        'clausal form: drop the biconditional and the implication, push negations inwards, distribute, split',
+        'the distribution step is what turns a formula into a set of clauses, and skipping it leaves nothing to resolve',
+        'the negation of an implication is a conjunction, so negating a goal usually adds several clauses',
+        'the empty clause is falsity and the empty set of clauses is trivially true, and the two are opposites',
+        'the resolution rule: from (A or p) and (B or not p) infer (A or B), with one pivot only',
+        'the pivot must be positive in one parent and negative in the other; agreement on a variable gives nothing',
+        'the resolvent is the union minus the pivot pair, with repeated literals collapsed',
+        'a resolvent containing a variable and its negation is a tautology and is dropped',
+        'soundness by the two cases on the pivot: the pivot is true, or it is false, and no third case exists',
+        'the resolvent is entailed by its parents and is weaker than them, never equivalent',
+        'adding a resolvent preserves satisfiability in both directions, so a satisfiable set never reaches the empty clause',
+        'refutation-completeness: an unsatisfiable finite set always has a refutation (Robinson 1965)',
+        'not derivation-complete: from the single clause (P) nothing is derivable, although (P or Q) is entailed',
+        'entailment is tested by adding the negation of the goal, never by resolving the knowledge base alone',
+        'a refutation read as a tree: original clauses as leaves, two parents per step, the empty clause as the only root',
+        'the four-clause refutation in three steps, with every original clause used once',
+        'a Horn clause has at most one positive literal, which is at most one conclusion',
+        'one positive literal is a rule or a fact; zero positive literals is a goal clause',
+        'unit propagation marks the facts, then fires every rule whose premises are all marked',
+        'every mark is forced, so the marked atoms are the smallest model of a satisfiable Horn set',
+        'a violated goal clause, all of whose literals are marked, is exactly unsatisfiability for a Horn set',
+        'Dowling and Gallier 1984: Horn satisfiability in time proportional to the literal occurrences',
+        'unit propagation is complete on Horn sets and incomplete in general, demonstrated on four clauses with no unit',
+        'no conflict from propagation means no refutation was found, not that a model exists',
+        'cancelling two complementary pairs in one step is unsound: (P or Q) with (not P or not Q)',
+        'the witness for that unsoundness: P true and Q false satisfies both parents',
+        'the two legal steps on that pair give (Q or not Q) and (P or not P), both tautologies, both dropped',
+        'duplicates and subsumed clauses are dropped as well as tautologies, and the page keeps a set rather than a list',
+        'completeness is about existence, not size: the pigeonhole clauses grow 6, 73, past 900 (Haken 1985)',
+        'GATE CSE 2003: the resolution rule for (P or R) and (Q or not R), which statement is FALSE, answer (B)',
+        'option A of that item is soundness, option B is its converse, option C is satisfiability preservation',
+        'the five-step procedure and the five traps that produce a plausible-looking clause',
     ]))
 
 _seen = set()
