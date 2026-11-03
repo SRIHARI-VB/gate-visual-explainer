@@ -4808,6 +4808,62 @@ topics.append(topic(
         "4,164 enumerated graphs plus 1,600 random graphs as the referee"
     ]))
 
+topics.append(topic(
+    "Digital Logic",
+    "Section 2: 'Design of combinational and sequential circuits' — the programmable array a minimised function is implemented on, which no lesson owned",
+    "ROM, PLA and PAL: the two-level array, the dots that program it, and the arithmetic of choosing a device",
+    ["the AND plane and the OR plane",
+     "ROM as a fixed decoder plus a programmable OR plane",
+     "PLA with both planes programmable",
+     "PAL with a programmable AND plane and a fixed OR plane",
+     "the PLA program table and dot notation",
+     "product-term sharing across outputs",
+     "sizing arithmetic for all three devices"],
+    prereq=["boolean-algebra-and-minimisation", "quine-mccluskey-tabular-method",
+            "combinational-circuits"],
+    related=["minimum-nand-nor-gate-count", "comparator-code-converter-bcd-adder",
+             "algebraic-boolean-minimisation", "sequential-circuits"],
+    importance="medium-high",
+    evidence="Section 2 of the GATE 2027 CS syllabus says 'Design of combinational and sequential circuits'; "
+             "implementing a minimised function on a programmable array is that design, and Mano ch.7 and "
+             "Wakerly 5.3 are the standard treatments. The device names ROM, PLA and PAL are not printed in "
+             "the clause, so the class A label rests on the design clause rather than on the wording. " + SYL,
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="rom-pla-and-pal-programmable-logic",
+    path="topics/rom-pla-and-pal-programmable-logic/index.html",
+    execution="published 2026-11-04; 43 model checks pass, geometry audit clean across 10 scenes",
+    microtopics=[
+        "a product term is one row of the AND plane",
+        "an OR column sums the rows dotted into it",
+        "ROM: fixed 2^n-line decoder, programmable OR plane",
+        "ROM size m times 2^n bits, and the exponent is the input count",
+        "ROM size ignores the function: 2 terms and 16 terms both cost 16 bits",
+        "minimising before storing in a ROM saves nothing",
+        "all 2^(2^n) = 65,536 functions of four variables fit one 16-bit ROM",
+        "PLA described by n inputs, k product terms, m outputs",
+        "2n vertical lines because each input enters true and complemented",
+        "PLA links 2nk + km, linear in each of the three numbers",
+        "the PLA program table: 1 for the true line, 0 for the complement, dash for absent",
+        "a bare crossing means the variable is absent from the term",
+        "a row with no dots is the constant 1; a column with no dots is the constant 0",
+        "a row dotting a variable and its complement is always 0",
+        "k is counted across all outputs, each distinct term once",
+        "sharing: F1 = C + A'B and F2 = C' + A'B need 3 rows, not 4",
+        "PAL: fixed OR groups of seven or eight terms per output",
+        "a PAL cannot share, so a shared term is built once per output",
+        "PAL fuses are 2n times the product lines, with no OR-plane fuses",
+        "82S100: 16 x 48 x 8 gives 1536 + 384 = 1920 links",
+        "PAL16L8: 64 rows x 32 columns = 2048 fuses, 7 terms per output",
+        "parity needs 2^(n-1) product terms, and no smaller cover exists",
+        "k is a physical row count: a device that is too small cannot be programmed around",
+        "don't cares lower k: two terms become one",
+        "output inversion lowers k, but needs a programmable output inverter",
+        "PROM, EPROM, EEPROM and flash differ only in how the array is written and erased",
+        "reading a dot pattern is the same skill in all three devices",
+        "bits, links and fuses are three different units and cannot be compared directly",
+    ]))
+
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
             "microtopics", "coverage_note", "last_verified_date")
 if os.path.exists("syllabus-coverage.json"):
@@ -7694,6 +7750,7 @@ for _t in topics:
 # first wrote it, even when this run re-read the syllabus and the sources behind
 # it. Stamp the rows this run actually verified, so the date field stays honest.
 _RECHECKED = {
+    "rom-pla-and-pal-programmable-logic": "2026-11-04",
     "ethernet-bridging-and-the-learning-switch": "2026-11-04",
     "socket-api-and-connection-lifecycle": "2026-11-03",
     "command-line-arguments-in-c": "2026-11-03",

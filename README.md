@@ -57,6 +57,7 @@ lessons are static files and work from a local clone.
 | Boolean Algebra and Minimisation | Digital Logic | A — explicitly in the syllabus | `topics/boolean-algebra-and-minimisation/index.html` |
 | Combinational Circuits: Adders, Multiplexers and Decoders | Digital Logic | A — explicitly in the syllabus | `topics/combinational-circuits/index.html` |
 | Number Representation and Arithmetic | Digital Logic | A — explicitly in the syllabus | `topics/number-representation-and-arithmetic/index.html` |
+| ROM, PLA and PAL: the two-level array, the dots that program it, and the arithmetic of choosing a device | Digital Logic | A — explicitly in the syllabus | `topics/rom-pla-and-pal-programmable-logic/index.html` |
 | Sequential Circuits: Latches, Flip-Flops, Counters and Machines | Digital Logic | A — explicitly in the syllabus | `topics/sequential-circuits/index.html` |
 | ALU and Control Unit Design: Datapath, Hardwired and Microprogrammed Control | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/alu-and-control-unit-design/index.html` |
 | I/O Interface, Interrupts and DMA | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/io-interface-interrupts-dma/index.html` |
