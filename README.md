@@ -84,6 +84,7 @@ lessons are static files and work from a local clone.
 | Link Layer: Error Detection, MAC and Ethernet | Computer Networks | A — explicitly in the syllabus | `topics/link-layer-error-detection-mac-and-ethernet/index.html` |
 | Network Security: Properties, Keys, Signatures and Firewalls | Computer Networks | A — explicitly in the syllabus | `topics/network-security/index.html` |
 | TCP Flow Control, Congestion Control and the Socket API | Computer Networks | A — explicitly in the syllabus | `topics/tcp-flow-congestion-control-and-sockets/index.html` |
+| The Socket API and the Connection Lifecycle: Calls, Four-Tuples, TIME_WAIT and Port Exhaustion | Computer Networks | A — explicitly in the syllabus | `topics/socket-api-and-connection-lifecycle/index.html` |
 | Context-Free Grammars and Pushdown Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/context-free-grammars-and-pushdown-automata/index.html` |
 | Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
 | Turing Machines and Undecidability | Theory Of Computation | A — explicitly in the syllabus | `topics/turing-machines-and-undecidability/index.html` |

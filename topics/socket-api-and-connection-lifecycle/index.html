@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The socket API and the connection lifecycle — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">The socket API and the connection lifecycle</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Previous: TCP flow and congestion control</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The socket API and the connection lifecycle — the clause "socket API" in Section 10, Computer Networks, of the GATE 2027 CS syllabus.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Name the calls on each side and the order they must come in. Explain why a server holds one listening socket and one connected socket per client, and count the sockets in a whole system as one plus twice the number of connections. Place SYN, SYN-ACK and ACK on a timeline and say that connect returns at one round trip while accept returns at one and a half. Read listen's second argument as a queue length and check a backlog simulation against its two identities. Count the connections one server endpoint can hold, and the ports one client address can spend. Say which side enters TIME-WAIT, for how long by the specification and on Linux, and why. Turn a connection rate and a holding time into ports in use, and find the ceiling at 470 connections per second.</p>
+          <p class="small muted" style="margin-bottom:0">I read this clause as <em>four countable facts and one vocabulary</em>: sockets are pairs, connections are four-tuples, the backlog is a queue length, and a port is held after the close. Every GATE-style question on the socket API is one of those four asked on small numbers.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus, published by IIT Madras as <code>CS_GATE2027_Syllabus.pdf</code>, ends with "TCP – flow control and congestion control, socket API; DNS and HTTP". The words <em>socket API</em> are named, so the system calls, their order and their consequences are inside the declared boundary.</p>
+          <p class="small"><span class="claim-chip claim-chip--community">Community observation</span> The socket API is a newer phrasing than the older "TCP, UDP and sockets" wording, and published question indexes carry far fewer items on the calls themselves than on flow control and congestion control. That is a statement about a catalogue of past papers, not a forecast for 2027 and not a weightage.</p>
+          <p class="small" style="margin-bottom:0">Because no previous-year item on the socket API itself could be verified against a paper and a question number, every question in this lesson is labelled original practice. Nothing here is presented as an official question.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <p class="small">The transport-layer behaviour this lesson builds on is taught elsewhere in this repository, and none of it is repeated here:</p>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow control, congestion control and sockets</a> — the segment header, windows and the handshake this lesson places in time.</li>
+            <li><a href="../udp-datagram-checksum-and-demultiplexing/index.html">UDP: the datagram, checksum and demultiplexing</a> — the port numbers scene 9 reuses.</li>
+            <li><a href="../system-calls-and-the-kernel-boundary/index.html">System calls: the user-kernel boundary</a> — what a descriptor is, and why a call crosses into the kernel.</li>
+            <li><a href="../processes-threads-and-ipc/index.html">Processes, threads and IPC</a> — the process that owns the descriptors.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Visualization plan</h3>
+          <p class="small">Ten scenes, five minutes, one timeline. Each scene draws the state the narration describes, and every number on the canvas comes from the page's own model, checked before it is drawn.</p>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>1</strong> two sockets, one four-tuple, and the 16-bit port space partitioned into 1024, 48128 and 16384.</li>
+            <li><strong>2</strong> the call stacks of the two sides, and what each call changes in the kernel.</li>
+            <li><strong>3</strong> the listening socket and the connected socket side by side, then the 1 + 2N identity.</li>
+            <li><strong>4</strong> three segments on a round-trip axis, with the two returns marked.</li>
+            <li><strong>5</strong> a queue of capacity two, driven by a simulated trace of six arrivals.</li>
+            <li><strong>6</strong> one fixed server endpoint against many client addresses, then 2^48.</li>
+            <li><strong>7</strong> the two teardown paths as state strips, and the two TIME-WAIT durations.</li>
+            <li><strong>8</strong> rate against ports held, as a table and as bars against the range.</li>
+            <li><strong>9</strong> the same API without listen, accept or TIME-WAIT.</li>
+            <li><strong>10</strong> the four-step procedure and the five traps.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>What you should be able to do afterwards</h3>
+          <p class="small" style="margin-bottom:0">Given any socket question, decide whether it asks about sockets, connections, four-tuples, ports or round trips, apply the one invariant for that quantity, and produce an answer in the unit the question used. Then check it: the socket count is odd, the rate is a floor, and the side in TIME-WAIT is the side that closed first.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a doorway, a doorman and a room</h3>
+          <p class="small">Think of a building with one doorway. The doorway itself has a number painted on it, and it is always there, whether or not anybody is visiting. A doorman stands in the doorway. Each visitor who arrives is given a room of their own, and from then on the conversation happens in that room, not in the doorway. The doorway is never blocked by a conversation: a second visitor walks past the first one's room and gets their own.</p>
+          <p class="small" style="margin-bottom:0">The doorway is the <em>listening socket</em>, the doorman is <code>accept()</code>, and each room is a <em>connected socket</em>. The painted number is the port, and it is the same number for every room. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The analogy carries the one-port-many-connections idea, which is the hardest part of the clause. It does not carry the four-tuple, which is why the formal vocabulary comes next.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal vocabulary, every term in words</h3>
+          <p class="small"><strong>Socket</strong> — one endpoint of a transport conversation, identified by an address and a port, written <code>address:port</code>. It is a pair of numbers, not a connection.</p>
+          <p class="small"><strong>Connection</strong> — the pair of two endpoints. Written as a four-tuple: source address, source port, destination address, destination port. The kernel demultiplexes an arriving segment on all four.</p>
+          <p class="small"><strong>Descriptor</strong> — the small integer a process gets back from <code>socket()</code> or <code>accept()</code>. It names a socket inside that process only, and is reused after <code>close()</code>.</p>
+          <p class="small"><strong>Ephemeral port</strong> — a port chosen automatically for an outgoing connection. On Linux it comes from <code>ip_local_port_range</code>, which defaults to 32768 to 60999.</p>
+          <p class="small"><strong>Backlog</strong> — the length of the queue of completed connections waiting for an <code>accept()</code> call, set by the second argument of <code>listen()</code>.</p>
+          <p class="small" style="margin-bottom:0"><strong>TIME-WAIT</strong> — the state the active closer holds after the last acknowledgement, so that a lost final ACK can be answered and old duplicates can die before the four-tuple is reused.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The calls, in the order they must come</h3>
+          <p class="small"><strong>Server.</strong> <code>socket()</code> gives an unbound descriptor. <code>bind()</code> fixes the local address and port. <code>listen()</code> moves the socket to LISTEN, after which SYNs are answered. <code>accept()</code> takes one completed connection off the queue and returns a new descriptor. Then <code>read()</code> and <code>write()</code>, then <code>close()</code>.</p>
+          <p class="small"><strong>Client.</strong> <code>socket()</code>, then <code>connect()</code>. The connect call chooses an ephemeral port — a client does not normally call bind — records the peer, and sends the SYN.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The call set, the states and the handshake are specified in RFC 793, and the POSIX interface is described in the <code>socket(2)</code>, <code>bind(2)</code>, <code>listen(2)</code>, <code>accept(2)</code> and <code>connect(2)</code> manual pages. The three states of a normal passive open are LISTEN, SYN-RECEIVED and ESTABLISHED.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>One port, many connections</h3>
+          <p class="small">A listening socket has a local port and no peer. A connected socket has the same local port and a peer. The two are distinguished by the peer, which is half of the four-tuple. So a server on port 443 can hold thousands of connections without ever needing a second port.</p>
+          <p class="formula">sockets in the system = 1 + 2N<span class="gloss">one listening socket, N connected sockets at the server, and N sockets at the clients. Eight connections therefore mean seventeen sockets, which is the count a question usually wants.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The identity follows from counting both machines: the server holds one listener plus one per connection, and each client holds exactly one. It is checked in code for N = 1, 5, 8 and 100.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Where the handshake actually happens</h3>
+          <p class="small"><code>connect()</code> sends the SYN and blocks. When the SYN-ACK arrives — one round trip later — it returns and the kernel sends the final ACK. <code>accept()</code> returns when that ACK arrives at the server, one and a half round trips after the SYN.</p>
+          <p class="formula">connect returns at 1.0 RTT<br>accept returns at 1.5 RTT<span class="gloss">the gap is the third segment travelling. A question that asks when the connection is established is asking about the server, so it wants 1.5, not 1.0.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The three segments each take half a round trip in the symmetric case the exam always assumes. The returns are placed at the arrival of the second and third segment, which gives 1.0 and 1.5 exactly.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The backlog is a queue, and it has two identities</h3>
+          <p class="small">The second argument of <code>listen()</code> bounds the completed-connection queue. Arrivals that find it full are dropped, and the client retransmits its SYN after a timeout, so an overflow shows up as latency rather than as an error.</p>
+          <p class="formula">queued = accepted + still waiting<br>arrivals = queued + dropped<span class="gloss">two lines that check any hand simulation. On the worked case — six arrivals, capacity two, accepts at 2.5 s and 4.5 s — four are queued and two are dropped.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Linux keeps a separate SYN queue for half-open connections and an accept queue for completed ones, and caps the value passed to <code>listen()</code> at <code>somaxconn</code>. The single number in the question is the completed queue unless the question says otherwise.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two ceilings: descriptors and ports</h3>
+          <p class="small">Hold the server endpoint fixed and the only free fields are the client address and the client port. With the Linux default range that is 28232 connections from one client address, and across all clients it is 2^32 × 2^16 = 2^48 four-tuples.</p>
+          <p class="small">The server's ceiling is its descriptor table, its memory and its accept queue. The client's ceiling is its ephemeral ports, and how long each one is held after the close.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The default range 32768 to 60999 and the per-destination nature of the limit are documented in the Linux <code>ip-sysctl</code> reference and in Cloudflare's write-up of ephemeral port exhaustion. The 2^48 figure is arithmetic on the field widths.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>TIME-WAIT: who, how long, and why</h3>
+          <p class="small">The side that sends the first FIN is the active closer, and it is the side that ends in TIME-WAIT. It waits so that a retransmitted FIN can still be acknowledged, and so that a delayed segment from the old connection cannot be accepted by a new connection using the same four-tuple.</p>
+          <p class="formula">RFC 793: MSL = 120 s, TIME-WAIT = 2 × MSL = 240 s<br>Linux: TCP_TIMEWAIT_LEN = 60 s, fixed<span class="gloss">both are correct in their own terms. A question that says "as specified" wants 240; a question about a Linux host wants 60.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 793 takes the maximum segment lifetime to be two minutes and specifies the two-times-MSL wait. Linux hard-codes sixty seconds in <code>TCP_TIMEWAIT_LEN</code> and exposes no sysctl for it.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Exhaustion is one product, and the ceiling is a floor</h3>
+          <p class="small">A client that closes first holds each port for the TIME-WAIT interval. So the number of ports unavailable at any moment is the connection rate multiplied by that interval.</p>
+          <p class="formula">ports in use = rate × seconds held<br>28232 / 60 = 470.53, so 470 fits and 471 does not<span class="gloss">470 × 60 = 28200 ports, inside the range. 471 × 60 = 28260, outside it. The answer is a floor because the constraint is a ceiling on a count.</span></p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Every figure in the table — 6000, 18000, 28200, 28260 — is the product of a rate and sixty seconds, and each is compared against 28232 in code. <span class="claim-chip claim-chip--verified">Verified fact</span> The failure is <code>EADDRNOTAVAIL</code> from the local kernel, raised before any segment is sent.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A socket names one endpoint: an address and a port. The port is the part the program chooses.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">A socket is an endpoint, not a connection</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A socket is one end of a conversation, named by an address and a port.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Four worked examples, each with its numbers shown</h3>
+          <p class="small muted" style="margin-bottom:0">Every figure below is computed by this page's model and re-checked against its defining property, so the worked arithmetic and the checks cannot drift apart.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 1 — sockets in a running system</h3>
+          <p class="small">A server listens on port 443 and has accepted eight connections. Each client holds one socket. How many sockets exist in the system?</p>
+          <p class="small">Server: one listening socket plus eight connected sockets, so nine. Clients: eight, one each. Total seventeen.</p>
+          <p class="formula">1 + 2N = 1 + 16 = 17<span class="gloss">the one is the listener, the 2N is one connected socket at each end of every connection. The total is always odd, which is a one-second check.</span></p>
+          <p class="small" style="margin-bottom:0"><strong>Where the wrong answers come from.</strong> Nine counts only the server. Eight counts only the connections. Sixteen forgets the listener.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 2 — the backlog, simulated</h3>
+          <p class="small">A server calls <code>listen(fd, 2)</code>. Connections complete at t = 0, 1, 2, 3, 4 and 5 seconds. The program calls <code>accept()</code> at 2.5 and 4.5 seconds. How many are queued, accepted, dropped and still waiting?</p>
+          <p class="small">At 0 and 1 the queue fills to two. The arrival at 2 finds it full and is dropped. The accept at 2.5 removes one; the arrival at 3 takes the free slot; the arrival at 4 is dropped; the accept at 4.5 removes one; the arrival at 5 is queued.</p>
+          <p class="formula">queued 4 = accepted 2 + waiting 2<br>arrivals 6 = queued 4 + dropped 2<span class="gloss">both identities hold, so the trace is consistent. A simulation that fails either identity has miscounted an arrival or an accept.</span></p>
+          <p class="small" style="margin-bottom:0"><strong>The trap.</strong> A dropped SYN produces no error at the client. It retransmits after a timeout, so the visible effect is a slow connection, not a refused one.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 3 — the ceiling on new connections</h3>
+          <p class="small">A proxy opens short connections to one backend endpoint and closes each one first. The port range is 32768 to 60999 and TIME-WAIT lasts 60 seconds. What is the highest sustained rate that does not exhaust the range?</p>
+          <p class="small">The range holds 28232 ports. Each closed connection holds one for 60 seconds. So the ports in use are 60 times the rate, and the largest rate whose product stays inside 28232 is 470.</p>
+          <p class="formula">28232 / 60 = 470.53 → 470 per second<br>470 × 60 = 28200 ≤ 28232<br>471 × 60 = 28260 &gt; 28232<span class="gloss">the floor, not the nearest integer. Rounding up to 471 promises 28 ports that do not exist.</span></p>
+          <p class="small" style="margin-bottom:0"><strong>Under the specification.</strong> With the RFC's 240-second wait the same range gives 117 per second, because 117 × 240 = 28080 and 118 × 240 = 28320.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Example 4 — when each call returns</h3>
+          <p class="small">A client calls <code>connect()</code> at time zero and the round trip is one unit. When does the client's call return, when does the server's <code>accept()</code> return, and what is in flight at the first of those moments?</p>
+          <p class="small">The SYN arrives at the server at 0.5 and the SYN-ACK arrives back at 1.0, so connect returns then. The final ACK leaves at 1.0 and arrives at 1.5, which is when the connection is established at the server and accept returns.</p>
+          <p class="formula">connect 1.0 RTT · accept 1.5 RTT · gap 0.5 RTT<span class="gloss">half the gap is the ACK travelling and half is the server processing it, which the exam treats as instantaneous.</span></p>
+          <p class="small" style="margin-bottom:0"><strong>The trap.</strong> Saying the handshake is complete when connect returns. It is complete at the client; the server learns half a round trip later.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries where the standard answers stop holding</h3>
+          <p class="small muted" style="margin-bottom:0">Each case below is a place where a rule from the Build-up tab is true only under an assumption, and the assumption is stated.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Boundary cases of the calls</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>bind to port 0.</strong> The kernel chooses a free port; <code>getsockname()</code> reports which. The port is not 0 after the call.</li>
+            <li><strong>bind to a port in use.</strong> Fails with <code>EADDRINUSE</code>, unless <code>SO_REUSEADDR</code> is set, which allows binding while an old connection sits in TIME-WAIT.</li>
+            <li><strong>accept on a non-listening socket.</strong> Fails with <code>EINVAL</code>. The socket must have been through <code>listen()</code>.</li>
+            <li><strong>connect to a closed port.</strong> The peer answers with a reset, and connect fails with <code>ECONNREFUSED</code>. This is a reply from the peer, unlike <code>EADDRNOTAVAIL</code>, which never leaves the host.</li>
+            <li><strong>listen with a backlog of 0.</strong> Linux still admits a small number of completed connections, because the value is a hint that is clamped, not an exact bound.</li>
+            <li><strong>close on the listening socket.</strong> New connections stop; connections already accepted continue.</li>
+            <li><strong>shutdown(SHUT_WR).</strong> Sends the FIN without closing the descriptor, so the socket can still receive. This is a half-close, and it is not the same as close.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Boundary cases of the counts</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>28232 is per destination endpoint.</strong> The same client port may be used at the same time for a different server address or port, because the four-tuple differs.</li>
+            <li><strong>The 470 figure assumes the client closes first.</strong> If the server closes first, the client's port is freed at once and the ceiling disappears.</li>
+            <li><strong>The range is a default, not a law.</strong> Widening <code>ip_local_port_range</code> raises the ceiling proportionally, and the reservation list removes ports from it.</li>
+            <li><strong>The Linux default is not inside the "dynamic" range.</strong> It starts at 32768, in the registered range, and ends at 60999, in the dynamic range. Read the range from the number a question gives rather than from the name of a band.</li>
+            <li><strong>2^48 counts tuples, not sockets.</strong> A host is limited far earlier by descriptors, memory and the accept queue.</li>
+            <li><strong>NAT changes the count.</strong> Behind a NAT every internal host shares one public address, so the port space is shared and the ceiling falls by the number of hosts.</li>
+            <li><strong>IPv6 changes the width.</strong> The address is 128 bits, so the tuple space is far larger, but the port count is unchanged at 65536.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Counterexample: the server that "ran out of ports"</h3>
+          <p class="small">A server shows thirty thousand sockets in TIME-WAIT, all with local port 443. The claim is that it has exhausted its ports. It has not: those entries differ only in the client's address and port, so they consume memory and no ephemeral port at all. The kernel also caps them with <code>tcp_max_tw_buckets</code>.</p>
+          <p class="small" style="margin-bottom:0">The same count on a <em>client</em> or a proxy, all to one destination endpoint, is a genuine ceiling. The direction decides which of the two situations you are in, and the question has to tell you the direction.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Counterexample: a rate below the ceiling that still fails</h3>
+          <p class="small">An average rate of 400 connections per second to one endpoint is below 470, and can still fail. If the traffic arrives in bursts — 2000 connections in one second, then idle for four — then 2000 ports are held at once, and each stays held for 60 seconds, so the instantaneous demand is 120000 port-seconds against a pool that offers 28232 ports for 60 seconds.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The product is the same product; the average is the wrong statistic. A rate question must say whether the rate is sustained or bursty, and only a sustained rate can be compared with the ceiling.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that produce a plausible wrong answer</h3>
+          <p class="small muted" style="margin-bottom:0">Each entry states the belief, the counterexample that ends it, and the correct statement to carry into the exam.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>1. "accept returns the same socket"</h3>
+          <p class="small"><strong>Why it feels right.</strong> The call is made on the listening descriptor, so the connection seems to be attached to it.</p>
+          <p class="small"><strong>Counterexample.</strong> A server that accepts a hundred connections holds a hundred and one descriptors. If accept returned the listener, the second client would have nowhere to go.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> accept returns a new descriptor. The listening socket stays in LISTEN and never carries data.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "each connection needs its own server port"</h3>
+          <p class="small"><strong>Why it feels right.</strong> A socket is address and port, and each connection is a different socket.</p>
+          <p class="small"><strong>Counterexample.</strong> Every HTTPS connection in the world arrives at port 443. If each needed a port, there would be 65536 connections on the whole internet at once.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> The connection is the four-tuple. The server's port is fixed; the client's port varies. Ports are a limit on the client side, not the server side.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "the server is the side in TIME_WAIT"</h3>
+          <p class="small"><strong>Why it feels right.</strong> Most connections are closed by the client's browser, and a server that serves many clients seems to be the busy party.</p>
+          <p class="small"><strong>Counterexample.</strong> An HTTP/1.0 server that closes after every response is the active closer, so it enters TIME-WAIT while the client does not.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> The side that sends the first FIN enters TIME-WAIT. It is a fact about the close, not about the role.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "TIME_WAIT is a bug, or a leak"</h3>
+          <p class="small"><strong>Why it feels right.</strong> The socket is closed, yet it sits in a state for a minute and blocks a port.</p>
+          <p class="small"><strong>Counterexample.</strong> Remove the wait and a lost final ACK leaves the peer retransmitting a FIN that nothing answers, while a delayed duplicate can be delivered into a new connection with the same four-tuple.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> It is the state that makes a close reliable. It costs ports only where short connections churn to one endpoint, and only on the closing side.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "TIME_WAIT always lasts four minutes"</h3>
+          <p class="small"><strong>Why it feels right.</strong> RFC 793 says two minutes of MSL and twice that in TIME-WAIT, and that is the number in every textbook table.</p>
+          <p class="small"><strong>Counterexample.</strong> On Linux the interval is a fixed sixty seconds, and there is no sysctl for it; <code>tcp_fin_timeout</code> governs a different timer.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> 240 seconds by the specification, 60 seconds on Linux. The question's wording decides which one is being asked.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "the backlog is the number of clients the server can serve"</h3>
+          <p class="small"><strong>Why it feels right.</strong> It is the second argument of listen, so it looks like a capacity.</p>
+          <p class="small"><strong>Counterexample.</strong> A server with <code>listen(fd, 5)</code> serves millions of connections over a day, five waiting at a time at most.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> It is a queue length at one instant. A slow accept loop, not a small backlog, is what drops connections.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>7. "a socket is a connection"</h3>
+          <p class="small"><strong>Why it feels right.</strong> Programs call one socket a connection in conversation, and the descriptor is the handle for both.</p>
+          <p class="small"><strong>Counterexample.</strong> One connection is three sockets in a two-machine system, and one listening socket is no connection at all. The units differ, so the counts differ.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct.</strong> A socket is an endpoint, a pair of numbers. A connection is a pair of endpoints, four numbers. Answering in the wrong unit is the single most common lost mark in this clause.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this clause is tested, and what the wording gives away</h3>
+          <p class="small muted" style="margin-bottom:0">Five patterns cover the clause. Each is recognisable from a phrase in the question, and each has one invariant behind it. No previous-year item on the socket API itself could be verified against a paper and a question number, so the patterns below are described from the syllabus clause and from the standard question forms, not attributed to a year.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 1 — count the sockets</h3>
+          <p class="small"><strong>Phrase.</strong> "How many sockets are open in the system / at the server" with a number of clients or connections.</p>
+          <p class="small"><strong>Invariant.</strong> 1 + 2N for the system, 1 + N at the server, N at the clients. The system count is odd.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> If your answer is even and the question asks for the system, you have forgotten the listener.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 2 — count the connections one endpoint can hold</h3>
+          <p class="small"><strong>Phrase.</strong> "How many simultaneous connections can the server support" or "how many clients can connect to this port".</p>
+          <p class="small"><strong>Invariant.</strong> With the server endpoint fixed, the free fields are the client address and port: 28232 per client address with the Linux default, 2^48 across all addresses.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> The server's own port count never appears in the answer. If you multiplied by 65536 for the server, you counted the wrong side.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 3 — the port-exhaustion product</h3>
+          <p class="small"><strong>Phrase.</strong> A rate of new connections, a TIME-WAIT duration, and a request for the maximum sustainable rate or the number of ports in use.</p>
+          <p class="small"><strong>Invariant.</strong> ports in use = rate × seconds held, compared against the size of the range. The answer is a floor.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> Multiply your rate by the hold and confirm the product is at most the range, and that one more step exceeds it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 4 — which call returns, and when</h3>
+          <p class="small"><strong>Phrase.</strong> "When does connect return", "when is the connection established at the server", or a round-trip count for a request over a fresh connection.</p>
+          <p class="small"><strong>Invariant.</strong> connect at 1.0 RTT, accept at 1.5 RTT, and the third segment in flight at the first of the two.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> A total of one round trip for a full handshake is impossible unless the question explicitly piggybacks data on the third segment.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 5 — the state question</h3>
+          <p class="small"><strong>Phrase.</strong> "Which side is in TIME-WAIT", "which state follows CLOSE-WAIT", "why does the socket linger".</p>
+          <p class="small"><strong>Invariant.</strong> Active closer: ESTABLISHED, FIN-WAIT-1, FIN-WAIT-2, TIME-WAIT, CLOSED. Passive closer: ESTABLISHED, CLOSE-WAIT, LAST-ACK, CLOSED.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> Only one of the two paths contains TIME-WAIT, and it is the path of the side that sent the first FIN.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The four-step procedure</h3>
+          <ol class="step-list small">
+            <li>Name the side: client, server or the whole system. <span class="why">The same numbers differ by one between the three.</span></li>
+            <li>Name the quantity: sockets, connections, four-tuples, ports or round trips. <span class="why">Five quantities, five invariants.</span></li>
+            <li>Apply the invariant for that quantity. <span class="why">1 + 2N, 28232, 2^48, rate × hold, or 1.0 against 1.5.</span></li>
+            <li>Check the unit and the direction. <span class="why">A rate against a count, or a server-side count against a client-side ceiling, is where the last mark goes.</span></li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Practice set — answers are withheld until you reveal them</h3>
+          <p class="small">All eight questions are original practice written for this lesson and labelled as such. None is presented as an official question: no previous-year item on the socket API itself could be verified against a paper and a question number, so no year is quoted. Every numeric answer was computed by this page's model and checked against its defining property.</p>
+          <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+          </label>
+          <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A server process listens on one TCP port and has accepted eight connections from eight different clients, each of which holds exactly one socket. How many sockets exist in the whole system?</p>
+            <ol class="choices">
+              <li>8</li>
+              <li>9</li>
+              <li>16</li>
+              <li>17</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: D — 17</p>
+            <p>One listening socket, eight connected sockets at the server, eight sockets at the clients. 1 + 2 × 8 = 17.</p>
+            <p><strong>Why 9.</strong> That counts only the server. <strong>Why 16.</strong> That counts the connections and forgets the listener. <strong>Why 8.</strong> That counts only the connections. The system total is always odd, which rules out two of the four options at a glance.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A client process repeatedly opens a TCP connection to one fixed server endpoint, sends one request, and closes first. The client's ephemeral range is 32768 to 60999 and TIME-WAIT lasts 60 seconds. The largest sustained rate of new connections, in connections per second, that does not exhaust the range is ______.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 470</p>
+            <p>The range holds 28232 ports. Each closed connection holds one for 60 seconds, so ports in use is 60 times the rate. 28232 / 60 = 470.53, and the largest rate whose product stays inside the range is 470, using 28200 ports.</p>
+            <p><strong>Why 471 is wrong.</strong> 471 × 60 = 28260, which is 28 ports more than exist. The constraint is a ceiling on a count, so it rounds down. <strong>Why 28232 is wrong.</strong> That is the number of ports, not the number of connections per second: the two differ by the holding time.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A server has called socket, bind and listen on port 9000, and has accepted three connections. Which statements are CORRECT?</p>
+            <ol class="choices">
+              <li>The server process holds four sockets that are bound to local port 9000.</li>
+              <li>accept returned a descriptor different from the listening descriptor for each connection.</li>
+              <li>The listening socket carries data for the most recent connection.</li>
+              <li>The four sockets are distinguished from one another by their peer addresses and ports.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B and D</p>
+            <p>B is the definition of accept. D is the reason one port can serve several connections: the four-tuple differs in the peer fields.</p>
+            <p><strong>Why A is wrong.</strong> The process holds four sockets, but only the listener was bound; the three accepted sockets inherit the local port without a bind call, so "bound" overstates what happened. <strong>Why C is wrong.</strong> A listening socket never carries data; reading from it fails.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A client calls <code>connect()</code> on a fresh TCP socket and the call returns successfully after one round trip. At the moment connect returns, which segment of the three-way handshake has NOT yet reached the server?</p>
+            <ol class="choices">
+              <li>The SYN</li>
+              <li>The SYN-ACK</li>
+              <li>The final ACK</li>
+              <li>None; the handshake is complete at both ends</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: C — the final ACK</p>
+            <p>connect returns when the SYN-ACK arrives, which is one round trip after the SYN. The kernel sends the ACK at that moment, and it needs another half round trip to arrive, which is when the connection is established at the server and accept returns.</p>
+            <p><strong>Why D is the tempting one.</strong> The handshake is complete at the client, so the client can write. It is not complete at the server, and a question about establishment at the server wants 1.5 round trips.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A server calls <code>listen(fd, 2)</code>. Completed connections arrive at t = 0, 1, 2, 3, 4 and 5 seconds, and the program calls <code>accept()</code> at t = 2.5 and t = 4.5 seconds. How many connections are dropped?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 2</p>
+            <p>Arrivals at 0 and 1 fill the queue of two. The arrival at 2 is dropped. The accept at 2.5 frees a slot, the arrival at 3 fills it, the arrival at 4 is dropped, the accept at 4.5 frees a slot and the arrival at 5 is queued. Four are queued, two are dropped.</p>
+            <p><strong>The identity that checks it.</strong> Arrivals 6 = queued 4 + dropped 2, and queued 4 = accepted 2 + still waiting 2. <strong>Why 1 appears.</strong> Forgetting that an accept frees a slot for a later arrival, so the queue is not permanently full after t = 2.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Two processes on the same host use TCP. Process A sends the first FIN and completes the close. Process B receives the FIN and its application closes later. Which state does each process hold longest, and for how long on Linux?</p>
+            <ol class="choices">
+              <li>A in CLOSE-WAIT, B in TIME-WAIT, 60 seconds</li>
+              <li>A in TIME-WAIT, 60 seconds; B passes through CLOSE-WAIT only while its application delays the close</li>
+              <li>Both in TIME-WAIT for 240 seconds</li>
+              <li>A in LAST-ACK, B in TIME-WAIT, 60 seconds</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: B</p>
+            <p>The active closer — the side that sent the first FIN — enters TIME-WAIT and holds it for a fixed 60 seconds on Linux. The passive closer sits in CLOSE-WAIT until its application calls close, which is a program decision and not a timer.</p>
+            <p><strong>Why C.</strong> 240 seconds is the specification's 2 × MSL, not Linux's constant. <strong>Why A and D.</strong> Both put TIME-WAIT on the passive side, which is the commonest misreading of the state diagram.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>Which statements about UDP sockets are CORRECT?</p>
+            <ol class="choices">
+              <li>A UDP socket cannot be put into TIME-WAIT, because there is no connection to protect.</li>
+              <li>One unconnected UDP socket bound to a port can receive datagrams from many different clients.</li>
+              <li>Calling connect on a UDP socket sends a SYN so that the peer creates state.</li>
+              <li>A UDP server must call listen before it can receive datagrams.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: A and B</p>
+            <p>A: TIME-WAIT protects a four-tuple that a new connection could reuse, and UDP keeps no such state, so the port is free at close. B: an unconnected UDP socket is demultiplexed by its local port alone, and <code>recvfrom</code> reports the source of each datagram.</p>
+            <p><strong>Why C.</strong> connect on UDP only records a default peer locally; no packet is sent. <strong>Why D.</strong> listen fails on a datagram socket, because there is no connection queue for it to bound.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body">
+            <p>A single server endpoint accepts connections from clients anywhere. Counting only the client address and the client port as free fields, the number of distinct TCP connections that could exist simultaneously to that one endpoint is 2<sup>k</sup>. Give k.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="verdict">Answer: 48</p>
+            <p>2^32 client addresses times 2^16 client ports, which is 2^48, about 2.8 × 10^14.</p>
+            <p><strong>Why 64 appears.</strong> Treating both ports as 32 bits. A port is 16 bits, so the two ports contribute 2^32 in total, not 2^64. <strong>Why 32 appears.</strong> Counting addresses only and forgetting that each address has a whole port range.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Revision sheet</h3>
+          <p class="small muted" style="margin-bottom:0">Definitions, counts, formulas, decision procedures and traps, in the order you would use them. Nothing here needs the animation.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The calls</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Server: socket, bind, listen, accept, read/write, close.</li>
+            <li>Client: socket, connect, read/write, close. connect binds an ephemeral port.</li>
+            <li>UDP: socket, bind (optional), sendto/recvfrom, close. No listen, no accept.</li>
+            <li>bind fixes the local address and port; listen sets LISTEN; accept takes a completed connection off the queue.</li>
+            <li>accept returns a new descriptor; the listener stays in LISTEN and never carries data.</li>
+            <li>A client that calls bind itself must choose a port, and can collide with one in TIME-WAIT.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The numbers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Port space 65536: 1024 well-known, 48128 registered, 16384 dynamic.</li>
+            <li>Linux ephemeral default 32768 to 60999, which is 28232 ports.</li>
+            <li>Sockets in the system 1 + 2N; at the server 1 + N.</li>
+            <li>Four-tuples for a fixed endpoint 2^48; per client address 28232.</li>
+            <li>connect returns at 1.0 RTT; accept returns at 1.5 RTT.</li>
+            <li>TIME-WAIT: 240 s by RFC 793, 60 s on Linux.</li>
+            <li>Port ceiling: 470 connections per second against a 60-second hold; 117 against a 240-second hold.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The four formulas</h3>
+          <p class="formula">sockets = 1 + 2N (system), 1 + N (server)<br>ports in use = rate × seconds held<br>rate ceiling = floor(range / hold)<br>queued = accepted + waiting; arrivals = queued + dropped<span class="gloss">the first is a count of descriptors, the second and third are one product seen from two sides, and the fourth checks a backlog simulation. Every one of them is verified in code on this page.</span></p>
+          <p class="small" style="margin-bottom:0">Plugged in: N = 8 gives 17; rate 470 with a 60-second hold gives 28200 ports, inside 28232; 471 gives 28260, outside.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Decision procedure, in four lines</h3>
+          <ol class="step-list small">
+            <li>Name the side: client, server or system. <span class="why">1 + 2N against 1 + N.</span></li>
+            <li>Name the quantity: sockets, connections, tuples, ports, round trips. <span class="why">Five quantities, five invariants.</span></li>
+            <li>Apply the invariant, then convert if the question asks for a rate. <span class="why">A rate is a count divided by the holding time.</span></li>
+            <li>Check the unit and the direction. <span class="why">Server-side TIME_WAIT consumes no ephemeral port; client-side churn does.</span></li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Numbers from this lesson worth remembering</h3>
+          <p class="small">28232 ephemeral ports · 470 connections per second at a 60-second hold · 117 at a 240-second hold · 2^48 four-tuples for one server endpoint · 1 + 2N sockets, so 17 for eight connections · connect at 1.0 RTT and accept at 1.5 · six arrivals, capacity two, four queued and two dropped · 240 seconds by the specification and 60 seconds on Linux.</p>
+          <p class="small" style="margin-bottom:0">Every one of these was computed by this page's model and checked against its defining property, not copied from a table.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>The five slips, one last time</h3>
+          <p class="small" style="margin-bottom:0">accept returns the same socket · each connection needs its own server port · the server is the side in TIME_WAIT · the backlog is a client count · TIME_WAIT is always harmful. Write the side and the unit at the top of your working and none of the five survives.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was consulted, and what each source supports</h3>
+          <p class="small muted" style="margin-bottom:0">Standards, official documentation and the official syllabus are separated from practitioner write-ups. Every numeric answer on this page was computed from first principles by the page's own model, so the sources support the rules, not the arithmetic.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Official and standard</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, <code>CS_GATE2027_Syllabus.pdf</code>, read on 3 November 2026. Supports the Section 10 wording quoted in Overview, including the clause "socket API".</li>
+            <li><strong>RFC 793</strong> — Transmission Control Protocol: the eleven connection states, the LISTEN, SYN-SENT, SYN-RECEIVED and ESTABLISHED descriptions, the state diagram with the 2MSL timeout from TIME-WAIT, and the statement that the maximum segment lifetime is taken to be two minutes.</li>
+            <li><strong>RFC 6335</strong> — the port-number registry procedure, which is the source of the 0–1023, 1024–49151 and 49152–65535 division quoted in scene 1.</li>
+            <li><strong>Linux kernel documentation, <code>ip-sysctl</code></strong> — <code>ip_local_port_range</code> with its defaults of 32768 and 60999, <code>ip_local_reserved_ports</code>, <code>tcp_max_tw_buckets</code> and <code>tcp_tw_reuse</code>.</li>
+            <li><strong>POSIX and Linux manual pages</strong> — <code>socket(2)</code>, <code>bind(2)</code>, <code>listen(2)</code>, <code>accept(2)</code>, <code>connect(2)</code>, <code>shutdown(2)</code>, and the error names <code>EADDRINUSE</code>, <code>EADDRNOTAVAIL</code>, <code>ECONNREFUSED</code> and <code>EINVAL</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Practitioner references, used for the implementation facts</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Cloudflare, "How to stop running out of ephemeral ports"</strong> — the default range as 32768 to 60999, the count 28232, the four-tuple as the unit of connection identity, and the per-destination nature of the limit.</li>
+            <li><strong>Wikipedia, "Maximum segment lifetime"</strong> and <strong>RFC 1337</strong> — the two-minute MSL, Linux's <code>TCP_TIMEWAIT_LEN</code> of 60 seconds, and the TIME-WAIT assassination hazard that explains why the wait exists.</li>
+            <li><strong>Baeldung, "How to forcibly close a socket in TIME_WAIT"</strong> — the two purposes of TIME-WAIT: answering a retransmitted FIN, and keeping an old duplicate out of a new connection with the same four-tuple.</li>
+            <li><strong>damonsec, "Linux TIME_WAIT explained"</strong> — that the 60-second value is a kernel constant with no sysctl, that <code>tcp_fin_timeout</code> governs a different timer, and that server-side TIME-WAIT costs memory rather than ports.</li>
+            <li><strong>netdata, "HAProxy ephemeral port exhaustion"</strong> — the arithmetic of ports in use against a sustained rate, and the ~470 per second ceiling for one destination endpoint.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No previous-year GATE item on the socket API itself was found and verified against a paper and a question number, so no question in this lesson is attributed to a year; the practice set is labelled original throughout. The 470-per-second ceiling assumes the client closes first, a sustained rather than bursty rate, and no port reuse; each of those assumptions is stated where the number is used. The backlog model here is a single completed-connection queue, while Linux actually keeps a SYN queue and an accept queue with separate bounds and a clamp at <code>somaxconn</code>; the single-queue model is what a GATE-style question describes, and the two-queue reality is described in Edge cases rather than modelled. The 60-second TIME-WAIT is a Linux kernel constant and has changed across kernel versions, so a question that names a different system would need a different constant. Sockets in this lesson are stream sockets unless a scene says datagram. Nothing here was checked against a printed textbook edition, and no claim is made about 2027 weightage.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+1
+00:00:00,000 --> 00:00:07,500
+A socket names one endpoint: an address and a port. The port is the part the program chooses.
+
+2
+00:00:07,500 --> 00:00:15,000
+A connection is named by four numbers: source address, source port, destination address, destination port.
+
+3
+00:00:15,000 --> 00:00:22,500
+The port space is 16 bits: 1024 well-known, 48128 registered, 16384 dynamic, summing to 65536.
+
+4
+00:00:22,500 --> 00:00:30,000
+So the unit of a socket question is a pair, and the unit of a connection question is a four-tuple.
+
+5
+00:00:30,000 --> 00:00:37,500
+The server calls socket, then bind, then listen. Only after listen can a client reach it.
+
+6
+00:00:37,500 --> 00:00:45,000
+The client calls socket and connect. connect binds an ephemeral port implicitly and sends the SYN.
+
+7
+00:00:45,000 --> 00:00:52,500
+accept takes one completed connection off the queue and returns a descriptor for it. It does not answer the SYN.
+
+8
+00:00:52,500 --> 00:01:00,000
+Then read and write on the connected descriptor, and close it. The listening socket closes separately.
+
+9
+00:01:00,000 --> 00:01:07,500
+After one client connects, the server holds two sockets on the same local port 443.
+
+10
+00:01:07,500 --> 00:01:15,000
+Every accept returns a fresh descriptor. Descriptors 3, 4, 5 and so on, one per connection.
+
+11
+00:01:15,000 --> 00:01:22,500
+So a server with N connections holds 1 + 2N sockets in the system: one listening, N at the server, N at the clients.
+
+12
+00:01:22,500 --> 00:01:30,000
+A server therefore scales by descriptors and memory, not by port numbers.
+
+13
+00:01:30,000 --> 00:01:37,500
+connect sends a SYN and waits. Half a round trip later the server answers SYN-ACK.
+
+14
+00:01:37,500 --> 00:01:45,000
+connect returns when the SYN-ACK arrives, at one round trip. The final ACK is still in flight.
+
+15
+00:01:45,000 --> 00:01:52,500
+accept returns at one and a half round trips, when the ACK arrives and the connection joins the queue.
+
+16
+00:01:52,500 --> 00:02:00,000
+The passive states are LISTEN, then SYN-RECEIVED, then ESTABLISHED. The client goes SYN-SENT, then ESTABLISHED.
+
+17
+00:02:00,000 --> 00:02:07,500
+listen(fd, n) says how many completed connections may wait for accept: the backlog is a queue length.
+
+18
+00:02:07,500 --> 00:02:15,000
+Six arrivals, a queue of two, and two accepts: four get queued, two are dropped.
+
+19
+00:02:15,000 --> 00:02:22,500
+The invariant: every arrival is either queued or dropped, and every queued one is accepted or still waiting.
+
+20
+00:02:22,500 --> 00:02:30,000
+A full queue is what a SYN flood exploits, and it is why a server separates the half-open and completed queues.
+
+21
+00:02:30,000 --> 00:02:37,500
+Fix the server endpoint and the only thing that can vary is the client side.
+
+22
+00:02:37,500 --> 00:02:45,000
+With the Linux default range, one client address can hold 28232 connections to one server endpoint.
+
+23
+00:02:45,000 --> 00:02:52,500
+Across all clients the space is 2^48 four-tuples: 2^32 addresses times 2^16 ports on each side.
+
+24
+00:02:52,500 --> 00:03:00,000
+So the server side is bounded by descriptors, and the client side by ports. They are different ceilings.
+
+25
+00:03:00,000 --> 00:03:07,500
+The side that sends the first FIN enters TIME_WAIT. The side that receives it goes to CLOSE-WAIT.
+
+26
+00:03:07,500 --> 00:03:15,000
+It waits so that a lost final ACK can be answered, and so that old duplicates die before the tuple is reused.
+
+27
+00:03:15,000 --> 00:03:22,500
+The specification says two times the maximum segment lifetime: 2 x 120 = 240 seconds. Linux uses 60.
+
+28
+00:03:22,500 --> 00:03:30,000
+TIME_WAIT holds a four-tuple; CLOSE_WAIT holds a descriptor. Only the first blocks a new connection.
+
+29
+00:03:30,000 --> 00:03:37,500
+Ports in use equals the connection rate times the seconds each port is held.
+
+30
+00:03:37,500 --> 00:03:45,000
+28232 ports held for 60 seconds gives 470 new connections per second. 471 exceeds the range.
+
+31
+00:03:45,000 --> 00:03:52,500
+The failure is EADDRNOTAVAIL from connect, not a refusal from the server.
+
+32
+00:03:52,500 --> 00:04:00,000
+The fixes change the rate or the hold: reuse connections, or widen the range.
+
+33
+00:04:00,000 --> 00:04:07,500
+A UDP socket is one endpoint and nothing else: no listen, no accept, no connection.
+
+34
+00:04:07,500 --> 00:04:15,000
+A UDP socket is demultiplexed by its local port alone, so two clients share one receiving socket.
+
+35
+00:04:15,000 --> 00:04:22,500
+connect on a UDP socket only records a default peer; it sends nothing and completes no handshake.
+
+36
+00:04:22,500 --> 00:04:30,000
+With no connection there is no TIME_WAIT, so UDP cannot exhaust ports the way TCP does.
+
+37
+00:04:30,000 --> 00:04:37,500
+Four steps: name the side, name the quantity, apply the invariant, then check the unit.
+
+38
+00:04:37,500 --> 00:04:45,000
+The invariants: 1 + 2N sockets, 2^48 tuples, 28232 ports, 1 and 1.5 round trips.
+
+39
+00:04:45,000 --> 00:04:52,500
+Trap one: accept returns the same socket. Trap two: a new port per connection. Trap three: the server enters TIME_WAIT.
+
+40
+00:04:52,500 --> 00:05:00,000
+Trap four: the backlog is a client count. Trap five: TIME_WAIT is always harmful. Write the unit, then compute.
+
