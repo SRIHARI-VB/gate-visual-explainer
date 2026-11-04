@@ -1,4 +1,4 @@
-# Tcp Retransmission Timeout And Rtt Estimation — transcript
+# TCP's Retransmission Timeout: RTT Sampling, SRTT and RTTVAR, Karn's Algorithm and Backoff — transcript
 
 Full narration and caption text in reading order, with scene headings. This is the
 accessibility fallback and the printable study document for the lesson.
