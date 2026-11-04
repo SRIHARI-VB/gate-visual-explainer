@@ -8280,6 +8280,57 @@ topics.append(topic(
 ))
 
 
+topics.append(topic(
+    "Theory of Computation",
+    "Section 6: 'Turing machines and undecidability' - the classes between the context-free clause and the decidable clause",
+    "Linear bounded automata and the context-sensitive class: the bounded tape, the configuration count and the decidability it buys",
+    ["the linear bounded automaton as a seven-tuple with two endmarkers",
+     "the configuration count and why it is finite",
+     "the decider that watches a machine which never halts",
+     "non-contracting grammars and the same class from the grammar side",
+     "closure properties and the two LBA problems",
+     "the decision table against the context-free row"],
+    prereq=["turing-machines-and-undecidability", "chomsky-hierarchy",
+            "context-free-grammars-and-pushdown-automata"],
+    related=["proving-a-language-is-not-context-free", "closure-and-decision-properties",
+             "post-correspondence-problem", "myhill-nerode-and-distinguishability"],
+    importance="medium",
+    evidence="The GATE 2027 Section 6 clause prints 'Turing machines and undecidability' but not 'linear bounded automaton' or 'context-sensitive', so this is classified B: the bounded tape is the mechanism that makes the decidable side of that clause decidable, and the class is the subject of the hierarchy statement questions. No frequency or weightage claim is made; no paper was read end to end for this row.",
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="linear-bounded-automata",
+    path="topics/linear-bounded-automata/index.html",
+    execution="published 2026-11-05; 32 model checks, the headless page check and the geometry audit all clean. The configuration count was first written as 7*(n+2)*8^(n+2); enumerating every configuration at inputs of 1 and 2 letters showed the two end cells cannot vary, so the published count is 7*(m+2)*8^m and the captions were corrected with it",
+    microtopics=[
+        "three conditions make the tape bounded: two endmarkers, no printing over them, no moving past them",
+        "on a word of m letters the tape is exactly m + 2 cells, fixed before the machine starts",
+        "a configuration is state, tape contents and head position, and nothing else can change",
+        "the count is |Q| * (m + 2) * |Gamma|^m because the two end cells never vary",
+        "enumerating every configuration at m = 1 and m = 2 gives 168 and 1792, equal to the formula",
+        "7 states and 8 tape symbols: 168 at one letter, 172032 at four, 14680064 at six",
+        "aabbcc decided in 29 moves by marking X, Y, Z and walking back to the left marker",
+        "move counts 10, 29, 58, 97, 146, 205 for a^n b^n c^n, n = 1 to 6, so the run is quadratic",
+        "the head never leaves cells 0 to 3n+1 in any run, checked after every move",
+        "finitely many configurations means a run either accepts or repeats one and loops",
+        "so every context-sensitive language is recursive, and the class sits below recursive",
+        "a two-state machine that oscillates repeats its first configuration after 2 moves",
+        "the decider runs the machine for the configuration count and rejects on timeout: 168 at one letter",
+        "acceptance as reachability in the configuration graph",
+        "a deterministic run visits exactly moves + 1 configurations: 11, 30, 59, 98",
+        "a nondeterministic machine reaches 3*2^k - 1: 5, 11, 23, 47 for k = 1 to 4",
+        "S -> abc | aSBc, cB -> Bc, bB -> bb generates a^n b^n c^n with no contracting rule",
+        "17 sentential forms to length 9, 3 terminal strings, equal to the language computed independently",
+        "closed under union, intersection, complement, concatenation, star, reversal, epsilon-free homomorphism",
+        "not closed under arbitrary homomorphism, because erasing a letter can shrink a word",
+        "the second LBA problem: complement closure, answered 1988 by Immerman and Szelepcsényi",
+        "the first LBA problem: is NSPACE(n) = DSPACE(n), still open since 1964",
+        "membership is decidable and PSPACE-complete; emptiness, equivalence, finiteness, universality are not",
+        "the context-free row disagrees on emptiness and finiteness only",
+        "GATE CSE 1991 Q3(xiv): the strongest statement about a finite language is that it is regular",
+        "the four question shapes: classify, is the statement true, which automaton, decidable or not",
+    ]))
+
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -8322,6 +8373,7 @@ _RECHECKED = {
     "two-level-cache-amat-and-cpi": "2026-11-05",
     "chomsky-normal-form-and-grammar-simplification": "2026-11-05",
     "proving-a-language-is-not-context-free": "2026-11-05",
+    "linear-bounded-automata": "2026-11-05",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
