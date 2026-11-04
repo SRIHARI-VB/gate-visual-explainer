@@ -7724,6 +7724,64 @@ topics.append(topic(
 ))
 
 
+
+# ---------------------------------------------------------------- Databases: view serialisability
+topics.append(topic(
+    "Databases",
+    "Transactions and concurrency control",
+    "View serialisability and blind writes: the read-from table and the gap above conflict serialisability",
+    ["the three observations a schedule leaves behind",
+     "view equivalence and view serialisability",
+     "the read-from relation built with T_init and T_final",
+     "comparing a schedule with every serial order",
+     "blind writes, and why they are the hinge",
+     "enumerating a family of interleavings and counting each class",
+     "the four-class ladder: serial, conflict, view, final-state",
+     "why practical protocols target conflict serialisability"],
+    prereq=["transactions-and-concurrency-control"],
+    related=["transactions-and-concurrency-control", "database-recovery-undo-redo",
+             "relational-algebra-and-sql"],
+    importance="high",
+    evidence=("Section 9 of the GATE 2027 CS syllabus published by IIT Madras prints 'Transactions and "
+              "concurrency control.', which is the clause this lesson sits in; the words view serialisability "
+              "and blind write are not printed, and the lesson labels that distinction rather than hiding it. "
+              "No previous-year paper was consulted for this run, so no item on the page is labelled a "
+              "previous-year question."),
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="view-serialisability-and-blind-writes",
+    path="topics/view-serialisability-and-blind-writes/index.html",
+    execution=("published 2026-11-04; 17 model checks over 901 enumerated schedules, check-lesson and "
+               "geometry audit run in the same run"),
+    microtopics=[
+        "a cycle in the precedence graph rules out conflict serialisability only",
+        "the three observations: initial reads, read-from, final writes",
+        "a dead write appears in no observation and may move",
+        "T_init writes every item and T_final reads every item",
+        "view equivalent exactly when the read-from relations agree",
+        "view serialisable exactly when some serial order has that relation",
+        "a blind write is a write with no earlier read of the same item in its own transaction",
+        "blindness is a property of one transaction, not of the schedule order",
+        "family A: twelve interleavings, six conflict, ten view, four in the gap, two in neither",
+        "the witness rT1 wT2 wT1 wT3: T1 reads the initial value and writes 150 twice",
+        "the 200 that T2 wrote is dead, which is why the graph is too strict here",
+        "only T1, T2, T3 reproduces both rows of the witness table",
+        "rT1 wT2 wT3 wT1 ends on 150, a value no serial order produces",
+        "family D: 210 interleavings, 54 conflict, 71 view",
+        "family F: 560 interleavings, 86 conflict, 110 view, one gap schedule with a single blind write",
+        "45 schedules in the gap across A, D and F, every one with a blind write",
+        "family G, no blind write: 90 interleavings, 30 conflict and 30 view",
+        "three two-transaction families, 29 schedules, no separation",
+        "the page reports the enumeration and does not claim the general theorem",
+        "serial inside conflict inside view inside final-state, each inclusion strict",
+        "a conflict-serialisable schedule that is not serial",
+        "the lost update: final-state equivalent without being view equivalent",
+        "testing conflict serialisability is a cycle check",
+        "testing view serialisability is NP-complete",
+        "locking cannot produce every view-serialisable schedule",
+        "the four-step procedure and the two verdicts reported separately"],
+))
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -7756,6 +7814,7 @@ _RECHECKED = {
     "command-line-arguments-in-c": "2026-11-03",
     "symbol-table-organisation-and-scope": "2026-11-03",
     "counting-eulerian-circuits-best-theorem": "2026-11-03",
+    "view-serialisability-and-blind-writes": "2026-11-04",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
