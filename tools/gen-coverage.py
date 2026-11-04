@@ -8068,6 +8068,78 @@ topics.append(topic(
         "union-find is the standard application: alpha(n) amortised, at most 4 for n below 2^65536"],
 ))
 
+# ---------------------------------------------------------------- Algorithms (Section 5: selection)
+topics.append(topic(
+    "Algorithms",
+    "Section 5: 'Algorithm design techniques: greedy, dynamic programming and divide-and-conquer' - selection",
+    "Deterministic linear-time selection: quickselect, the median of medians and why five",
+    ["the selection problem and the meaning of rank k",
+     "quickselect: partition and recurse into one side",
+     "the quadratic worst case of a positional pivot",
+     "median of medians: groups of five, group medians, median of medians",
+     "the counting lemma: at least 3n/10 - 6 keys on each side",
+     "the recurrence T(n) <= T(n/5) + T(7n/10) + O(n) and its solution",
+     "why group size 5 and not 3: the coefficients must sum below 1"],
+    prereq=["divide-and-conquer", "sorting algorithms", "selection lower bounds", "asymptotic notation"],
+    related=["sorting algorithms and the comparison lower bound", "recurrence relations",
+             "amortised analysis", "binary search"],
+    importance="medium",
+    evidence=("The selection problem is an instance of the divide-and-conquer technique named verbatim in Section 5 of the "
+              "official GATE 2027 CS syllabus ('Algorithm design techniques: greedy, dynamic programming and divide-and-conquer'), "
+              "and its worst-case analysis belongs to 'Asymptotic worst case time and space complexity'. The words 'median of medians' "
+              "are not printed in the syllabus, so the lesson is class B and says so. Three previous-year questions were confirmed "
+              "against paper reproductions: GATE CSE 2019 item 29 (median of medians of n arrays of n keys, Theta(n^2)), "
+              "GATE CSE 2008 Q43 (a pivot leaving at least n/5 on each side, T(n) <= T(n/5) + T(4n/5) + n) and "
+              "GATE CSE 2006 Q52 (a median pivot makes quicksort Theta(n log n)). No frequency or weightage figure is claimed."),
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="deterministic-selection-median-of-medians",
+    path="topics/deterministic-selection-median-of-medians/index.html",
+    execution=("published 2026-11-04; 25 model checks over a 25-key median-of-medians trace, all 120 orderings of five keys, "
+               "every rank of every array up to n = 40, the 3n/10 - 6 lemma at every call of five sampled runs, quickselect on "
+               "sorted input and 20 seeded randomised runs, and both group-size recurrences solved from the base case; "
+               "check-lesson and audit-geometry run in the same run"),
+    microtopics=[
+        "selection returns one rank; sorting returns all n of them",
+        "k = 1 is the minimum, k = n the maximum, k = floor((n+1)/2) the median",
+        "the comparison model: only key-to-key comparisons are counted, keys distinct unless stated",
+        "the minimum needs n - 1 comparisons: every loser must lose once (adversary argument)",
+        "n - 1 comparisons also suffice, so linear time is optimal for selection",
+        "the sorting bound log2(n!) counts leaves for n! orderings; selection needs only n outcomes",
+        "quickselect partitions and recurses into one side, so one level costs n - 1 and the other side is dropped",
+        "a middle pivot gives n + n/2 + n/4 + ... <= 2n, a geometric sum",
+        "sorted input with the first element as pivot peels one key per level: n(n-1)/2 comparisons, 2,016 at n = 64",
+        "the middle rank costs 1,520 at n = 64 on the same input: quadratic, but below the bound",
+        "k = 1 and k = n end after one partition on that input, so the claim needs its k stated",
+        "randomised quickselect measured 3.25n on average over 20 seeded runs at n = 1024, worst run 4.61n",
+        "expectation is over the algorithm's coin flips, never over an input chosen by an examiner",
+        "groups of five by position; the last group may be short",
+        "the median of five distinct keys costs at most 7 comparisons: 4 to bracket, 3 to finish",
+        "all 120 orderings of five keys checked; the maximum is exactly 7",
+        "the demo array's group medians are 17, 29, 19, 21, 27 and the median of medians is 21",
+        "the pivot call is on n/5 keys, so it costs T(n/5) and not T(n)",
+        "half the medians are at or above the median of medians, and each drags (g+1)/2 keys with it",
+        "at least 3n/10 - 6 keys lie on each side; the -6 pays for the pivot's group and a short last group",
+        "the larger side is at most n - (3n/10 - 6) = 7n/10 + 6",
+        "the median of medians is not the median: on the second array it is 54 at rank 14 of 25",
+        "T(n) <= T(n/5) + T(7n/10) + O(n), with level ratio 9/10 and total at most 10n",
+        "substitution: c >= 10a, so a = 2.4 per element gives T(n) <= 24n comparisons",
+        "measured 103 at n = 25, 7,107 at n = 1,000 and 29,505 at n = 4,096, settling near 7n",
+        "each side keeps (g+1)/(4g); the survivor is 1/g + 1 - (g+1)/(4g) = 3(g+1)/(4g)",
+        "g = 5 gives 0.9, g = 7 gives 6/7, g = 9 gives 0.833; g = 3 gives exactly 1",
+        "with g = 3 the recurrence T(n/3) + T(2n/3) + O(n) solves to Theta(n log n)",
+        "solving both from the base case: T(n)/n 6.20 to 8.52 for groups of 5, 4.89 to 13.21 for groups of 3",
+        "the claim that groups of 3 force superlinear time is not proven: Chen and Dumitrescu give linear variants",
+        "3n/10 - 6 is negative below n = 20, so the proof needs a constant-size base case",
+        "with duplicates the partition must be three-way, or the rank arithmetic breaks",
+        "for all n ranks, sorting at Theta(n log n) beats n selections",
+        "median of medians is for the guarantee, not for practice: 7n comparisons against 3.25n randomised",
+        "GATE 2019: n medians at Theta(n) each is Theta(n^2); the final median of medians is dominated",
+        "GATE 2008 Q43: a pivot with n/5 on each side gives T(n) <= T(n/5) + T(4n/5) + n, which is Theta(n log n)",
+        "GATE 2006 Q52: an O(n) median pivot makes quicksort Theta(n log n) best, average and worst"],
+))
+
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -8106,6 +8178,7 @@ _RECHECKED = {
     "mensuration-and-geometry": "2026-11-04",
     "algorithm-correctness-loop-invariants": "2026-11-04",
     "amortised-analysis-aggregate-accounting-potential": "2026-11-04",
+    "deterministic-selection-median-of-medians": "2026-11-04",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
