@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eliminating Left Recursion and Left Factoring — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Eliminating left recursion and left factoring</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../lexical-analysis-parsing-and-sdt/index.html">Prerequisite: LL(1) and FIRST/FOLLOW</a>
+      <a href="../context-free-grammars-and-pushdown-automata/index.html">Prerequisite: grammars</a>
+      <a href="../canonical-lr1-items-and-lalr-merging/index.html">Related: LR(1) and LALR(1)</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The two grammar transformations a top-down parser needs before any LL(1) table can be built &mdash; eliminating left recursion (immediate, indirect and hidden) and left factoring a shared prefix.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a grammar, decide whether it is left recursive and by which of the three routes; rewrite it so that no nonterminal reaches itself on the left; factor a shared prefix to a fixed point; count the productions before and after without writing them out; and state what each transformation preserves and what it does not.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the preprocessing step the parsing lesson names and does not build</em>. The prerequisite lesson builds FIRST, FOLLOW and the LL(1) table and says in passing that left-recursion elimination and left factoring are a preprocessing step; this page owns that step.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A &mdash; explicitly in the syllabus.</strong></p>
+          <p class="small">Section 7 of the GATE 2027 CS syllabus (IIT Madras, official PDF, read 2026-11-04) prints: <em>&ldquo;Lexical analysis, parsing, syntax-directed translation.&rdquo;</em> Grammar transformation for top-down parsing is the standard content of the word <em>parsing</em> in that clause.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>left recursion</em> and <em>left factoring</em> are not printed in the syllabus, and no claim is made here about how often such a question appears. Two previous-year items are reproduced on this page because their year and question number were confirmed; no frequency is inferred from them.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The topic is examinable because every step is a rewrite of a few short rules plus a count, which can be done by hand in under two minutes and is marked as an exact answer.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../context-free-grammars-and-pushdown-automata/index.html">Context-free grammars</a> &mdash; a production, a derivation, a sentential form, and what it means for a grammar to generate a string.</li>
+            <li><a href="../lexical-analysis-parsing-and-sdt/index.html">LL(1) parsing and FIRST/FOLLOW</a> &mdash; FIRST, FOLLOW, the two-branch rule for filling a table cell, and a cell with two entries meaning &ldquo;not LL(1)&rdquo;.</li>
+            <li>Reading <span class="mono">&epsilon;</span> as the empty string, and knowing that a derivation is finite.</li>
+            <li>No calculus, no probability, no counting beyond &ldquo;one per alternative&rdquo;.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Nothing on this page needs a compiler. Every grammar is rewritten, and every language compared, in the browser when the page loads.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Two failures, two cures</strong> &mdash; a left-recursive rule loops; a shared prefix conflicts. Neither cure is part of the table construction.</li>
+            <li><strong>Repeat on the right</strong> &mdash; <span class="mono">A &rarr; A&alpha; | &beta;</span> becomes <span class="mono">A &rarr; &beta;A&prime;</span>, <span class="mono">A&prime; &rarr; &alpha;A&prime; | &epsilon;</span>, and the &epsilon; is the base case.</li>
+            <li><strong>Count, do not write</strong> &mdash; m recursive and n base alternatives become n + m + 1 productions.</li>
+            <li><strong>Order matters</strong> &mdash; indirect recursion is found by a left-corner closure, then removed by substituting earlier nonterminals first.</li>
+            <li><strong>Necessary, not sufficient</strong> &mdash; a grammar can have neither defect and still conflict. The table decides.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>Approximate learning time</h3>
+          <p class="small" style="margin-bottom:0">About 55&ndash;75 minutes for the nine levels, with the animation watched twice: once for the loop and the rewrite, once for the ordered algorithm and the factoring passes. <span class="muted">(Approximate, and an estimate rather than a measurement.)</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Intuition first: the recipe that starts with itself</h3>
+              <p class="small">A left-recursive rule is a recipe whose first instruction is &ldquo;follow this recipe&rdquo;. <span class="claim-chip claim-chip--interpretation">Educational interpretation</span></p>
+              <p class="small">The sentence <em>&ldquo;a sum is a sum plus a term, or a term&rdquo;</em> is perfectly good English and a perfectly good description of what a sum is. Read as an instruction it is useless: to build a sum you must first build a sum. Read as a description it is fine, and that gap &mdash; a good description, a bad instruction &mdash; is the whole topic.</p>
+              <p class="small" style="margin-bottom:0">The cure is to describe the same set of sums from the other end: <em>&ldquo;a sum is a term, then any number of plus-terms&rdquo;</em>. &ldquo;Any number&rdquo; includes zero, and zero is where the empty string comes in.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definition 1 &mdash; left recursion</h3>
+              <p class="small">Write <span class="mono">A &rArr; B&gamma;</span> to mean &ldquo;A derives, in one or more steps, a sentential form that begins with the symbol B&rdquo;. A nonterminal A is <strong>left recursive</strong> when <span class="mono">A &rArr; A&gamma;</span> for some &gamma;.</p>
+              <p class="small">Three routes reach it:</p>
+              <ul class="small">
+                <li><strong>Immediate</strong> &mdash; a rule of A begins with A: <span class="mono">A &rarr; A&alpha;</span>.</li>
+                <li><strong>Indirect</strong> &mdash; the cycle passes through other nonterminals: <span class="mono">S &rarr; A a</span>, <span class="mono">A &rarr; S d</span>.</li>
+                <li><strong>Hidden</strong> &mdash; the recursive symbol is not first, but everything before it can vanish: <span class="mono">A &rarr; B A a</span> with B nullable.</li>
+              </ul>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> All three are the same condition <span class="mono">A &rArr; A&gamma;</span>; they differ only in how many steps the derivation takes and whether a nullable prefix is crossed.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definition 2 &mdash; the left-corner relation</h3>
+              <p class="small">A reaches B on the left, written <span class="mono">A &rarr;<sub>LC</sub> B</span>, when some rule <span class="mono">A &rarr; X<sub>1</sub>&hellip;X<sub>k</sub></span> has <span class="mono">X<sub>j</sub> = B</span> and every <span class="mono">X<sub>1</sub>&hellip;X<sub>j&minus;1</sub></span> is a nullable nonterminal. Take the transitive closure.</p>
+              <p class="small">Then: <strong>A is left recursive exactly when A reaches itself</strong> in this relation.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> If A reaches itself, the sequence of jumps spells out <span class="mono">A &rArr; A&gamma;</span>. If <span class="mono">A &rArr; A&gamma;</span>, every step of that derivation starts at a left-corner symbol, so A reaches itself. The nullable-prefix rule is what makes the hidden case visible.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>Definition 3 &mdash; the direct rewrite</h3>
+              <p class="small">Let <span class="mono">A &rarr; A&alpha;<sub>1</sub> | &hellip; | A&alpha;<sub>m</sub> | &beta;<sub>1</sub> | &hellip; | &beta;<sub>n</sub></span>, where no &beta;<sub>i</sub> begins with A. Replace those rules by</p>
+              <p class="formula">A &rarr; &beta;<sub>1</sub>A&prime; | &hellip; | &beta;<sub>n</sub>A&prime;<br>A&prime; &rarr; &alpha;<sub>1</sub>A&prime; | &hellip; | &alpha;<sub>m</sub>A&prime; | &epsilon;</p>
+              <p class="small">Read it in words: A produces one base alternative, then the helper A&prime; produces zero or more copies of a recursive alternative. The count is n + m + 1 productions.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The old A generates <span class="mono">&beta;<sub>i</sub>&alpha;<sub>j1</sub>&hellip;&alpha;<sub>jk</sub></span> for any k &ge; 0. The new A generates the same set: one &beta; from its own rules, then k copies of some &alpha; from A&prime;, and A&prime; stops only by taking &epsilon;.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definition 4 &mdash; the ordered algorithm</h3>
+              <p class="small">Number the nonterminals <span class="mono">A<sub>1</sub>&hellip;A<sub>n</sub></span>. For i = 1 to n:</p>
+              <ol class="step-list small">
+                <li>For j = 1 to i&minus;1, replace every rule <span class="mono">A<sub>i</sub> &rarr; A<sub>j</sub>&gamma;</span> by <span class="mono">A<sub>i</sub> &rarr; &delta;<sub>1</sub>&gamma; | &hellip; | &delta;<sub>k</sub>&gamma;</span>, where <span class="mono">A<sub>j</sub> &rarr; &delta;<sub>1</sub> | &hellip; | &delta;<sub>k</sub></span> are all the rules of A<sub>j</sub>.</li>
+                <li>Remove the immediate left recursion in A<sub>i</sub> with Definition 3.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The algorithm is Algorithm 4.19 of Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em>, 2nd edition, stated for a grammar with no cycles and no &epsilon;-productions.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Definition 5 &mdash; left factoring</h3>
+              <p class="small">If two alternatives of one nonterminal share a non-empty prefix &alpha;, replace them by &alpha; followed by a helper:</p>
+              <p class="formula">A &rarr; &alpha;&beta;<sub>1</sub> | &alpha;&beta;<sub>2</sub> &nbsp;&nbsp;becomes&nbsp;&nbsp; A &rarr; &alpha;A&prime; , &nbsp; A&prime; &rarr; &beta;<sub>1</sub> | &beta;<sub>2</sub></p>
+              <p class="small">Take the <em>longest</em> common prefix, and repeat until no two alternatives of any nonterminal share one. The language is unchanged: the same strings, grouped differently.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verification">Mathematical derivation</span> Both sides of the replacement derive <span class="mono">&alpha;&beta;<sub>1</sub></span> and <span class="mono">&alpha;&beta;<sub>2</sub></span> and nothing else, so no string enters or leaves the language.</p>
+            </div>
+
+            <div class="card card--assumption span-2">
+              <h3>The conditions, stated once</h3>
+              <p class="small" style="margin-bottom:0">The ordered algorithm is stated for a grammar <strong>with no cycles and no &epsilon;-productions in the input</strong>. Its output usually contains &epsilon;-productions, which is expected. The 1998 grammar on this page does contain <span class="mono">A &rarr; &epsilon;</span>; the substitution step there is safe because the nonterminal being substituted (S) is not nullable, and the model re-checks the result rather than assuming the textbook guarantee.</p>
+            </div>
+
+          </div>
+        </div>
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 1</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every grammar rewritten and every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">E &rarr; E + T | T. Expanding E never consumes a character: E &rArr; E + T &rArr; E + T + T &rArr; &hellip;</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two ways a top-down parser fails before it starts</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">The rule for E begins with E. So expanding E expands E again, and the sentential form grows while the input pointer does not move.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked example 1 &mdash; the direct rewrite, counted and checked</h3>
+              <p class="small mono" style="margin-bottom:4px">E &rarr; E + T | T &nbsp;&nbsp;&nbsp;&nbsp; T &rarr; a</p>
+              <ol class="step-list small">
+                <li><strong>Classify.</strong> E has one rule beginning with E, so E is immediately left recursive. T is not. <span class="muted">(Justification: read the first symbol of each right side.)</span></li>
+                <li><strong>Split the alternatives.</strong> Recursive: &alpha; = <span class="mono">+ T</span>. Base: &beta; = <span class="mono">T</span>. <span class="muted">(m = 1, n = 1.)</span></li>
+                <li><strong>Count.</strong> n + m + 1 = 3 rules for E, plus T&rsquo;s one rule: 4 productions, from 3. <span class="muted">(The helper is new; nothing else changes.)</span></li>
+                <li><strong>Write.</strong> <span class="mono">E &rarr; T E&prime;</span>, <span class="mono">E&prime; &rarr; + T E&prime; | &epsilon;</span>, <span class="mono">T &rarr; a</span>.</li>
+                <li><strong>Check the language.</strong> The model enumerates every string over {a, +} up to length 7 and tests membership by dynamic programming: <span class="mono">a</span>, <span class="mono">a+a</span>, <span class="mono">a+a+a</span>, <span class="mono">a+a+a+a</span> &mdash; 4 strings, the same 4 both ways.</li>
+                <li><strong>Check the table.</strong> FIRST(E) = FIRST(T) = {a}; FOLLOW(E) = FOLLOW(E&prime;) = {$, +}. No cell holds two rules, so the rewritten grammar is LL(1).</li>
+              </ol>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Every number above is recomputed on each page load; the same figures appear in the animation&rsquo;s footer.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Worked example 2 &mdash; the count on a four-alternative grammar</h3>
+              <p class="small mono" style="margin-bottom:4px">S &rarr; S a | S b | c | d</p>
+              <p class="small">m = 2 (<span class="mono">a</span>, <span class="mono">b</span>), n = 2 (<span class="mono">c</span>, <span class="mono">d</span>), so 2 + 2 + 1 = 5 productions:</p>
+              <p class="small mono">S &rarr; c S&prime; | d S&prime;<br>S&prime; &rarr; a S&prime; | b S&prime; | &epsilon;</p>
+              <p class="small" style="margin-bottom:0"><strong>The slip this catches.</strong> Four alternatives look like four rules. The answer is five, because the helper needs its own &epsilon;.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Worked example 3 &mdash; the empty &beta; is still a base alternative</h3>
+              <p class="small">In <span class="mono">A &rarr; A c | S d | &epsilon;</span>, after substituting S&rsquo;s rules, the alternatives are <span class="mono">A c</span>, <span class="mono">A a d</span>, <span class="mono">b d</span> and <span class="mono">&epsilon;</span>. So m = 2 and n = 2, and the base alternatives are <span class="mono">b d</span> and <span class="mono">&epsilon;</span>.</p>
+              <p class="small mono">A &rarr; b d A&prime; | A&prime;</p>
+              <p class="small" style="margin-bottom:0">The second rule is just the helper, because &beta; was empty. Dropping it would delete the strings in which A derives nothing.</p>
+            </div>
+
+            <div class="card card--definition span-2">
+              <h3>Worked example 4 &mdash; GATE CSE 1998 Q6b, in four steps</h3>
+              <p class="small"><span class="badge">GATE CSE 1998 &middot; Q6b</span> <span class="claim-chip claim-chip--verified">Verified fact</span> The paper prints <span class="mono">S &rarr; A a | b</span>, <span class="mono">A &rarr; A c | S d | &epsilon;</span> and asks for an equivalent grammar with no left recursion and the minimum number of production rules.</p>
+              <ol class="step-list small">
+                <li><strong>Order.</strong> S, then A. <span class="muted">(Any order works if it is followed; this is the one that keeps the count smallest here.)</span></li>
+                <li><strong>Substitute.</strong> A&rsquo;s rule <span class="mono">A &rarr; S d</span> begins with S, whose rules are <span class="mono">A a</span> and <span class="mono">b</span>, so it becomes <span class="mono">A &rarr; A a d</span> and <span class="mono">A &rarr; b d</span>. Nothing else begins with S.</li>
+                <li><strong>Eliminate.</strong> A is now immediately left recursive: &alpha; = <span class="mono">c</span>, <span class="mono">a d</span>; &beta; = <span class="mono">b d</span>, <span class="mono">&epsilon;</span>. That gives 2 + 2 + 1 = 5 rules for A.</li>
+                <li><strong>Report.</strong> <span class="mono">S &rarr; A a | b</span>; <span class="mono">A &rarr; b d A&prime; | A&prime;</span>; <span class="mono">A&prime; &rarr; c A&prime; | a d A&prime; | &epsilon;</span> &mdash; 7 productions, from 5.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">The model writes this grammar itself and compares it rule for rule with the published answer: identical. It then enumerates every string over {a, b, c, d} up to length 5 &mdash; 17 strings &mdash; and finds the same 17 for the original grammar, the rewritten grammar and the published answer.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Worked example 5 &mdash; left factoring, twice</h3>
+              <p class="small mono" style="margin-bottom:4px">A &rarr; a b c | a b d | a e</p>
+              <ol class="step-list small">
+                <li><strong>Longest shared prefix.</strong> <span class="mono">a b</span> is shared by the first two alternatives only. So <span class="mono">A &rarr; a b A&prime;</span>, <span class="mono">A&prime; &rarr; c | d</span>, and <span class="mono">A &rarr; a e</span> stays.</li>
+                <li><strong>Look again.</strong> A now has <span class="mono">a e</span> and <span class="mono">a b A&prime;</span>, which share <span class="mono">a</span>. So factor again: <span class="mono">A &rarr; a A&Prime;</span>, <span class="mono">A&Prime; &rarr; e | b A&prime;</span>.</li>
+                <li><strong>Stop.</strong> No two alternatives of any nonterminal share a prefix. 3 productions became 5.</li>
+              </ol>
+              <p class="small" style="margin-bottom:0">The model runs the passes to a fixed point and reports 2 of them; the language is {<span class="mono">abc</span>, <span class="mono">abd</span>, <span class="mono">ae</span>} before and after, and the factored grammar&rsquo;s LL(1) table has no conflict cell.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Worked example 6 &mdash; the hidden case, where the direct rule does nothing</h3>
+              <p class="small mono" style="margin-bottom:4px">A &rarr; B A a | c &nbsp;&nbsp;&nbsp;&nbsp; B &rarr; &epsilon; | b</p>
+              <p class="small"><strong>The scan.</strong> First symbols of A&rsquo;s right sides are B and c. Neither is A, so a one-step test reports no left recursion &mdash; and applying the direct rule changes nothing at all.</p>
+              <p class="small"><strong>The closure.</strong> B is nullable, so A reaches the second symbol of <span class="mono">B A a</span>: A reaches A. The grammar is left recursive.</p>
+              <p class="small"><strong>The cure.</strong> Substitute B&rsquo;s right sides into A: <span class="mono">A &rarr; A a | b A a | c</span>. Now it is immediate, and the direct rule applies: <span class="mono">A &rarr; b A a A&prime; | c A&prime;</span>, <span class="mono">A&prime; &rarr; a A&prime; | &epsilon;</span>. The model confirms no nonterminal is left recursive afterwards.</p>
+              <p class="small" style="margin-bottom:0"><strong>What this is a counterexample to.</strong> &ldquo;A grammar with no rule beginning with its own left side is not left recursive.&rdquo;</p>
+            </div>
+
+          </div>
+        </div>
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 1</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>1. Deleting the &epsilon; empties the language</h3>
+          <p class="small">Take <span class="mono">E &rarr; T E&prime;</span>, <span class="mono">E&prime; &rarr; + T E&prime; | &epsilon;</span> and delete the empty production, as a tidy-up.</p>
+          <p class="small"><strong>What breaks.</strong> Every derivation of E must finish by rewriting E&prime; to nothing, and only the &epsilon; does that. Without it every sentential form still contains E&prime;, so no string of terminals is ever produced.</p>
+          <p class="small" style="margin-bottom:0"><strong>The count.</strong> 4 strings up to length 7 with the &epsilon;; 0 without. The model enumerates both.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. A nonterminal with no base alternative</h3>
+          <p class="small">Suppose <span class="mono">A &rarr; A a | A b</span> with nothing else. Then A generates nothing: every derivation of A leaves an A behind.</p>
+          <p class="small"><strong>What the rewrite does.</strong> With n = 0 there is no base alternative, so A gets no production at all and the language stays empty. Renaming A&prime; back to A instead would hand A the language <span class="mono">(a|b)*</span>, which it never had.</p>
+          <p class="small" style="margin-bottom:0"><strong>The condition.</strong> The rewrite is language-preserving because the base alternatives carry the strings; with none, there is nothing to preserve.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3. The rewrite changes the tree, not the language</h3>
+          <p class="small"><span class="mono">E &rarr; E &minus; T | T</span> parses <span class="mono">10 &minus; 3 &minus; 2</span> as <span class="mono">(10&minus;3)&minus;2 = 5</span>. After the rewrite the tree leans right and the same string evaluates to <span class="mono">10&minus;(3&minus;2) = 9</span>.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Left recursion is what encodes left associativity. A syntax-directed question about a rewritten grammar is a question about the rewritten tree.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. One factoring pass is not factoring</h3>
+          <p class="small"><span class="mono">A &rarr; a b c | a b d | a e</span> needs two passes: after factoring <span class="mono">a b</span>, the alternatives <span class="mono">a b A&prime;</span> and <span class="mono">a e</span> still share <span class="mono">a</span>.</p>
+          <p class="small" style="margin-bottom:0"><strong>The test.</strong> &ldquo;No two alternatives of any nonterminal share a non-empty prefix&rdquo; &mdash; checked on the result, not on the number of passes you ran.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5. Factoring cannot remove an ambiguity</h3>
+          <p class="small">The dangling else, factored, is <span class="mono">S &rarr; i E t S S&prime; | a</span>, <span class="mono">S&prime; &rarr; e S | &epsilon;</span>. No shared prefix, no left recursion &mdash; and the table still holds two rules in M[S&prime;, e], because <span class="mono">e</span> is in FIRST(e S) and also in FOLLOW(S&prime;).</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> The grammar is ambiguous before and after. Neither transformation touches ambiguity.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. The ordered algorithm&rsquo;s input condition</h3>
+          <p class="small">Algorithm 4.19 is stated for a grammar with no cycles and no &epsilon;-productions in the <em>input</em>. Its output contains &epsilon;-productions, which is normal.</p>
+          <p class="small" style="margin-bottom:0"><strong>What to do when the input has one.</strong> As in GATE CSE 1998 Q6b, the substitution is still safe when the nonterminal being substituted is not nullable &mdash; and the result must be checked rather than assumed. The model checks it: no nonterminal is left recursive afterwards.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>7. Two nonterminals, one substitution each, wrong order</h3>
+          <p class="small">In <span class="mono">S &rarr; A a | b</span>, <span class="mono">A &rarr; A c | S d | &epsilon;</span>, rewriting A first and S never is the usual mistake, and it happens to work here. Rewriting S&rsquo;s rules <em>into</em> S before A is substituted can reintroduce left recursion.</p>
+          <p class="small" style="margin-bottom:0"><strong>The rule.</strong> Substitute only <em>earlier</em> nonterminals into a later one, then remove what is immediate, and finish with the closure test on the result.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>8. Neither defect, still not LL(1)</h3>
+          <p class="small"><span class="mono">S &rarr; A | B</span>, <span class="mono">A &rarr; a</span>, <span class="mono">B &rarr; a</span>. No rule begins with its own left side; no two alternatives of one nonterminal share a prefix. And M[S, a] holds both <span class="mono">S &rarr; A</span> and <span class="mono">S &rarr; B</span>.</p>
+          <p class="small" style="margin-bottom:0"><strong>What it is a counterexample to.</strong> &ldquo;No left recursion plus no common prefix means LL(1).&rdquo; It is the witness for GATE CSE 2003 Q16.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. &ldquo;Removing left recursion makes the grammar LL(1)&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The rewrite is taught as the step before the table, so it feels like the fix.</p>
+          <p class="small"><strong>Counterexample.</strong> <span class="mono">A &rarr; a b c | a b d | a e</span> has no left recursion and is not LL(1) until it is factored. The dangling else has neither defect after factoring and is still not LL(1).</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Removing left recursion is a necessary condition. Build the table and count the two-entry cells.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. &ldquo;The &epsilon; in the helper is optional tidying&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> It looks like a redundant empty rule, and &ldquo;simplify&rdquo; is a habit.</p>
+          <p class="small"><strong>Counterexample.</strong> Delete <span class="mono">E&prime; &rarr; &epsilon;</span> from <span class="mono">E &rarr; T E&prime;</span>, <span class="mono">E&prime; &rarr; + T E&prime; | &epsilon;</span> and the language is empty: 4 strings become 0.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The &epsilon; is the base case of &ldquo;zero or more&rdquo;. Keep it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. &ldquo;No rule begins with its own left side, so there is no left recursion&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> The direct rule is defined by exactly that shape, so the shape becomes the definition.</p>
+          <p class="small"><strong>Counterexample.</strong> <span class="mono">S &rarr; A a | b</span>, <span class="mono">A &rarr; A c | S d | &epsilon;</span> is left recursive through S &rArr; A a &rArr; S d a. And <span class="mono">A &rarr; B A a</span> with B nullable hides the recursion behind a nullable symbol.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Left recursion is <span class="mono">A &rArr; A&gamma;</span>. Test it with the left-corner closure.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. &ldquo;The language is unchanged, so the computed value is unchanged&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> &ldquo;Equivalent grammar&rdquo; is repeated in every statement of the transformation, and equivalence is about the language.</p>
+          <p class="small"><strong>Counterexample.</strong> <span class="mono">10 &minus; 3 &minus; 2</span> is 5 under the left-recursive grammar and 9 under the rewritten one.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Language preserved, trees changed. A syntax-directed translation reads the tree.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. &ldquo;The primes are part of the answer&rsquo;s meaning&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> A&prime; and A&Prime; look like they encode nesting.</p>
+          <p class="small"><strong>Counterexample.</strong> In the factoring example the model creates A&prime; on the first pass and A&Prime; on the second, so the <em>outer</em> helper ends up double-primed: <span class="mono">A &rarr; a A&Prime;</span>, <span class="mono">A&Prime; &rarr; e | b A&prime;</span>.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The primes record the order the passes ran. Renaming them is free: <span class="mono">A &rarr; a X</span>, <span class="mono">X &rarr; e | b Y</span>, <span class="mono">Y &rarr; c | d</span> is the same grammar.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. &ldquo;Factoring is what removes the conflict in the dangling else&rdquo;</h3>
+          <p class="small"><strong>Why it tempts.</strong> Factoring visibly removes the duplicated <span class="mono">i E t S</span>, and the table looks tidier.</p>
+          <p class="small"><strong>Counterexample.</strong> The factored grammar still puts <span class="mono">S&prime; &rarr; e S</span> and <span class="mono">S&prime; &rarr; &epsilon;</span> in the same cell, because FOLLOW(S&prime;) contains <span class="mono">e</span>.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The second conflict comes from the ambiguity, not from the prefix. Only a different grammar (matched and unmatched statements) removes it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The five question shapes, and what each one demands</h3>
+          <p class="small" style="margin-bottom:0">Every shape below is answered by one of four procedures: the closure test, the direct rewrite, the ordered algorithm, or a FIRST/FOLLOW table. Naming the shape first is what stops a count question being answered with a grammar.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 &mdash; &ldquo;rewrite this grammar&rdquo;</h3>
+          <p class="small">Give the equivalent grammar with no left recursion, sometimes with the minimum number of rules.</p>
+          <p class="small"><strong>Procedure.</strong> Order the nonterminals, substitute earlier into later, remove what is immediate, count with n + m + 1, and check the language is unchanged.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Rewriting the nonterminal that looks recursive and stopping &mdash; which leaves the indirect case in place.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 &mdash; &ldquo;how many productions&rdquo;</h3>
+          <p class="small">A count, usually with a phrase like &ldquo;minimum number of rules&rdquo;.</p>
+          <p class="small"><strong>Procedure.</strong> n + m + 1 for each rewritten nonterminal, plus the untouched rules. Only rewritten nonterminals change size.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Counting the alternatives of the original and reporting that number; forgetting the helper&rsquo;s &epsilon;; applying the formula to the whole grammar.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 &mdash; &ldquo;which grammar is LL(1)&rdquo;</h3>
+          <p class="small">Often an MSQ listing statements about LL(1) grammars.</p>
+          <p class="small"><strong>Procedure.</strong> Build FIRST and FOLLOW, fill the table with the two-branch rule, and count cells with two entries. No conflict means LL(1).</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Deciding from the shape of the rules. <span class="mono">S &rarr; A | B</span>, <span class="mono">A &rarr; a</span>, <span class="mono">B &rarr; a</span> has no left recursion and no common prefix, and is not LL(1).</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 &mdash; &ldquo;what does this transformation preserve&rdquo;</h3>
+          <p class="small">A statement question: language, ambiguity, determinism, parse trees, associativity.</p>
+          <p class="small"><strong>Procedure.</strong> Both transformations preserve the language. Neither preserves the parse trees (associativity changes), and neither removes ambiguity.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Assuming everything except the rules&rsquo; shape is preserved, including the tree.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 5 &mdash; &ldquo;is this grammar suitable for predictive parsing&rdquo;</h3>
+          <p class="small">Sometimes phrased as &ldquo;why is this grammar unsuitable&rdquo;.</p>
+          <p class="small"><strong>Procedure.</strong> Check left recursion by the closure, check for a shared prefix, then check the table. Report the first defect that applies, with its name.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach.</strong> Answering &ldquo;because it is ambiguous&rdquo; without showing a string with two trees, or &ldquo;because it is left recursive&rdquo; without showing the derivation.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The four-step decision procedure</h3>
+          <p class="small mono" style="margin-bottom:0">1  closure test  &rarr;  which nonterminals reach themselves?<br>2  if any: order, substitute, eliminate, count with n + m + 1<br>3  factor to a fixed point, longest prefix first<br>4  build the table and count two-entry cells &mdash; that verdict is the answer</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set &mdash; answers withheld until you reveal them</h3>
+              <p class="small">Questions 1 and 2 are previous-year questions, and their year and question number are stated on the card. The rest are <strong>original practice questions</strong> written for this lesson, and each is labelled so. Every answer was computed by the page&rsquo;s own model.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge">GATE CSE 2003 &middot; Q16</span></div>
+              <div class="q-body">
+                <p>Which of the following suffices to convert an arbitrary context-free grammar to an LL(1) grammar?</p>
+                <ol class="choices">
+                  <li>Removing left recursion alone</li>
+                  <li>Factoring the grammar alone</li>
+                  <li>Removing left recursion and factoring the grammar</li>
+                  <li>None of the above</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: D</p>
+                <p>Neither transformation removes ambiguity, and an ambiguous grammar is never LL(1). The dangling else on this page is the witness: factored and free of left recursion, it still puts two rules in M[S&prime;, e].</p>
+                <p><strong>Why C is wrong.</strong> <span class="mono">S &rarr; A | B</span>, <span class="mono">A &rarr; a</span>, <span class="mono">B &rarr; a</span> has neither defect and M[S, a] still holds two rules. The model computes one conflict cell for it.</p>
+                <p><strong>Trap.</strong> The word &ldquo;arbitrary&rdquo; is doing the work. For a <em>given</em> grammar the two transformations may well be enough; the question is about every grammar.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge">GATE CSE 1998 &middot; Q6b</span></div>
+              <div class="q-body">
+                <p>For <span class="mono">S &rarr; A a | b</span>, <span class="mono">A &rarr; A c | S d | &epsilon;</span>, what is the minimum number of production rules in an equivalent grammar with no left recursion?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 7</p>
+                <p>Two rules of S are untouched. A becomes <span class="mono">A &rarr; b d A&prime; | A&prime;</span> and <span class="mono">A&prime; &rarr; c A&prime; | a d A&prime; | &epsilon;</span>, which is 2 + 2 + 1 = 5. Total 7.</p>
+                <p><strong>Trap.</strong> Answering 5 by counting only A&rsquo;s rules. <strong>Trap.</strong> Answering 6 by folding the empty &beta; away. The model derives the grammar and counts it.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>After eliminating the left recursion in <span class="mono">S &rarr; S a | S b | c | d</span>, how many productions does the grammar have in total?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 5</p>
+                <p>m = 2, n = 2, so n + m + 1 = 5: <span class="mono">S &rarr; c S&prime; | d S&prime;</span> and <span class="mono">S&prime; &rarr; a S&prime; | b S&prime; | &epsilon;</span>.</p>
+                <p><strong>Why 4 is wrong.</strong> Four alternatives become five, because the helper needs its empty production. <strong>Why 6 is wrong.</strong> That would be n + m + 2, which happens if you keep the original four rules as well.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following statements are true for the transformation that eliminates left recursion from <span class="mono">E &rarr; E + T | T</span>?</p>
+                <ol class="choices">
+                  <li>It preserves the set of strings generated.</li>
+                  <li>It preserves the parse trees.</li>
+                  <li>It introduces a new nonterminal with an &epsilon;-production.</li>
+                  <li>It makes the grammar LL(1).</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and C</p>
+                <p>The language is the same 4 strings up to length 7, and E&prime; is a new nonterminal whose last alternative is &epsilon;. Both are computed by the model.</p>
+                <p><strong>Why B is wrong.</strong> The trees change: the operator now associates to the right. <strong>Why D is wrong.</strong> This particular grammar does become LL(1), but that is a fact about this grammar, not about the transformation &mdash; the dangling else and <span class="mono">S &rarr; A | B</span>, <span class="mono">A &rarr; a</span>, <span class="mono">B &rarr; a</span> show the general claim fails.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which grammar is left recursive only because of a nullable nonterminal?</p>
+                <ol class="choices">
+                  <li><span class="mono">A &rarr; A a | b</span></li>
+                  <li><span class="mono">A &rarr; B A a | c</span>, <span class="mono">B &rarr; &epsilon; | b</span></li>
+                  <li><span class="mono">A &rarr; a A | b</span></li>
+                  <li><span class="mono">A &rarr; a b | a c</span></li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>B derives &epsilon;, so A &rArr; B A a &rArr; A a. The left-corner closure jumps over the nullable B and finds A reaching itself; the one-step scan finds nothing.</p>
+                <p><strong>Why A is wrong.</strong> Immediate, visible in one rule. <strong>Why C is wrong.</strong> Right recursive, not left recursive at all. <strong>Why D is wrong.</strong> Neither: no recursion and no shared prefix.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>How many productions does <span class="mono">A &rarr; a b c | a b d | a e</span> have after left factoring to a fixed point?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 5</p>
+                <p>Pass 1 gives <span class="mono">A &rarr; a b A&prime;</span>, <span class="mono">A &rarr; a e</span>, <span class="mono">A&prime; &rarr; c | d</span> &mdash; four rules. Pass 2 gives <span class="mono">A &rarr; a A&Prime;</span>, <span class="mono">A&Prime; &rarr; e | b A&prime;</span>, and A&prime; keeps two &mdash; five rules.</p>
+                <p><strong>Why 4 is wrong.</strong> One pass leaves <span class="mono">a e</span> and <span class="mono">a b A&prime;</span> sharing <span class="mono">a</span>. <strong>Trap.</strong> Factoring, unlike the direct rewrite, adds one rule per extra helper and removes one per factor, so the count must be run pass by pass.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Deleting <span class="mono">E&prime; &rarr; &epsilon;</span> from <span class="mono">E &rarr; T E&prime;</span>, <span class="mono">E&prime; &rarr; + T E&prime; | &epsilon;</span>, <span class="mono">T &rarr; a</span> changes the language to</p>
+                <ol class="choices">
+                  <li>the strings with at least one +</li>
+                  <li>the empty language</li>
+                  <li>the same language</li>
+                  <li>only the string a</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>Without the &epsilon;, E&prime; can never be removed from a sentential form, so no derivation reaches a string of terminals. The model enumerates 4 strings with the &epsilon; and 0 without.</p>
+                <p><strong>Why A is tempting.</strong> &ldquo;One or more&rdquo; is what removing &ldquo;zero&rdquo; usually leaves &mdash; but here the helper can never finish at all, because every one of its rules keeps an E&prime;. <strong>Why D is wrong.</strong> <span class="mono">a</span> needs E&prime; to vanish, which is exactly what the &epsilon; was for.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>For <span class="mono">S &rarr; A a | b</span>, <span class="mono">A &rarr; A c | S d | &epsilon;</span>, which statements are true?</p>
+                <ol class="choices">
+                  <li>S is left recursive.</li>
+                  <li>A is left recursive.</li>
+                  <li>Rewriting A alone removes every left recursion.</li>
+                  <li>The original grammar is LL(1).</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and B</p>
+                <p>The left-corner closure reports both: S reaches A and A reaches S, so each reaches itself. S &rArr; A a &rArr; S d a shows it for S in two steps.</p>
+                <p><strong>Why C is wrong.</strong> Rewriting A while S still has <span class="mono">S &rarr; A a</span> leaves S reaching itself through A. <strong>Why D is wrong.</strong> A left-recursive grammar is never LL(1), and the model finds conflict cells in its table.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>With a = 10, b = 3, c = 2, what value does <span class="mono">a &minus; b &minus; c</span> have when parsed by the grammar obtained from <span class="mono">E &rarr; E &minus; T | T</span> by eliminating left recursion?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 9</p>
+                <p>The rewritten grammar associates to the right, so the tree is <span class="mono">10 &minus; (3 &minus; 2) = 10 &minus; 1 = 9</span>. The left-recursive grammar gives <span class="mono">(10 &minus; 3) &minus; 2 = 5</span>.</p>
+                <p><strong>Trap.</strong> Answering 5 from arithmetic habit. The question is about the tree the <em>rewritten</em> grammar produces, not about what the expression means in mathematics.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>The factored dangling-else grammar <span class="mono">S &rarr; i E t S S&prime; | a</span>, <span class="mono">S&prime; &rarr; e S | &epsilon;</span> is</p>
+                <ol class="choices">
+                  <li>LL(1), because the shared prefix has been removed</li>
+                  <li>not LL(1), because M[S&prime;, e] holds two productions</li>
+                  <li>LL(1) but ambiguous</li>
+                  <li>not LL(1), because S is still left recursive</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>FIRST(e S) = {e} and e is also in FOLLOW(S&prime;), so the empty alternative applies on e as well. The model reports exactly one conflict cell, at S&prime; and e.</p>
+                <p><strong>Why A is wrong.</strong> The prefix conflict is gone; a different conflict remains. <strong>Why C is wrong.</strong> No LL(1) grammar is ambiguous. <strong>Why D is wrong.</strong> This grammar has no left recursion at all.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 1</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>Definitions, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Left recursive:</strong> <span class="mono">A &rArr; A&gamma;</span> for some &gamma;.</li>
+            <li><strong>Immediate:</strong> a rule <span class="mono">A &rarr; A&alpha;</span> exists.</li>
+            <li><strong>Indirect:</strong> the cycle passes through another nonterminal.</li>
+            <li><strong>Hidden:</strong> <span class="mono">A &rarr; B A a</span> with B nullable.</li>
+            <li><strong>Left corner:</strong> A reaches B when a rule of A has B at the first non-nullable position.</li>
+            <li><strong>Left factored:</strong> no two alternatives of any nonterminal share a non-empty prefix.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formulas</h3>
+          <p class="formula">A &rarr; A&alpha;<sub>1</sub>&hellip;|A&alpha;<sub>m</sub> | &beta;<sub>1</sub>&hellip;|&beta;<sub>n</sub><br>&dArr;<br>A &rarr; &beta;<sub>1</sub>A&prime;|&hellip;|&beta;<sub>n</sub>A&prime;<br>A&prime; &rarr; &alpha;<sub>1</sub>A&prime;|&hellip;|&alpha;<sub>m</sub>A&prime; | &epsilon;</p>
+          <p class="formula">A &rarr; &alpha;&beta;<sub>1</sub> | &alpha;&beta;<sub>2</sub> &nbsp;&dArr;&nbsp; A &rarr; &alpha;A&prime; , A&prime; &rarr; &beta;<sub>1</sub> | &beta;<sub>2</sub></p>
+          <p class="small" style="margin-bottom:0">Count: <strong>n + m + 1</strong> productions for each rewritten nonterminal.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Assumptions to state</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>The ordered algorithm assumes <strong>no cycles and no &epsilon;-productions in the input</strong>.</li>
+            <li>Language preservation needs at least one base alternative &beta;.</li>
+            <li>Factoring uses the <strong>longest</strong> common prefix, and repeats.</li>
+            <li>LL(1) needs <strong>no left recursion, no shared prefix, and a conflict-free table</strong> &mdash; the first two are necessary, the third is the test.</li>
+          </ul>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The four counterexamples worth carrying in</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><span class="mono">S &rarr; A | B</span>, <span class="mono">A &rarr; a</span>, <span class="mono">B &rarr; a</span> &mdash; neither defect, not LL(1).</li>
+            <li>Factored dangling else &mdash; neither defect, not LL(1).</li>
+            <li><span class="mono">A &rarr; B A a</span>, <span class="mono">B &rarr; &epsilon; | b</span> &mdash; left recursive with no rule beginning with A.</li>
+            <li><span class="mono">10 &minus; 3 &minus; 2</span> &mdash; 5 before the rewrite, 9 after.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>The one screen</h3>
+          <p class="small mono" style="margin-bottom:0">closure test &rarr; order, substitute, eliminate &rarr; count n+m+1 &rarr; factor to a fixed point &rarr; build the table &rarr; count two-entry cells<br>preserved: the language&nbsp;&nbsp;&nbsp;changed: the parse trees&nbsp;&nbsp;&nbsp;untouched: ambiguity</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras, Section 7 Compiler Design: &ldquo;Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code generation. Local optimisation, Data flow analyses&hellip;&rdquo; &mdash; read 2026-11-04; supports the Class A classification and nothing more. <span class="muted">(gate2027.iitm.ac.in, CS_GATE2027_Syllabus.pdf)</span></li>
+            <li><strong>GATE CSE 1998 Q6b</strong> &mdash; the grammar <span class="mono">S &rarr; A a | b</span>, <span class="mono">A &rarr; A c | S d | &epsilon;</span> and the request for an equivalent grammar with no left recursion and the fewest rules. Reproduced on this page; the answer here is derived by the model and then compared with the published one.</li>
+            <li><strong>GATE CSE 2003 Q16</strong> &mdash; &ldquo;Which of the following suffices to convert an arbitrary CFG to an LL(1) grammar?&rdquo;, answer: none of the above. Reproduced with its question number.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Aho, Lam, Sethi and Ullman, <em>Compilers: Principles, Techniques and Tools</em>, 2nd edition, &sect;4.3.2&ndash;4.3.3 and Algorithm 4.19 &mdash; supports the direct rewrite, the ordered algorithm and its input condition (no cycles, no &epsilon;-productions).</li>
+            <li>The same text, &sect;4.4 &mdash; FIRST, FOLLOW and the predictive table, which is the LL(1) verdict used here.</li>
+            <li>Hopcroft, Motwani and Ullman, <em>Introduction to Automata Theory, Languages and Computation</em>, chapter 7 &mdash; supports the closure and language-preservation reasoning behind the left-corner relation.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>University course material</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>University of Michigan, W. Weimer, &ldquo;Removing left recursion&rdquo; course reading &mdash; supports the statement that the rewritten grammar is right recursive and may therefore alter an operator&rsquo;s associativity.</li>
+            <li>University of Calgary, CPSC 411, &ldquo;Transformations&rdquo; notes &mdash; supports &ldquo;an LL(1) grammar necessarily has no left recursion and is necessarily left-factored&rdquo;, and the observation that the transformations do not deliver an LL(1) grammar magically.</li>
+            <li>University of Western Ontario, CS447 syntax notes &mdash; supports the elimination procedure as a rewrite over a grammar with no &epsilon;-productions.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community discussion, used as observation only</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>GATE Overflow threads on GATE CSE 1998 Q6b and GATE CSE 2003 Q16 &mdash; used to confirm that the two questions and their recorded answers are what this page says they are. No solution text from those threads is reproduced; the derivations here are the model&rsquo;s.</li>
+            <li>Lambda the Ultimate, &ldquo;Eliminating left recursion&rdquo; &mdash; a discussion of the nullable-prefix case (hidden left recursion) that the textbook algorithm does not spell out. Used to justify giving hidden recursion its own scene; the detection here is the left-corner closure, computed in code.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed span-2">
+          <h3>What this research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No previous-year paper was read end to end for this run, so no frequency or weightage claim is made. The two previous-year items above were confirmed from their question numbers and recorded answers, not from an official answer key. Where a claim is this page&rsquo;s own reasoning it carries a derivation label; where it could not be confirmed it carries an unverified label. Timings in the subtitle files are estimated from a speaking rate, not measured from audio.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
