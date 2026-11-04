@@ -78,6 +78,7 @@ lessons are static files and work from a local clone.
 | Integrity Constraints: Keys, Foreign Keys and NULL | Databases | A — explicitly in the syllabus | `topics/integrity-constraints-keys-and-null/index.html` |
 | Relational Algebra, Tuple Calculus and SQL | Databases | A — explicitly in the syllabus | `topics/relational-algebra-and-sql/index.html` |
 | Transactions and Concurrency Control | Databases | A — explicitly in the syllabus | `topics/transactions-and-concurrency-control/index.html` |
+| View Serialisability and Blind Writes: the Read-From Table and the Gap Above Conflict Serialisability | Databases | A — explicitly in the syllabus | `topics/view-serialisability-and-blind-writes/index.html` |
 | Distance Vector and Link State Routing | Computer Networks | A — explicitly in the syllabus | `topics/distance-vector-and-link-state-routing/index.html` |
 | DNS and HTTP | Computer Networks | A — explicitly in the syllabus | `topics/dns-and-http/index.html` |
 | Ethernet bridging and the learning switch: forwarding table, flood-forward-filter, loops and the spanning tree | Computer Networks | A — explicitly in the syllabus | `topics/ethernet-bridging-and-the-learning-switch/index.html` |
