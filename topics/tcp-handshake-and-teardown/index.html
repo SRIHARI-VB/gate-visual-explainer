@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP Connection Establishment and Teardown — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">TCP connection establishment and teardown</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-options-mss-and-window-retraction/index.html">Prerequisite: the MSS option</a>
+      <a href="../socket-api-and-connection-lifecycle/index.html">Related: the socket API</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Related: flow control</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> TCP connection establishment and teardown, segment by segment: the six control bits and which of them occupy sequence space, the initial sequence number and the clock that generates it, the options that ride only on the opening segments, the three-message open, the four-message close, and the TIME-WAIT state that lasts twice the maximum segment lifetime.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given two initial sequence numbers, write down the sequence and acknowledgment field of every segment of the open and the close, and name the state each side holds after each one. State why the handshake needs three messages. Compute TIME-WAIT from a stated maximum segment lifetime. Say which states hold no timer, and how a simultaneous open, a simultaneous close and a half-close differ from the ordinary case.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the exchange itself, at the level of the header fields</em>. The socket lesson published earlier covers the same states from the program's side — which call returns when, and why ports run out. This page covers what is on the wire, and links to that one for the consequences.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite mechanism for a named clause.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus prints: <em>"TCP- flow control and congestion control, socket API; DNS and HTTP."</em> Flow control is a statement about a connection that already exists, so the exchange that creates and destroys it cannot be skipped.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>three-way handshake</em>, <em>TIME-WAIT</em> and <em>initial sequence number</em> are <strong>not</strong> printed in the 2027 syllabus. The class-B label rests on the mechanism, and no claim is made here about how often the topic appears in past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The topic is examinable because every question on it is arithmetic on two numbers: add one for a SYN or a FIN, add nothing for an ACK, and subtract nothing anywhere.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../tcp-options-mss-and-window-retraction/index.html">The MSS option and the 40-byte budget</a> — what the options cost and where they fit.</li>
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow control</a> — the window, so that a connection is worth opening.</li>
+            <li>Binary and modular arithmetic: a 32-bit counter that wraps at 2 to the 32.</li>
+            <li>Reading a segment diagram: two vertical lines, arrows between them, time downwards.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">No packet capture and no simulator are needed. Every number on the page is computed when the page loads and printed under the canvas.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A connection is two counters</strong>, one per direction, and nothing else is shared.</li>
+            <li><strong>SYN and FIN cost one number, ACK costs none</strong> — all the arithmetic follows from that.</li>
+            <li><strong>Three messages, not two</strong>, because only the third proves the opener saw the listener's number.</li>
+            <li><strong>The initial number is a clock plus a hash</strong>, never zero, and it must outlast one segment lifetime.</li>
+            <li><strong>The side that closes first waits twice a lifetime</strong>; the side that closes second is finished at once.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the numbers are needed. <strong>1</strong> Two counters, three segments to open, four to close. <strong>2</strong> The six flags and the sequence cost of each. <strong>3</strong> The handshake with ISN 100 and ISN 300, deriving 101 and 301. <strong>4</strong> Why two messages are not enough, and the stale duplicate SYN. <strong>5</strong> The initial number as a clock plus a hash, with its wrap time against the segment lifetime. <strong>6</strong> The 20 option bytes that make a SYN 40 bytes. <strong>7</strong> The close after 1000 bytes, deriving 1101, 1102, 301 and 302. <strong>8</strong> TIME-WAIT as 2 × 120 = 240 seconds, and the one legal early exit. <strong>9</strong> Simultaneous open, simultaneous close, half-close. <strong>10</strong> The chain of four steps and the six slips.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>How to study this lesson</h3>
+          <p class="small">Approximate study time: 40–60 minutes, which is an estimate and not a measurement. Watch the Animation tab once with captions on, then read Examples, then take Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">The page recomputes everything it shows when it loads: it applies the plus-one rule to each SYN, each data run and each FIN, checks that no acknowledgment consumes a number, recomputes the option total, the clock wrap and the TIME-WAIT duration, and prints the number of checks that passed under the canvas, so a wrong figure would show there before you read it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: two people counting aloud</h3>
+          <p class="small">Two people agree to count the words they say to each other, one tally each, and neither may repeat a number. They cannot start at one, because an old conversation's numbers may still be echoing in the room, so each picks a number that climbs with the clock and keeps it secret until the first sentence. Then each announces where their tally starts, and each confirms the other's announcement. From then on, every word spoken advances the speaker's tally by one, and the listener says back the number it expects next.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The echo explains why the start cannot be fixed and why a confirmation is needed; it does not explain the plus-one arithmetic, which the flags scene supplies.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Vocabulary, every term in words</h3>
+          <p class="small"><strong>ISN</strong> — initial sequence number: where a sender's counter starts.</p>
+          <p class="small"><strong>Sequence number</strong> — the number of the first byte in a segment, or of the SYN or FIN it carries.</p>
+          <p class="small"><strong>Acknowledgment number</strong> — the next number the sender expects to receive.</p>
+          <p class="small"><strong>MSL</strong> — maximum segment lifetime: how long a segment may survive in the network, taken as 120 seconds.</p>
+          <p class="small"><strong>Active close</strong> — the side that sends the first FIN; it is the side that waits.</p>
+          <p class="small"><strong>Half-close</strong> — one direction shut, the other still open.</p>
+          <p class="small"><strong>Incarnation</strong> — one use of a four-value connection identity, from open to close.</p>
+          <p class="small" style="margin-bottom:0"><strong>Old duplicate</strong> — a segment from an earlier incarnation, still alive in the network.</p>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="margin-top:0">
+        <div class="card card--definition">
+          <h3>Why the numbers must be synchronised at all</h3>
+          <p class="small">A receiver decides whether an arriving segment is new, old or out of order by comparing its number with a window. That comparison only means something if both sides agree where counting started. If they did not, the first data would be indistinguishable from data already received.</p>
+          <p class="small" style="margin-bottom:0">So the opening has one job: exchange the two starting points, and confirm that each was received. Everything else in the handshake serves that job.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>What a fixed start would cost</h3>
+          <p class="small">Suppose both sides always started at zero. Every incarnation of the same four values would then use the same numbers, so a duplicate from an old incarnation would sit exactly inside the new window and be delivered as data.</p>
+          <p class="small" style="margin-bottom:0">That is not a hypothetical: it is the reason the standard prescribes a climbing clock for the initial number, and the reason a zero start is the first of the six slips on this page.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The four numbers this lesson keeps returning to</h3>
+          <p class="small"><strong>100 and 300</strong> — the two initial numbers, from the standard's own figure.</p>
+          <p class="small"><strong>101 and 301</strong> — the two acknowledgments of the opening.</p>
+          <p class="small"><strong>1101 and 1102</strong> — the FIN after 1000 bytes, and its acknowledgment.</p>
+          <p class="small" style="margin-bottom:0"><strong>240</strong> — the seconds the active closer waits.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Two exchanges, counted</h3>
+          <p class="small">The opening is three segments. The closing is four. Together they are seven, and only two of those seven carry a number that advances a counter: the two SYNs and the two FINs are four numbers, and the acknowledgments are none.</p>
+          <p class="small" style="margin-bottom:0">That count is the whole of the arithmetic a question can ask, which is why the flags scene comes before the diagram.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A TCP connection is two counters that must agree, one for each direction of data.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Two counters that must agree</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A connection is two counters, one for each direction.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 1 — the opening, written out in full</h3>
+              <p class="small"><strong>Given</strong> peer A with initial sequence number 100 and peer B with 300, B listening. <strong>Asked</strong> the flags, sequence number and acknowledgment number of all three segments, and the state of each side after each.</p>
+              <p class="small">Segment 1: A to B, SYN, seq 100, no acknowledgment, A in SYN-SENT. Segment 2: B to A, SYN and ACK, seq 300, ack 101, B in SYN-RECEIVED. Segment 3: A to B, ACK, seq 101, ack 301, both ESTABLISHED.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 101 = 100 + 1 and 301 = 300 + 1. The third segment is numbered 101 rather than 102 because an acknowledgment consumes no sequence number.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — the close after 1000 bytes</h3>
+              <p class="small"><strong>Given</strong> the same connection, with A sending 1000 bytes and then closing, and B sending nothing. <strong>Asked</strong> the number on A's FIN, the acknowledgment of it, the number on B's FIN, and the last acknowledgment.</p>
+              <p class="small">The data occupies 101 to 1100. A's FIN is 1101 and is acknowledged with 1102. B's FIN is 301, the number right after its SYN, and is acknowledged with 302.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 1100 = 101 + 1000 − 1, 1101 = 1100 + 1, 1102 = 1101 + 1, 301 = 300 + 1, 302 = 301 + 1. Five plus-one steps, no subtraction anywhere.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — the header of a SYN</h3>
+              <p class="small"><strong>Given</strong> a SYN carrying maximum segment size, SACK-permitted, timestamps, a no-operation byte and window scale. <strong>Asked</strong> the total header size and the value of the data offset field.</p>
+              <p class="small">The options are 4 + 2 + 10 + 1 + 3 = 20 bytes. With the 20 fixed bytes the header is 40 bytes, which is 10 words, so the data offset field holds 10.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The field counts 4-byte words and has 4 bits, so its ceiling is 15 words = 60 bytes, which leaves at most 40 bytes for options.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 4 — the same connection with no wait</h3>
+              <p class="small"><strong>Given</strong> a client that closes, and a server that reuses the same four values immediately. <strong>Asked</strong> what goes wrong if TIME-WAIT is skipped.</p>
+              <p class="small">The last acknowledgment is lost. The server retransmits its FIN, which arrives at a socket that no longer exists, so it is answered with a reset, and the server's application reports an error instead of a clean close.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 9293 section 3.3.2 names exactly this as one purpose of the state: to be sure the peer received the acknowledgment of its termination request.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>Example 5 — TIME-WAIT from a stated lifetime</h3>
+              <p class="small"><strong>Given</strong> a maximum segment lifetime of 2 minutes, then a second run where an implementation uses 30 seconds. <strong>Asked</strong> the wait in each.</p>
+              <p class="small">2 × 120 = 240 seconds, which is 4 minutes. 2 × 30 = 60 seconds, which is 1 minute. The standard's 2 minutes is an engineering choice it explicitly says may be changed, so both answers are correct for the stated lifetime.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The wait is always twice whatever lifetime the implementation assumes; the ratio is the definition, the 240 is the arithmetic for 120.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — the clock behind the initial number</h3>
+              <p class="small"><strong>Given</strong> a 32-bit counter that ticks once every 4 microseconds. <strong>Asked</strong> how long it takes to wrap, and how many ticks fit in one segment lifetime.</p>
+              <p class="small">4,294,967,296 × 4 microseconds is 17,179.87 seconds, which is 4.7722 hours. One lifetime of 120 seconds holds 120 ÷ 0.000004 = 30,000,000 ticks, so the wrap covers about 143 lifetimes.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 9293 section 3.4.1 states that the clock cycles in approximately 4.55 hours. <span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The 4-microsecond tick gives 4.77 hours, so the standard's figure implies a tick of about 3.8 microseconds; it calls the clock neither realtime nor precise.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 7 — simultaneous open, counted</h3>
+              <p class="small"><strong>Given</strong> two peers that both send a SYN before receiving one. <strong>Asked</strong> how many segments the opening takes, and what state each passes through.</p>
+              <p class="small">Four: two SYNs and two SYN-and-ACK answers, because neither side can play the listener. Each side goes CLOSED, SYN-SENT, SYN-RECEIVED, ESTABLISHED — the same destination by a different route.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 9293 section 3.5 requires implementations to support simultaneous open, and states that SYN-RECEIVED may be entered from an active open, which the implementation must remember.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries, each with its number</h3>
+          <p class="small" style="margin-bottom:0">Seven cases where the ordinary picture stops working: a reset instead of a close, a segment carrying data in the third message, a listener that answers from TIME-WAIT, a half-close that never ends, a SYN that carries no options at all, a sequence number that wraps during the connection, and a simultaneous close.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A reset is not a close</h3>
+          <p class="small">An abort discards the state at once and is not acknowledged. Buffered data is lost, and the peer's application is told the connection was aborted rather than closed.</p>
+          <p class="small" style="margin-bottom:0">The standard also says the side that sends a reset should enter TIME-WAIT, because that reduces the load on a busy server: the same four values cannot be reused while the reset is still travelling.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The third message may carry data</h3>
+          <p class="small">The final ACK is not special. Data may ride on it, numbered from the opener's initial number plus one, which is why the first data byte and that ACK share a number.</p>
+          <p class="small" style="margin-bottom:0">The receiver must buffer such data until the connection is ESTABLISHED, because until then it cannot be sure the connection is real. That is a memory-for-messages trade the standard names explicitly.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>CLOSE-WAIT and FIN-WAIT-2 hold no timer</h3>
+          <p class="small">Neither state expires on its own. CLOSE-WAIT lasts until the local application closes; FIN-WAIT-2 lasts until the peer's FIN arrives, and in practice until a user timeout fires.</p>
+          <p class="small" style="margin-bottom:0">So a server can hold thousands of half-closed connections indefinitely, and a client that never receives the server's FIN keeps a socket in FIN-WAIT-2 long after the work is done.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A SYN with no options at all</h3>
+          <p class="small">Legal: the option list may be empty, in which case the header is 20 bytes and the data offset reads 5. The sender then assumes the peer's segment size is the default, 536 over IPv4 and 1220 over IPv6.</p>
+          <p class="small" style="margin-bottom:0">A question that gives a 20-byte header therefore implies no MSS option, not an MSS of zero.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The counter can wrap during a connection</h3>
+          <p class="small">On a fast link, 4,294,967,296 bytes may pass in less than one segment lifetime, so a number can come round again while an old segment is still alive. Comparison with a window cannot then tell them apart.</p>
+          <p class="small" style="margin-bottom:0">The standard's answer is the timestamp option: a segment carries a timestamp, and one older than the newest seen for that connection is discarded regardless of its number.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Simultaneous close: four segments, two waiters</h3>
+          <p class="small">Each side sends a FIN before receiving the other's, so neither is the passive closer. The segment count is still four, but the waiting state is held twice, so twice the resources are tied up for 240 seconds.</p>
+          <p class="small" style="margin-bottom:0">A question that asks "how many sockets are in TIME-WAIT" therefore has the answer 1 for an ordinary close and 2 for a simultaneous one — and the ordinary answer is the one that is wrong when the diagram shows two crossed FINs.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that produce a wrong answer</h3>
+          <p class="small" style="margin-bottom:0">Each is paired with the counterexample that breaks it. Every counterexample is computed by the page.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1 — "An acknowledgment advances the sequence number"</h3>
+          <p class="small">Wrong: the acknowledgment field is not numbered. If it were, the third segment of the handshake would be numbered 102 and the receiver would then have to acknowledge ACKs forever.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: with ISN 100, the third segment carries seq 101, and the first data byte also carries 101. Two segments, one number.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2 — "A FIN does not consume a sequence number"</h3>
+          <p class="small">Wrong: a FIN occupies one number, exactly as a SYN does, which is why it can be retransmitted and acknowledged unambiguously.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: after 1000 bytes ending at 1100, the FIN is 1101 and the acknowledgment is 1102. Giving the FIN no number would leave the acknowledgment at 1101 and lose one byte of the space-time budget.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3 — "The initial sequence number should be random"</h3>
+          <p class="small">Wrong as stated: it must climb with time so that incarnations of the same four values cannot collide, and only then be made unpredictable by adding a secret hash.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: a purely random start can be lower than a number still in flight from the previous incarnation, so an old segment fits the new window exactly.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4 — "Both sides enter TIME-WAIT"</h3>
+          <p class="small">Wrong for an ordinary close: only the side that sent the first FIN waits. The side that received it is finished as soon as it receives the last acknowledgment.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: the standard's own close figure ends with one side in TIME-WAIT and the other CLOSED. Both wait only in a simultaneous close.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5 — "TIME-WAIT is 2 minutes"</h3>
+          <p class="small">Wrong by a factor of two: 2 minutes is the maximum segment lifetime, and the state lasts twice it, so 240 seconds.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: halving the wait to 120 seconds would let a duplicate from the old connection arrive while the new one is live, which is precisely what the state prevents.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6 — "A close ends both directions"</h3>
+          <p class="small">Wrong: a close shuts one direction only. The receiver of a FIN acknowledges it but may keep sending until its own application closes.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: the CLOSE-WAIT state has no timer, so a server may answer for hours after the client sent its FIN — and its replies are legitimate data, not errors.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>7 — "A handshake takes two round trips"</h3>
+          <p class="small">Wrong: it takes one round trip, because the second and third steps of the four-step exchange share one message. The opener is established when it sends the third segment; the listener is established half a round trip later.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: three segments carry two plus-one steps, and the third travels in the same direction as the first, so only one round trip has elapsed when the opener is done.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this becomes a question, and the procedure that answers it</h3>
+          <p class="small" style="margin-bottom:0">Five shapes appear: the acknowledgment of a SYN, the number on a FIN after a stated amount of data, the duration of a wait given a lifetime, the size of a header given its options, and the count of segments or waiting sockets. Each has a fixed procedure, and each has one step that is usually skipped.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — the acknowledgment of a SYN</h3>
+          <p class="small"><strong>1.</strong> Read the initial number from the SYN.</p>
+          <p class="small"><strong>2.</strong> Add one for the SYN itself.</p>
+          <p class="small"><strong>3.</strong> Write that value in the acknowledgment field of the answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is the word "itself": adding one for the SYN, not for the segment that carries the acknowledgment.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — the number on a FIN</h3>
+          <p class="small"><strong>1.</strong> Start at the initial number plus one, the first data byte.</p>
+          <p class="small"><strong>2.</strong> Add the number of data bytes and subtract one, to get the last data byte.</p>
+          <p class="small"><strong>3.</strong> Add one: that is the FIN's number. Add one more for its acknowledgment.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is step 2's minus one: 1000 bytes from 101 end at 1100, not 1101.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — the duration of a wait</h3>
+          <p class="small"><strong>1.</strong> Find the maximum segment lifetime the question states.</p>
+          <p class="small"><strong>2.</strong> Double it.</p>
+          <p class="small"><strong>3.</strong> If none is stated, use 2 minutes, giving 240 seconds.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is the doubling: the commonest wrong answer is the lifetime itself.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 4 — the header size and the data offset</h3>
+          <p class="small"><strong>1.</strong> Add the option lengths, remembering that each option's length field counts its own two bytes.</p>
+          <p class="small"><strong>2.</strong> Add 20 for the fixed header.</p>
+          <p class="small"><strong>3.</strong> Divide by 4 for the data offset field, and check it is at most 15.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is step 3's units: the field counts words, not bytes, so 40 bytes reads 10.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Shape 5 — counting segments and waiters</h3>
+          <p class="small">An ordinary open is 3 segments and an ordinary close is 4; together 7. A simultaneous open is 4 and a simultaneous close is 4 but leaves 2 sockets in TIME-WAIT rather than 1. A reset replaces the close with a single segment and no wait at all on the receiver's side.</p>
+          <p class="small" style="margin-bottom:0">The trap is not the counting but the reading: check whether the diagram shows the FINs crossing before either is acknowledged, because that is what turns one waiter into two.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What is and is not claimed on this page</h3>
+          <p class="small">No previous-year question is reproduced or attributed here, and no statement is made about how often this topic appears in GATE CSE papers. The five shapes above are question <em>patterns</em> derived from the standard, not a summary of past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Any weightage figure for connection management is an estimate from a coaching source unless it names a paper and a question number. Treat such a figure as planning information, not as a prediction for GATE CSE 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question. Every answer was computed, and where the page models it, checked by the page.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Peer A opens a connection with initial sequence number 100. Peer B answers with initial sequence number 300. The acknowledgment number carried in the third segment of the handshake is ______.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 301</p>
+                <p>The third segment acknowledges B's SYN, which is numbered 300 and occupies one sequence number, so the next number A expects from B is 301.</p>
+                <p><strong>Why 300 appears.</strong> Forgetting that the SYN itself consumes a number. <strong>Why 101 appears.</strong> Giving the acknowledgment of A's own SYN, which belongs in the second segment, not the third.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which control bits occupy one sequence number each when they are set?</p>
+                <ol class="choices">
+                  <li>SYN and FIN only.</li>
+                  <li>SYN, FIN and ACK.</li>
+                  <li>ACK and PSH only.</li>
+                  <li>All eight bits of the flag octet.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A</p>
+                <p>The standard numbers a SYN as if it came before the first data byte and a FIN as if it came after the last one. No other control bit is numbered.</p>
+                <p><strong>Why B appears.</strong> The acknowledgment field is compared with sequence numbers, so it is easy to assume it also consumes one; it does not, which is why the third segment is numbered 101 and not 102. <strong>Why C appears.</strong> PSH asks for delivery and changes no number. <strong>Why D appears.</strong> CWR and ECE mark congestion and are not numbered either.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A connection starts with initial sequence number 100 in one direction. The sender transmits exactly 1000 bytes of data, then closes. The sequence number of its FIN is ______.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1101</p>
+                <p>The SYN occupies 100, so data starts at 101. A run of 1000 bytes covers 101 to 1100, and the FIN is the next number, 1101.</p>
+                <p><strong>Why 1100 appears.</strong> Stopping at the last data byte and forgetting that the FIN needs a number of its own. <strong>Why 1102 appears.</strong> Adding one twice, once for the last byte and once for the FIN.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>An implementation takes the maximum segment lifetime to be 2 minutes. The side that closes the connection actively must remain in TIME-WAIT for ______ seconds.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 240</p>
+                <p>The state lasts twice the maximum segment lifetime: 2 × 120 = 240 seconds, which is 4 minutes.</p>
+                <p><strong>Why 120 appears.</strong> Using the lifetime itself instead of twice it. <strong>Why 60 appears.</strong> Confusing the wait with the one-minute interval some implementations use between attempts to raise a path estimate, which is a different timer.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following are true of the TIME-WAIT state as the standard specifies it?</p>
+                <ol class="choices">
+                  <li>It is held by the side that sent the first FIN in an ordinary close.</li>
+                  <li>It lets a retransmitted FIN be acknowledged instead of answered with a reset.</li>
+                  <li>Both sides enter it after every close.</li>
+                  <li>A new SYN may be accepted directly from it if the new initial number is larger than any used before.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A, B and D</p>
+                <p>A is the rule: the active closer waits. B is one of the two purposes the standard names for the state. D is the one legal early exit, conditional on the larger initial number and on returning to the state if the SYN proves to be an old duplicate.</p>
+                <p>C is false: the passive closer is finished when the last acknowledgment arrives, and both sides wait only in a simultaneous close.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A SYN carries the options maximum segment size, SACK-permitted, timestamps, one no-operation byte and window scale. What value is in its data offset field?</p>
+                <ol class="choices">
+                  <li>5</li>
+                  <li>10</li>
+                  <li>20</li>
+                  <li>40</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The options are 4 + 2 + 10 + 1 + 3 = 20 bytes, so the header is 40 bytes. The field counts 4-byte words, so 40 ÷ 4 = 10.</p>
+                <p><strong>Why 5 appears.</strong> Reading the field as bytes of options. <strong>Why 20 appears.</strong> Reading it as the option bytes. <strong>Why 40 appears.</strong> Reading it as the header in bytes, which is the quantity the field encodes rather than its value.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which state holds no timer of its own, so that a socket may remain in it indefinitely?</p>
+                <ol class="choices">
+                  <li>LAST-ACK</li>
+                  <li>CLOSE-WAIT</li>
+                  <li>TIME-WAIT</li>
+                  <li>FIN-WAIT-1</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>CLOSE-WAIT ends only when the local application closes, which may be never. FIN-WAIT-2 is the other state with no timer of its own, and it ends when the peer's FIN arrives or a user timeout fires.</p>
+                <p><strong>Why A appears.</strong> LAST-ACK waits for an acknowledgment, so it is bounded by retransmission. <strong>Why C appears.</strong> TIME-WAIT is the most famous timer, so it is the most tempting answer to a question about a state that has none. <strong>Why D appears.</strong> FIN-WAIT-1 is bounded by the retransmission of its own FIN.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A connection diagram shows both peers sending FIN before either is acknowledged. Which statements are correct?</p>
+                <ol class="choices">
+                  <li>The close still takes four segments.</li>
+                  <li>Both peers end in TIME-WAIT.</li>
+                  <li>The side with the smaller initial sequence number becomes the passive closer.</li>
+                  <li>Each peer passes through the CLOSING state.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and B</p>
+                <p>Two FINs and two acknowledgments are still four segments, and because each side closed before receiving the other's FIN, each is an active closer and each waits twice the maximum segment lifetime.</p>
+                <p>C is false: passivity is decided by who sent the first FIN, not by any number. D is false as stated for this shape: CLOSING is entered when a FIN is received after a FIN was sent but before one's own FIN is acknowledged, which is a different interleaving from two FINs crossing before any acknowledgment.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Every number below is computed by the page at load and is the same number the animation prints.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions and constants</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>SYN and FIN occupy one sequence number each; ACK occupies none.</li>
+            <li>Header: 20 fixed bytes, at most 40 of options, 60 in all; the data offset counts 4-byte words.</li>
+            <li>Default segment size with no option: 536 over IPv4, 1220 over IPv6.</li>
+            <li>Largest advertisable segment size: 65,495, which is 65,535 minus 40.</li>
+            <li>MSL: 120 seconds. TIME-WAIT: twice that, 240 seconds.</li>
+            <li>States: eleven, from LISTEN to CLOSED; CLOSE-WAIT and FIN-WAIT-2 hold no timer.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Procedures, in the order they are applied</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Read the initial number from the SYN; add one for the SYN itself.</li>
+            <li>Data starts at that number plus one; a run of k bytes ends at start + k − 1.</li>
+            <li>The FIN is the next number; its acknowledgment is one more.</li>
+            <li>Count the segments: 3 to open, 4 to close, 7 together.</li>
+            <li>Double the stated segment lifetime for the wait, and check who closed first.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The numbers worth carrying</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>100 and 300 in; 101 and 301 out.</li>
+            <li>1000 bytes from 101 ends at 1100, so the FIN is 1101 and its acknowledgment 1102.</li>
+            <li>A peer that sends no data puts its FIN at its initial number plus one: 301, acknowledged 302.</li>
+            <li>Options 4 + 2 + 10 + 1 + 3 = 20, header 40, data offset 10.</li>
+            <li>The clock wraps in 4.77 hours at 4 microseconds a tick, which is 143 segment lifetimes.</li>
+          </ul>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The six slips</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Numbering an acknowledgment, so 101 becomes 102.</li>
+            <li>Freeing the FIN, so 1102 becomes 1101.</li>
+            <li>Starting at zero, which reuses an old connection's numbers.</li>
+            <li>Putting the MSS option on a segment without the SYN bit.</li>
+            <li>Closing both directions at once, drawing two segments instead of four.</li>
+            <li>Reusing the four values with no wait, so a duplicate becomes data.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Three sentences to carry into the exam</h3>
+          <p class="small">A connection is two 32-bit counters, one per direction, and every number in the exchange is a plus-one step: one for a SYN, one for each data byte, one for a FIN, and nothing for an acknowledgment. The opening is three segments because the second and third steps share a message, and the third is the only proof that the opener saw the listener's number, which is why a two-message open cannot work. The closing is four segments because each direction closes separately, and the side that sent the first FIN waits twice the maximum segment lifetime — 240 seconds for the standard's 120 — so that a lost last acknowledgment can be answered and old duplicates die before the same four values are used again.</p>
+          <p class="small" style="margin-bottom:0">Quick revision questions, answers in the Practice tab: what acknowledgment does a SYN numbered 300 get? Where does a FIN sit after 1000 bytes from 101? What is the data offset of a 40-byte header? Which two states have no timer? How many sockets wait after a simultaneous close?</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>What the research consulted</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>RFC 9293, "Transmission Control Protocol (TCP)"</strong> (Eddy, August 2022; obsoletes RFC 793). Read on 2026-11-04 through the RFC Editor and IETF datatracker renderings. Supports the header and its control bits and the rule that SYN and FIN occupy sequence space (section 3.1), the eleven states and the stated purpose of TIME-WAIT (section 3.3.2), the clock-driven initial sequence number generator and the 4.55-hour cycle (section 3.4.1), the three-way handshake and simultaneous open with its figures (section 3.5), reset generation (section 3.5.2), the three close cases with Figures 12 and 13 (section 3.6), the MSS option and its 536 and 1220 defaults (section 3.7.1), and the TIME-WAIT rule MUST-13 with the early exit MAY-2.</li>
+            <li><strong>RFC 1948, "Defending Against Sequence Number Attacks"</strong> (Bellovin, May 1996; obsoleted by RFC 6528). Read on 2026-11-04. Supports the origin of the form ISN = M + F(local, local port, remote, remote port) and the reason a fixed or predictable start is unsafe.</li>
+            <li><strong>RFC 4987, "TCP SYN Flooding Attacks and Common Mitigations"</strong> (Eddy, August 2007), section 3.6. Read on 2026-11-04. Supports the statement that a connection in SYN-RECEIVED holds state before the handshake completes, which is what makes the half-open connection a resource.</li>
+            <li><strong>GATE 2027 CS syllabus PDF, IIT Madras.</strong> Section 10, quoted in this page's overview as: "TCP- flow control and congestion control, socket API; DNS and HTTP." The wording is taken from the repository's syllabus record, which was read from the official PDF; this run did not re-download the PDF.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What each source supports, and what it does not</h3>
+          <p class="small">RFC 9293 supports every rule on the page, including the two purposes it states for TIME-WAIT and the condition attached to reopening from it. RFC 1948 supports the shape of the initial-number formula and the attack it prevents. RFC 4987 supports the resource argument behind the half-open connection.</p>
+          <p class="small" style="margin-bottom:0">None of them states the four-consequence list that teaching notes often give for TIME-WAIT; the page separates the two the standard names from the two that follow, and labels the grouping as an interpretation. The 4.77-hour wrap is this page's arithmetic on a 4-microsecond tick, not a figure the standard prints — it prints 4.55 hours, and the difference is shown on the page rather than smoothed over.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What was not verified, and the assumptions the model makes</h3>
+          <p class="small" style="margin-bottom:0">No previous-year question is reproduced or attributed anywhere on this page, and no claim is made about how often this topic appears in GATE CSE papers. The initial numbers 100 and 300 are the standard's own illustrative values, and the 1000-byte transfer is this lesson's example, not a measurement. The model assumes no packet loss except where a loss is named, a fixed maximum segment lifetime of 120 seconds, no timestamps except in the option-counting scene, IPv4 with a 20-byte header, and a single connection with no middlebox rewriting the header. It does not model SYN cookies, TCP Fast Open data in the SYN, window scaling arithmetic, or the retransmission timers that bound FIN-WAIT-1 and LAST-ACK, all of which are outside this lesson's scope and are named here so the boundary is explicit.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

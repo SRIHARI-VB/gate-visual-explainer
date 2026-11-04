@@ -93,6 +93,7 @@ lessons are static files and work from a local clone.
 | TCP Window Scaling and Timestamps: the 16-bit Window Field, the Shift Count, PAWS and RTTM | Computer Networks | B — prerequisite for a syllabus topic | `topics/tcp-window-scaling-and-timestamps/index.html` |
 | VLSM Subnet Design, Longest Prefix Match and Aggregation | Computer Networks | A — explicitly in the syllabus | `topics/vlsm-subnet-design-longest-prefix-and-aggregation/index.html` |
 | The Socket API and the Connection Lifecycle: Calls, Four-Tuples, TIME_WAIT and Port Exhaustion | Computer Networks | A — explicitly in the syllabus | `topics/socket-api-and-connection-lifecycle/index.html` |
+| TCP Connection Establishment and Teardown: the Six Flags, the Initial Sequence Number, the Three-Message Open, the Four-Message Close and TIME-WAIT | Computer Networks | B — prerequisite for a syllabus topic | `topics/tcp-handshake-and-teardown/index.html` |
 | Context-Free Grammars and Pushdown Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/context-free-grammars-and-pushdown-automata/index.html` |
 | Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
 | Turing Machines and Undecidability | Theory Of Computation | A — explicitly in the syllabus | `topics/turing-machines-and-undecidability/index.html` |
