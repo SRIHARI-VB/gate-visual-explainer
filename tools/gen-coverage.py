@@ -9,7 +9,7 @@ tracker from the topic data below.
 import json
 
 TODAY = "2026-10-26"   # the date the GATE 2027 syllabus was fetched and read
-RUN_DATE = "2026-11-04"  # the date this tracker was regenerated
+RUN_DATE = "2026-11-05"  # the date this tracker was regenerated
 
 def topic(subject, unit, name, subtopics, prereq=None, related=None,
           importance="medium", evidence="", difficulty="medium",
@@ -1405,6 +1405,52 @@ topics.append(topic(
     slug="memory-hierarchy-and-cache",
     path="topics/memory-hierarchy-and-cache/index.html",
     execution="published 2026-10-27 (earlier run)"))
+
+topics.append(topic(
+    "Computer Organization and Architecture", "Memory",
+    "Two-level cache arithmetic: AMAT, local versus global miss rate, and CPI stalls",
+    ["average memory access time as the weighted average of three outcomes",
+     "the factored form T1 + m1 T2 + m1 m2 T3",
+     "own access times against times that already include the levels above",
+     "local against global miss rate",
+     "solving backwards for a miss rate",
+     "hierarchical against simultaneous access",
+     "stall cycles per instruction and the conversion to CPI"],
+    prereq=["memory-hierarchy-and-cache", "cpu-performance-cpi-mips-and-amdahl"],
+    related=["memory-interfacing-and-interleaving", "pipelining-and-hazards",
+             "secondary-storage-and-raid", "exact-counts-across-topics"],
+    importance="high",
+    evidence="Class A: GATE 2027 Section 3 prints 'Memory hierarchy: cache memory - mapping', and the average-access-time arithmetic is the tool every question on that clause uses, although the phrase itself is not printed. Four previous-year items reproduced and recomputed on the page: GATE CSE 2016 (13.0 ns hierarchical against 12.8 simultaneous), GATE CSE 2017 Set 1 (local miss rate 0.05 from 7 misses per 1000 instructions), GATE CSE 2017 Set 2 (0.111 and 0.056 from a 2-cycle average) and GATE CSE 2025 Set 1 (11.85 ns against a published key of 11.83 to 11.87). No frequency or weightage figure is claimed.",
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="two-level-cache-amat-and-cpi",
+    path="topics/two-level-cache-amat-and-cpi/index.html",
+    microtopics=[
+        "one access partitions into hit, miss-then-hit, and miss twice",
+        "the three probabilities are 1 - m1, m1(1 - m2) and m1 m2, and sum to 1",
+        "the path costs are T1, T1 + T2 and T1 + T2 + T3 under own times",
+        "weighted average against the factored form: 4.3 cycles both ways",
+        "the m2-only form gives 26.8 cycles and agrees only when m1 = 1",
+        "own access time against a time that already includes the levels above",
+        "increment form s1 + m1(s2 - s1) + m1 m2(s3 - s2) for inclusive times",
+        "GATE CSE 2025 Set 1: 11.85 ns, and 12.5 ns from adding inclusive times again",
+        "the inclusive-time gap has the closed form m1(s1 + m2 s2)",
+        "local miss rate divides by the accesses that reached the level",
+        "global miss rate equals m1 times the local miss rate",
+        "misses per instruction is a count, not a rate: 0.05, 0.005 and 0.007 on GATE 2017 Set 1",
+        "solving the identity backwards gives a quadratic: 9x^2 + 8x - 1 = 0",
+        "the negative root is never a rate; keep the root in [0, 1]",
+        "hierarchical access adds along the path; simultaneous charges the level that answers",
+        "GATE CSE 2016: 13.0 ns hierarchical against 12.8 ns simultaneous",
+        "stall cycles per instruction = accesses per instruction x (AMAT - T1)",
+        "the base CPI already pays one access, so the excess is AMAT - T1",
+        "CPI 5.62 from a 4.3-cycle average and 1.4 accesses per instruction",
+        "halving m1 buys 1.70x, halving m2 buys 1.45x: the inner level multiplies everything below",
+        "a perfect cache still pays the base CPI, so the ceiling is 5.62x",
+        "cycles per access against cycles per instruction: 4.3 against 6.02",
+        "three levels extend the pattern by one term: m1 m2 m3 T4",
+    ],
+    execution="published 2026-11-05; check-lesson PASS with 36 of 36 model checks, geometry audit clean (10 scenes, 40 cues)"))
 
 topics.append(topic(
     "Computer Organization and Architecture", "Memory", "Memory interfacing and interleaving",
@@ -8179,6 +8225,7 @@ _RECHECKED = {
     "algorithm-correctness-loop-invariants": "2026-11-04",
     "amortised-analysis-aggregate-accounting-potential": "2026-11-04",
     "deterministic-selection-median-of-medians": "2026-11-04",
+    "two-level-cache-amat-and-cpi": "2026-11-05",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
