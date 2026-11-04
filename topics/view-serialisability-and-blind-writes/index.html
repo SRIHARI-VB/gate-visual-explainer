@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>View Serialisability and Blind Writes — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">View serialisability and blind writes</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../transactions-and-concurrency-control/index.html">Prerequisite: conflict serialisability</a>
+      <a href="../database-recovery-undo-redo/index.html">Related: recovery</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> View serialisability, and the blind write that separates it from conflict serialisability: view equivalence as three observations, the read-from relation built with two dummy transactions, the schedule whose precedence graph has a cycle and is still equivalent to a serial order, and the exact boundary between the two classes.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a schedule of read and write operations, decide whether it is conflict serialisable, whether it is view serialisable, and whether those verdicts differ. Build the read-from table by hand, compare it with each serial order, and identify every blind write in the schedule. Given a family of transactions, count how many interleavings fall in each class.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the weaker equivalence class and its exact boundary</em>: the prerequisite lesson draws the precedence graph and shows one view-serialisable schedule with a cycle; this page owns the table test, the enumeration that measures the gap, and the four-class ladder.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — explicitly in the syllabus.</strong></p>
+          <p class="small">Section 9 of the GATE 2027 CS syllabus (IIT Madras, official PDF, read 2026-11-04) names: <em>"Transactions and concurrency control."</em> Serialisability and its two equivalence classes are the standard content of that clause in every textbook the clause follows.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>view serialisability</em> and <em>blind write</em> are not printed in the syllabus. No claim is made here about how often such a question appears; the page teaches the mechanism, not a frequency.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The topic is examinable because every step is a comparison of two small tables plus a count of writes, both of which can be done by hand in under two minutes.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../transactions-and-concurrency-control/index.html">Conflict serialisability</a> — a schedule as a list of read and write operations, the three conflict shapes, the precedence graph and the cycle test.</li>
+            <li>What a blind write is, at least in one sentence: a write whose transaction never read that item.</li>
+            <li>Reading a two-row table and comparing it with another: no probability, no calculus, no counting beyond permutations.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Nothing on this page needs a database. Every schedule is enumerated in the browser when the page loads.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>A cycle is not a verdict</strong> — it rules out conflict serialisability only.</li>
+            <li><strong>Three observations</strong> — initial reads, read-from, final writes; nothing else survives.</li>
+            <li><strong>Two dummy transactions</strong> collapse the three into one read-from relation.</li>
+            <li><strong>A blind write is necessary</strong> for the gap, and never sufficient.</li>
+            <li><strong>Testing is NP-complete</strong>, which is why practice aims at the conflict level.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>What this page computes</h3>
+          <p class="small">Seven families of transactions are enumerated exhaustively when the page loads: <strong>901 schedules</strong> in total. Each one is classified twice — by its precedence graph and by its read-from table — and the counts you see on the canvas come from that enumeration, not from a quoted table.</p>
+          <p class="small" style="margin-bottom:0">Seventeen model checks re-verify the load-bearing numbers against their definitions, including the containment <em>conflict inside view</em> on all 901 schedules, and the necessity of a blind write on all 45 schedules in the gap.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What this page does not claim</h3>
+          <p class="small" style="margin-bottom:0">It does not prove that two transactions can never separate the two classes. It reports what the enumeration found on 29 schedules across three two-transaction families — no separation — and stops there. Any general statement would need a proof this page does not contain.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Intuition — what a customer can still tell afterwards</h3>
+          <p class="small">Two shopkeepers keep the same ledger. One serves customers strictly in a queue; the other serves them in any order that keeps each customer's own steps in sequence. A customer who comes back the next day cannot tell which shopkeeper served her: she knows what she read, who she read it from, and what the last entry says.</p>
+          <p class="small" style="margin-bottom:0">She cannot tell how many times an entry was overwritten in between, because those versions are gone. That is the whole of view equivalence: <em>the same three things, whatever happened in between</em>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition — view equivalence</h3>
+          <p class="small">Let S and S&prime; be schedules of the same set of transactions, with operations read(Q) and write(Q). They are <strong>view equivalent</strong> when all three hold:</p>
+          <div class="step-list small">
+            <p><strong>1. Initial reads.</strong> If transaction T reads the initial value of item Q in S, it reads the initial value of Q in S&prime; too.</p>
+            <p><strong>2. Read-from.</strong> If T reads a value of Q that was written by transaction T&prime; in S, then T reads a value of Q written by T&prime; in S&prime;.</p>
+            <p><strong>3. Final writes.</strong> If T performs the last write of Q in S, then T performs the last write of Q in S&prime;.</p>
+          </div>
+          <p class="small" style="margin-bottom:0">A schedule is <strong>view serialisable</strong> when it is view equivalent to <em>some</em> serial schedule of the same transactions.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>One relation instead of three conditions</h3>
+          <p class="small">Add a transaction <strong>T<sub>init</sub></strong> that writes every item before the schedule starts, and a transaction <strong>T<sub>final</sub></strong> that reads every item after it ends. Then a read that took the initial value is a read from T<sub>init</sub>, and the final write of an item is the write that T<sub>final</sub> reads.</p>
+          <p class="small">The three conditions become one: <strong>two schedules are view equivalent exactly when their read-from relations are identical.</strong> The relation is a set of triples — this reader, this item, this writer.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The read-from characterisation with the two dummy transactions is the standard formulation (Yannakakis, <em>Serializability by Locking</em>, J. ACM 1984).</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Blind write, and why it is the hinge</h3>
+          <p class="small">A write of item Q by transaction T is <strong>blind</strong> when T has not read Q earlier in its own program. The test is inside one transaction: it does not depend on where the operation sits in the schedule.</p>
+          <p class="small">If every write in a schedule is preceded, inside its own transaction, by a read of the same item, then no write can be a pure constant that nobody needed to see. In that situation the precedence graph decides both classes at once.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Silberschatz, Korth and Sudarshan (Database System Concepts, ch. 17) state both halves: every conflict-serialisable schedule is view serialisable, and every view-serialisable schedule that is not conflict serialisable has blind writes.</p>
+        </div>
+
+        <div class="card">
+          <h3>The witness, in one table</h3>
+          <p class="small">Take T1: read(X), write(X); T2: write(X); T3: write(X). The schedule <span class="mono">rT1(X) wT2(X) wT1(X) wT3(X)</span> has two edges in opposite directions in its precedence graph, so it is not conflict serialisable.</p>
+          <p class="small">Its read-from relation, with the two dummy transactions, is two rows:</p>
+          <div class="step-list small">
+            <p><strong>T1</strong> reads X from <strong>T<sub>init</sub></strong> — the initial value.</p>
+            <p><strong>T<sub>final</sub></strong> reads X from <strong>T3</strong> — the last writer.</p>
+          </div>
+          <p class="small" style="margin-bottom:0">The serial order T1, T2, T3 produces exactly the same two rows. So the schedule is view serialisable, and the graph verdict was one-sided.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The ladder, and where each gap is witnessed</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>serial &sub; conflict serialisable.</strong> Witness: <span class="mono">rT1(X) wT1(X) wT2(X) rT2(Y) wT3(X) wT2(Y) wT3(Y)</span> — two transactions on different items interleaved, so no conflict pins them, yet it is not a serial order.</li>
+            <li><strong>conflict &sub; view serialisable.</strong> Witness: the four schedules of family A with a two-cycle.</li>
+            <li><strong>view &sub; final-state serialisable.</strong> Witness: the lost update <span class="mono">rT1(X) rT2(X) wT1(X) wT2(X)</span>, whose final value matches serial T1, T2 while its reads do not.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Three transactions touch one item: T1 reads X then writes it, T2 writes X, T3 writes X.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The graph says no, and the schedule is still correct</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Three transactions, one item. T1 reads X and then writes it. T2 writes X. T3 writes X. Four operations in total.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Worked examples — every number computed on load</h3>
+              <p class="small" style="margin-bottom:0">Six examples, in the order the reasoning needs them: the witness with real values, all twelve interleavings of its family, two larger families, a schedule with no blind write, the lost update, and the hand procedure.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 1 — the witness, with values</h3>
+              <p class="small">X starts at 100. T1 writes what it read plus 50. T2 writes 200. T3 writes 300. Schedule: <span class="mono">rT1(X) wT2(X) wT1(X) wT3(X)</span>.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> <span class="mono">rT1(X)</span> — T1 reads 100, the initial value.</p>
+                <p><strong>2.</strong> <span class="mono">wT2(X)</span> — X becomes 200. T2 never read X, so this is a blind write.</p>
+                <p><strong>3.</strong> <span class="mono">wT1(X)</span> — X becomes 150, computed from the 100 that T1 read. The 200 is now dead.</p>
+                <p><strong>4.</strong> <span class="mono">wT3(X)</span> — X becomes 300. Final value 300.</p>
+              </div>
+              <p class="small" style="margin-bottom:0">Serial T1, T2, T3 gives the same final value 300, with T1 reading the initial value and T3 writing last. Two rows agree, so the schedule is view serialisable.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 1 continued — the graph, for contrast</h3>
+              <p class="small">The conflicts of the same schedule, in execution order:</p>
+              <div class="step-list small">
+                <p><strong>rT1(X) before wT2(X)</strong> → edge T1 &rarr; T2.</p>
+                <p><strong>wT2(X) before wT1(X)</strong> → edge T2 &rarr; T1.</p>
+                <p><strong>rT1(X) before wT3(X)</strong> → edge T1 &rarr; T3.</p>
+                <p><strong>wT2(X) before wT3(X)</strong> → edge T2 &rarr; T3.</p>
+              </div>
+              <p class="small" style="margin-bottom:0">Four edges and a two-cycle between T1 and T2, so the graph says no. The table says yes. Both verdicts are correct, and they answer different questions.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — all twelve interleavings</h3>
+              <p class="small">Family A: T1 reads then writes X, T2 writes X, T3 writes X. Four operations give <span class="mono">4!/(2!1!1!) = 12</span> interleavings. Enumerated in the browser:</p>
+              <p class="small mono" style="line-height:1.7;margin-bottom:0">
+                <span class="claim-chip claim-chip--verified">conflict 6</span> rT1(X) wT1(X) wT2(X) wT3(X) &middot; rT1(X) wT1(X) wT3(X) wT2(X) &middot; wT2(X) rT1(X) wT1(X) wT3(X) &middot; wT2(X) wT3(X) rT1(X) wT1(X) &middot; wT3(X) rT1(X) wT1(X) wT2(X) &middot; wT3(X) wT2(X) rT1(X) wT1(X)<br>
+                <span class="claim-chip claim-chip--interpretation">view only 4</span> rT1(X) wT2(X) wT1(X) wT3(X) &middot; rT1(X) wT3(X) wT1(X) wT2(X) &middot; wT2(X) rT1(X) wT3(X) wT1(X) &middot; wT3(X) rT1(X) wT2(X) wT1(X)<br>
+                <span class="claim-chip claim-chip--unverified">neither 2</span> rT1(X) wT2(X) wT3(X) wT1(X) &middot; rT1(X) wT3(X) wT2(X) wT1(X)
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 3 — two larger families</h3>
+              <p class="small">Family D: T1 reads then writes X; T2 writes X, reads Y, writes Y; T3 writes X and Y. Seven operations, so <span class="mono">7!/(2!3!2!) = 210</span> interleavings.</p>
+              <div class="step-list small">
+                <p><strong>210</strong> interleavings enumerated.</p>
+                <p><strong>54</strong> are conflict serialisable — six serial orders plus 48 interleaved ones.</p>
+                <p><strong>71</strong> are view serialisable, so <strong>17</strong> sit in the gap.</p>
+              </div>
+              <p class="small" style="margin-bottom:0">Family F has eight operations and 560 interleavings: 86 conflict, 110 view, 24 in the gap. One of those 24 has only a single blind write, which is the smallest amount of blindness the gap can contain.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — no blind write, and the graph decides</h3>
+              <p class="small">Family G: T1 reads then writes X, T2 reads then writes X, T3 reads then writes Y. Every write is preceded by a read of the same item inside its own transaction, so nothing is blind.</p>
+              <div class="step-list small">
+                <p><strong>90</strong> interleavings enumerated.</p>
+                <p><strong>30</strong> conflict serialisable.</p>
+                <p><strong>30</strong> view serialisable — the same thirty.</p>
+              </div>
+              <p class="small" style="margin-bottom:0">So in a schedule with no blind write you may answer a view question with the precedence graph and lose nothing. That is the practical value of the necessary condition.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 5 — the lost update: same final state, different view</h3>
+              <p class="small">Family C: both transactions read X then write it, and T2 writes the constant 200. The schedule <span class="mono">rT1(X) rT2(X) wT1(X) wT2(X)</span> is not conflict serialisable — its graph has the cycle T1 &rarr; T2 (from rT1 before wT2) and T2 &rarr; T1 (from rT2 before wT1).</p>
+              <p class="small">Its final value is 200, which is exactly the final value of the serial order T1, T2. So the schedule is <em>final-state</em> serialisable.</p>
+              <p class="small" style="margin-bottom:0">But T2 read the initial value here, while in serial T1, T2 it would have read T1's write. The read-from rows differ, so the schedule is not view serialisable. Final state alone is the weakest of the three tests.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Example 6 — the hand procedure on the witness</h3>
+              <div class="step-list small">
+                <p><strong>1.</strong> Lay out the operations: T1 has <span class="mono">r(X) w(X)</span>, T2 has <span class="mono">w(X)</span>, T3 has <span class="mono">w(X)</span>.</p>
+                <p><strong>2.</strong> Mark blind writes along each row: T2's write and T3's write. T1's write is not blind.</p>
+                <p><strong>3.</strong> Blind writes exist, so the graph is not enough: build the table. Rows: T1 reads X from T<sub>init</sub>; T<sub>final</sub> reads X from T3.</p>
+                <p><strong>4.</strong> Compare with each of the six serial orders. Only T1, T2, T3 reproduces both rows.</p>
+                <p><strong>5.</strong> Report both verdicts: not conflict serialisable, view serialisable, equivalent to T1, T2, T3.</p>
+              </div>
+              <p class="small" style="margin-bottom:0">Two minutes, one table, no guessing.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Edge case 1 — a blind write is necessary, never sufficient</h3>
+          <p class="small">Every schedule in the gap contains a blind write, but most schedules containing a blind write are not in the gap. Family A has two blind writes in every one of its twelve interleavings, and only ten are view serialisable, of which four are outside the conflict class.</p>
+          <p class="small" style="margin-bottom:0">Family F makes the point sharper: 560 interleavings, one blind write in the transaction set, and 86 conflict against 110 view. A blind write opens the possibility of the gap; it does not create one.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 2 — a cycle with no blind write is fatal</h3>
+          <p class="small">Take two transactions that both read X and then write it, and run <span class="mono">rT1(X) rT2(X) wT1(X) wT2(X)</span>. The graph has T1 &rarr; T2 and T2 &rarr; T1, and nothing is blind.</p>
+          <p class="small" style="margin-bottom:0">No serial order can reproduce the two reads: whichever runs second reads the first one's write. So the schedule is neither conflict nor view serialisable, and the lost update is the classic exam example of both.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case 3 — a dead write may move</h3>
+          <p class="small">In the witness, the 200 that T2 wrote is never read. Moving that write to any later position where it is still unread leaves the read-from relation unchanged, so it leaves the view class unchanged.</p>
+          <p class="small" style="margin-bottom:0">This is the mechanism, not a special case: the weaker equivalence tolerates reordering exactly where no observation is affected. It is why the containment is strict rather than a coincidence of small examples.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case 4 — one transaction, or none</h3>
+          <p class="small">A schedule of one transaction is serial, so it is in every class. An empty schedule is serial too. Neither is worth a question, but they fix the bottom of the ladder and stop you from treating the classes as disjoint.</p>
+          <p class="small" style="margin-bottom:0">The classes are nested, never disjoint: every serial schedule is conflict serialisable, every conflict-serialisable schedule is view serialisable, and every view-serialisable schedule has a serial order with the same final state.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Edge case 5 — two reads never conflict</h3>
+          <p class="small">The conflict definition needs at least one write. Two reads of the same item by different transactions produce no edge, however many of them there are, and no amount of interleaving changes that.</p>
+          <p class="small" style="margin-bottom:0">This is also why read-only transactions can be ignored when the graph is drawn, and why a family of pure readers collapses to one node.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Edge case 6 — serialisability says nothing about recovery</h3>
+          <p class="small">A schedule can be view serialisable and still be unrecoverable, or non-cascadeless: a transaction may read a value from a transaction that later aborts. Serialisability constrains the <em>order</em> of committed work; recoverability constrains what happens when a transaction fails.</p>
+          <p class="small" style="margin-bottom:0">A question that asks whether a schedule is recoverable is not answered by either graph or table. See <a href="../database-recovery-undo-redo/index.html">the recovery lesson</a> for that test.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--trap">
+          <h3>1. "A cyclic precedence graph means the schedule is wrong"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The prerequisite lesson teaches one test, and one test becomes the whole idea. The graph is drawn first, so its verdict feels final.</p>
+          <p class="small"><strong>Counterexample.</strong> <span class="mono">rT1(X) wT2(X) wT1(X) wT3(X)</span> has a two-cycle and is view equivalent to T1, T2, T3 — four of the twelve interleavings of that family are exactly like this.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> A cycle rules out conflict serialisability only. The view question needs the read-from table.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. "View serialisability is what a real system should enforce"</h3>
+          <p class="small"><strong>Why it tempts.</strong> It is weaker, so it admits more schedules, so it looks like the better criterion on paper.</p>
+          <p class="small"><strong>Counterexample.</strong> Deciding view serialisability is NP-complete, while the conflict test is a cycle check. And a correct locking protocol produces only conflict-serialisable schedules: the schedules it loses are exactly the ones outside that class.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The weaker class is a definition for reasoning about correctness, not a protocol anyone implements.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. "A blind write is a bug"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The word sounds like an error, and blind writes do often overwrite a value nobody wanted.</p>
+          <p class="small"><strong>Counterexample.</strong> <span class="mono">UPDATE account SET balance = 0 WHERE id = 7</span> is a legitimate blind write: the transaction sets a constant and never needed the old value.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> A blind write is a structural feature — the only place the two equivalence classes can part company. It is neither right nor wrong.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. "Same final value means view equivalent"</h3>
+          <p class="small"><strong>Why it tempts.</strong> The final state is what a person checks, and it is easy to compute.</p>
+          <p class="small"><strong>Counterexample.</strong> The lost update <span class="mono">rT1(X) rT2(X) wT1(X) wT2(X)</span> ends at 200, exactly as serial T1, T2 does, but T2 read the initial value instead of T1's write. Final-state serialisable, not view serialisable.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Three observations, not one. The final state is the weakest of the three tests.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. "The last writer is the transaction that ran last"</h3>
+          <p class="small"><strong>Why it tempts.</strong> In a serial order that is true, so it gets carried into concurrent schedules.</p>
+          <p class="small"><strong>Counterexample.</strong> In <span class="mono">rT1(X) wT2(X) wT3(X) wT1(X)</span> T1 writes last but the final value is 150, computed from the initial 100 — a value no serial order produces. The schedule is in neither class.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> The final write is the last write in execution order; what it wrote depends on what its own transaction read, which may be much older.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. "Two transactions are enough to show the gap"</h3>
+          <p class="small"><strong>Why it tempts.</strong> Two transactions make every table short, and the classic witness looks like it only needs two writers.</p>
+          <p class="small"><strong>Counterexample.</strong> On the 29 schedules of the three two-transaction families this page enumerates, the two classes never separate: 2 of 3, 2 of 6, 8 of 20.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule.</strong> Build a gap example with three transactions, one reader-writer and two blind writers. The page does not claim more than its enumeration shows.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Pattern 1 — classify two schedules</h3>
+          <p class="small">Two schedules of the same transactions, one statement per option: "S1 is conflict serialisable", "S2 is view serialisable", and so on. The reasoning demanded is two independent verdicts, and the common wrong approach is to answer the second with the first test's result.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure.</strong> Draw one graph, build one table, then read each option against the verdict it names.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 2 — which schedule is view but not conflict serialisable</h3>
+          <p class="small">Four schedules offered, exactly one in the gap. Every distractor is either conflict serialisable or in neither class, so both a false positive and a false negative are available.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure.</strong> First eliminate every option with no blind write: it cannot be in the gap. Then for the rest, compare tables.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 3 — count the serialisable interleavings</h3>
+          <p class="small">"How many of the interleavings of these transactions are view serialisable?" A counting question over a small family, where the answer is found by enumeration, not by a formula.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure.</strong> Fix one transaction's operations in order, place the others in every legal way, and test each placement. On family A the answer is 10 of 12; on the conflict version of the same question it is 6.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 4 — identify the blind writes</h3>
+          <p class="small">A schedule is given and one option lists the writes that are blind. The trap is reading blindness off the schedule instead of off the transaction's own program.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure.</strong> Follow one row at a time and ask: has this transaction already read this item? The order of the schedule is irrelevant to this question.</p>
+        </div>
+
+        <div class="card">
+          <h3>Pattern 5 — the statement question</h3>
+          <p class="small">"Which of the following is true?" with options mixing containment (every conflict-serialisable schedule is view serialisable), necessity (a gap schedule has a blind write), and complexity (the test is NP-complete).</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure.</strong> Check each option against one of the three verified statements, and reject any option that reverses an inclusion or upgrades "necessary" to "sufficient".</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Pattern 6 — the final-value trap</h3>
+          <p class="small">A schedule and its final value are given, and the options ask what can be concluded. "The schedule is view serialisable because the final value matches the serial order" is the offered reasoning, and it is invalid.</p>
+          <p class="small" style="margin-bottom:0"><strong>Procedure.</strong> Compute the read-from rows before trusting any value. The lost update ends on the right number and is still in neither class.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers withheld until you reveal them</h3>
+              <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question. Every answer was computed by the page's own model, and every count is reproducible from the enumeration.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Transactions: T1 = r(X), w(X); T2 = w(X); T3 = w(X). Which of these schedules is view serialisable but <em>not</em> conflict serialisable?</p>
+                <ol class="choices">
+                  <li>rT1(X) wT1(X) wT2(X) wT3(X)</li>
+                  <li>rT1(X) wT2(X) wT1(X) wT3(X)</li>
+                  <li>rT1(X) wT2(X) wT3(X) wT1(X)</li>
+                  <li>wT2(X) wT3(X) rT1(X) wT1(X)</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>Option B has the two-cycle T1 &rarr; T2 &rarr; T1, so it is not conflict serialisable. Its read-from rows are T1 from T<sub>init</sub> and T<sub>final</sub> from T3, which is exactly the table of serial T1, T2, T3 — so it is view serialisable.</p>
+                <p><strong>Why A and D are wrong.</strong> Both are serial orders, so they are conflict serialisable and outside the gap. <strong>Why C is wrong.</strong> T1 writes last there, but computed from the initial value, so the final value is 150 and no serial order produces it: it is in neither class.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>For the same three transactions, how many of the twelve interleavings are view serialisable?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 10</p>
+                <p>Twelve interleavings, of which six are conflict serialisable. Four more — rT1 wT2 wT1 wT3, rT1 wT3 wT1 wT2, wT2 rT1 wT3 wT1 and wT3 rT1 wT2 wT1 — have a cycle and still match a serial order's table. Two are in neither class.</p>
+                <p><strong>Trap.</strong> Answering 6 by counting acyclic graphs. <strong>Trap.</strong> Answering 12 by assuming every interleaving of three transactions must be serialisable; rT1 wT2 wT3 wT1 ends on a value no serial order can produce.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following statements are true for schedules of read and write operations?</p>
+                <ol class="choices">
+                  <li>Every conflict-serialisable schedule is view serialisable.</li>
+                  <li>Every view-serialisable schedule is conflict serialisable.</li>
+                  <li>A schedule that is view serialisable but not conflict serialisable contains at least one blind write.</li>
+                  <li>If a schedule contains a blind write, it is view serialisable.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and C</p>
+                <p>A is the containment proved by the definition: identical conflict orders give identical read-from rows. C is the necessity half of the textbook statement, and this page re-checks it on all 45 schedules in its gap.</p>
+                <p><strong>Why B is wrong.</strong> Four of family A's twelve interleavings are counterexamples. <strong>Why D is wrong.</strong> That is the reversed direction: blindness is necessary, not sufficient — 86 of family F's 560 interleavings are conflict serialisable while all of them contain a blind write.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>The schedule rT1(X) wT2(X) wT1(X) wT3(X) is given. Which serial order is it view equivalent to?</p>
+                <ol class="choices">
+                  <li>T1, T2, T3</li>
+                  <li>T1, T3, T2</li>
+                  <li>T2, T3, T1</li>
+                  <li>T3, T2, T1</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A</p>
+                <p>The table has two rows: T1 reads X from T<sub>init</sub>, and T<sub>final</sub> reads X from T3. Only the order ending in T3 has T3 as the final writer while T1 still reads the initial value.</p>
+                <p><strong>Why B is wrong.</strong> T2 writes last there, so the final-writer row says T2. <strong>Why C and D are wrong.</strong> In both, T1 runs after a write, so its read comes from T2 or T3 instead of the initial state.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Three transactions, T1 = r(X), w(X); T2 = w(X), r(Y), w(Y); T3 = w(X), w(Y). Seven operations in all. How many interleavings of these three transactions exist in total?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 210</p>
+                <p>Seven positions, of which two are taken by T1's operations in their fixed order, three by T2's, two by T3's: 7!/(2!3!2!) = 5040/24 = 210. The page enumerates all 210, and finds 54 conflict serialisable and 71 view serialisable.</p>
+                <p><strong>Trap.</strong> Answering 5040 by forgetting that each transaction's own order is fixed. <strong>Trap.</strong> Answering 6, the number of serial orders, which is a different count.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A schedule ends with the value 200, which is also the value produced by the serial order T1, T2. What follows?</p>
+                <ol class="choices">
+                  <li>The schedule is view equivalent to T1, T2.</li>
+                  <li>The schedule is conflict serialisable.</li>
+                  <li>Nothing follows: the final value is only one of the three observations.</li>
+                  <li>The schedule is not serialisable at all.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>View equivalence needs the initial reads and the read-from pairs as well. The lost update rT1(X) rT2(X) wT1(X) wT2(X) ends on 200 and is view equivalent to nothing, because T2 read the initial value where the serial order would have it read T1's write.</p>
+                <p><strong>Why A is wrong.</strong> That is the conclusion the final value alone cannot support. <strong>Why B is wrong.</strong> The same schedule has a two-cycle. <strong>Why D is wrong.</strong> It is final-state serialisable, so "not serialisable at all" overstates the case.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>In the schedule wT2(X) rT1(X) wT3(X) wT1(X), which writes are blind?</p>
+                <ol class="choices">
+                  <li>wT2 and wT3 only</li>
+                  <li>wT2 and wT1 only</li>
+                  <li>All three writes</li>
+                  <li>wT3 only</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A</p>
+                <p>T2 never reads X before writing it, and T3 never reads X before writing it, so both are blind. T1 reads X and then writes it, so its write is not blind, even though the read happens late in the schedule.</p>
+                <p><strong>Why B is wrong.</strong> It reads blindness off the schedule's order rather than off T1's own program. <strong>Why C is wrong.</strong> T1's write follows its own read. <strong>Why D is wrong.</strong> T2's write comes first in the schedule, which is irrelevant to blindness.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--takeaway">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>View equivalence.</strong> Same initial reads, same read-from pairs, same final writers.</li>
+            <li><strong>View serialisable.</strong> View equivalent to some serial order.</li>
+            <li><strong>Read-from relation.</strong> The triples (reader, item, writer), with T<sub>init</sub> and T<sub>final</sub> added at the two ends.</li>
+            <li><strong>Blind write.</strong> A write of an item the same transaction never read.</li>
+            <li><strong>Final-state serialisable.</strong> Same final state as some serial order — weaker than view.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The tests, and what each one costs</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Conflict.</strong> Build the precedence graph from conflicting pairs, test for a cycle. Linear in the number of pairs.</li>
+            <li><strong>View.</strong> Build the read-from table, compare with each serial order. NP-complete in general; trivial on three transactions by hand.</li>
+            <li><strong>Final state.</strong> Compare the last writer of every item, then check the value. Never sufficient for the other two.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Counts worth remembering from this page</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Family A, twelve interleavings: 6 conflict, 10 view, 4 in the gap, 2 in neither.</li>
+            <li>Family D, 210 interleavings: 54 conflict, 71 view, 17 in the gap.</li>
+            <li>Family F, 560 interleavings: 86 conflict, 110 view, 24 in the gap.</li>
+            <li>Family G, no blind write, 90 interleavings: 30 conflict and 30 view.</li>
+            <li>Across A, D and F: 45 schedules in the gap, every one with a blind write.</li>
+          </ul>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Five traps</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>A cycle rules out conflict serialisability only.</li>
+            <li>A blind write is necessary for the gap and never sufficient.</li>
+            <li>The final value alone never establishes view equivalence.</li>
+            <li>Blindness is read along one transaction's row, not along the schedule.</li>
+            <li>Serialisability and recoverability are different questions with different tests.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The four-class ladder</h3>
+          <p class="small" style="margin-bottom:0">serial &sub; conflict serialisable &sub; view serialisable &sub; final-state serialisable. Each inclusion is strict, and this page exhibits a schedule in each gap: an interleaving of two transactions on different items, the two-cycle witness, and the lost update.</p>
+        </div>
+
+        <div class="card">
+          <h3>One sentence to carry into the exam</h3>
+          <p class="small" style="margin-bottom:0">Draw the graph for the conflict question, build the two-row table for the view question, and never let one verdict answer the other — the schedule that separates them is a blind write followed by the same transaction writing again.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card">
+          <h3>Official</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE 2027 CS syllabus</strong>, IIT Madras — <span class="mono">gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</span>. Section 9 prints "Transactions and concurrency control"; read on 2026-11-04. Supports the class-A label and nothing else.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Silberschatz, Korth and Sudarshan</strong>, <em>Database System Concepts</em>, ch. 17 (Transactions), slides at db-book.com. Supports: the three view-equivalence conditions; every conflict-serialisable schedule is view serialisable; every view-serialisable schedule that is not conflict serialisable has blind writes; the general test is NP-complete.</li>
+            <li><strong>Elmasri and Navathe</strong>, <em>Fundamentals of Database Systems</em> — the three-condition test and the blind-write examples, in the same form used here.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Papers</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>M. Yannakakis</strong>, "Serializability by Locking", <em>J. ACM</em> 31(2), 1984 — the read-from characterisation, the exact characterisation of what locking can produce, and the NP-completeness of deciding view serialisability. Supports the read-from formulation and the claim that locking cannot reach the gap.</li>
+            <li><strong>C. Papadimitriou</strong>, "The serializability of concurrent database updates", <em>J. ACM</em> 26(4), 1979 — recognising serialisable histories is NP-complete.</li>
+            <li><strong>J. Ullman</strong>, <em>Database Systems: The Complete Book</em>, §19.2 (view serialisability) — the intuition that the difference appears where a write is never read, and that such a write may be repositioned.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>sitano.github.io</strong>, "Testing serializability classes" — a worked classification with the T<sub>init</sub> and T<sub>final</sub> convention. Used as a cross-check on the convention only; no count on this page comes from it.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What was not consulted</h3>
+          <p class="small" style="margin-bottom:0">No previous-year GATE paper was read for this lesson, so no question on this page is labelled a PYQ and none is described as one. No claim is made about how often view serialisability appears in past papers.</p>
+        </div>
+
+        <div class="card">
+          <h3>What is computed rather than quoted</h3>
+          <p class="small" style="margin-bottom:0">Every count on this page — 12, 6, 10, 4, 2, 210, 54, 71, 17, 560, 86, 110, 24, 90, 30, 45, 29 — comes from enumerating the schedules in the browser and classifying each one twice. The seventeen model checks re-verify them against the definitions on every load.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
