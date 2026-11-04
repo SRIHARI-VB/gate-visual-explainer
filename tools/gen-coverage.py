@@ -4914,6 +4914,72 @@ topics.append(topic(
         "bits, links and fuses are three different units and cannot be compared directly",
     ]))
 
+# ---------------------------------------------------------------- General Aptitude
+topics.append(topic(
+    "General Aptitude",
+    "Section 2: Quantitative Aptitude - the clause 'Mensuration and geometry', which no earlier lesson owned",
+    "Mensuration and geometry: the three quantities (perimeter, area, volume), the k / k squared / k cubed scale law, and the flat-sheet-to-solid map",
+    [
+        "perimeter, area, surface area and volume as four different measurements",
+        "area as a count of unit squares, volume as a count of unit cubes",
+        "the scale law for similar figures: lengths k, areas k squared, volumes k cubed",
+        "plane formulas with their conditions: rectangle, triangle, Heron, trapezium, circle, sector, annulus",
+        "solid formulas with their conditions: cube, cuboid, cylinder, cone, sphere, hemisphere, pyramid",
+        "rolling a rectangular sheet into a cylinder: which edge is the circumference, which is the height",
+        "building the largest closed cube from a strip of six unit squares",
+        "open against closed surfaces, and what 'the ends are closed' assumes",
+        "the area under a flat-topped curve as a row of rectangles",
+        "choosing the best shape when the perimeter or the surface is fixed"
+    ],
+    prereq=["quantitative-aptitude"],
+    related=["quantitative-aptitude", "spatial-aptitude",
+             "data-interpretation-charts-tables-and-plots"],
+    importance="high",
+    evidence="Section 2 of the official GATE 2027 General Aptitude syllabus (IIT Madras, GA_GATE2027_Syllabus.pdf, read 2026-11-04) prints "
+             "'Mensuration and geometry, Elementary statistics and probability.' General Aptitude carries 15 of the 100 marks, so the clause "
+             "is a fixed part of every attempt. Two previous-year items are reproduced on the page because their paper and answer could be "
+             "confirmed: GATE 2022 CS GA Q2 (one mark, key C, area 13/6) and the GATE 2021 CS Set 1 two-mark GA question (answer 9/pi). "
+             "No frequency claim is made for either. " + SYL,
+    difficulty="easy-medium",
+    status="PUBLISHED",
+    slug="mensuration-and-geometry",
+    path="topics/mensuration-and-geometry/index.html",
+    execution="published 2026-11-04; 31 model checks pass, geometry audit clean across 10 scenes, 40 caption cues",
+    microtopics=[
+        "a length, an area and a volume are never interchangeable",
+        "the sheet is 6 by 1: perimeter 14, area 6, and a 2 by 2 square needs a width of 2 so it does not fit",
+        "the unit square is the definition of area; the multiplication is the shortcut",
+        "doubling a side multiplies the area by 4 and the volume by 8, not by 2",
+        "k = 3 gives areas 9 times and volumes 27 times",
+        "a model at one tenth scale needs 1/100 of the paint and holds 1/1000 of the water",
+        "bringing the short edges together makes the long edge the circumference",
+        "2 pi r = 6 gives r = 3/pi = 0.9549, and dividing by pi alone gives 6, which is 39 times too large in the volume",
+        "the curved surface of the rolled cylinder equals the sheet area, which is the free check on any roll",
+        "cylinder volume is the disc pi r squared times the height",
+        "9/pi = 2.8648 against the cube's 1 gives the 2021 ratio 9/pi",
+        "a closed cube is six equal squares, so 6 a squared equals the paper area",
+        "the strip's width caps the cube's side even when the area is enough",
+        "the cylinder wins because its paper is the curved side only, with the ends assumed closed",
+        "rolling the other way gives 3/(2 pi) = 0.4775, exactly six times smaller",
+        "the roll direction is worth a factor of six, so the phrase that fixes the seam decides the answer",
+        "a triangle's area is half base times the height perpendicular to that base",
+        "the 3-4-5 triangle gives 6 from base 4 with height 3 and from base 5 with height 12/5 = 2.4",
+        "doubling every side of 3-4-5 gives 6-8-10 with area 24, not 12",
+        "Heron on 13-14-15 gives 84, and the height on 14 is 12",
+        "a flat-topped curve is a row of rectangles; widths come from subtracting the interval ends",
+        "the 2022 step curve is 2/3 + 5/4 + 1/4 = 13/6 = 2.1667",
+        "a 1 m path round a 10 m square is 44, and four strips of 10 by 1 miss the four corners",
+        "the same path round a circle of radius 5 is 11 pi = 34.558, so width times perimeter is only an approximation",
+        "with perimeter 12 the integer rectangles are 5, 8 and 9, and 3 by 3 wins",
+        "with surface 54 the cube 3 by 3 by 3 is the largest integer cuboid at 27",
+        "a sphere with surface 6 holds 1.382 against the cube's 1, which is why the isoperimetric statement needs 'closed'",
+        "at radius 3 a sphere's volume and surface are both 36 pi, and that happens only at radius 3 and radius 0",
+        "a cone's 1/3 and a sphere's 4/3 are recovered by stacking thin slices, not asserted",
+        "slant height l = root(r squared + h squared) is used in the curved surface, the vertical height in the volume",
+        "a quarter sector of radius 4 has area 4 pi and arc 2 pi",
+        "the trapezium (6, 10, height 4) is 32, the same as the two triangles it splits into"
+    ]))
+
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
             "microtopics", "coverage_note", "last_verified_date")
 if os.path.exists("syllabus-coverage.json"):
@@ -7930,6 +7996,7 @@ _RECHECKED = {
     "view-serialisability-and-blind-writes": "2026-11-04",
     "left-recursion-elimination-and-left-factoring": "2026-11-04",
     "myhill-nerode-and-distinguishability": "2026-11-04",
+    "mensuration-and-geometry": "2026-11-04",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
