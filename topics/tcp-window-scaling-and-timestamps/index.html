@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP Window Scaling and Timestamps: the 16-bit Window Field, the Shift Count, PAWS and RTTM — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">TCP window scaling and the timestamps option</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Prerequisite: TCP flow control</a>
+      <a href="../tcp-retransmission-timeout-and-rtt-estimation/index.html">Related: RTT estimation</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Related: CIDR and NAT</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> How TCP names a receive window larger than 65,535 bytes using a sixteen-bit field and a shift count agreed in the handshake, and what the ten-byte timestamps option does with the space it takes: measuring a round trip and rejecting a segment from the past.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a link rate, a round-trip time and a receive buffer, compute the window the connection needs, the shift count that can describe it, and the field value that appears in the header — and say which shift count applies in which direction. Given two or three timestamps, apply the PAWS comparison in a modular 32-bit space and say which segments are accepted. Given a retransmission and an echoed timestamp, say which round-trip sample is being measured.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>the scaling mechanism of the named TCP flow-control clause plus the option that removes the retransmission ambiguity</em>: the flow-control lesson owns the window and its arithmetic, and the timer lesson names the timestamp exception without building it. Both are this page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite mechanism for a named clause.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus, read from the official PDF on 2026-11-04, prints: <em>"TCP- flow control and congestion control, socket API; DNS and HTTP."</em> The window field is the flow-control mechanism, and the shift count is how that field reaches a window the link needs.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>window scale</em>, <em>shift count</em>, <em>timestamp</em>, <em>PAWS</em> and <em>RTTM</em> are <strong>not</strong> printed in the 2027 syllabus. The class-B label rests on the mechanism, not on the wording, and I make no claim about how often this appears in past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The topic is examinable because every step is a comparison or a shift: a window against a pipe, a count against a cap, a timestamp against a saved one.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow control and congestion control</a> — the window, the acknowledgement, and what a receive buffer is.</li>
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering and performance metrics</a> — bit rate, round-trip time, throughput, and the bandwidth-delay product.</li>
+            <li><a href="../tcp-retransmission-timeout-and-rtt-estimation/index.html">RTT estimation</a> — how a sample becomes SRTT, RTTVAR and a timer, and Karn's rule.</li>
+            <li>Arithmetic: powers of two, base-two logarithms, and modular comparison over 32 bits.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">No simulator and no network are needed. Every number on the page is computed by the page.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>The field is sixteen bits</strong>, so an unscaled connection tops out at 65,535 bytes and 5,242,800 bit/s on a 100 ms path.</li>
+            <li><strong>The pipe sets the need:</strong> the window must cover rate times delay, or the link stays partly idle.</li>
+            <li><strong>The count is an exponent,</strong> capped at 14 because twice the largest window must stay below 2^31.</li>
+            <li><strong>Two counters, two directions:</strong> yours scales what you send, the peer's scales what you receive, and a SYN field is never scaled.</li>
+            <li><strong>The timestamp is a serial number</strong> that measures a round trip and rejects a wrapped duplicate, with no clock synchronisation.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> The sixteen-bit field and three computed ceilings. <strong>2</strong> The pipe: three bandwidth-delay products and the window each needs. <strong>3</strong> The shift count, the ladder from 0 to 14, and the 1 GiB top. <strong>4</strong> Why 14: twice the window against 2^31, with the 32,768-byte margin. <strong>5</strong> The handshake: the three-byte offer, the two buffers, and the same field 62,500 in both directions. <strong>6</strong> Two counters and the eight-fold misreading. <strong>7</strong> Choosing a count: the mebibyte that is sixteen bytes short, and the four-gigabyte clamp. <strong>8</strong> The ten-byte option and its cost in the header. <strong>9</strong> PAWS on a circle, three arrivals, and the 24-day invalidation. <strong>10</strong> The echo that names the copy, and the five slips.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>How to study this lesson</h3>
+          <p class="small">Approximate study time: 45–65 minutes, which is an estimate and not a measurement. Watch the Animation tab once with captions on, then read Examples, then take Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">The page computes every figure it shows when it loads: it builds the fifteen-rung ladder by shifting, checks each bandwidth-delay product against the smallest count that covers it, recomputes both advertised field values, applies the PAWS comparison to three arrivals, and re-derives both round-trip samples from the echoed timestamps. The number of checks that passed is printed under the canvas, so a wrong figure would show up there before you read it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a sixteen-bit label on a much larger box</h3>
+          <p class="small">A receiver has a big shelf and a small label on each parcel telling the sender how much room is left on it. The label has room for five digits, and the shelf outgrows five digits quickly. Rather than print bigger labels, both ends agree once, at the start, that every label will be read in thousands — or in millions — and write the agreed multiplier in the first two letters they exchange. The label never changes size; its meaning does.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The parcel carries the multiplier and the cap, but not the reason for the cap, which is a sequence-number test rather than a memory limit. Scene 4 supplies that.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Vocabulary, every term in words</h3>
+          <p class="small"><strong>Window field</strong> — sixteen bits in the TCP header saying how many more bytes the receiver can take.</p>
+          <p class="small"><strong>Bandwidth-delay product</strong> — rate times round-trip time: the bytes a path can hold in flight.</p>
+          <p class="small"><strong>Shift count</strong> — the exponent s in the handshake option; the true window is the field times two to the s.</p>
+          <p class="small"><strong>Rcv.Wind.Shift</strong> — your own count, applied to the window you send.</p>
+          <p class="small"><strong>Snd.Wind.Shift</strong> — the peer's count, applied to the window you receive.</p>
+          <p class="small"><strong>TSval</strong> — the sender's timestamp clock value, four bytes.</p>
+          <p class="small"><strong>TSecr</strong> — an echo of a TSval the sender previously received, four bytes.</p>
+          <p class="small"><strong>TS.Recent</strong> — the one saved timestamp a receiver keeps, echoed in every outgoing option.</p>
+          <p class="small" style="margin-bottom:0"><strong>PAWS</strong> — protection against wrapped sequences: a segment whose timestamp is older than the saved one is dropped.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The two rules, stated once</h3>
+          <p class="small">The window rules, in the form the document writes them:</p>
+          <p class="small mono" style="margin:0 0 8px">SND.WND = SEG.WND &lt;&lt; Snd.Wind.Shift<br>SEG.WND = RCV.WND &gt;&gt; Rcv.Wind.Shift</p>
+          <p class="small">The timestamp rules, in the same form:</p>
+          <p class="small mono" style="margin:0 0 8px">TSecr = TS.Recent<br>update TS.Recent if SEG.TSval &gt;= TS.Recent and SEG.SEQ &lt;= Last.ACK.sent</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Both pairs are quoted from RFC 7323, sections 2.3 and 4.3, read at rfc-editor.org on 2026-11-04.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Why an extension was needed at all</h3>
+          <p class="small">The window field cannot grow: the header layout is fixed and every implementation on the network parses it. The only remaining place to put information is the option space, which is at most forty bytes, and the only place to put a <em>negotiation</em> is the handshake, which happens once.</p>
+          <p class="small" style="margin-bottom:0">That is why the shift count is fixed for the life of the connection and why a SYN window field cannot be scaled: at the moment the SYN is sent, the other side's count is not yet known.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>What the rest of the page adds</h3>
+          <p class="small" style="margin-bottom:0">The Build-up gives you the vocabulary and the two rule pairs. Examples compute five worked cases end to end. Edge cases take the boundaries: the mebibyte that is sixteen bytes short, the four-gigabyte buffer that cannot be advertised, the idle connection that would freeze itself. Misconceptions names seven wrong beliefs with a counterexample each. GATE patterns turns the arithmetic into a procedure. Practice has eight questions, and Revision collects the numbers worth carrying.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The TCP window field is sixteen bits, so the largest value it can carry is 65,535 bytes.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The wall at 65,535 bytes</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Every TCP header carries a window field. It is sixteen bits wide, so the largest number it can hold is sixty-five thousand five hundred and thirty-five.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 1 — the ceiling of an unscaled connection</h3>
+              <p class="small"><strong>Given</strong> a 100 Mbit/s link, a 100 ms round-trip time, and no window scaling. <strong>Asked</strong> the largest window and the largest throughput the connection can reach.</p>
+              <p class="small">The field holds at most 65,535 bytes, so at most 65,535 bytes are in flight. One window is delivered per round trip, so the rate is 65,535 bytes per 0.1 s, which is 655,350 bytes per second, which is 5,242,800 bit/s. The link could carry 100,000,000 bit/s, so about one nineteenth of it is used.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 65,535 &divide; 0.1 = 655,350 bytes/s; &times; 8 = 5,242,800 bit/s. The page recomputes this at load and prints it in scene 1.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — choosing a shift from a buffer</h3>
+              <p class="small"><strong>Given</strong> a receive buffer of 8,000,000 bytes. <strong>Asked</strong> the shift count to advertise and the field value for a full window.</p>
+              <p class="small">Test the maximum windows in order: shift 6 reaches 4,194,240, which is too small; shift 7 reaches 8,388,480, which covers it. So the count is 7. The field value for a full window is 8,000,000 &gt;&gt; 7 = 62,500, and 62,500 &times; 128 = 8,000,000 recovers the window.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The right shift discards at most 127 bytes, so the recovered window can be up to 127 bytes below the true one — which is why a receiver advertises slightly less than it has.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — two hosts, one field value</h3>
+              <p class="small"><strong>Given</strong> host A with an 8,000,000-byte buffer and host B with 1,000,000. <strong>Asked</strong> what each sends in its window field, and what each must do with what it receives.</p>
+              <p class="small">A advertises 62,500 with count 7; B advertises 62,500 with count 4. A receives B's 62,500 and left-shifts by <em>B's</em> count, 4, getting 1,000,000. B receives A's 62,500 and left-shifts by A's count, 7, getting 8,000,000.</p>
+              <p class="small" style="margin-bottom:0">The two directions carry the same sixteen-bit number and mean two windows eight times apart.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 4 — the misreading, and its factor</h3>
+              <p class="small"><strong>Given</strong> the same pair. <strong>Asked</strong> what A computes if it applies its own count of 7 to B's field of 62,500.</p>
+              <p class="small">It computes 8,000,000 instead of 1,000,000: an overstatement by a factor of eight. The factor is always two to the difference of the counts, here 2^(7&minus;4) = 8, and it is a ratio rather than a fixed number.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The error factor depends only on the two counts, so a pair of counts one apart gives an error of two and a pair fourteen apart gives an error of 16,384.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>Example 5 — a segment from before the wrap</h3>
+              <p class="small"><strong>Given</strong> a saved timestamp of 5,000,000 and three arrivals: 4,999,000, 5,000,100, and 100 after the clock has wrapped past the top of the space with a saved value of 4,294,000,000.</p>
+              <p class="small">For 4,999,000 the difference 5,000,000 &minus; 4,999,000 is 1,000, which lies between 1 and 2^31, so the arrival is older: acknowledge it and drop it. For 5,000,100 the difference is &minus;100, which modulo 2^32 is 4,294,967,196, which is past 2^31, so the arrival is not older and is accepted. For 100 against a saved 4,294,000,000 the difference is 4,293,999,900, also past 2^31, so it too is accepted — the modular test reads the wrap correctly without either clock agreeing with the other.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The three differences the page computes are 1,000; 4,294,967,196 and 4,293,999,900, each compared with 2^31 = 2,147,483,648. Two of them are larger, so exactly one arrival is rejected.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — the sample an echo recovers</h3>
+              <p class="small"><strong>Given</strong> a segment sent at 0 ms with TSval 1000, retransmitted at 400 ms with TSval 1400, acknowledged at 500 ms.</p>
+              <p class="small">If the acknowledgement echoes 1400, the sample is 500 &minus; 400 = 100 ms and it measures the retransmission. If it echoes 1000, the sample is 500 &minus; 0 = 500 ms and it measures the original, which was late rather than lost. Without the option there is no sample at all, and the timer simply doubles.</p>
+              <p class="small" style="margin-bottom:0">The echo is not an estimate: it names the copy.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 7 — the sample that must be refused</h3>
+              <p class="small"><strong>Given</strong> a 40 ms path where the receiving host pauses 60 ms before sending its own data, carrying an echo of the last timestamp it received. The sender computes 100 &minus; 0 = 100 ms.</p>
+              <p class="small">The true round trip is 40 ms, so the measurement is two and a half times the truth. The rule refuses it because the segment carries no acknowledgement of new data: it does not advance the left edge of the send window.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 7323 section 4.1 states the rule as: a TSecr may update the averaged measurement only if the segment advances the left edge of the send window.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries, each with its number</h3>
+          <p class="small" style="margin-bottom:0">Six cases where the arithmetic changes behaviour: a buffer that misses by sixteen bytes, a buffer that cannot be described at all, a count above the cap, a zero window, a connection that cannot change its count, and a connection that has been idle for a month.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A mebibyte needs shift 5, not 4</h3>
+          <p class="small">1,048,576 &divide; 65,535 = 16.00024. The tempting division by 65,536 gives exactly 16, hence shift 4. But the maximum at shift 4 is 65,535 &times; 16 = 1,048,560, which is sixteen bytes short of the buffer, so a full window cannot be described.</p>
+          <p class="small" style="margin-bottom:0">The fix is to compare maximum windows, not to divide: shift 4 fails the comparison, shift 5 (2,097,120) passes.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A four-gigabyte buffer cannot be advertised</h3>
+          <p class="small">2^32 &divide; 65,535 = 65,537, whose base-two logarithm is just over 16, so the raw answer is 17. The count is capped at 14, so the largest window this connection can advertise is 1,073,725,440 bytes.</p>
+          <p class="small" style="margin-bottom:0">The rest of the buffer is unusable by that connection. The cap comes from the sequence-number test, not from memory, so buying more memory does not raise it.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>A count above 14 is read as 14</h3>
+          <p class="small">The document says a received count larger than 14 is logged as an error and treated as 14. That is safe rather than merely lenient: a sender is always free to use less than the window it is offered, so an understated window costs throughput and never correctness.</p>
+          <p class="small" style="margin-bottom:0">The receiver of such an option sees a window smaller than the truth, which is the conservative direction.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A zero window stays zero, and a SYN field is not scaled</h3>
+          <p class="small">Zero shifted any number of places is still zero, so a zero window means the receiver has no room and the sender must stop. Scaling does not change that.</p>
+          <p class="small" style="margin-bottom:0">The other boundary is the handshake: the window field of a SYN or SYN,ACK is never scaled. Reading 65,535 with a count of 7 gives 8,388,480, an error by a factor of 128.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The count cannot change, but the window can</h3>
+          <p class="small">The option appears only in the handshake, so the count is fixed when the connection opens. A buffer that grows later cannot raise it; the connection is stuck at the window its count can describe.</p>
+          <p class="small" style="margin-bottom:0">What does move is the field value, which shrinks as the buffer fills and grows as the application reads. Only the multiplier is frozen.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>An idle connection, and the one place a timestamp is thrown away</h3>
+          <p class="small">A receiver keeps one saved timestamp and rejects anything older. If the peer's clock wraps while the connection is idle, the saved value becomes too old, and every subsequent segment would be rejected until the clock wrapped again — a freeze with no cause the application could see.</p>
+          <p class="small" style="margin-bottom:0">The document therefore requires the saved value to be invalidated after more than 24 days of idleness. The number is chosen from the clock bounds: at one tick per millisecond the sign bit wraps in 24.855 days, so 24 days is below the worst case and above any plausible idle period.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that produce a wrong answer</h3>
+          <p class="small" style="margin-bottom:0">Each is paired with the counterexample that breaks it. Every counterexample is computed by the page.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1 — "The shift count multiplies the window by the count"</h3>
+          <p class="small">Wrong: the count is an exponent. A count of 3 multiplies by 8, not by 3.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: 65,535 &times; 2^3 = 524,280, while 65,535 &times; 3 = 196,605. The two differ by a factor of 2.67 at count 3 and by 4,667 at count 14.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2 — "Both sides use the same shift count"</h3>
+          <p class="small">Wrong: each side sends its own count for its own receive buffer, and each applies the other's to what it receives.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: buffers of 8,000,000 and 1,000,000 bytes give counts 7 and 4, and the same field 62,500 means 8,000,000 one way and 1,000,000 the other.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3 — "The window in the SYN is already scaled"</h3>
+          <p class="small">Wrong: the field is never scaled in a segment with the SYN bit set, because the other side's count is not yet known.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: the 65,535 in the handshake means 65,535; multiplied by shift 7 it would read 8,388,480, an error by a factor of 128.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4 — "The cap of 14 comes from a 30-bit field"</h3>
+          <p class="small">Wrong: the field stays sixteen bits. The cap comes from the sequence-number test, which needs twice the largest window to stay below 2^31.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: at count 15 twice the window is 4,294,901,760, which is past 2^31 = 2,147,483,648, so the old-or-new test becomes ambiguous.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5 — "The congestion window is scaled too"</h3>
+          <p class="small">Wrong: the scale applies to the window field as transmitted. The congestion window is kept locally as a 32-bit number and is not scaled.</p>
+          <p class="small" style="margin-bottom:0">Consequence: a question asking for a window after a slow-start doubling wants the local number, not the field. Scaling never quantises congestion control.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6 — "Timestamps need synchronised clocks"</h3>
+          <p class="small">Wrong: the receiver treats a timestamp as a serial number, not as a time. Only the sender's own clock is used for measurement, and only one side's values are ever compared with each other.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: a saved value of 4,294,000,000 and an arrival of 100 are correctly read as forward, though the two numbers differ by four thousand million in ordinary arithmetic.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>7 — "Any echoed timestamp is a valid sample"</h3>
+          <p class="small">Wrong: an echo is a candidate. The segment carrying it must advance the left edge of the send window before the value is used.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: on a 40 ms path with a 60 ms pause in the reverse direction, the echo reads 100 ms, two and a half times the truth. Using it would inflate SRTT and, through it, the retransmission timer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this becomes a question, and the procedure that answers it</h3>
+          <p class="small" style="margin-bottom:0">Three shapes appear: a throughput ceiling from a field width, a shift count from a buffer or a pipe, and a PAWS decision from two numbers. Each has a fixed procedure, and each procedure has one step that is usually skipped.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — the ceiling</h3>
+          <p class="small"><strong>1.</strong> Write the window in bytes: 65,535 without scaling, or 65,535 &times; 2^s with it.</p>
+          <p class="small"><strong>2.</strong> Divide by the round-trip time in seconds to get bytes per second.</p>
+          <p class="small"><strong>3.</strong> Multiply by eight for bit/s, and divide by 10^6 for Mbit/s.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is the unit change: dividing by a round trip given in milliseconds without converting gives an answer a thousand times too large.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — the shift count</h3>
+          <p class="small"><strong>1.</strong> Compute the bandwidth-delay product: rate in bit/s &times; round trip in seconds &divide; 8, in bytes.</p>
+          <p class="small"><strong>2.</strong> Find the smallest count whose maximum window, 65,535 &times; 2^s, is at least that value.</p>
+          <p class="small"><strong>3.</strong> If the answer exceeds 14, write 14 and note that the rest of the buffer is unusable.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is step 3: a buffer larger than 1 GiB is a question with an answer that is capped, not an error.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — the PAWS decision</h3>
+          <p class="small"><strong>1.</strong> Write the difference (saved &minus; arriving) modulo 2^32.</p>
+          <p class="small"><strong>2.</strong> If it lies strictly between 0 and 2^31, the arrival is older: acknowledge it and drop it.</p>
+          <p class="small"><strong>3.</strong> Otherwise it is accepted, and becomes the saved value if the sequence rule also holds.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is the acknowledgement: a rejected segment still draws one, and a question that asks what the receiver sends wants the acknowledgement.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Shape 4 — the sample from an echo</h3>
+          <p class="small"><strong>1.</strong> Read the echoed value in the acknowledgement and find the send time it belongs to.</p>
+          <p class="small"><strong>2.</strong> Subtract that send time from the arrival time.</p>
+          <p class="small"><strong>3.</strong> Check that the segment advances the left edge of the send window; if it does not, discard the sample.</p>
+          <p class="small" style="margin-bottom:0">The trap here is step 1: subtracting from the <em>original</em> send time when the echo names the <em>retransmission</em> doubles the sample.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What is and is not claimed on this page</h3>
+          <p class="small">No previous-year question is reproduced or attributed here, and no statement is made about how often this topic appears in GATE CSE papers. The four shapes above are question <em>patterns</em> derived from the rules, not a summary of past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Any weightage figure you see for window scaling or timestamps is an estimate from a coaching source unless it names a paper and a question number. Treat such a figure as planning information, not as a prediction for GATE CSE 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question. Every answer was computed, and where the page models it, checked by the page.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A TCP connection uses no options. The round-trip time is 200 ms. The largest throughput the connection can sustain is ______ kbit/s.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 2621.4</p>
+                <p>65,535 bytes &divide; 0.2 s = 327,675 bytes/s, and &times; 8 = 2,621,400 bit/s = 2,621.4 kbit/s. Two significant figures give 2,621 kbit/s; the exact value is 2,621.4.</p>
+                <p><strong>Why 5,242.8 appears.</strong> Using 100 ms instead of 200 ms. <strong>Why 524,280 appears.</strong> Forgetting the conversion from milliseconds to seconds.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A host can buffer 1,048,576 bytes. It sends a window scale option in its SYN. The smallest shift count that lets it describe the whole buffer is</p>
+                <ol class="choices">
+                  <li>4</li>
+                  <li>5</li>
+                  <li>8</li>
+                  <li>14</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>Shift 4 reaches 65,535 &times; 16 = 1,048,560 bytes, which is sixteen bytes short. Shift 5 reaches 2,097,120 bytes and covers the buffer.</p>
+                <p><strong>Why 4 appears.</strong> Dividing by 65,536 instead of 65,535, which gives exactly 16 and the wrong rung. <strong>Why 8 appears.</strong> Rounding to a round number of bits rather than the smallest count. <strong>Why 14 appears.</strong> Confusing the cap with the answer.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following are true of the window scale option?</p>
+                <ol class="choices">
+                  <li>It is sent in the SYN and may be sent again in an established connection.</li>
+                  <li>Scaling is used in a direction only if both sides sent the option.</li>
+                  <li>The window field of a segment with the SYN bit set is not scaled.</li>
+                  <li>The congestion window is multiplied by two to the shift count.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B and C</p>
+                <p>B is the offer rule: both sides must send it, or neither direction is scaled. C is the SYN exception, which exists because the peer's count is unknown when the SYN is sent.</p>
+                <p>A is false: the option is sent during the handshake only, and a shift count in a segment without a SYN bit must be ignored. D is false: the scale applies to the window field as transmitted, and the congestion window is a local 32-bit number.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A receiver's saved timestamp is 5,000,000. A segment arrives carrying 4,999,000. The difference (saved &minus; arriving) computed modulo 2^32 is ______ , and the segment is therefore treated as ______ .</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1000, and old</p>
+                <p>5,000,000 &minus; 4,999,000 = 1,000. Because 1,000 lies strictly between 0 and 2^31, the arrival is older than the saved value: it is acknowledged and then dropped.</p>
+                <p><strong>Why 4,294,966,296 appears.</strong> Subtracting the other way round, arriving minus saved, which is the modular difference of the wrong pair and gives the opposite verdict. <strong>Why "new" appears.</strong> Reading any small difference as forward without checking which way it was taken.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A segment is sent at 0 ms with TSval 1000, retransmitted at 400 ms with TSval 1400, and acknowledged at 500 ms with TSecr 1400. The round-trip sample is</p>
+                <ol class="choices">
+                  <li>No sample, because the segment was retransmitted.</li>
+                  <li>100 ms.</li>
+                  <li>500 ms.</li>
+                  <li>400 ms.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The echo names the retransmission, whose send time was 400 ms, so the sample is 500 &minus; 400 = 100 ms. Timestamps are the documented exception to Karn's rule.</p>
+                <p><strong>Why A appears.</strong> Karn's rule without the exception. <strong>Why 500 appears.</strong> Subtracting the original send time from an acknowledgement that echoed the retransmission. <strong>Why 400 appears.</strong> Reading the retransmission time as the sample.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A connection has a round-trip time of 100 ms and negotiates a shift count of 14. The largest throughput it can sustain is ______ Gbit/s, to two decimal places.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 85.90</p>
+                <p>65,535 &times; 2^14 = 1,073,725,440 bytes; divided by 0.1 s that is 10,737,254,400 bytes/s; &times; 8 = 85,898,035,200 bit/s = 85.90 Gbit/s.</p>
+                <p><strong>Why 5.24 appears.</strong> Forgetting the shift. <strong>Why 85,898,035,200 appears.</strong> The exact figure in bit/s before it is rounded to Gbit/s, and it is exactly 5,242,800 &times; 16,384.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which statements about the timestamps option are true?</p>
+                <ol class="choices">
+                  <li>It is ten bytes: kind, length, a four-byte value and a four-byte echo.</li>
+                  <li>It requires the two hosts' clocks to be synchronised.</li>
+                  <li>It can remove the retransmission ambiguity that Karn's rule responds to.</li>
+                  <li>An echoed value may always be used to update the round-trip estimate.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and C</p>
+                <p>A is the option format. C is the reason the option is worth its bytes: the echo names which copy was acknowledged.</p>
+                <p>B is false: the receiver treats the value as a serial number, and only one host's clock values are ever compared. D is false: the segment carrying the echo must advance the left edge of the send window, which is what stops a pause in the reverse direction from inflating the estimate.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Two hosts open a connection. A has an 8,000,000-byte receive buffer and advertises shift 7; B has 1,000,000 bytes and advertises shift 4. Both send a window field of 62,500. Which is the window B should believe A is offering?</p>
+                <ol class="choices">
+                  <li>62,500 bytes</li>
+                  <li>1,000,000 bytes</li>
+                  <li>8,000,000 bytes</li>
+                  <li>8,388,480 bytes</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>B left-shifts A's field by A's count, 7: 62,500 &times; 128 = 8,000,000.</p>
+                <p><strong>Why 62,500 appears.</strong> Reading the field as the window, which ignores scaling. <strong>Why 1,000,000 appears.</strong> Applying B's own count of 4, an error by a factor of 8. <strong>Why 8,388,480 appears.</strong> Using the maximum at count 7 instead of the value in the field.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Every number below is computed by the page at load and is the same number the animation prints.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions and constants</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Window field: 16 bits, so 65,535 bytes unscaled.</li>
+            <li>Maximum shift count: 14, giving 1,073,725,440 bytes = 2^30 &minus; 2^14.</li>
+            <li>Ceiling: window &divide; round trip, in bytes per second, &times; 8 for bit/s.</li>
+            <li>Pipe: bandwidth-delay product = rate &times; round trip &divide; 8 bytes.</li>
+            <li>Timestamps option: kind 8, length 10, TSval and TSecr of four bytes each.</li>
+            <li>Window scale option: kind 3, length 3, one shift count byte.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Procedures, in the order they are applied</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Need a window: compute the pipe, then the smallest count whose maximum covers it, then cap at 14.</li>
+            <li>Send a window: right-shift your true window by your own count, except in a SYN.</li>
+            <li>Receive a window: left-shift the field by the peer's count, except in a SYN.</li>
+            <li>Test a timestamp: difference modulo 2^32, older if strictly between 0 and 2^31.</li>
+            <li>Take a sample: subtract the echoed send time, and only if the segment advances the left edge.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The numbers worth carrying</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>5,242,800 bit/s: the unscaled ceiling at 100 ms.</li>
+            <li>12,500,000 bytes: the pipe of 1 Gbit/s over 100 ms, which needs count 8.</li>
+            <li>1,048,560 bytes: the maximum at count 4, sixteen short of a mebibyte.</li>
+            <li>2,147,450,880: twice the top window, which clears 2^31 by 32,768.</li>
+            <li>24.855 days and 24,855 days: the sign-bit wrap at 1 ms and at 1 s per tick.</li>
+            <li>34.36 s: how long the sequence space lasts at 1 Gbit/s.</li>
+          </ul>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The five slips</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Scaling the window field of a SYN: 128 times too large at count 7.</li>
+            <li>Reading the peer's field with your own count: 2^(difference) times wrong, eight here.</li>
+            <li>Choosing a count by dividing: 1 MiB gives count 4 and misses by 16 bytes.</li>
+            <li>Comparing timestamps as signed numbers: an arrival after the wrap is rejected.</li>
+            <li>Taking a sample from a segment that advances nothing: 2.5 times the truth on the worked path.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Three sentences to carry into the exam</h3>
+          <p class="small">The window field never grew; a multiplier agreed in the handshake did the work, and the multiplier is an exponent capped by a sequence-number test rather than by memory. Two counters exist, one per direction, and a handshake window field is never scaled. The timestamp is a serial number that both measures a round trip and rejects a wrapped duplicate, and the echo names which copy of a retransmission was acknowledged.</p>
+          <p class="small" style="margin-bottom:0">Quick revision questions, answers in the Practice tab: what is the ceiling at 200 ms with no options? What count does a mebibyte need? What is twice the top window, and by how much does it clear 2^31? Which sample does an echo of 1400 give? What is the largest window a four-gigabyte buffer can advertise?</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>What the research consulted</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>RFC 7323, "TCP Extensions for High Performance"</strong> (Borman, Braden, Jacobson, Scheffenegger; September 2014; obsoletes RFC 1323). Read at rfc-editor.org on 2026-11-04. Supports the option formats (sections 2.2 and 3.2), the two shift counters and both shift rules (2.3), the cap of 14 and the reasoning behind it (2.3), the SYN exception (2.2), the echo rules (4.3), the round-trip rule (4.1), and PAWS with its clock bounds and the 24-day invalidation (5.2 to 5.5).</li>
+            <li><strong>GATE 2027 CS syllabus PDF, IIT Madras.</strong> Downloaded from gate2027.iitm.ac.in and read on 2026-11-04. Section 10 reads: "TCP- flow control and congestion control, socket API; DNS and HTTP." That is the clause this lesson is a mechanism for.</li>
+            <li><strong>RFC 6298, "Computing TCP's Retransmission Timer".</strong> Consulted through this repository's own lesson on RTT estimation, which quotes its rule that a timestamped connection may sample a retransmitted segment.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What each source supports, and what it does not</h3>
+          <p class="small">RFC 7323 supports every rule quoted on the page: the option formats, both shift rules, the cap and its derivation, the SYN exception, the echo rule, the round-trip rule and the PAWS comparison. It does not say that 1 GiB is a good buffer size, and it does not give a throughput formula; the ceiling and the pipe are arithmetic on the field width and the round-trip time.</p>
+          <p class="small" style="margin-bottom:0">The 24-day figure is the document's own choice of an idle limit, derived from the worst-case clock wrap of 24.8 days; the page states it as a requirement and not as a measurement of anything.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What was not verified, and the assumptions the model makes</h3>
+          <p class="small" style="margin-bottom:0">No previous-year question is reproduced or attributed anywhere on this page, and no claim is made about how often this topic appears in GATE CSE papers. The worked pairs are chosen so the arithmetic is exact and are computed by the page from the rules, not copied from a textbook. The model assumes one path, one direction of data, no delayed acknowledgements, a timestamp clock of one tick per millisecond where a clock rate is needed, and a receive buffer that is fixed for the life of the connection. It does not model selective acknowledgement, window retraction in detail, the congestion window's growth, or the security discussion in section 7 of the document, all of which are outside this lesson's scope.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

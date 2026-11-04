@@ -1,0 +1,164 @@
+WEBVTT
+TITLE Tcp Window Scaling And Timestamps — GATE Visual Explainer
+NOTE Timings are estimated from the lesson timeline (speaking-rate based), not measured from recorded audio.
+
+1
+00:00:00.000 --> 00:00:07.500
+The TCP window field is sixteen bits, so the largest value it can carry is 65,535 bytes.
+
+2
+00:00:07.500 --> 00:00:15.000
+A window is bytes in flight, so window divided by round-trip time is the throughput ceiling.
+
+3
+00:00:15.000 --> 00:00:22.500
+On a 100 ms path the ceiling is 5,242,800 bits per second, about 5.24 Mbit/s, whatever the link can do.
+
+4
+00:00:22.500 --> 00:00:30.000
+The ceiling is a property of the header, not of the network: a faster link or a longer path makes it worse.
+
+5
+00:00:30.000 --> 00:00:37.500
+Bandwidth times delay is the amount of data the path can hold: the bandwidth-delay product.
+
+6
+00:00:37.500 --> 00:00:45.000
+At 1 Gbit/s over 100 ms the pipe holds 12,500,000 bytes, and 65,535 bytes is about one two-hundredth of it.
+
+7
+00:00:45.000 --> 00:00:52.500
+Three links, three required windows: 250,000 bytes, 12,500,000 bytes and 62,500,000 bytes.
+
+8
+00:00:52.500 --> 00:01:00.000
+So the question the extension answers is: how do you name a window larger than 65,535 using a sixteen-bit field?
+
+9
+00:01:00.000 --> 00:01:07.500
+The window scale option carries one number, a shift count, and the true window is the field shifted left by it.
+
+10
+00:01:07.500 --> 00:01:15.000
+Shift 0 keeps 65,535 bytes; shift 8 reaches 16,776,960; shift 14 reaches 1,073,725,440 bytes, about 1 GiB.
+
+11
+00:01:15.000 --> 00:01:22.500
+The top of the range is 2^30 minus 2^14, which is 16,384 bytes short of exactly one gibibyte.
+
+12
+00:01:22.500 --> 00:01:30.000
+At shift 14 and a 100 ms path the ceiling becomes 85,898,035,200 bits per second, about 85.9 Gbit/s.
+
+13
+00:01:30.000 --> 00:01:37.500
+TCP decides old from new by asking whether a sequence number is within 2^31 of the left edge of the window.
+
+14
+00:01:37.500 --> 00:01:45.000
+The sender and receiver windows can be out of phase by one window, so twice the maximum window must stay below 2^31.
+
+15
+00:01:45.000 --> 00:01:52.500
+Shift 14 gives 2,147,450,880 for twice the window, which clears 2^31 by 32,768 bytes; shift 15 overshoots it.
+
+16
+00:01:52.500 --> 00:02:00.000
+So 14 is the largest shift that works, and a peer that sends more must be read as 14.
+
+17
+00:02:00.000 --> 00:02:07.500
+The option is sent in the handshake only, and both sides must send it for scaling to be used in either direction.
+
+18
+00:02:07.500 --> 00:02:15.000
+The window field of a SYN segment is never scaled, so the 65,535 in the handshake is 65,535 and not 8,388,480.
+
+19
+00:02:15.000 --> 00:02:22.500
+Two hosts with buffers of 8,000,000 and 1,000,000 bytes choose shifts 7 and 4.
+
+20
+00:02:22.500 --> 00:02:30.000
+Both then advertise the same field value, 62,500, and it means 8,000,000 bytes from one side and 1,000,000 from the other.
+
+21
+00:02:30.000 --> 00:02:37.500
+Each connection keeps two shift counters: the one you send your own window with, and the one you read the peer's with.
+
+22
+00:02:37.500 --> 00:02:45.000
+The receiver right-shifts what it sends, and the sender left-shifts what it receives, by the peer's count.
+
+23
+00:02:45.000 --> 00:02:52.500
+The first host reads 62,500 with its own shift 7 and gets 8,000,000, eight times the true 1,000,000.
+
+24
+00:02:52.500 --> 00:03:00.000
+The scale applies to the window field only: the congestion window is kept as a local number and is never scaled.
+
+25
+00:03:00.000 --> 00:03:07.500
+The shift is chosen from the receive buffer before the connection opens: the smallest count whose maximum window covers it.
+
+26
+00:03:07.500 --> 00:03:15.000
+A one-mebibyte buffer looks like shift 4, since 2^16 is 65,536, but shift 4 reaches only 1,048,560 bytes.
+
+27
+00:03:15.000 --> 00:03:22.500
+So the answer is 5, and the general rule is the smallest count with 65,535 times 2^s at least the buffer.
+
+28
+00:03:22.500 --> 00:03:30.000
+A four-gigabyte buffer would need shift 17, which is clamped to 14, so only 1,073,725,440 bytes can be advertised.
+
+29
+00:03:30.000 --> 00:03:37.500
+The timestamps option is ten bytes: a kind, a length, a four-byte value and a four-byte echo.
+
+30
+00:03:37.500 --> 00:03:45.000
+It takes the header from 20 to 30 bytes, and with window scaling too, to 34; payload efficiency falls from 98.65 to 97.72 per cent.
+
+31
+00:03:45.000 --> 00:03:52.500
+The difference between the current clock and an echoed value is a round-trip sample, taken from almost every segment.
+
+32
+00:03:52.500 --> 00:04:00.000
+The echo is one saved value per connection, updated only when the incoming value is at least it and the segment is within the last acknowledged byte.
+
+33
+00:04:00.000 --> 00:04:07.500
+A connection at a gigabit per second uses up the whole sequence space in about 34 seconds, so old and new can collide.
+
+34
+00:04:07.500 --> 00:04:15.000
+The test is modular: an arrival is older when the saved value minus it, modulo 2^32, lies between 1 and 2^31.
+
+35
+00:04:15.000 --> 00:04:22.500
+A value 1,000 behind the saved 5,000,000 gives a difference of 1,000 and is rejected; 100 ahead gives 4,294,967,196 and is accepted.
+
+36
+00:04:22.500 --> 00:04:30.000
+After the clock wraps the test still works, and a value saved before a wrap is discarded after 24 days of silence.
+
+37
+00:04:30.000 --> 00:04:37.500
+Without timestamps a retransmission makes the next acknowledgement untimeable, which is why the sample is refused.
+
+38
+00:04:37.500 --> 00:04:45.000
+With timestamps the echo names the copy: an echo of 1400 measures 100 ms, an echo of 1000 measures 500 ms.
+
+39
+00:04:45.000 --> 00:04:52.500
+One guard remains: an echo may update the estimate only when the segment advances the left edge of the send window.
+
+40
+00:04:52.500 --> 00:05:00.000
+The five slips: a scaled SYN, the wrong shift, a divided buffer, a signed comparison, and a sample that acknowledges nothing.
+
