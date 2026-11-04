@@ -105,6 +105,7 @@ lessons are static files and work from a local clone.
 | Runtime Environments, Intermediate Code and Optimisation | Compiler Design | A — explicitly in the syllabus | `topics/runtime-environments-intermediate-code-and-optimisation/index.html` |
 | Symbol Table: Organisation and Scope Handling | Compiler Design | B — prerequisite for a syllabus topic | `topics/symbol-table-organisation-and-scope/index.html` |
 | Error Detection and Recovery: the Blank Cell, Panic Mode, Phrase-Level Repair and Error Productions | Compiler Design | B — prerequisite for a syllabus topic | `topics/parser-error-detection-and-recovery/index.html` |
+| Eliminating Left Recursion and Left Factoring: the Three Routes, the Ordered Algorithm and the Fixed Point | Compiler Design | A — explicitly in the syllabus | `topics/left-recursion-elimination-and-left-factoring/index.html` |
 | Lexical Errors and Lexer Recovery: Longest Match, the Two Failures, Panic Mode and the Guard | Compiler Design | A — explicitly in the syllabus | `topics/lexical-errors-and-lexer-recovery/index.html` |
 | Calculus: Limits, Extrema and Integration | Engineering Mathematics | A — explicitly in the syllabus | `topics/calculus-limits-extrema-and-integration/index.html` |
 | Integration: Techniques, Definite Integrals and Improper Integrals | Engineering Mathematics | A — explicitly in the syllabus | `topics/integration-techniques-and-definite-integrals/index.html` |
