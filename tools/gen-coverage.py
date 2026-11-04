@@ -8010,6 +8010,64 @@ topics.append(topic(
         "one array length of ten values needs 36,288,000 test cases; the proof is four lines"],
 ))
 
+# ---------------------------------------------------------------- Algorithms: amortised analysis
+topics.append(topic(
+    "Algorithms",
+    "Section 5: 'Asymptotic worst case time and space complexity' - the technique behind every question about the cost of a sequence of operations, which no lesson owned",
+    "Amortised analysis: the aggregate, accounting and potential methods, and the sequence claim they all prove",
+    ["amortised cost as a bound on a sequence, not on an operation",
+     "the doubling table and its cost model",
+     "the aggregate method: sum the bill, divide by n",
+     "the accounting method: charge, bank the change, never go negative",
+     "the potential method: amortised = actual + change in potential",
+     "the binary counter and the stack with multipop",
+     "what the claim does not assert, and when it fails"],
+    prereq=["best-average-worst-and-amortised-analysis", "asymptotic-complexity"],
+    related=["disjoint-set-forests-union-find", "exact-counts-across-topics", "hashing",
+             "algorithm-correctness-loop-invariants"],
+    importance="medium-high",
+    evidence=("Section 5 of the GATE 2027 CS syllabus published by IIT Madras prints 'Asymptotic worst case "
+              "time and space complexity.'; the word amortised is not printed, so the lesson is class B and "
+              "says so. No previous-year GATE question on amortised analysis was confirmed in this run: the "
+              "ExamSIDE and ExamGOAL complexity-analysis listings were searched and no such item was found. "
+              "No frequency or weightage is claimed from that absence."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="amortised-analysis-aggregate-accounting-potential",
+    path="topics/amortised-analysis-aggregate-accounting-potential/index.html",
+    execution=("published 2026-11-04; 26 model checks over a 4,096-insertion table, a 4,096-increment counter "
+               "and a 78,125-sequence stack enumeration; check-lesson and audit-geometry run in the same run"),
+    microtopics=[
+        "amortised cost is a bound on a sequence of n operations, divided by n",
+        "worst case, average case and amortised are three independent questions",
+        "amortised uses no probability distribution, so it is not average case",
+        "amortised always lies between the best case and the worst case",
+        "TABLE-INSERT cost model: one unit per write, one per copy, doubling when full",
+        "the first ten insertion costs are 1, 2, 3, 1, 5, 1, 1, 1, 9, 1 over capacities 1, 2, 4, 4, 8, 8, 8, 8, 16, 16",
+        "an insertion is expensive exactly at item counts 2, 3, 5, 9, 17 - one more than a power of two",
+        "the aggregate method sums the copies 1 + 2 + ... + 512 = 1023 for 1024 insertions",
+        "total cost 2047 = 2n - 1, so the share is 1.999 and the amortised cost is 2",
+        "the accounting method charges 3, banks 2, and the credit is 1, 2, 2, 4, 2, 4, 6, 8, 2, 4",
+        "the credit must be non-negative after every operation, not only at the end",
+        "the potential Phi = 2 x items - capacity is 0 when empty and never negative because the table is at least half full",
+        "the ninth insertion: actual 9, Phi falls from 8 to 2, amortised 9 + (2 - 8) = 3",
+        "the changes telescope: 12,287 = 8,191 actual + 4,096 final potential - 0",
+        "the accounting credit equals the potential at every step",
+        "the binary counter flips 1, 2, 1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 2, 1, 5 bits over 16 increments",
+        "total flips equal 2n - popcount(n): 32 - 1 = 31 for n = 16, checked to n = 4096",
+        "with the number of ones as the potential, every increment has amortised cost exactly 2",
+        "the multipop stack: removals are bounded by pushes, so n operations cost at most 2n",
+        "all 78,125 sequences of 7 push/pop/multipop operations were run; the largest total is 10 against the bound 14",
+        "the worst single insertion still costs 1,025 units, 512.5 times the amortised 2",
+        "increment and decrement together flip 17 bits per operation at the 65,535/65,536 boundary, so the cost is Theta(log n)",
+        "the number of ones gives amortised 2 for an increment and 2k = 32 for a decrement of 2^k",
+        "halving a table at half full makes every alternating insert and delete cost 9, so the bound is Theta(n)",
+        "halving at one quarter gives 9 once and then 1, 1, 1, ...",
+        "a potential that is bounded cannot pay for a long run of expensive operations",
+        "a valid potential gives a bound, not necessarily the tightest one: 3 from the potential, 2 from the aggregate count",
+        "union-find is the standard application: alpha(n) amortised, at most 4 for n below 2^65536"],
+))
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -8047,6 +8105,7 @@ _RECHECKED = {
     "myhill-nerode-and-distinguishability": "2026-11-04",
     "mensuration-and-geometry": "2026-11-04",
     "algorithm-correctness-loop-invariants": "2026-11-04",
+    "amortised-analysis-aggregate-accounting-potential": "2026-11-04",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))

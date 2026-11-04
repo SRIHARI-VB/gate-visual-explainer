@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amortised Analysis: Aggregate, Accounting and Potential — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Amortised analysis</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../best-average-worst-and-amortised-analysis/index.html">Related: best/avg/worst</a>
+      <a href="../asymptotic-complexity/index.html">Related: asymptotic notation</a>
+      <a href="../disjoint-set-forests-union-find/index.html">Related: union-find</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Amortised analysis &mdash; the aggregate, accounting (banker&rsquo;s) and potential (physicist&rsquo;s) methods, applied to a doubling table, a binary counter and a stack with multipop.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a structure with one operation that occasionally costs a lot, compute the amortised cost per operation by all three methods, check the answer against an exhaustive count, and say precisely what the claim does and does not assert &mdash; then recognise when the claim fails because the operation set changed.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the technique itself</em>, not a re-run of the best/average/worst lesson: one operation set, three proofs of the same bound, every number counted. Formal amortised lower bounds (Tarjan&rsquo;s potential-function theory) are named once and not developed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B &mdash; a prerequisite for a syllabus topic.</strong> Section 5 of the official GATE 2027 CS syllabus names &ldquo;Asymptotic worst case time and space complexity&rdquo;. The word &ldquo;amortised&rdquo; is not printed in the syllabus; the reasoning it carries is what the complexity questions about sequences of operations are built on. (Syllabus wording as recorded in this repository&rsquo;s <span class="mono">syllabus-coverage.json</span>, verified 2026-10-26 against the IIT Madras GATE 2027 CS syllabus PDF.)</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> No previous-year GATE question on amortised analysis was confirmed for this run. The search covered the ExamSIDE and ExamGOAL complexity listings and did not find one. Nothing on this page is labelled a PYQ, and no frequency is claimed.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The method and every constant here are the ones in <em>Introduction to Algorithms</em>, chapter 17, which defines all three methods and works the doubling table, the counter and the multipop stack.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Asymptotic notation: O, &Theta; and what a constant factor hides &mdash; <a href="../asymptotic-complexity/index.html">asymptotic complexity</a>.</li>
+            <li>Best, average and worst case as three separate questions &mdash; <a href="../best-average-worst-and-amortised-analysis/index.html">best/average/worst and amortised</a>.</li>
+            <li>Geometric series: 1 + 2 + 4 + &hellip; + 2<sup>k</sup> = 2<sup>k+1</sup> &minus; 1.</li>
+            <li>Logarithms base 2, and the fact that doubling a capacity k times reaches 2<sup>k</sup>.</li>
+            <li>Counting arguments of the kind used for exact comparison counts &mdash; <a href="../exact-counts-across-topics/index.html">exact counts</a>.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Five ideas this page establishes</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Amortised cost is a bound on a <em>sequence</em>: n operations cost at most n times the amortised cost, for every sequence.</li>
+            <li>Doubling makes the copies cost 2n &minus; 1 in total, so the amortised cost of an insertion is at most 2.</li>
+            <li>Accounting saves credit on cheap operations; the credit must never go negative.</li>
+            <li>Potential turns that saving into a function: amortised = actual + change in potential, and the changes telescope.</li>
+            <li>The claim is about an operation set. Add decrement, or halve a table at half full, and O(1) becomes &Theta;(log n) or &Theta;(n).</li>
+          </ol>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How to use the page</h3>
+          <p class="small" style="margin-bottom:0">The Animation tab plays a ten-scene, five-minute explanation with captions on by default; every number it shows is computed by the page&rsquo;s own model, and the model runs 26 checks on load (shown in the side panel). The written tabs carry the same argument if the canvas cannot draw. Practice reveals answers after each attempt; the mock-test switch hides everything until you submit.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Approximate learning time</h3>
+          <p class="small" style="margin-bottom:0">About 60 to 75 minutes for the animation, the examples and the practice set. That figure is an estimate for a beginner, not a measurement.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card span-3">
+          <h3>Intuition first: the bill, not the receipt</h3>
+          <p class="small"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> A restaurant bills the table, not the diner. One diner orders the expensive dish, and his own receipt is enormous &mdash; but split across eight people at the table, the meal is ordinary. Amortised analysis is the split: the total is divided by the number of operations, and the answer is quoted per operation, even though no single operation actually cost that.</p>
+          <p class="small" style="margin-bottom:0">The analogy stops at one point, and the point matters: the split is not an average over diners chosen at random. It is a guarantee about the worst possible order the table could place, which is why it is stronger than an average and weaker than a worst case.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Formal definition</h3>
+          <p class="small">Suppose a sequence of n operations is performed on a data structure. Let c<sub>i</sub> be the actual cost of the i-th operation, and let T(n) = c<sub>1</sub> + c<sub>2</sub> + &hellip; + c<sub>n</sub> be the total.</p>
+          <div class="formula">
+            amortised cost per operation = T(n) / n
+            <span class="gloss">The number is a bound on the average over the sequence, not the cost of any one step. When we say &ldquo;amortised O(1)&rdquo; we mean T(n) = O(n): the total grows at most linearly in the number of operations.</span>
+          </div>
+          <p class="small" style="margin-bottom:0">Every symbol: c<sub>i</sub> is one operation&rsquo;s cost in abstract units &mdash; one write, one copy, one bit flip; n is the number of operations, not the number of items; T(n) is their sum. No probability appears anywhere, which is the difference from average-case analysis.</p>
+        </div>
+
+        <div class="card">
+          <h3>Why one operation is not enough</h3>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> In the doubling table the 1,025th insertion copies 1,024 items and costs 1,025 units, while the 1,026th costs 1. A per-operation bound must hold for the worst of them, so it must be &Theta;(n) &mdash; useless. The sequence bound is &Theta;(1) per operation. Both statements are true; they answer different questions.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The cost model of the doubling table</h3>
+          <p class="small">This is the standard TABLE-INSERT: a block of slots, a count of items in it, and a rule that when the block is full a new block of twice the capacity is allocated and every item copied across.</p>
+          <ul class="small" style="margin-bottom:0">
+            <li>Writing one new item costs <strong>1 unit</strong>.</li>
+            <li>Copying one existing item costs <strong>1 unit</strong>, charged to the insertion that triggered the copy.</li>
+            <li>Capacity starts at 0 and doubles: 1, 2, 4, 8, 16 &hellip; The table is therefore always at least half full.</li>
+            <li>An insertion is expensive exactly when it arrives at a full table, which happens at item counts 2, 3, 5, 9, 17 &hellip; &mdash; one more than a power of two.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The three methods, in one line each</h3>
+          <p class="small"><strong>Aggregate:</strong> add the whole bill, divide by n.</p>
+          <p class="small"><strong>Accounting:</strong> overcharge each cheap operation and bank the change; the bank must never go negative.</p>
+          <p class="small" style="margin-bottom:0"><strong>Potential:</strong> write the bank as a function of the data structure, and use actual + change in potential.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The two formal statements</h3>
+          <div class="formula">
+            accounting: &nbsp; credit<sub>i</sub> = credit<sub>i&minus;1</sub> + charge<sub>i</sub> &minus; c<sub>i</sub> &nbsp;&ge;&nbsp; 0 &nbsp; for every i
+            <span class="gloss">The credit after the i-th operation. If it never falls below zero, then the sum of the charges, which is n times the amortised cost, is at least the total actual cost.</span>
+          </div>
+          <div class="formula">
+            potential: &nbsp; amortised<sub>i</sub> = c<sub>i</sub> + &Phi;(D<sub>i</sub>) &minus; &Phi;(D<sub>i&minus;1</sub>), &nbsp; &Phi;(D<sub>0</sub>) = 0, &nbsp; &Phi;(D<sub>i</sub>) &ge; 0
+            <span class="gloss">D<sub>i</sub> is the data structure after i operations and &Phi; is any non-negative function of it that is zero at the start. Summing over i cancels every middle term, leaving total cost + &Phi;(D<sub>n</sub>) &minus; 0 &mdash; and since &Phi; is never negative, that is at least the total cost.</span>
+          </div>
+          <p class="small" style="margin-bottom:0">The non-negativity of &Phi; is not decoration. It is the only reason the telescoped sum bounds the total from above; a potential that can go negative gives a number that may be smaller than the truth.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Assumptions to keep in view</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>All three methods bound the <em>same</em> sequence of operations; none of them says anything about a step.</li>
+            <li>The cost model is declared, not discovered: one unit per write and one per copy. Change the model and the constants change, not the order.</li>
+            <li>Amortised analysis presumes the operation set is fixed. Adding an operation can destroy the bound, which is what the ninth scene shows.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">An amortised cost is not the cost of an operation. It is that operation&rsquo;s share of the bill for a whole sequence.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The bill, not the receipt</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">An amortised cost is not the cost of an operation. It is that operation&rsquo;s share of the bill for a whole sequence.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid">
+        <div class="card card--recessed span-3">
+          <h3>Six worked examples, every count computed</h3>
+          <p class="small" style="margin-bottom:0">Each example is a step of the same argument, in the order the animation takes it. The numbers come from the page&rsquo;s model: the table was actually grown for 4,096 insertions, the counter actually incremented, and the 78,125 stack sequences actually enumerated.</p>
+        </div>
+
+        <div class="card span-2" data-pager id="ex-pager">
+          <div class="pager">
+            <button data-pager-prev>&#9664;</button>
+            <span class="count" data-pager-count>Page 1 of 3</span>
+            <button data-pager-next>&#9654;</button>
+          </div>
+
+          <div class="pager-page active">
+            <h3>Example 1 &mdash; the costs of the first ten insertions</h3>
+            <p class="small">Grow the table from empty, charging one unit per write and one per copy.</p>
+            <ul class="step-list small">
+              <li>Capacity 0, items 0. Insert: capacity becomes 1, no copies. <span class="why">cost 1</span></li>
+              <li>Full at 1 of 1. Insert: capacity 2, one copy. <span class="why">cost 2</span></li>
+              <li>Full at 2 of 2. Insert: capacity 4, two copies. <span class="why">cost 3</span></li>
+              <li>Room at 3 of 4. <span class="why">cost 1</span></li>
+              <li>Full at 4 of 4. Insert: capacity 8, four copies. <span class="why">cost 5</span></li>
+              <li>Room at 5, 6, 7 of 8. <span class="why">cost 1 each</span></li>
+              <li>Full at 8 of 8. Insert: capacity 16, eight copies. <span class="why">cost 9</span></li>
+            </ul>
+            <p class="small" style="margin-bottom:0">So the first nine costs are <span class="mono">1, 2, 3, 1, 5, 1, 1, 1, 9</span> and the capacities <span class="mono">1, 2, 4, 4, 8, 8, 8, 8, 16</span>. The tenth insertion finds room at 9 of 16 and costs 1.</p>
+          </div>
+
+          <div class="pager-page">
+            <h3>Example 2 &mdash; the aggregate count for 1,024 insertions</h3>
+            <p class="small">The copy costs are exactly the item counts at each expansion: 1, 2, 4, &hellip;, 512.</p>
+            <div class="formula">
+              1 + 2 + 4 + &hellip; + 512 = 1,023 &nbsp; copies
+              <span class="gloss">A geometric series with ratio 2 sums to one less than its next term: 1,024 &minus; 1. The last expansion happens at the 513th insertion, when 512 items are copied.</span>
+            </div>
+            <div class="formula">
+              T(1,024) = 1,024 writes + 1,023 copies = 2,047 = 2n &minus; 1
+              <span class="gloss">Every insertion pays one unit for its own item; the copies are the extra. Dividing by n gives 1.999 units per insertion, and the bound 2 is never reached.</span>
+            </div>
+            <p class="small" style="margin-bottom:0">The same division at other lengths: n = 8 gives 1.875, n = 16 gives 1.9375, n = 64 gives 1.9844, n = 4,096 gives 1.9998. Each is below 2, and the sequence rises towards 2 without passing it.</p>
+          </div>
+
+          <div class="pager-page">
+            <h3>Example 3 &mdash; the potential on the ninth insertion</h3>
+            <p class="small">Take &Phi; = 2 &times; items &minus; capacity. Before the ninth insertion the table holds 8 items in 8 slots, so &Phi; = 16 &minus; 8 = 8.</p>
+            <ul class="step-list small">
+              <li>The insertion copies 8 items and writes 1: actual cost 9.</li>
+              <li>The table doubles to 16 slots and holds 9 items: &Phi; = 18 &minus; 16 = 2.</li>
+              <li>The change in potential is 2 &minus; 8 = &minus;6.</li>
+              <li>Amortised cost = 9 + (&minus;6) = 3. <span class="why">the credit spent, written as a subtraction</span></li>
+            </ul>
+            <p class="small" style="margin-bottom:0">The tenth insertion costs 1 and raises &Phi; from 2 to 4, so its amortised cost is 3 again. In fact every insertion after the first has amortised cost exactly 3, which the model checks over all 4,096 of them; the first has amortised cost 2.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Example 4 &mdash; the binary counter</h3>
+          <p class="small">Sixteen increments from zero flip this many bits each:</p>
+          <p class="small mono" style="margin-bottom:6px">1, 2, 1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 2, 1, 5</p>
+          <p class="small">The total is 31. Two ways to see it: the final bit flips on all 16 increments, and the carries flip 8 + 4 + 2 + 1 = 15 more. Or use the closed form 2n &minus; popcount(n) = 32 &minus; 1 = 31.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> With the number of ones as the potential, an increment flipping t + 1 bits changes it by 1 &minus; t, so the amortised cost is (t + 1) + (1 &minus; t) = 2 &mdash; the same for every increment, however many bits it flips.</p>
+        </div>
+
+        <div class="card">
+          <h3>Example 5 &mdash; the stack with multipop</h3>
+          <p class="small">Seven pushes then one multipop of seven: the costs are 1, 1, 1, 1, 1, 1, 1, 7, and the total is 14 over 8 operations.</p>
+          <p class="small">The single operation costs 7 and the average costs 1.75. The bound is 2n = 16, and the enumeration of all 78,125 sequences of seven operations found a maximum total of 10 against a bound of 14.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The items removed can never exceed the items pushed, and each push is one of the n operations, so the total is at most 2n. The bound is loose here and the order is still right, which is all an exam asks.</p>
+        </div>
+
+        <div class="card card--counterexample span-3">
+          <h3>Example 6 &mdash; the same potential, a different operation set</h3>
+          <p class="small">Keep the number of ones as the potential and add decrement. Alternate between 65,535 (sixteen ones) and 65,536 (one one):</p>
+          <ul class="step-list small">
+            <li>65,535 + 1: sixteen ones become zeros and a new bit is set. <span class="why">17 flips; potential falls from 16 to 1</span></li>
+            <li>65,536 &minus; 1: the single one is cleared and sixteen zeros become ones. <span class="why">17 flips; potential rises from 1 to 16</span></li>
+            <li>Repeat. Every operation flips 17 bits, so the average over any number of operations is 17. <span class="why">the counter never leaves the boundary</span></li>
+          </ul>
+          <p class="small" style="margin-bottom:0">The potential is bounded between 1 and 16, so it cannot absorb 17 flips: the amortised bound it gives is 1 for the increment and 2k = 32 for the decrement. Increment and decrement together are &Theta;(log n) amortised, not O(1) &mdash; a fact the counter&rsquo;s reputation as the &ldquo;O(1) amortised&rdquo; example hides.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid">
+
+        <div class="card card--trap span-2">
+          <h3>Edge case 1 &mdash; the worst single operation never goes away</h3>
+          <p class="small">The 1,025th insertion into a table of 1,024 items copies 1,024 items and costs 1,025 units. The amortised cost is 2. The ratio is 512.5.</p>
+          <p class="small" style="margin-bottom:0">This is not a contradiction: 2 is a bound on the average over the sequence, and 1,025 is the cost of one term. A question that asks for the worst-case cost of one insertion wants &Theta;(n); a question that asks for the amortised cost wants &Theta;(1).</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case 2 &mdash; the first insertion</h3>
+          <p class="small" style="margin-bottom:0">With capacity 0 there is nothing to copy, so the first insertion costs 1, and charging it 3 would leave 2 units of credit that no copy ever needs. The model charges 2 for the first and 3 for the rest, which is why the first amortised cost is 2 rather than 3. Textbooks differ on whether to start the capacity at 1; the bound is the same.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case 3 &mdash; a multipop on an empty stack</h3>
+          <p class="small" style="margin-bottom:0">A multipop of a thousand items on an empty stack removes nothing and costs nothing. It is one operation with cost 0, so it lowers the average. The bound 2n does not notice, and neither does the exam &mdash; but a &ldquo;cost at least 1 per operation&rdquo; assumption is false.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Edge case 4 &mdash; halving at half full destroys the bound</h3>
+          <p class="small">Insert into a full table of 8: it doubles to 16 and copies 8, cost 9. Delete: the table is now half full, so it halves to 8 and copies 8, cost 9. Insert again, and the pair repeats.</p>
+          <p class="small" style="margin-bottom:0">Every one of the eight alternating operations costs 9 units &mdash; the model counts them &mdash; so the amortised cost is &Theta;(n), not O(1). The standard fix is to halve at one quarter full instead: the model then gives 9 once and 1 for each of the next seven operations, because the table stays between one quarter and full.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case 5 &mdash; the growth factor is not 2 by magic</h3>
+          <p class="small" style="margin-bottom:0">Doubling is convenient, not necessary. Growing by a factor of 1.5 also gives O(1) amortised; growing by a constant number of slots, or by the square root of the size, does not, because then the copies are not paid for often enough. The relevant condition is that the capacity grows by a constant factor.</p>
+        </div>
+
+        <div class="card">
+          <h3>Edge case 6 &mdash; a potential must start at zero</h3>
+          <p class="small" style="margin-bottom:0">The telescoped bound is total cost + &Phi;(D<sub>n</sub>) &minus; &Phi;(D<sub>0</sub>). If &Phi;(D<sub>0</sub>) is not zero, that term has to be carried; if it is large and negative, the bound is meaningless. With 2 &times; items &minus; capacity on an empty table, both terms are zero and the bound is exactly the sum of the amortised costs.</p>
+        </div>
+
+        <div class="card card--counterexample span-3">
+          <h3>Edge case 7 &mdash; a bound can be correct and still not tight</h3>
+          <p class="small">The potential 2 &times; items &minus; capacity proves at most 3 units per insertion. The aggregate count proves at most 2. Both are true; 2 is better. The model confirms both: no amortised cost exceeds 3, and T(1,024)/1,024 = 1.999.</p>
+          <p class="small" style="margin-bottom:0">The sharper 2 does not come from this potential at all: it comes from adding up the geometric series of copies directly, which is why the aggregate method is the right tool here and the potential argument is the right tool when you need a proof written line by line. The lesson to carry: a potential function gives <em>a</em> valid bound, and the exam marks the bound you can defend, not the sharpest one that exists.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid">
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 1 &mdash; &ldquo;amortised O(1) means every operation is fast&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the phrase quotes a per-operation cost, so it reads like a per-operation promise.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> the 1,025th insertion costs 1,025 units while the amortised cost is 2 &mdash; 512.5 times larger.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> amortised O(1) means n operations cost O(n) in total. One of them may cost &Theta;(n).</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 2 &mdash; &ldquo;amortised is another word for average case&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> both divide a total by a count, and both are described as &ldquo;on average&rdquo;.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> no distribution appears in any of the three methods. The doubling table&rsquo;s bound holds for the sequence an adversary chooses, including one that triggers every expansion.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> average case needs a probability distribution over inputs; amortised needs only a sequence of operations. Amortised is a worst-case statement about sequences.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 3 &mdash; &ldquo;any potential function works&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the definition allows <em>any</em> non-negative function that is zero at the start.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> take &Phi; = 0 always. Then every amortised cost equals the actual cost, and the 1,025th insertion has amortised cost 1,025. The identity holds and the bound is useless.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the potential must rise during cheap operations and fall during expensive ones. The definition permits anything; the argument needs a function that actually banks work.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 4 &mdash; &ldquo;the counter is O(1) amortised, so increment and decrement are too&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the increment-only counter is the standard example of an O(1) amortised operation.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> alternate between 65,535 and 65,536. Every operation flips 17 bits, so the average is 17 &mdash; &Theta;(log n).</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> an amortised bound belongs to an operation set. Adding an operation that undoes the cheap work can destroy it.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 5 &mdash; &ldquo;the credit may go negative as long as it ends positive&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> the total is what the theorem bounds, so the end state looks like the only thing that matters.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> charge 1 for the first nine insertions of the doubling table: the credit goes to &minus;9 at the ninth and would only recover later. Over any prefix of nine operations the bound fails, so the claim &ldquo;n operations cost at most n &times; 1&rdquo; is false at n = 9.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the credit must be non-negative after every operation, because the theorem is applied to every prefix.</p>
+        </div>
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 6 &mdash; &ldquo;the potential method and the accounting method give different answers&rdquo;</h3>
+          <p class="small"><strong>Why it tempts:</strong> they look like different theories, one about credit and one about functions.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> on the doubling table both give 3 per insertion, and the credit column equals the potential column at every step &mdash; 1, 2, 2, 4, 2, 4, 6, 8, 2, &hellip;</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the credit <em>is</em> the potential. The accounting method attaches it to operations and the potential method attaches it to states; the numbers agree, and choosing the presentation is a matter of what is easier to write.</p>
+        </div>
+
+        <div class="card card--takeaway span-3">
+          <h3>The distinction that costs the most marks</h3>
+          <p class="small" style="margin-bottom:0">Amortised and worst case are not rivals, and one does not correct the other. Both are true of the same structure. The exam sentence is: <em>the worst-case cost of a single operation is &Theta;(n), and the amortised cost per operation over any sequence is O(1)</em>. Answer with the one the question names, and if it names neither, say both.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid">
+
+        <div class="card card--recessed span-3">
+          <h3>Provenance note, before the patterns</h3>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> No GATE CSE question on amortised analysis was confirmed for this run: the ExamSIDE and ExamGOAL complexity-analysis listings were searched and no item on amortised cost, potential functions or table doubling was found. Nothing below is presented as a PYQ, and no year, paper or question number is asserted. The shapes below are <span class="claim-chip claim-chip--community">Community observation</span> and <span class="claim-chip claim-chip--interpretation">Educational interpretation</span>: how this topic is examined in algorithms courses and in the standard problem sets, not a claim about any specific paper.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 1 &mdash; the total over n operations</h3>
+          <p class="small">&ldquo;A table starts empty and doubles when full. What is the total number of copy operations over n insertions?&rdquo;</p>
+          <p class="small"><strong>Reasoning demanded:</strong> sum the geometric series of copies, not the individual costs. The answer is at most n &minus; 1 copies, so the total cost is at most 2n &minus; 1.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> multiply n by the average of the first few costs, which answers nothing and breaks as soon as n grows.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 2 &mdash; the amortised cost per operation</h3>
+          <p class="small">&ldquo;What is the amortised cost of one insertion?&rdquo;</p>
+          <p class="small"><strong>Reasoning demanded:</strong> divide the total by n and name the order: O(1), with a constant of 2 for doubling or 3 for the potential argument.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> answering &Theta;(n) from the worst single insertion, which is the right answer to a different question.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 3 &mdash; which potential function works</h3>
+          <p class="small">&ldquo;Which of these is a valid potential function for the operation?&rdquo;</p>
+          <p class="small"><strong>Reasoning demanded:</strong> check three things &mdash; non-negative on every state, zero at the start, and a bounded amortised cost on every operation. Then check the arithmetic, not the intuition.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> picking the function that &ldquo;looks like&rdquo; the cost. The cost itself is a valid potential that proves nothing.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 4 &mdash; a sequence with a mixture</h3>
+          <p class="small">&ldquo;n operations, each a push, a pop or a multipop of k. What is the worst-case total?&rdquo;</p>
+          <p class="small"><strong>Reasoning demanded:</strong> bound the removals by the insertions and note that each insertion is itself one of the n operations. The answer is at most 2n, and the model confirms no sequence of seven operations exceeds 10.</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> multiplying n by k, which assumes every operation is a full multipop &mdash; impossible, since a multipop needs items to remove.</p>
+        </div>
+
+        <div class="card">
+          <h3>Shape 5 &mdash; the change of operation set</h3>
+          <p class="small">&ldquo;A counter supports increment and decrement. What is the amortised cost?&rdquo;</p>
+          <p class="small"><strong>Reasoning demanded:</strong> look for a boundary the sequence can bounce across. Alternating 65,535 and 65,536 flips 17 bits every time, so the answer is &Theta;(log n), not O(1).</p>
+          <p class="small" style="margin-bottom:0"><strong>Common wrong approach:</strong> quoting the increment-only result. The question changed the operation set; the answer must change with it.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps the wording sets</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>&ldquo;Worst case&rdquo; in the stem of a question about a sequence usually means the worst sequence, not the worst step. Read which noun the adjective modifies.</li>
+            <li>&ldquo;Expected&rdquo; signals average case and demands a distribution. If the question gives none, the answer is not an expectation.</li>
+            <li>&ldquo;At most&rdquo; and &ldquo;exactly&rdquo; differ: T(n) = 2n &minus; 1 is exact for the doubling table; 3n is a bound.</li>
+            <li>A table that grows by one slot has amortised cost &Theta;(n) per insertion. The growth rule is part of the data structure, not a detail.</li>
+          </ul>
+        </div>
+
+        <div class="card span-2">
+          <h3>How to write the answer</h3>
+          <p class="small">For an amortised question, three sentences earn the marks: name the method, name the quantity, name the bound.</p>
+          <p class="small mono" style="margin-bottom:6px">&ldquo;Aggregate: the copies are 1 + 2 + &hellip; + n/2 &lt; n, so n insertions cost under 2n. Amortised O(1).&rdquo;</p>
+          <p class="small mono" style="margin-bottom:0">&ldquo;Potential: &Phi; = 2&middot;items &minus; capacity &ge; 0, so amortised = actual + &Delta;&Phi; &le; 3. Amortised O(1).&rdquo;</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+        <div class="card card--recessed span-3">
+          <h3>Eight questions, all original</h3>
+          <p class="small" style="margin-bottom:8px">Every item below is an <strong>original GATE-style question</strong> written for this page; none is a previous-year question, and no year is claimed. Learning mode reveals the answer and the reasoning after each attempt. Mock-test mode hides everything until you submit. <label class="small" style="margin-left:8px"><input type="checkbox" id="mock-toggle"> Mock-test mode</label> <button class="btn" id="mock-submit" hidden>Submit and reveal all</button></p>
+          <p class="small muted" style="margin-bottom:0">Every numeric answer below was computed by the page&rsquo;s own model, not quoted.</p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q1 &middot; basic</span></div>
+          <div class="q-body small">
+            <p>A dynamic table starts empty and doubles its capacity when full, copying every item. Which statement is correct?</p>
+            <p>(A) Each insertion costs O(1) in the worst case. &nbsp; (B) Each insertion costs &Theta;(n) in the worst case, and O(1) amortised. &nbsp; (C) Each insertion costs &Theta;(n) amortised. &nbsp; (D) Each insertion costs O(1) amortised only if the inputs are random.</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> The 1,025th insertion costs 1,025 units, and 1,024 insertions cost 2,047 in total, which is 1.999 each.</p>
+            <p class="small">(A) contradicts the 1,025th insertion. (C) confuses the total with the total per operation &mdash; the total is &Theta;(n), the per-operation share is constant. (D) invents a condition: no distribution is used anywhere in the argument.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q2 &middot; basic</span></div>
+          <div class="q-body small">
+            <p>An empty table doubles when full. Over 1,024 insertions, the total number of item copies is ______.</p>
+            <p class="muted">Answer as an integer.</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 1023.</strong> The copies are 1 + 2 + 4 + &hellip; + 512, a geometric series summing to 1,024 &minus; 1.</p>
+            <p class="small">1,024 is the answer if you count the writes as copies. 2,047 is the total cost including the writes, not the copies.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q3 &middot; basic</span></div>
+          <div class="q-body small">
+            <p>With &Phi; = 2 &times; items &minus; capacity, the amortised cost of the ninth insertion into an initially empty doubling table is ______ units.</p>
+            <p class="muted">Answer as an integer.</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 3.</strong> The potential is 8 before (8 items in 8 slots) and 2 after (9 items in 16 slots); the actual cost is 9; 9 + (2 &minus; 8) = 3.</p>
+            <p class="small">9 is the actual cost, which is what the question does not ask for. 2 is the potential after the insertion, not the amortised cost. 1 is the cost of a cheap insertion.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q4 &middot; application</span></div>
+          <div class="q-body small">
+            <p>Which of the following are true of the amortised cost of an operation? (Select all that apply.)</p>
+            <p>(A) It can exceed the worst-case cost of a single operation. &nbsp; (B) It can be smaller than the worst-case cost of a single operation. &nbsp; (C) It requires a probability distribution over inputs. &nbsp; (D) It bounds the total cost of any sequence of n operations by n times its value.</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B) and (D).</strong> The amortised cost lies between the best and the worst case, so it is never above the worst case, and the total over any sequence is at most n times it.</p>
+            <p class="small">(A) is the commonest inversion: since every operation costs at most the worst case, any average of them does too. (C) describes average-case analysis; amortised analysis uses no distribution.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q5 &middot; application</span></div>
+          <div class="q-body small">
+            <p>A binary counter starts at zero. Sixteen increment operations are performed. The total number of bit flips is ______.</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 31.</strong> The flips are 1, 2, 1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 2, 1, 5, which sum to 31; the closed form is 2n &minus; popcount(n) = 32 &minus; 1.</p>
+            <p class="small">32 is the answer if every increment is assumed to flip the low bit and the carries are double-counted. 16 counts only the low-bit flips. 15 counts only the carries.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q6 &middot; analysis</span></div>
+          <div class="q-body small">
+            <p>A table of 8 items is full. It doubles when full and halves when it becomes half full. Insert one item, then delete one item, and repeat. The cost of each operation is:</p>
+            <p>(A) 1 unit, because the table size is unchanged. &nbsp; (B) 9 units, because each operation copies 8 items. &nbsp; (C) 1 unit amortised, by the doubling argument. &nbsp; (D) 5 units, the average of a copy and a write.</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> Insert doubles to 16 and copies 8 (cost 9); delete halves back to 8 and copies 8 (cost 9). The model counts all eight alternating operations at 9 units each.</p>
+            <p class="small">(C) is the trap: the doubling argument needs the cheap operations to bank work, and here the structure returns to the state it just left, so nothing is banked. (A) ignores the copies. (D) is arithmetic on the wrong quantities.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q7 &middot; analysis</span></div>
+          <div class="q-body small">
+            <p>For the doubling table, which function is a valid potential &mdash; non-negative on every reachable state and zero at the start &mdash; that gives an amortised cost of at most a constant?</p>
+            <p>(A) the number of items &nbsp; (B) 2 &times; items &minus; capacity &nbsp; (C) the cost of the last operation &nbsp; (D) capacity &minus; items</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> It is 0 at the empty table, never negative because the table is at least half full, and gives 2 for the first insertion and 3 for every later one.</p>
+            <p class="small">(A) is zero only at the start but its changes are &plusmn;1, so an expensive insertion still has amortised cost of order n. (C) is not a function of the state, and it is not zero at the start. (D) is negative whenever the table is more than half full, which is most of the time, so the telescoped bound fails.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original</span> <span class="small muted">Q8 &middot; challenge</span></div>
+          <div class="q-body small">
+            <p>A counter starts at 65,535 and alternates increment, decrement, increment, decrement. The number of bit flips in each operation is ______.</p>
+          </div>
+          <button class="reveal btn">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 17.</strong> 65,535 is sixteen ones; adding one flips all sixteen and sets a new bit. 65,536 is a single one; subtracting one clears it and sets sixteen. The model confirms every one of 100 operations flips 17 bits.</p>
+            <p class="small">1 is the answer for an increment in the middle of a run of zeros, which is what makes the increment-only counter look cheap. 16 counts the ones and forgets the new bit. 2 is the increment-only amortised cost, which this operation set does not have.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet, in one screen</h3>
+          <p class="small" style="margin-bottom:0">Everything on this page is one of these lines. If you can state the claim and reproduce one computation, the topic is covered.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The claim</h3>
+          <p class="small" style="margin-bottom:0">For every sequence of n operations, total cost &le; n &times; (amortised cost). No distribution, no randomness, any sequence.</p>
+        </div>
+
+        <div class="card">
+          <h3>Three methods</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Aggregate:</strong> sum the costs, divide by n.</li>
+            <li><strong>Accounting:</strong> charge more than the cost, bank the difference, credit never negative.</li>
+            <li><strong>Potential:</strong> amortised = actual + &Delta;&Phi;, with &Phi; &ge; 0 and &Phi;(start) = 0.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Doubling table</h3>
+          <p class="small" style="margin-bottom:0">Costs 1, 2, 3, 1, 5, 1, 1, 1, 9, 1 &hellip; Capacities 1, 2, 4, 4, 8, 8, 8, 8, 16, 16 &hellip; T(n) = 2n &minus; 1. Amortised 2. &Phi; = 2&middot;items &minus; capacity gives 2 then 3.</p>
+        </div>
+
+        <div class="card">
+          <h3>Binary counter</h3>
+          <p class="small" style="margin-bottom:0">Total flips = 2n &minus; popcount(n). For n = 16 that is 31. &Phi; = number of ones gives amortised exactly 2 per increment. Add decrement and it is &Theta;(log n).</p>
+        </div>
+
+        <div class="card">
+          <h3>Stack with multipop</h3>
+          <p class="small" style="margin-bottom:0">Total &le; 2n, since removals &le; pushes &le; n. The bound is loose: the largest total over all 78,125 sequences of 7 operations is 10.</p>
+        </div>
+
+        <div class="card">
+          <h3>Numbers to remember</h3>
+          <p class="small" style="margin-bottom:0">1,024 insertions: 2,047 units, 1,023 copies, 1.999 each. Worst single insertion: 1,025 units, 512.5 times the amortised 2. Sixteen increments: 31 flips.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Four traps</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Amortised is not the cost of every operation.</li>
+            <li>Amortised is not average case: no distribution.</li>
+            <li>A potential must be non-negative at every state, not just at the end.</li>
+            <li>The bound belongs to an operation set; adding decrement or halving at half full destroys it.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one-line test</h3>
+          <p class="small" style="margin-bottom:0">Is the expensive step paid for by work already done? Doubling banks it in the cheap insertions; the counter banks it in the zeros it set; a stack banks it in the pushes. If nothing is banked, the amortised cost is the worst case.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid">
+
+        <div class="card card--definition span-2">
+          <h3>Official</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>GATE 2027 CS syllabus, IIT Madras &mdash; <span class="mono">gate2027.iitm.ac.in</span>. Supports the syllabus classification only: Section 5 names &ldquo;Asymptotic worst case time and space complexity&rdquo;. The word &ldquo;amortised&rdquo; does not appear in the document, which is why the topic is labelled class B and not class A.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and course material</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>CLRS, <em>Introduction to Algorithms</em>, chapter 17 &ldquo;Amortized Analysis&rdquo; &mdash; the three methods, the TABLE-INSERT cost model, the potential 2&middot;num &minus; size, the binary counter and the multipop stack. Read as a chapter reproduction, not the printed book.</li>
+            <li>IIT Kharagpur, <em>Problems: Amortized Analysis</em> problem set &mdash; supplies the table of per-operation costs and the bank column for the first ten insertions, which the model here reproduces exactly (1, 2, 3, 1, 5, 1, 1, 1, 9, 1 and 1, 2, 2, 4, 2, 4, 6, 8, 2, 4).</li>
+            <li>Northeastern University, <em>Amortized Analysis</em> lecture notes &mdash; the thrashing example for a table halved at half full and the one-quarter fix.</li>
+            <li>Princeton, Kleinberg&ndash;Tardos lecture slides on amortised analysis &mdash; the aggregate and potential treatments used as a cross-check.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community, used as observation only</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>CS Stack Exchange, &ldquo;Amortized analysis on a dynamic table that grows its size by &radic;size&rdquo; &mdash; used only to confirm that the growth factor, not the doubling in particular, is what carries the bound. No text is reproduced.</li>
+            <li>ExamSIDE and ExamGOAL GATE CSE complexity-analysis listings &mdash; searched for a previous-year item on amortised analysis and none was found. That absence is the reason no PYQ is claimed, and it is not evidence that none exists.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What this research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No previous-year paper was read end to end for this run, so no frequency or weightage claim is made. Tarjan&rsquo;s original potential-function framework and the matching lower bounds were not read. Timings in the subtitle files are estimated from a speaking rate, not measured from audio, because no audio file is shipped.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
