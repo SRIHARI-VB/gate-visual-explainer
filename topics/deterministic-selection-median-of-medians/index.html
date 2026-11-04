@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deterministic Linear-Time Selection: Quickselect, Median of Medians, and Why Five — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Selection and the median of medians</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../divide-and-conquer/index.html">Related: divide and conquer</a>
+      <a href="../selection-lower-bounds-max-min-second-largest/index.html">Related: selection lower bounds</a>
+      <a href="../sorting-algorithms/index.html">Related: sorting</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Deterministic linear-time selection &mdash; the k-th smallest key, quickselect and its quadratic worst case, and the median of medians (Blum&ndash;Floyd&ndash;Pratt&ndash;Rivest&ndash;Tarjan) that removes it.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given an array and a rank k, explain why selection can be linear when sorting cannot, run quickselect and count its comparisons, prove the counting lemma that gives the median of medians at least 3n/10 &minus; 6 keys on each side, write and solve the recurrence T(n) &le; T(n/5) + T(7n/10) + O(n), and say exactly why groups of five work and groups of three do not.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the deterministic algorithm and its proof</em>, not a repeat of the quickselect half of the divide-and-conquer lesson: every comparison quoted on this page is counted by the page&rsquo;s own implementation, and the counting lemma is checked at every recursive call of five sampled runs.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B &mdash; a prerequisite for a syllabus topic.</strong> Section 5 of the official GATE 2027 CS syllabus names &ldquo;Searching, sorting, hashing&rdquo; and &ldquo;Algorithm design techniques: greedy, dynamic programming and divide-and-conquer&rdquo;. Deterministic selection is an instance of that divide-and-conquer technique; the words &ldquo;median of medians&rdquo; are not printed in the syllabus. (Syllabus wording re-read on 2026-11-04 from the IIT Madras GATE 2027 CS syllabus PDF, <span class="mono">CS_GATE2027_Syllabus.pdf</span>.)</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Previous-year questions do exist, and three are used on this page with their years: GATE CSE 2019 (median of medians of n arrays of n keys), GATE CSE 2008 Q43 (a pivot leaving at least n/5 on each side) and GATE CSE 2006 Q52 (quicksort with a median pivot). Each was confirmed against a reproduction of the paper, and each is labelled where it appears.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> No frequency or marks-weightage figure is claimed for this topic. The searches covered paper reproductions and question archives; they did not establish how often the topic appears.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Asymptotic notation and what a constant factor hides &mdash; <a href="../asymptotic-complexity/index.html">asymptotic complexity</a>.</li>
+            <li>Recursion trees and the master theorem &mdash; <a href="../divide-and-conquer/index.html">divide and conquer</a>, <a href="../recurrence-relations/index.html">recurrence relations</a>.</li>
+            <li>The quicksort partition: pivot, left side, right side, rank of the pivot &mdash; <a href="../sorting-algorithms/index.html">sorting algorithms</a>.</li>
+            <li>Exact comparison counts and the adversary argument &mdash; <a href="../selection-lower-bounds-max-min-second-largest/index.html">selection lower bounds</a>.</li>
+            <li>Median, rank and order statistic as three names for one idea; a geometric series with ratio below 1.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Five ideas this page establishes</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Selection asks for one rank, so the sorting lower bound &Omega;(n log n) does not apply: the minimum needs exactly n &minus; 1 comparisons.</li>
+            <li>Quickselect recurses into one side only, so it is linear when the pivot is good &mdash; and quadratic when it is not (2,016 comparisons at n = 64 on sorted input).</li>
+            <li>Sorting each group of five and taking the median of the medians costs a fifth of the input and gives a pivot with at least 3n/10 &minus; 6 keys on each side.</li>
+            <li>That guarantee makes the recursion shrink by a factor of 0.9 per level, so T(n) &le; T(n/5) + T(7n/10) + O(n) is O(n) &mdash; at most 24n comparisons by substitution, about 7n measured.</li>
+            <li>Groups of three give 1/3 + 2/3 = 1 exactly, so the levels stop shrinking; five is the smallest odd group size whose coefficients sum below one.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one sentence worth remembering</h3>
+          <p class="small" style="margin-bottom:0">A guaranteed good pivot, not a random one, is what turns selection from expected-linear into worst-case linear &mdash; and the guarantee is a counting lemma, not a picture.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Approximate study time</h3>
+          <p class="small" style="margin-bottom:0">About 70&ndash;85 minutes: 20 for the animation and the counting lemma, 20 for the recurrence and the group-size argument, 25 for the practice set, 10 for revision. The figure is approximate, not measured.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card card--hero span-3">
+          <h3>Intuition first</h3>
+          <p class="small">A shuffled pile of 25 cards is face up, and someone asks for the 13th smallest. You could sort the pile &mdash; that answers every rank. Or you could pick one card, deal the rest into a smaller pile and a bigger pile, and notice which pile must contain the 13th smallest. The second route throws away about half the cards without ever ordering them.</p>
+          <p class="small" style="margin-bottom:0">The only question is which card to pick. Pick badly &mdash; always the smallest card &mdash; and each deal removes one card, so the work is quadratic. Pick by a rule that provably lands near the middle, and the pile halves every time. The median of medians is that rule.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition: the selection problem</h3>
+          <p class="small">Given n keys in an array and an integer k with 1 &le; k &le; n, return the key whose rank is k, that is, the key with exactly k &minus; 1 keys smaller than it. k = 1 is the minimum, k = n is the maximum, and k = &lfloor;(n+1)/2&rfloor; is the median.</p>
+          <p class="small">The cost model throughout is the <em>comparison model</em>: only comparisons between keys are counted, and keys are assumed distinct unless stated. Every number on this page is a count of comparisons in that model.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The problem and the algorithm are CLRS chapter 9 (&ldquo;Medians and Order Statistics&rdquo;), section 9.3, whose SELECT is the median of medians.</p>
+        </div>
+
+        <div class="card">
+          <h3>Quickselect, precisely</h3>
+          <p class="small">PARTITION around a pivot p moves every key below p to its left and every key above p to its right, and returns the rank r of p. Then:</p>
+          <ul class="small">
+            <li>if r = k, return p;</li>
+            <li>if k &lt; r, recurse on the left part with the same k;</li>
+            <li>if k &gt; r, recurse on the right part with rank k &minus; r.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">Exactly one recursive call happens. That is the whole difference from quicksort, and it is why the total is a single path down the tree instead of a level-by-level sweep.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Median of medians, in five steps</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Break the n keys into &lceil;n/5&rceil; groups of five, by position. The last group may be short. <span class="muted">&mdash; costs no comparisons.</span></li>
+            <li>Sort each group of five and take its median. <span class="muted">&mdash; at most 7 comparisons per group, a constant.</span></li>
+            <li>Collect the &lceil;n/5&rceil; group medians and select their median x by the same algorithm. <span class="muted">&mdash; costs T(n/5).</span></li>
+            <li>Partition the whole array around x, giving the rank r of x. <span class="muted">&mdash; costs n comparisons.</span></li>
+            <li>If r = k return x; otherwise recurse on one side, as quickselect does. <span class="muted">&mdash; costs at most T(7n/10 + 6).</span></li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Why a group median helps at all</h3>
+          <p class="small">A group median is the third smallest of its own five keys, so three of those five keys are at or above it. Order the group medians; at least half of them are at or above their own median x. Half the groups, three keys each, is a fixed fraction of the array that is provably at or above x.</p>
+          <p class="small" style="margin-bottom:0">That is the entire mechanism: the median of medians is a sample chosen so that each sampled key drags two or three other keys with it. A random pivot has the same effect on average; this one has it every time.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Symbols, in words</h3>
+          <p class="small" style="margin-bottom:0"><span class="mono">n</span> is the number of keys in the current call. <span class="mono">k</span> is the rank being asked for. <span class="mono">g</span> is the group size, 5 by default. <span class="mono">T(n)</span> is the number of comparisons used by a call on n keys. <span class="mono">3n/10 &minus; 6</span> is the guaranteed number of keys on each side of the median of medians. <span class="mono">7n/10 + 6</span> is the largest number that can remain for the recursive call. <span class="mono">&Theta;</span> and <span class="mono">O</span> compare growth rates, ignoring constants.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Selection asks for one rank, not the whole order: given n keys, return the k-th smallest.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One rank, not the whole order</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Selection asks for one rank, not the whole order: given n keys, return the k-th smallest.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid">
+
+        <div class="card card--definition span-3">
+          <h3>Worked example 1 &mdash; the full median-of-medians call on 25 keys</h3>
+          <p class="small mono">23 8 41 3 17 | 35 12 29 6 44 | 19 2 38 25 10 | 31 14 47 5 21 | 36 9 27 16 42 &nbsp;&nbsp; k = 13</p>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li><strong>Groups of five, by position.</strong> The five groups are the five blocks above; nothing is sorted yet. <span class="muted">&mdash; 0 comparisons.</span></li>
+            <li><strong>Each group&rsquo;s median.</strong> Sorting the blocks gives medians 17, 29, 19, 21, 27. <span class="muted">&mdash; at most 7 comparisons each, so at most 35 here.</span></li>
+            <li><strong>The median of the medians.</strong> Sorting 17, 29, 19, 21, 27 gives 17, 19, 21, 27, 29, so x = 21. <span class="muted">&mdash; a recursive call on 5 keys.</span></li>
+            <li><strong>Partition around 21.</strong> Twelve keys are smaller (2, 3, 5, 6, 8, 9, 10, 12, 14, 16, 17, 19) and twelve are larger (23, 25, 27, 29, 31, 35, 36, 38, 41, 42, 44, 47). <span class="muted">&mdash; 25 comparisons.</span></li>
+            <li><strong>Compare ranks.</strong> The pivot has rank 13, and k = 13, so the answer is 21 and there is no second recursive call. <span class="muted">&mdash; the whole call cost 65 comparisons, which is 2.6n.</span></li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 2 &mdash; quickselect on sorted input</h3>
+          <p class="small">Array 0, 1, 2, &hellip;, 15 with the first element as pivot and k = 16.</p>
+          <p class="small">Every partition puts the pivot at rank 1 and sends all remaining keys right, so the array shrinks by exactly one key per level: 15 comparisons, then 14, down to 1.</p>
+          <p class="small mono" style="margin-bottom:0">15 + 14 + &hellip; + 1 = 120 = n(n&minus;1)/2</p>
+          <p class="small" style="margin-bottom:0">At n = 64 the same input costs 2,016 comparisons for k = 64, and 1,520 for the middle. The middle is cheaper but still quadratic.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 3 &mdash; the recurrence by substitution</h3>
+          <p class="small">Assume T(m) &le; c&middot;m for all m &lt; n. Then</p>
+          <p class="small mono">T(n) &le; c(n/5) + c(7n/10 + 6) + a&middot;n = 0.9cn + 7c + an</p>
+          <p class="small">This is at most cn provided 7c + an &le; 0.1cn, that is c &ge; 10a(n)/(n &minus; 70). For n &gt; 140 the factor is below 2, so c = 20a works.</p>
+          <p class="small" style="margin-bottom:0">With this implementation&rsquo;s per-element cost a = 2.4 (7/5 for the medians plus 1 for the partition), the bound is 24n comparisons. The measured count is 7.20n at n = 4,096, because real inputs do not hit the worst split at every level.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 4 &mdash; measured comparison counts</h3>
+          <p class="small">This page&rsquo;s own implementation, on shuffled arrays, selecting the median:</p>
+          <ul class="small" style="margin-bottom:0">
+            <li>n = 25: <span class="mono">103</span> comparisons (4.12n)</li>
+            <li>n = 100: <span class="mono">604</span> comparisons (6.04n)</li>
+            <li>n = 257: <span class="mono">1,718</span> comparisons (6.68n)</li>
+            <li>n = 1,000: <span class="mono">7,107</span> comparisons (7.11n)</li>
+            <li>n = 4,096: <span class="mono">29,505</span> comparisons (7.20n)</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Worked example 5 &mdash; the lemma, counted</h3>
+          <p class="small">For the 25-key array above, the pivot 21 has 12 keys below and 12 above, against a bound of 3&middot;25/10 &minus; 6 = 1.5. The bound is weak at n = 25; it is asymptotic.</p>
+          <p class="small" style="margin-bottom:0">At n = 1,000 the bound is 294 keys per side, and the surviving subproblem is at most 706 keys. The implementation was checked at every call of five sampled runs (n = 60, 101, 255, 500, 999) and the smallest slack over the bound was 6.3 keys, so the inequality never failed.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 6 &mdash; the group-size arithmetic</h3>
+          <p class="small">Each side keeps (g+1)/(4g) of the array; the pivot step costs 1/g; the surviving work is 1/g + 1 &minus; (g+1)/(4g) = 3(g+1)/(4g).</p>
+          <ul class="small" style="margin-bottom:0">
+            <li>g = 3: 1/3 + 2/3 = <span class="mono">1.0000</span> &mdash; no decay</li>
+            <li>g = 5: 1/5 + 7/10 = <span class="mono">0.9000</span> &mdash; linear</li>
+            <li>g = 7: 1/7 + 5/7 = <span class="mono">0.8571</span> &mdash; linear</li>
+            <li>g = 9: 1/9 + 13/18 = <span class="mono">0.8333</span> &mdash; linear</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid">
+
+        <div class="card card--counterexample">
+          <h3>Boundary: the lemma is vacuous for small n</h3>
+          <p class="small">3n/10 &minus; 6 is negative for n &lt; 20. The recurrence is therefore only useful above a threshold: 7n/10 + 6 &lt; n needs n &gt; 20, and the substitution needs n &gt; 140.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> stop the recursion at a constant-size base case (5, or 50 in some texts) and absorb every small n into the constant. A proof that ignores the +6 is not a proof.</p>
+        </div>
+
+        <div class="card">
+          <h3>The short last group</h3>
+          <p class="small">When n is not a multiple of five the last group has fewer than five keys. Two conventions are used: take the median of whatever keys are there, or drop the group from the median list. Dropping it is why the lemma carries the &minus;6 correction rather than &minus;2.</p>
+          <p class="small" style="margin-bottom:0">Either convention keeps the argument valid; mixing them inside one proof is where errors appear.</p>
+        </div>
+
+        <div class="card">
+          <h3>Duplicates</h3>
+          <p class="small">The lemma counts distinct keys. With repeated keys the partition must classify into less-than, equal and greater-than, and k is answered from the equal block. A two-way partition that sends equal keys to one side still terminates, but the rank arithmetic becomes delicate.</p>
+          <p class="small" style="margin-bottom:0">This page&rsquo;s implementation uses a three-way partition and was checked on every rank of every array up to n = 40 with no mismatch.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Counterexample: the median of medians is not the median</h3>
+          <p class="small">Array: 66 49 94 1 85 | 8 20 75 5 38 | 3 34 60 76 98 | 54 50 73 56 17 | 46 12 4 80 63. The medians are 66, 20, 60, 54, 46 and the median of medians is 54, which has rank 14 among the 25 keys, not 13.</p>
+          <p class="small" style="margin-bottom:0"><strong>What survives:</strong> the pivot still has at least 3n/10 &minus; 6 keys on each side. Here 13 are below and 11 above, against a bound of 1.5. The guarantee is a band, never an exact rank.</p>
+        </div>
+
+        <div class="card">
+          <h3>k = 1 and k = n are the exception</h3>
+          <p class="small">On sorted input with the first element as pivot, asking for the minimum returns after one partition, because the pivot is the answer. That is 15 comparisons at n = 16, not 120.</p>
+          <p class="small" style="margin-bottom:0">So &ldquo;quickselect is quadratic on sorted input&rdquo; is right for the general rank and wrong for the two extremes. State the k you mean.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Expected is not worst case</h3>
+          <p class="small">Randomised quickselect measured 3.25n comparisons on average over 20 seeded runs at n = 1024, with the worst of those runs at 4.61n. Those are observations about the algorithm&rsquo;s coin flips.</p>
+          <p class="small" style="margin-bottom:0">An examiner supplies the array. If the question says worst case, only the deterministic guarantee answers it.</p>
+        </div>
+
+        <div class="card">
+          <h3>When you need many ranks</h3>
+          <p class="small">Selection is linear for one rank. For all n ranks, n calls would be quadratic, so sorting at &Theta;(n log n) wins. Selection is the right tool when the question asks for one rank, or for a constant number of them.</p>
+          <p class="small" style="margin-bottom:0">This is the boundary between this lesson and <a href="../sorting-algorithms/index.html">sorting</a>.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The comparison model assumption</h3>
+          <p class="small" style="margin-bottom:0">Every count here assumes keys can only be compared. If keys are small integers, a counting sort of the values can find any rank in &Theta;(n + range) without comparisons, which does not contradict the lower bound &mdash; it steps outside the model.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid">
+
+        <div class="card card--trap span-3">
+          <h3>1. &ldquo;The median of medians is the median.&rdquo;</h3>
+          <p class="small"><strong>Why it seems reasonable:</strong> the name says median twice, and on the 25-key demo array the pivot 21 really is the 13th smallest.</p>
+          <p class="small"><strong>Why it is wrong:</strong> a median of five is only the middle of its own group, so the median of five such numbers says nothing exact about the whole array. On the second array on this page the pivot is 54 at rank 14 of 25.</p>
+          <p class="small"><strong>Minimal counterexample:</strong> 1, 2, 3, 4, 100 | 5, 6, 7, 8, 101 | 9, 10, 11, 12, 102 | 13, 14, 15, 16, 103 | 17, 18, 19, 20, 104 &mdash; medians 3, 7, 11, 15, 19, median of medians 11, rank 11 of 25.</p>
+          <p class="small"><strong>Correct rule:</strong> the pivot is guaranteed to sit between the 3n/10 and the 7n/10 positions. That band is all the proof uses and all it needs.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE-style question:</strong> practice Q10. <strong>Visual:</strong> scene 6 shows the lucky case and names the unlucky one.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>2. &ldquo;Quickselect is O(n) in the worst case.&rdquo;</h3>
+          <p class="small"><strong>Why it seems reasonable:</strong> randomised quickselect is fast in every experiment, and the average is linear.</p>
+          <p class="small"><strong>Why it is wrong:</strong> a pivot chosen by position can be the extreme key on every level. Sorted input with the first element as pivot and k = n costs 63 + 62 + &hellip; + 1 = 2,016 comparisons at n = 64.</p>
+          <p class="small"><strong>Correct rule:</strong> quickselect is &Theta;(n) expected and &Theta;(n&sup2;) worst case. Median of medians is &Theta;(n) in both.</p>
+          <p class="small" style="margin-bottom:0"><strong>GATE-style question:</strong> practice Q5.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>3. &ldquo;Groups of three work, just with a worse constant.&rdquo;</h3>
+          <p class="small"><strong>Why it seems reasonable:</strong> smaller groups mean more groups, and more groups feel like more information.</p>
+          <p class="small"><strong>Why it is wrong:</strong> with g = 3 each side keeps 1/3, the pivot step costs another 1/3, and 1/3 + 2/3 = 1 exactly, so the recursion tree has log n levels of full-size work: &Theta;(n log n).</p>
+          <p class="small"><strong>Honest qualification:</strong> that recurrence is an upper bound. The claim that groups of three <em>force</em> superlinear time is not proven; Chen and Dumitrescu (2014) show the usual argument falls short and give linear-time variants with smaller groups.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> the standard analysis needs the two coefficients to sum below 1, and 5 is the smallest odd g for which they do.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>4. &ldquo;Both sides are 3n/10, so the recursion is on 6n/10.&rdquo;</h3>
+          <p class="small"><strong>Why it seems reasonable:</strong> the lemma mentions 3n/10 twice, and it is tempting to add the two.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the two sides partition the same n keys, so they sum to n. Only one side recurses, and the larger one holds at most 7n/10 + 6 keys.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> one recursive call of size at most 7n/10 + 6, plus the pivot call of size n/5.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>5. &ldquo;O(n) selection contradicts the &Omega;(n log n) lower bound.&rdquo;</h3>
+          <p class="small"><strong>Why it seems reasonable:</strong> sorting is &Omega;(n log n) and selection looks like sorting a little.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the lower bound counts the leaves a decision tree needs. Sorting must separate n! orderings; selection must separate only n outcomes, and n &minus; 1 comparisons settle the minimum.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> quote a lower bound together with the problem it bounds.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>6. &ldquo;Median of medians is what you should code.&rdquo;</h3>
+          <p class="small"><strong>Why it seems reasonable:</strong> it has the better worst-case bound.</p>
+          <p class="small"><strong>Why it is wrong:</strong> the constants are large &mdash; about 7n comparisons measured here against 3.25n for randomised quickselect &mdash; and the algorithm exists to make the worst case provable, not to be fast in practice.</p>
+          <p class="small" style="margin-bottom:0"><strong>Correct rule:</strong> use randomised or median-of-three quickselect in code; use median of medians when the question asks for a worst-case guarantee.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid">
+
+        <div class="card card--definition span-2">
+          <h3>Which question categories apply</h3>
+          <p class="small"><strong>A &mdash; direct definition:</strong> the recurrence of SELECT, or the definition of the selection problem. <strong>B &mdash; property verification:</strong> is a given recurrence a correct upper bound for this pivot rule? <strong>C &mdash; calculation:</strong> a comparison count, or 3n/10 &minus; 6 for a given n. <strong>E &mdash; counterexample reasoning:</strong> sorted input defeats a positional pivot. <strong>F &mdash; multiple conditions:</strong> an MSQ mixing worst case, expected case and the guarantee. <strong>H &mdash; multi-step reasoning:</strong> a pivot rule given in words, then a recurrence, then a class.</p>
+          <p class="small" style="margin-bottom:0"><strong>D &mdash; construction</strong> and <strong>G &mdash; misconception trap</strong> appear less often here, because GATE rarely asks you to build the algorithm; it asks what the guarantee implies.</p>
+        </div>
+
+        <div class="card">
+          <h3>The four shapes the question takes</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>A pivot rule in words &rarr; write the recurrence &rarr; name the class.</li>
+            <li>A cost given for one step &rarr; add it to the recurrence and absorb it.</li>
+            <li>A nested structure (n arrays of n keys) &rarr; multiply the per-part cost by the count.</li>
+            <li>A comparison count for a stated input &rarr; count levels and add.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The commonest wrong approach</h3>
+          <p class="small" style="margin-bottom:0">Reaching for the master theorem first. T(n) &le; T(n/5) + T(7n/10) + O(n) has two recursive terms of <em>different</em> sizes, so the master theorem does not apply; the recursion-tree or substitution argument does. Write the level sums, see the ratio, and only then name the class.</p>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure for an unseen question</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Underline the guarantee: how many keys on each side, or what fraction?</li>
+            <li>Write the two recursive sizes as fractions of n, plus the per-level cost.</li>
+            <li>Add the two fractions. Below 1 &rarr; linear; equal to 1 &rarr; n log n; above 1 &rarr; polynomial.</li>
+            <li>Check what is being counted: comparisons, time, or a number of calls.</li>
+            <li>Check whether the question says worst case, expected, or amortised.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Closely confused pairs</h3>
+          <p class="small"><strong>Selection vs sorting:</strong> one rank vs all ranks; n &minus; 1 vs &Omega;(n log n) for the extreme rank.</p>
+          <p class="small"><strong>Expected vs worst case:</strong> over the algorithm&rsquo;s coin flips vs over every input.</p>
+          <p class="small"><strong>Median of medians vs median:</strong> a guaranteed band vs an exact rank.</p>
+          <p class="small" style="margin-bottom:0"><strong>Recursive call vs both calls:</strong> quickselect makes one, quicksort makes two.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+        <div class="card card--recessed span-3">
+          <h3>Twelve questions: three verified previous-year items and nine originals</h3>
+          <p class="small" style="margin-bottom:8px">Q7, Q8 and Q9 are <strong>verified GATE previous-year questions</strong>, each with its year and question number, confirmed against a reproduction of the paper. The other nine are <strong>original GATE-style questions</strong> written for this page; no year is claimed for them. Learning mode reveals the answer and the reasoning after each attempt; mock-test mode hides everything until you submit. <label class="small" style="margin-left:8px"><input type="checkbox" id="mock-toggle"> Mock-test mode</label> <button class="btn" id="mock-submit" hidden>Submit and reveal all</button></p>
+          <p class="small muted" style="margin-bottom:0">Every numeric answer below was computed by this page&rsquo;s own model, not quoted from a key.</p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>What does the selection problem ask for?</p>
+            <ol class="choices">
+              <li>The k-th smallest key of n keys, for a given k.</li>
+              <li>All n keys in non-decreasing order.</li>
+              <li>The median of every prefix of the array.</li>
+              <li>The k most frequent keys.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A).</strong> Selection returns one key of rank k; the median is the special case k = &lfloor;(n+1)/2&rfloor;.</p>
+            <p class="small">(B) is sorting. (C) is a different problem that needs more than one rank. (D) is frequency analysis, which needs a hash table, not an order statistic.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>In the comparison model, what is the minimum number of comparisons needed to find the minimum of 100 distinct keys?</p>
+            <p class="muted">Answer as an integer.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 99.</strong> Every key except the minimum must lose a comparison, and one comparison produces at most one loser, so n &minus; 1 = 99 comparisons are necessary; a single scan attains it.</p>
+            <p class="small">100 is the count if you compare each key with a running minimum including the first. 50 is the pairing trick for the minimum <em>and</em> maximum together, which is a different question.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>Which recurrence correctly bounds the comparisons used by median of medians with groups of five?</p>
+            <ol class="choices">
+              <li>T(n) &le; 2T(n/2) + O(n)</li>
+              <li>T(n) &le; T(n/5) + T(7n/10) + O(n)</li>
+              <li>T(n) &le; T(n/5) + T(4n/5) + O(n)</li>
+              <li>T(n) &le; 2T(n/5) + O(n)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> One call on the n/5 medians, one call on the surviving side of at most 7n/10 + 6 keys, and linear work for groups, medians and the partition.</p>
+            <p class="small">(A) is balanced quicksort. (C) is the answer to the GATE 2008 pivot question, where a <em>sort</em> recurses on both sides. (D) forgets that the second call is on the whole surviving side, not on the medians again.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>For n = 250 keys, the counting lemma guarantees at least 3n/10 &minus; 6 keys on each side of the median of medians. What is that number?</p>
+            <p class="muted">Answer as an integer.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 69.</strong> 3 &times; 250/10 = 75, and 75 &minus; 6 = 69.</p>
+            <p class="small">75 forgets the &minus;6 correction for the pivot&rsquo;s own group and a possibly short last group. 125 is half the array, which no argument here guarantees.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>Quickselect uses the first element as pivot on the already sorted array 0, 1, &hellip;, 63 and is asked for k = 64. How many comparisons does it make?</p>
+            <p class="muted">Answer as an integer.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 2016.</strong> Each partition puts the pivot at rank 1 and leaves 63, then 62, &hellip;, 1 keys, so the total is 63 + 62 + &hellip; + 1 = 64 &times; 63/2.</p>
+            <p class="small">64 &times; 63 = 4,032 double-counts the pairs. 1,520 is the cost of the middle rank on the same input, which the model measures separately.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>Median of medians is called on n = 125 keys with groups of five. How many keys does the recursive call that finds the pivot operate on?</p>
+            <p class="muted">Answer as an integer.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 25.</strong> There are 125/5 = 25 groups, one median each, and the pivot is the median of those 25 medians.</p>
+            <p class="small">125 is the outer call. 5 is the group size, not the number of medians. 6 is the number of keys the recursive call might keep on one side, which is not what was asked.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge">GATE CSE 2019</span></div>
+          <div class="q-body small">
+            <p>There are n unsorted arrays A<sub>1</sub>, A<sub>2</sub>, &hellip;, A<sub>n</sub>, with n odd. Each contains n distinct elements, and no element is common to two arrays. The worst-case time complexity of computing the median of the medians of A<sub>1</sub>, &hellip;, A<sub>n</sub> is:</p>
+            <ol class="choices">
+              <li>O(n)</li>
+              <li>O(n log n)</li>
+              <li>O(n&sup2;)</li>
+              <li>&Omega;(n&sup2; log n)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (C) O(n&sup2;).</strong> One median of an unsorted array of n keys costs &Theta;(n) by selection, and there are n arrays, so collecting the n medians costs &Theta;(n&sup2;). The median of those n medians is one more selection, &Theta;(n), which is dominated.</p>
+            <p class="small">(B) is the trap: it assumes each array is sorted, but the arrays are unsorted, so a median is a selection, not a lookup. (D) confuses the answer with a lower bound, and nothing here forces a log factor.</p>
+            <p class="small muted">Provenance: verified GATE CSE 2019 question, item 29 of the paper as reproduced. Options as printed.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge">GATE CSE 2008 &middot; Q43</span></div>
+          <div class="q-body small">
+            <p>Consider quicksort. Suppose there is a procedure for finding a pivot element which splits the list into two sub-lists, each of which contains at least one-fifth of the elements. Let T(n) be the number of comparisons required to sort n elements. Then:</p>
+            <ol class="choices">
+              <li>T(n) &le; 2T(n/5) + n</li>
+              <li>T(n) &le; T(n/5) + T(4n/5) + n</li>
+              <li>T(n) &le; 2T(4n/5) + n</li>
+              <li>T(n) &le; 2T(n/2) + n</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> Each sub-list has between n/5 and 4n/5 elements, so the worst case is the pair (n/5, 4n/5), and a sort recurses on both. The partition costs n.</p>
+            <p class="small">(A) and (C) assume both parts have the same size, which the guarantee does not give. (D) assumes a perfect split, which is stronger than &ldquo;at least one-fifth&rdquo;.</p>
+            <p class="small muted">Provenance: verified GATE CSE 2008 Q43. Note that 1/5 + 4/5 = 1, so this recurrence is &Theta;(n log n), not linear &mdash; the same arithmetic that rules out groups of three for selection.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge">GATE CSE 2006 &middot; Q52</span></div>
+          <div class="q-body small">
+            <p>The median of n elements can be found in O(n) time. Which one of the following is correct about the complexity of quicksort in which the median is selected as pivot?</p>
+            <ol class="choices">
+              <li>&Theta;(n)</li>
+              <li>&Theta;(n log n)</li>
+              <li>&Theta;(n&sup2;)</li>
+              <li>&Theta;(n&sup3;)</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B) &Theta;(n log n), in all three cases.</strong> The pivot always splits the array into two halves, so T(n) = 2T(n/2) + O(n), which is &Theta;(n log n) best, average and worst. The O(n) pivot search is absorbed: n log n + n is still n log n.</p>
+            <p class="small">(A) is impossible: the output is n keys in order, so &Omega;(n log n) comparisons are needed. (C) is the unimproved worst case with a bad pivot rule. (D) over-counts the pivot search, which is paid once per level, not once per comparison.</p>
+            <p class="small muted">Provenance: verified GATE CSE 2006 Q52.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>Which of the following statements are true? (Select all that apply.)</p>
+            <ol class="choices">
+              <li>The median of medians of n keys always has rank &lfloor;(n+1)/2&rfloor;.</li>
+              <li>It has at least 3n/10 &minus; 6 keys on each side.</li>
+              <li>Median of medians is &Theta;(n) in the worst case, and quickselect is &Theta;(n) only in expectation.</li>
+              <li>With groups of three the standard analysis gives &Theta;(n log n).</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B), (C) and (D).</strong> (B) is the counting lemma; (C) is the point of the algorithm; (D) follows because 1/3 + 2/3 = 1.</p>
+            <p class="small">(A) is the misconception: the pivot is only guaranteed to lie in the middle band. On the second array of this page it has rank 14 of 25.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>An array of 25 keys has group medians 66, 20, 60, 54 and 46, so the median of medians is 54. Which statement about the partition around 54 is necessarily true?</p>
+            <ol class="choices">
+              <li>Exactly 12 keys are smaller and 12 larger.</li>
+              <li>At least 1.5 keys are on each side, so the guarantee says nothing useful here.</li>
+              <li>At least 3n/10 &minus; 6 = 1.5 keys lie on each side, and in this array 13 lie below and 11 above.</li>
+              <li>The pivot must be the 13th smallest, because 54 is a median of medians.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (C).</strong> The lemma gives 1.5 keys per side at n = 25, which is weak but true; the actual counts for this array are 13 below and 11 above.</p>
+            <p class="small">(A) is the demo array&rsquo;s count, not this one. (B) draws the wrong conclusion: a weak bound is still a bound, and it becomes strong as n grows. (D) is the exact-rank misconception, and it is false here: the rank is 14.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>With groups of seven, the largest fraction of the input the algorithm can recurse on is 1/7 + 5/7. Express that fraction as a decimal to two places.</p>
+            <p class="muted">Answer as a decimal, tolerance 0.01.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 0.86</strong> (exactly 6/7 = 0.857&hellip;). Each side keeps (g+1)/(4g) = 8/28 = 2/7, so the surviving side is 5/7, and the pivot step costs another 1/7.</p>
+            <p class="small">0.71 is 5/7 alone, which omits the pivot call. 0.90 is the groups-of-five figure, not groups-of-seven.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid">
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Selection:</strong> return the key of rank k.</li>
+            <li><strong>Rank:</strong> the number of keys smaller than this one, plus one.</li>
+            <li><strong>Quickselect:</strong> partition, then recurse into one side.</li>
+            <li><strong>Median of medians:</strong> sort groups of five, take their medians, select the median of those medians, partition around it.</li>
+            <li><strong>Counting lemma:</strong> that pivot has at least 3n/10 &minus; 6 keys on each side.</li>
+            <li><strong>Survivor fraction:</strong> 3(g+1)/(4g) of the input remains after one level.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas and their conditions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Minimum: n &minus; 1 comparisons, necessary and sufficient (distinct keys, comparison model).</li>
+            <li>Median of five: at most 7 comparisons (4 to bracket, 3 to finish).</li>
+            <li>Quickselect worst case: n(n&minus;1)/2 comparisons (positional pivot, adversarial input).</li>
+            <li>Median of medians: T(n) &le; T(n/5) + T(7n/10 + 6) + O(n) &rArr; T(n) = O(n); at most 24n comparisons by substitution.</li>
+            <li>Group size g: each side (g+1)/(4g), survivor 3(g+1)/(4g); below 1 exactly when g &ge; 5.</li>
+            <li>GATE 2008 shape: T(n) &le; T(n/5) + T(4n/5) + n &rArr; &Theta;(n log n).</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Read the guarantee, not the story: how much is on each side?</li>
+            <li>Write both recursive sizes as fractions of n.</li>
+            <li>Add them: below 1 &rarr; linear; equal to 1 &rarr; n log n.</li>
+            <li>Ask what is counted: comparisons, time, or calls.</li>
+            <li>Ask which case: worst, expected, amortised.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, each with its counterexample</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>&ldquo;The pivot is the median&rdquo; &rarr; the second array on this page: rank 14 of 25.</li>
+            <li>&ldquo;Quickselect is linear&rdquo; &rarr; sorted input, k = n, 2,016 comparisons at n = 64.</li>
+            <li>&ldquo;Groups of three only cost more&rdquo; &rarr; 1/3 + 2/3 = 1, no decay.</li>
+            <li>&ldquo;Both sides are 3n/10&rdquo; &rarr; they sum to n; one side is at most 7n/10 + 6.</li>
+            <li>&ldquo;Selection cannot beat n log n&rdquo; &rarr; the minimum needs n &minus; 1.</li>
+            <li>&ldquo;The +6 does not matter&rdquo; &rarr; 3n/10 &minus; 6 is negative below n = 20.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Six quick revision questions, answers inverted</h3>
+          <p class="small">1. Which problem has the lower bound &Omega;(n log n): sorting or selecting the median? <span class="muted">&mdash; sorting.</span></p>
+          <p class="small">2. How many comparisons does the median of medians guarantee on each side? <span class="muted">&mdash; at least 3n/10 &minus; 6 keys, not comparisons.</span></p>
+          <p class="small">3. What are the two recursive sizes in SELECT? <span class="muted">&mdash; n/5 and at most 7n/10 + 6.</span></p>
+          <p class="small">4. Why does 9/10 matter? <span class="muted">&mdash; it is the ratio of successive level costs, so the series is geometric.</span></p>
+          <p class="small">5. What does g = 3 give? <span class="muted">&mdash; coefficients summing to 1, hence &Theta;(n log n) by the recurrence.</span></p>
+          <p class="small" style="margin-bottom:0">6. Is median of medians used in practice? <span class="muted">&mdash; rarely: the constants are large; it exists for the worst-case guarantee.</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid">
+
+        <div class="card card--definition span-2">
+          <h3>Official</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>GATE 2027 CS syllabus, IIT Madras &mdash; <span class="mono">gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</span>. Supports the syllabus classification only: Section 5 names &ldquo;Searching, sorting, hashing&rdquo; and &ldquo;Algorithm design techniques: greedy, dynamic programming and divide-and-conquer&rdquo;. &ldquo;Median of medians&rdquo; is not printed, which is why the topic is class B.</li>
+            <li>GATE CSE 2019 paper (item 29), GATE CSE 2008 Q43 and GATE CSE 2006 Q52 &mdash; read as reproductions of the papers. They support the three previous-year questions in the Practice tab and nothing else.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and course material</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>CLRS, <em>Introduction to Algorithms</em>, chapter 9.3 &ldquo;Selection in worst-case linear time&rdquo; &mdash; the five steps, the 3n/10 &minus; 6 lemma and the recurrence. Read through published chapter solutions, not the printed book.</li>
+            <li>Rutgers CLRS solutions, chapter 9 &mdash; exercises 9.3-1 (groups of 7 and groups of 3) and 9.3-2 (3n/10 &minus; 6 &ge; n/4 for n &ge; 140). Used for the group-size arithmetic.</li>
+            <li>Brown University CS16, lecture 15 &mdash; the proof of the lemma including the &minus;6, and the 20a constant in the substitution.</li>
+            <li>UPC divide-and-conquer notes and ETH lecture 4 &mdash; the &lceil;n/5&rceil; grouping, the split bound, and the remark that groups of 3 give &Theta;(n log n) while groups of 7 stay linear.</li>
+            <li>Blum, Floyd, Pratt, Rivest and Tarjan (1973) &mdash; the original algorithm, named here as the source of the method.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community and research, used with care</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>Chen and Dumitrescu, &ldquo;Selection Algorithms with Small Groups&rdquo; (arXiv 1409.3600) &mdash; used only for the qualification in Misconception 3: the usual argument for &Omega;(n log n) with small groups falls short, and linear-time variants with groups smaller than five exist. Their abstract was read, not the full paper.</li>
+            <li>Stack Overflow, &ldquo;Optimal median of medians selection &mdash; 3 element blocks vs 5 element blocks&rdquo; &mdash; a community explanation of the 3n/10 and 2n/3 split arithmetic. Used as an observation; every number quoted was recomputed here.</li>
+            <li>ExamSIDE, GATE Overflow and Testbook listings &mdash; used to confirm the year and text of the three previous-year questions, cross-checked against a paper reproduction.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What this research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No previous-year paper was read end to end, so no frequency or weightage claim is made. The Chen&ndash;Dumitrescu paper was read at abstract level only. No audio is shipped: the narration is a script plus optional browser speech synthesis, and the subtitle timings are estimated from a speaking rate, not measured from audio. No video file exists.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
