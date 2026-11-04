@@ -2491,6 +2491,50 @@ topics.append(topic(
     ]))
 
 topics.append(topic(
+    "Theory of Computation", "Context-free languages: the normal form and the simplification passes",
+    "Grammar simplification and Chomsky normal form: the four passes, the helper counts, and the 2n-1 arithmetic",
+    ["useless symbols: productive and reachable", "removing epsilon-productions and the nullable set",
+     "removing unit productions and the unit pairs", "the order the passes must run in",
+     "terminal isolation and binarisation into Chomsky normal form",
+     "Greibach normal form as the comparison",
+     "derivation length and node counts in normal form",
+     "membership by the triangular table, and the 2^(k-1) length bound"],
+    prereq=["context-free-grammars-and-pushdown-automata"],
+    related=["closure-and-decision-properties", "chomsky-hierarchy", "left-recursion-elimination-and-left-factoring",
+             "lexical-analysis-parsing-and-sdt"],
+    importance="high",
+    evidence="GATE 2027 Section 6 names 'Context-free grammars and push-down automata' and 'Regular and context-free languages, pumping lemma'. The phrase 'Chomsky normal form' is not printed; it is the standard machinery under that clause, and the form in which the CFL pumping lemma is proved. Previous-year use: GATE CSE 1994 Q20 (derivation length), GATE CSE 2008 Q50 statement II (empty productions), GATE CSE 2024 Set 1 Q49 (step count, key 179).",
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="chomsky-normal-form-and-grammar-simplification",
+    path="topics/chomsky-normal-form-and-grammar-simplification/index.html",
+    execution="published 2026-11-05; 41 model checks and the geometry audit clean on the first published build",
+    microtopics=[
+        "a normal form is a property of a grammar, never of a language",
+        "Chomsky normal form: A -> BC or A -> a, with S -> epsilon only when needed",
+        "Greibach normal form: A -> a followed by nonterminals, so n steps for n letters",
+        "productive computed bottom-up, reachable computed top-down, useful as the intersection",
+        "the teaching grammar: X reachable but barren, Y fertile but unreachable",
+        "nullable set to a fixpoint, then one copy per subset of nullable positions",
+        "the empty string in the language forces a fresh start symbol and one surviving empty rule",
+        "the empty-production pass can create a unit production that did not exist",
+        "unit pairs by closure, then a copy of every non-unit rule, then deletion",
+        "the order empty -> unit -> useless, and why useless-last is the only single-pass order",
+        "useless-first then empty leaves a unit production the unit pass has already passed",
+        "terminal isolation: one helper per distinct terminal, shared across rules",
+        "binarisation: k - 2 helpers for a right-hand side of k symbols, after isolation",
+        "the pipeline on the teaching grammar: 5 variables and 9 rules to 5 and 10",
+        "language equality checked on all 126 strings of length 1 to 6, 21 accepted by both",
+        "the textbook grammar S -> ASA | aB, A -> B | S, B -> b | epsilon as a second check",
+        "2n-1 steps, 2n-1 internal nodes, 3n-1 total nodes for a string of length n",
+        "Greibach counts: n steps, n internal nodes, 2n total nodes",
+        "GATE CSE 2024 Set 1 Q49: 90 letters gives 179, and the ten variables are decoration",
+        "the 2^(k-1) length bound, reached exactly by the chain grammars",
+        "membership table: n(n+1)/2 cells, n(n-1)(n+1)/6 split checks, order n cubed",
+        "ambiguity survives the conversion, and each tree still has 2n-1 internal nodes",
+    ]))
+
+topics.append(topic(
     "Theory of Computation", "Language classes", "Closure and decision properties, and the pumping lemmas",
     ["closure properties of regular languages", "closure properties of context-free languages",
      "decision problems for regular languages", "decision problems for context-free languages",
@@ -8226,6 +8270,7 @@ _RECHECKED = {
     "amortised-analysis-aggregate-accounting-potential": "2026-11-04",
     "deterministic-selection-median-of-medians": "2026-11-04",
     "two-level-cache-amat-and-cpi": "2026-11-05",
+    "chomsky-normal-form-and-grammar-simplification": "2026-11-05",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
