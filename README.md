@@ -126,6 +126,7 @@ lessons are static files and work from a local clone.
 | Chomsky Normal Form and Grammar Simplification: Four Passes, the Helper Counts and the 2n − 1 Arithmetic | Theory Of Computation | A — explicitly in the syllabus | `topics/chomsky-normal-form-and-grammar-simplification/index.html` |
 | Proving a Language Is Not Context-Free: the Pumping Lemma as a Game, Ogden’s Lemma and the Closure Route | Theory Of Computation | A — explicitly in the syllabus | `topics/proving-a-language-is-not-context-free/index.html` |
 | Linear Bounded Automata and the Context-Sensitive Class: the Bounded Tape, the Configuration Count and the Decidability It Buys | Theory Of Computation | B — prerequisite for a syllabus topic | `topics/linear-bounded-automata/index.html` |
+| Ambiguity of Context-Free Grammars: Two Trees, the Counter that Decides, and the Languages No Grammar Can Fix | Theory Of Computation | B — prerequisite for a syllabus topic | `topics/ambiguity-of-context-free-grammars/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
