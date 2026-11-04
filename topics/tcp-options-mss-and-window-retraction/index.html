@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP Options: the 40-Byte Budget, the MSS Arithmetic and Window Retraction — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">TCP options: budget, MSS and window retraction</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Prerequisite: TCP flow control</a>
+      <a href="../tcp-window-scaling-and-timestamps/index.html">Related: window scaling</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Related: fragmentation</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> What the TCP option space costs and what it buys: the forty bytes a header can spare, the maximum segment size computed as MTU minus the fixed headers, the rule that options reduce the data and not the advertised MSS, and the window retraction that a scaled window cannot avoid.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a list of options, add their lengths, round the total to a multiple of four and state the header size and the payload that remains. Given an MTU and an IP version, compute the MSS and the data a segment carrying options can hold. Given a shift count, an acknowledgement and a receive buffer, say which window fields are expressible, which one is safe, and bound the retraction in bytes.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the option space and the two arithmetic rules that hang off it</em>: the MSS clause of Section 10 and the window-retraction rule that the flow-control lesson names without building. Both are this page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite mechanism for a named clause.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus, read from the official PDF on 2026-11-04, prints: <em>"TCP- flow control and congestion control, socket API; DNS and HTTP."</em> The MSS sets the size of the segments that carry that flow, and the window is the object that flow control moves.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>MSS</em>, <em>option</em>, <em>retraction</em> and <em>MTU</em> are <strong>not</strong> printed in the 2027 syllabus. The class-B label rests on the mechanism, not on the wording, and no claim is made here about how often this appears in past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The topic is examinable because every step is a subtraction or an addition of named byte counts, followed by a comparison against a fixed ceiling.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow control</a> — the window, the acknowledgement and the receive buffer.</li>
+            <li><a href="../tcp-window-scaling-and-timestamps/index.html">Window scaling and timestamps</a> — the shift count, the two shift counters and the option formats.</li>
+            <li><a href="../ip-fragmentation-cidr-and-nat/index.html">IP fragmentation and CIDR</a> — the MTU, the IP header and why fragmentation is avoided.</li>
+            <li>Arithmetic: powers of two, rounding up to a multiple of four, and subtraction from a fixed ceiling.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">No network and no simulator are needed. Every number on the page is computed by the page when it loads.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Forty bytes</strong> is the whole option area: 20 to 60 bytes of header, and every option shares the difference.</li>
+            <li><strong>MSS is data only:</strong> the MTU minus 40 for IPv4 and minus 60 for IPv6, and 536 when no option arrives.</li>
+            <li><strong>Options lower the data, not the MSS:</strong> 1460 advertised, 1440 sent with twenty bytes of options.</li>
+            <li><strong>The field counts steps:</strong> a scaled window can only name right edges that are a whole number of 2^s from the acknowledgement.</li>
+            <li><strong>Retraction is bounded:</strong> at most 2^s − 1 bytes, and the rules require both ends to handle it.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the arithmetic needs them. <strong>1</strong> The header drawn as fifteen words, and the forty-byte difference. <strong>2</strong> The four option lengths, their sum of nineteen, and the two padding conventions. <strong>3</strong> The MSS as a subtraction, with four MTUs and the IPv6 case. <strong>4</strong> The MSS held at 1460 while the data falls to 1440, and the 1520-byte overshoot. <strong>5</strong> The budget as a ledger filled to forty by an eighteen-byte option. <strong>6</strong> The step of 128 bytes, and the buffer end that is not on it. <strong>7</strong> The four appendix rows, ending at 1301 or 1173. <strong>8</strong> The three rules and the bookkeeping. <strong>9</strong> The bound, from 0 bytes at shift 0 to 16,383 at shift 14. <strong>10</strong> The four rules and the five slips.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>How to study this lesson</h3>
+          <p class="small">Approximate study time: 45–65 minutes, which is an estimate and not a measurement. Watch the Animation tab once with captions on, then read Examples, then take Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">The page recomputes everything it shows when it loads: it sums the option lengths, rounds them, derives each MSS from its MTU, derives each payload from its header, walks the four retraction rows, and computes both bounds. The number of checks that passed is printed under the canvas, so a wrong figure would show there before you read it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a fixed-size envelope with a fixed-size label strip</h3>
+          <p class="small">Picture an envelope that may be at most sixty units long, of which the first twenty are printed with the address. The remaining forty units are blank, and every label you stick on has to come out of that strip. One label says how big a parcel the recipient can take; another says how to read a number that has outgrown its box; a third is a permission slip; a fourth is a clock reading. They are cheap individually and expensive together, and the envelope does not grow.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The envelope explains why options compete; it does not explain why the MSS must not absorb their cost, which is a separate rule about what the promise means. Scene 4 supplies that.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Vocabulary, every term in words</h3>
+          <p class="small"><strong>MTU</strong> — the largest IP datagram a link will carry without fragmenting it.</p>
+          <p class="small"><strong>MSS</strong> — the largest amount of TCP data a host will accept in one segment; data only.</p>
+          <p class="small"><strong>Option kind</strong> — the first byte of an option, naming which option it is.</p>
+          <p class="small"><strong>Option length</strong> — the second byte, counting the kind and length bytes themselves.</p>
+          <p class="small"><strong>NOP and EOL</strong> — kinds 1 and 0, each one byte, used as padding and as an end marker.</p>
+          <p class="small"><strong>Shift count s</strong> — the exponent in the window scale option; one step is 2^s bytes.</p>
+          <p class="small"><strong>Right edge</strong> — acknowledgement number plus window; the last byte the sender may write.</p>
+          <p class="small"><strong>Retraction</strong> — advertising a smaller window than before, so the right edge moves back.</p>
+          <p class="small" style="margin-bottom:0"><strong>Granularity</strong> — the step size 2^s, which is the smallest change the field can express.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The three rules, stated once</h3>
+          <p class="small">The sizes, in the form the documents write them:</p>
+          <p class="small mono" style="margin:0 0 8px">header = 20 + options &lt;= 60<br>MSS = EMTU_R - fixed IP header - 20<br>SEG.WND = RCV.WND &gt;&gt; Rcv.Wind.Shift</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> The header ceiling is from RFC 9293's four-bit data offset; the MSS rule is RFC 6691 section 2; the window rule is RFC 7323 section 2.3. All three were read on 2026-11-04.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Why the budget is fixed</h3>
+          <p class="small">The header length is a four-bit count of 32-bit words, so it can name at most fifteen words. That field is in every segment on the network, and changing it would break every implementation that parses the header, so the ceiling of sixty bytes is part of the format rather than a choice.</p>
+          <p class="small" style="margin-bottom:0">Every extension TCP has gained since 1981 — window scaling, timestamps, SACK, MD5 signatures — had to be paid for inside those forty bytes.</p>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>What the rest of the page adds</h3>
+          <p class="small" style="margin-bottom:0">The Build-up gives you the vocabulary and the three rules. Examples compute seven worked cases end to end. Edge cases take the boundaries: the smallest legal MTU, the jumbogram exception, the zero-byte retraction at shift 0, and the 60-byte header. Misconceptions names seven wrong beliefs with a counterexample each. GATE patterns turns the arithmetic into three procedures. Practice has eight questions, and Revision collects the numbers worth carrying.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">The TCP header is twenty bytes of fixed fields, and a data offset field says how long it is.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The option space is forty bytes</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Every TCP segment starts with twenty bytes of fixed fields. One of them is a small field called the data offset, and its whole job is to say how long the header is.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 1 — the header four options produce</h3>
+              <p class="small"><strong>Given</strong> a SYN carrying MSS (kind 2, length 4), window scale (kind 3, length 3), SACK-permitted (kind 4, length 2) and timestamps (kind 8, length 10). <strong>Asked</strong> the option area, the header size, and the data a 1500-byte MTU leaves.</p>
+              <p class="small">The lengths add to 4 + 3 + 2 + 10 = 19. The header must be a whole number of 32-bit words, so the area rounds up to 20 and the header is 20 + 20 = 40 bytes. On a 1500-byte MTU with a 20-byte IPv4 header, the data is 1500 − 20 − 40 = 1440 bytes.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page recomputes 19, 20, 40 and 1440 at load and prints them in scenes 2 and 4.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — the same options, padded per option</h3>
+              <p class="small"><strong>Given</strong> a stack that pads each option to its own word boundary, using no-operation bytes before the window scale and before the timestamps. <strong>Asked</strong> the cost and the header.</p>
+              <p class="small">MSS 4, then one NOP and window scale 3 for 4, then SACK-permitted 2, then two NOPs and timestamps 10 for 12. The raw total is 22, which rounds to 24, so the header is 44 bytes and the data is 1436.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 7323 Appendix A recommends exactly the two-NOP-plus-timestamps layout for alignment, so both totals are real: 20 bytes when only the header must be aligned, 24 when each option is.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — four MTUs, two IP versions</h3>
+              <p class="small"><strong>Given</strong> MTUs of 576, 1500 and 9000 over IPv4, and 1500 over IPv6. <strong>Asked</strong> the MSS each host advertises.</p>
+              <p class="small">IPv4 subtracts 20 for the IP header and 20 for TCP: 536, 1460 and 8960. IPv6 subtracts 40 and 20: 1440. The IPv6 minimum MTU of 1280 gives 1220, and the smallest legal IPv4 MTU of 68 gives 28.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> Each value is the MTU minus the two header sizes, and 536 is also the default assumed when no MSS option arrives at all.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 4 — the segment that would fragment</h3>
+              <p class="small"><strong>Given</strong> an advertised MSS of 1460 and 20 bytes of options in the segment. <strong>Asked</strong> what happens if the sender uses the full MSS.</p>
+              <p class="small">1460 + 40 + 20 = 1520 bytes, which is 20 bytes past the 1500-byte MTU. IP must fragment the segment, so one lost fragment costs the whole segment and the retransmission repeats the problem.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 6691 section 2 says the sender must reduce the data length to account for the options it includes, for exactly this reason.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>Example 5 — filling the budget exactly</h3>
+              <p class="small"><strong>Given</strong> the same four options and a TCP MD5 signature option (kind 19, length 18). <strong>Asked</strong> whether they fit, and what the header becomes.</p>
+              <p class="small">19 + 18 = 37 raw bytes, which rounds to 40. The option area is full, the header is 60 bytes, and on a 1500-byte MTU the data is 1420 bytes. Payload efficiency is 94.67 per cent, against 97.33 with no options at all.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> One more four-byte option would give 41, one byte over, before any padding — so the five-option combination is already at the ceiling.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — which window fields exist</h3>
+              <p class="small"><strong>Given</strong> a shift count of 7, an acknowledgement of 1000, and a receive buffer that ends at 1300. <strong>Asked</strong> the expressible right edges and the safest field.</p>
+              <p class="small">One step is 128 bytes, so the field can name 1128, 1256, 1384 and so on. The buffer end at 1300 is not on that list: field 2 understates the window by 44 bytes, and field 3 overstates it by 84.</p>
+              <p class="small" style="margin-bottom:0">The safe choice is 2, because understating the window costs throughput and overstating it costs data the buffer cannot hold.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 7 — the retraction, row by row</h3>
+              <p class="small"><strong>Given</strong> the appendix example: acknowledgement 1000 with field 2, then 1040 with field 2, then 1045 with field 2 or field 1.</p>
+              <p class="small">The right edges are 1256 (44 short), 1296 (4 short), 1301 (one past the buffer) and 1173 (127 short). At the last acknowledgement no field puts the edge at 1300, so the receiver must either over-promise by one byte or retract by 127.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 1045 + 2×128 = 1301 and 1045 + 1×128 = 1173; the true edge 1300 lies strictly between the two expressible edges, so no field value reaches it.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries, each with its number</h3>
+          <p class="small" style="margin-bottom:0">Six cases where the arithmetic changes behaviour: the smallest legal MTU, the largest MTU, the IPv6 header, the absent option, the zero shift, and the full option area.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>A 68-byte MTU leaves an MSS of 28</h3>
+          <p class="small">The smallest legal IPv4 MTU is 68 bytes. Subtract 20 for the IP header and 20 for TCP and 28 remain, which is legal and nearly useless.</p>
+          <p class="small" style="margin-bottom:0">The number matters because it shows the MSS is a subtraction and not a constant: no formula with a fixed 1460 survives an unusual link.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Jumbo frames give 8960, and a jumbogram gives infinity</h3>
+          <p class="small">A 9000-byte MTU gives an MSS of 8960. Over IPv6 jumbograms, where a segment may exceed 64 KiB, a value of 65,535 in the sixteen-bit field is treated as infinity and path MTU discovery decides the real size.</p>
+          <p class="small" style="margin-bottom:0">So the largest number the field can hold is a special case, not a measurement of 65,535 bytes of payload.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>IPv6 subtracts sixty, not forty</h3>
+          <p class="small">The IPv6 base header is 40 bytes with no options field, so the subtraction is 40 + 20. A 1500-byte MTU gives 1440, and the IPv6 minimum MTU of 1280 gives 1220.</p>
+          <p class="small" style="margin-bottom:0">An IPv6 extension header is not in the fixed count, so it behaves like a TCP option: the data shrinks by its size and the advertised MSS does not.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>No option means 536, not "anything"</h3>
+          <p class="small">If no MSS option arrives, the sender must assume a send MSS of 536 bytes, which is 576 minus 40. The absent option is not permission to send any size; it activates a conservative default.</p>
+          <p class="small" style="margin-bottom:0">The coincidence is worth noticing: 536 is both the default and the MSS computed from a 576-byte MTU, because the default was derived from the minimum reassembly size.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A zero shift retracts nothing</h3>
+          <p class="small">With s = 0 the step is one byte, so the field can name every window exactly and the bound 2^s − 1 is zero. Retraction is a consequence of scaling, not of TCP itself.</p>
+          <p class="small" style="margin-bottom:0">That is why the rule lives in the window scale document rather than in the base specification.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>The full option area: exactly forty, and not one byte more</h3>
+          <p class="small">With 40 bytes of options the header is 60, which is the largest the four-bit data offset can name. The data on a 1500-byte MTU is 1420 bytes, and every byte of option is a byte of payload given up on every segment of the connection.</p>
+          <p class="small" style="margin-bottom:0">A combination that needs 41 bytes cannot be sent in one segment at all: options cannot spill into a second header, and there is no way to negotiate a longer header.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that produce a wrong answer</h3>
+          <p class="small" style="margin-bottom:0">Each is paired with the counterexample that breaks it. Every counterexample is computed by the page.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1 — "The MSS counts the headers as well"</h3>
+          <p class="small">Wrong: the MSS counts data octets only, which is why an MSS of 1460 exactly fills a 1500-byte MTU with 20 + 20 bytes of header.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: 1460 + 20 + 20 = 1500. Adding the headers inside the MSS would leave the datagram 40 bytes short of the MTU, not exactly at it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2 — "Options reduce the MSS you advertise"</h3>
+          <p class="small">Wrong: RFC 6691 says to subtract only the fixed headers, and to reduce the data instead.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: a host that will send 20 bytes of options still advertises 1460, and the segment carries 1440 bytes of data. Advertising 1440 would understate what it can receive by 20 bytes on every segment.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3 — "Both directions use one negotiated MSS"</h3>
+          <p class="small">Wrong: the MSS is a promise about receiving, made separately by each side, and the two values can differ.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: a client on a 1500-byte link advertises 1460 while a server behind a tunnel advertises 1360. The client may send 1360-byte segments to the server, and the server 1460-byte segments to the client.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4 — "MSS = MTU − 40 always"</h3>
+          <p class="small">Wrong: 40 is the IPv4 case. IPv6 subtracts 60, and IP options or extension headers take more still.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: an MTU of 1500 gives 1460 over IPv4 and 1440 over IPv6 — a difference of 20 bytes on every segment.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5 — "Each option may be up to 40 bytes"</h3>
+          <p class="small">Wrong: 40 is the whole option area, shared by every option in the header.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: the four handshake options use 19 bytes and an MD5 signature uses 18, which is 37 and fits; a fifth four-byte option would reach 41 and cannot be sent at all.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6 — "A shrinking window means the receiver lost data"</h3>
+          <p class="small">Wrong: the retracted bytes were never acknowledged as receivable; the receiver simply cannot express the true edge in whole steps.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: at acknowledgement 1045 with a step of 128, the true edge 1300 lies between 1173 and 1301, so both available fields are wrong by construction, and the smaller one is the safe one.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>7 — "A sender may ignore a shrinking window entirely"</h3>
+          <p class="small">Wrong: only the first retransmission gets that allowance, and only when it is out of window by less than one step and the original was in window when it was sent.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: after the first retransmission, every further one must lie inside the latest advertised window, so a sender that keeps retransmitting past the retracted edge is outside the rules and will be dropped by a receiver that honours only its latest advertisement for new data.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this becomes a question, and the procedure that answers it</h3>
+          <p class="small" style="margin-bottom:0">Three shapes appear: an MSS from an MTU, a header and payload from a list of options, and a window decision from a shift count. Each has a fixed procedure, and each procedure has one step that is usually skipped.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — the MSS</h3>
+          <p class="small"><strong>1.</strong> Read the MTU and the IP version.</p>
+          <p class="small"><strong>2.</strong> Subtract the fixed IP header: 20 for IPv4, 40 for IPv6.</p>
+          <p class="small"><strong>3.</strong> Subtract the fixed TCP header, 20.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is the IP version: subtracting 40 for an IPv6 datagram gives a value 20 bytes too large.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — header and payload from options</h3>
+          <p class="small"><strong>1.</strong> Add the option lengths, counting the kind and length bytes.</p>
+          <p class="small"><strong>2.</strong> Round the total up to a multiple of four.</p>
+          <p class="small"><strong>3.</strong> Header = 20 + that total; payload = MTU − IP header − header.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is the rounding: 19 bytes of options is a 40-byte header, not a 39-byte one, because the offset counts whole words.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — the window decision</h3>
+          <p class="small"><strong>1.</strong> Compute the step 2^s and list the expressible edges from the acknowledgement.</p>
+          <p class="small"><strong>2.</strong> Compare each with the true buffer end.</p>
+          <p class="small"><strong>3.</strong> Choose the largest edge that does not exceed the buffer, and state the shortfall.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is step 3's direction: the safe error is understating the window, and the bound on it is 2^s − 1 bytes.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Shape 4 — the budget combination</h3>
+          <p class="small"><strong>1.</strong> Add the lengths of the options named in the question.</p>
+          <p class="small"><strong>2.</strong> Round to a multiple of four and compare with 40.</p>
+          <p class="small"><strong>3.</strong> If the total exceeds 40, say which option must be dropped and why.</p>
+          <p class="small" style="margin-bottom:0">The trap here is step 1: forgetting that a length byte counts itself, so MSS is 4 and not 2.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What is and is not claimed on this page</h3>
+          <p class="small">No previous-year question is reproduced or attributed here, and no statement is made about how often this topic appears in GATE CSE papers. The four shapes above are question <em>patterns</em> derived from the rules, not a summary of past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Any weightage figure for MSS arithmetic or window retraction is an estimate from a coaching source unless it names a paper and a question number. Treat such a figure as planning information, not as a prediction for GATE CSE 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question. Every answer was computed, and where the page models it, checked by the page.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A TCP SYN carries the MSS option (length 4), the window scale option (length 3), SACK-permitted (length 2) and timestamps (length 10). The TCP header length in bytes is ______ .</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 40</p>
+                <p>The lengths add to 19. The header must be a whole number of 32-bit words, so the option area rounds up to 20 and the header is 20 + 20 = 40 bytes.</p>
+                <p><strong>Why 39 appears.</strong> Adding the fixed header to the raw 19 and forgetting the rounding. <strong>Why 44 appears.</strong> Padding each option to its own word boundary, which is a different convention and not what the question asks.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A host is attached to an IPv6 link with an MTU of 1500 bytes. It sends no MSS option value of its own choice but follows the standard arithmetic. The MSS it advertises is</p>
+                <ol class="choices">
+                  <li>1460</li>
+                  <li>1440</li>
+                  <li>1480</li>
+                  <li>1220</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>1500 − 40 for the IPv6 base header − 20 for the TCP header = 1440.</p>
+                <p><strong>Why 1460 appears.</strong> Subtracting 40 as if the datagram were IPv4. <strong>Why 1480 appears.</strong> Subtracting only the TCP header. <strong>Why 1220 appears.</strong> Using the IPv6 minimum MTU of 1280 instead of the link MTU.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>An IPv4 connection has an MTU of 1500 bytes and carries 20 bytes of TCP options in every data segment. The largest amount of TCP data one segment can carry is ______ bytes.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1440</p>
+                <p>1500 − 20 for the IPv4 header − 40 for the TCP header (20 fixed plus 20 of options) = 1440.</p>
+                <p><strong>Why 1460 appears.</strong> Using the advertised MSS and ignoring the options, which would make a 1520-byte datagram. <strong>Why 1420 appears.</strong> Subtracting 40 bytes of options instead of 20.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following are true of the TCP MSS option?</p>
+                <ol class="choices">
+                  <li>It counts data octets and excludes the TCP and IP headers.</li>
+                  <li>It is reduced by the size of the TCP options the sender uses.</li>
+                  <li>Each direction has its own value, advertised by the receiver of that direction's data.</li>
+                  <li>If no option arrives, any segment size is allowed.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and C</p>
+                <p>A is the definition: data only. C is the directionality: each side promises what it can receive.</p>
+                <p>B is false: options do not reduce the advertised MSS; the sender reduces the data in the segment instead. D is false: the absent option activates a default send MSS of 536 bytes, which is a bound and not a permission.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A connection uses a shift count of 7. The receiver has acknowledged byte 1045 and its buffer ends at byte 1300. Which window field can it advertise without promising a byte it cannot store?</p>
+                <ol class="choices">
+                  <li>1</li>
+                  <li>2</li>
+                  <li>3</li>
+                  <li>No field can be advertised.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A</p>
+                <p>Field 1 means 128 bytes, putting the right edge at 1173, which is below 1300. Field 2 means 256 bytes, putting the edge at 1301, one byte past the buffer.</p>
+                <p><strong>Why 2 appears.</strong> Reading the true window of 255 bytes and rounding to the nearest field instead of down. <strong>Why 3 appears.</strong> Rounding the window up. <strong>Why D appears.</strong> Concluding that an inexact window cannot be advertised, when understating it is always allowed.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A scaled connection has a shift count of 10. The largest number of bytes by which a single advertised window can be retracted is ______ .</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1023</p>
+                <p>One step is 2^10 = 1024 bytes, and the worst case is one step minus one byte, so 1023.</p>
+                <p><strong>Why 1024 appears.</strong> Using the step itself rather than the gap below the next expressible edge. <strong>Why 10 appears.</strong> Reading the shift count as a byte count.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which statements about window retraction are true?</p>
+                <ol class="choices">
+                  <li>It can only happen when a non-zero shift count is in use.</li>
+                  <li>A receiver must honour a segment that was in window for an acknowledgement it has already sent.</li>
+                  <li>A sender may ignore the window for every retransmission of a segment.</li>
+                  <li>The worst case is 2^s bytes, where s is the shift count.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A and B</p>
+                <p>A follows from the arithmetic: with s = 0 the step is one byte and every window is expressible, so the bound is zero. B is the receiver's honour rule, which protects data already promised.</p>
+                <p>C is false: only the first retransmission has that allowance, and only when it is out of window by less than one step. D is false: the bound is 2^s − 1, because the true edge can sit just below the next expressible edge.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A SYN carries MSS (4 bytes), window scale (3), SACK-permitted (2), timestamps (10) and a TCP MD5 signature option (18). What happens?</p>
+                <ol class="choices">
+                  <li>The header is 62 bytes, which exceeds the maximum.</li>
+                  <li>The options total 37 bytes, pad to 40, and the header is 60 bytes.</li>
+                  <li>The options total 37 bytes and the header is 57 bytes.</li>
+                  <li>The MSS option must be dropped because the total exceeds 40.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>4 + 3 + 2 + 10 + 18 = 37, which rounds up to 40. The header is 20 + 40 = 60 bytes, exactly the ceiling the four-bit data offset allows.</p>
+                <p><strong>Why A appears.</strong> Padding each option separately and adding. <strong>Why C appears.</strong> Forgetting the rounding. <strong>Why D appears.</strong> Adding one more option than the question lists: 37 + 4 = 41 would indeed not fit, but no fifth option is present.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Every number below is computed by the page at load and is the same number the animation prints.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions and constants</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>TCP header: 20 bytes fixed, 60 bytes maximum, so 40 bytes of options.</li>
+            <li>Option lengths: MSS 4, window scale 3, SACK-permitted 2, timestamps 10, MD5 18.</li>
+            <li>Padding: the option area is a whole number of 32-bit words.</li>
+            <li>MSS: the effective MTU minus the fixed IP and TCP headers, counting data only.</li>
+            <li>Default send MSS with no option: 536 bytes.</li>
+            <li>Retraction bound: 2^s − 1 bytes, where one step is 2^s.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Procedures, in the order they are applied</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Add the option lengths, round the total up to a multiple of four, add 20 for the header.</li>
+            <li>Subtract the IP header and the whole TCP header from the MTU to get the data.</li>
+            <li>Compute the MSS as the MTU minus only the fixed headers, and never reduce it for options.</li>
+            <li>For a window, compute the step 2^s and list the edges from the acknowledgement.</li>
+            <li>Choose the largest edge that does not exceed the buffer, and state the shortfall.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The numbers worth carrying</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>19 bytes: the four handshake options, raw; 20 after rounding.</li>
+            <li>40 bytes: the header those options produce; 1440 bytes of data on Ethernet.</li>
+            <li>1460 and 1440: the MSS over IPv4 and over IPv6 on a 1500-byte MTU.</li>
+            <li>1520: the datagram produced by ignoring options, 20 bytes too large.</li>
+            <li>127 and 16,383: the worst retraction at shift 7 and at shift 14.</li>
+            <li>11.22: how many 1460-byte segments 16,383 bytes is.</li>
+          </ul>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The five slips</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Counting headers inside the MSS, which leaves a datagram 40 bytes short.</li>
+            <li>Reducing the advertised MSS for options, understating what the host can receive.</li>
+            <li>Assuming one shared MSS, when each direction has its own.</li>
+            <li>Reading 40 bytes as a per-option limit instead of the whole area.</li>
+            <li>Treating a shrinking window as an error rather than handling it.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Three sentences to carry into the exam</h3>
+          <p class="small">The header cannot grow past sixty bytes, so every option is paid for out of one forty-byte budget, and the sum of option lengths is rounded up to a whole number of words. The MSS is a promise about data only, computed from the MTU and the fixed headers, and options reduce the data in the segment rather than the promise. A scaled window can only name right edges that are whole steps from the acknowledgement, so a receiver may have to advertise a smaller window than before, by at most one step minus a byte, and both ends must handle it.</p>
+          <p class="small" style="margin-bottom:0">Quick revision questions, answers in the Practice tab: what is the header size for the four handshake options? What MSS does a 1500-byte IPv6 MTU give? What payload does a 20-byte option area leave on Ethernet? Which field is safe at acknowledgement 1045 with a step of 128? What is the retraction bound at shift 10?</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>What the research consulted</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>RFC 9293, "Transmission Control Protocol (TCP)"</strong> (Eddy, ed.; August 2022; obsoletes RFC 793, 879, 6691 and others). Read at datatracker.ietf.org on 2026-11-04. Supports the header format and the four-bit data offset, the option format (kind, length, data), the MSS option as kind 2 length 4, and the mandatory option set.</li>
+            <li><strong>RFC 6691, "TCP Options and Maximum Segment Size (MSS)"</strong> (Borman; July 2012). Read on 2026-11-04. Supports the rule that the MSS subtracts only the fixed IP and TCP headers, that options must not reduce the advertised MSS, that the sender must reduce the data instead, the 20/40-byte header sizes, and the IPv6 jumbogram exception of 65,535 as infinity.</li>
+            <li><strong>RFC 7323, "TCP Extensions for High Performance"</strong> (Borman, Braden, Jacobson, Scheffenegger; September 2014). Read on 2026-11-04. Supports the shift-count rules (section 2.3), window retraction (section 2.4) with its five rules, the appendix example (Appendix F), and the recommended two-NOP timestamps layout (Appendix A).</li>
+            <li><strong>RFC 1122, "Requirements for Internet Hosts"</strong>, quoted through RFC 6691's appendix: the default send MSS of 536 bytes when no option arrives, and section 4.2.2.16 on shrinking windows.</li>
+            <li><strong>IANA TCP parameters registry.</strong> Read on 2026-11-04 for the option kinds and lengths: MSS 2/4, window scale 3/3, SACK-permitted 4/2, timestamps 8/10, MD5 signature 19/18.</li>
+            <li><strong>GATE 2027 CS syllabus PDF, IIT Madras.</strong> Downloaded and read on 2026-11-04. Section 10 reads: "TCP- flow control and congestion control, socket API; DNS and HTTP." That is the clause this lesson is a mechanism for.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What each source supports, and what it does not</h3>
+          <p class="small">RFC 9293 supports the header ceiling and the option format. RFC 6691 supports the MSS arithmetic and the split between the promise and the payload. RFC 7323 supports the retraction rules and the example, whose four rows the page reproduces as arithmetic rather than as a quotation. The IANA registry supports the lengths.</p>
+          <p class="small" style="margin-bottom:0">None of them states that 40 bytes is a good design, and none gives a payload-efficiency formula; the efficiency figures are arithmetic on the sizes this page computes.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What was not verified, and the assumptions the model makes</h3>
+          <p class="small" style="margin-bottom:0">No previous-year question is reproduced or attributed anywhere on this page, and no claim is made about how often this topic appears in GATE CSE papers. The MSS values are computed from the MTU and the header sizes rather than copied from a table. The model assumes one path with a fixed MTU of 1500 bytes where a number is needed, IPv4 headers with no options, a receive buffer fixed for the life of the connection, and a shift count of 7 in the retraction example because that is the appendix's own example. It does not model path MTU discovery, IP options or extension headers, selective acknowledgement itself, or the congestion window, all of which are outside this lesson's scope and are owned by other lessons in this repository.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

@@ -88,6 +88,7 @@ lessons are static files and work from a local clone.
 | SMTP, FTP and Email: the three application protocols the 2027 clause dropped | Computer Networks | C — useful extension beyond the syllabus | `topics/smtp-ftp-and-email/index.html` |
 | TCP Flow Control, Congestion Control and the Socket API | Computer Networks | A — explicitly in the syllabus | `topics/tcp-flow-congestion-control-and-sockets/index.html` |
 | TCP's Retransmission Timeout: RTT Sampling, SRTT and RTTVAR, Karn's Algorithm and Backoff | Computer Networks | B — prerequisite for a syllabus topic | `topics/tcp-retransmission-timeout-and-rtt-estimation/index.html` |
+| TCP Options: the 40-Byte Budget, the MSS Arithmetic and Window Retraction | Computer Networks | B — prerequisite for a syllabus topic | `topics/tcp-options-mss-and-window-retraction/index.html` |
 | TCP Window Scaling and Timestamps: the 16-bit Window Field, the Shift Count, PAWS and RTTM | Computer Networks | B — prerequisite for a syllabus topic | `topics/tcp-window-scaling-and-timestamps/index.html` |
 | VLSM Subnet Design, Longest Prefix Match and Aggregation | Computer Networks | A — explicitly in the syllabus | `topics/vlsm-subnet-design-longest-prefix-and-aggregation/index.html` |
 | The Socket API and the Connection Lifecycle: Calls, Four-Tuples, TIME_WAIT and Port Exhaustion | Computer Networks | A — explicitly in the syllabus | `topics/socket-api-and-connection-lifecycle/index.html` |
