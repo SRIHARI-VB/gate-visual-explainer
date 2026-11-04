@@ -7961,6 +7961,55 @@ topics.append(topic(
         "the four-step procedure: closure, order-substitute-eliminate, factor, build the table"],
 ))
 
+# ---------------------------------------------------------------- Algorithms: correctness of a loop
+topics.append(topic(
+    "Algorithms",
+    "Correctness: the reasoning behind the searching and sorting clause",
+    "Algorithm correctness for loops: the invariant, the three obligations, and the variant that proves termination",
+    ["precondition, postcondition and what each one is allowed to say",
+     "partial correctness as a conditional, and termination as a separate claim",
+     "total correctness as the two together",
+     "the loop invariant and the three obligations",
+     "initialization as the base case and maintenance as the induction step",
+     "the exit argument: invariant together with the failed guard",
+     "the loop variant as a positive integer that strictly decreases",
+     "applying all four to binary search and to a running maximum"],
+    prereq=["binary-search-and-variants", "mathematical-induction"],
+    related=["binary-search-and-variants", "sorting-algorithms", "master-theorem-cases-and-boundaries",
+             "best-average-worst-and-amortised-analysis"],
+    importance="medium-high",
+    evidence=("Section 5 of the GATE 2027 CS syllabus published by IIT Madras prints 'Searching, sorting, "
+              "hashing.' and 'Asymptotic worst case time and space complexity.'; the words loop invariant are "
+              "not printed, so the lesson is class B and says so. One previous-year item on this exact program "
+              "was confirmed against a paper reproduction: GATE CSE 2008, 2-mark MCQ, the erroneous binary "
+              "search and the correction needed. No frequency is claimed from that single item."),
+    difficulty="medium",
+    status="PUBLISHED",
+    slug="algorithm-correctness-loop-invariants",
+    path="topics/algorithm-correctness-loop-invariants/index.html",
+    execution=("published 2026-11-04; 22 model checks over a 3,688-case enumeration, check-lesson run in the "
+               "same run"),
+    microtopics=[
+        "termination, partial correctness and complexity are three independent claims",
+        "an invariant is a statement about the top of the loop, not about every line",
+        "initialization plus maintenance is an induction on the iteration count",
+        "the exit argument needs the failed guard as well as the invariant",
+        "an invariant true but too weak proves nothing: lo >= 0 is the witness",
+        "the invariant is existential because a sorted array may hold duplicates",
+        "the variant is a different object from the invariant, and proves only termination",
+        "binary search: window sizes 10, 5, 2 for a present target and 10, 4, 1 for an absent one",
+        "the 2008 program keeps the probe inside the window, so the state 0,1 repeats for ever",
+        "the 2008 program answers wrongly 0 times and hangs 246 of 1260 present and 1490 of 2428 absent cases",
+        "option A restores termination but misses 407 of 1260 present targets",
+        "option A on the ten-value array is wrong for exactly 2, 12, 38 and 91",
+        "the complete fix is the two exclusions plus the guard lo <= hi, which misses none",
+        "a do-while cannot be guarded at the top, which breaks the empty-array case",
+        "the midpoint (lo+hi)/2 overflows a 32-bit int above 2^31-1; lo+(hi-lo)/2 does not",
+        "sortedness is needed by every exclusion step, and by no part of the termination argument",
+        "the running maximum: invariant about a prefix, variant n - i",
+        "one array length of ten values needs 36,288,000 test cases; the proof is four lines"],
+))
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -7997,6 +8046,7 @@ _RECHECKED = {
     "left-recursion-elimination-and-left-factoring": "2026-11-04",
     "myhill-nerode-and-distinguishability": "2026-11-04",
     "mensuration-and-geometry": "2026-11-04",
+    "algorithm-correctness-loop-invariants": "2026-11-04",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
