@@ -64,6 +64,7 @@ lessons are static files and work from a local clone.
 | I/O Interface, Interrupts and DMA | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/io-interface-interrupts-dma/index.html` |
 | Instruction Set and Addressing Modes | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/instruction-set-and-addressing-modes/index.html` |
 | Memory Hierarchy and Cache | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-hierarchy-and-cache/index.html` |
+| Two-Level Cache Arithmetic: AMAT, Local vs Global Miss Rate and CPI Stalls | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/two-level-cache-amat-and-cpi/index.html` |
 | Memory Interfacing and Interleaving | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/memory-interfacing-and-interleaving/index.html` |
 | Pipelining and Hazards | Computer Organization And Architecture | A — explicitly in the syllabus | `topics/pipelining-and-hazards/index.html` |
 | CPU Scheduling | Operating Systems | A — explicitly in the syllabus | `topics/cpu-scheduling/index.html` |

@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two-Level Cache Arithmetic: AMAT, Local vs Global Miss Rate, and CPI Stalls — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Two-level cache arithmetic</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../memory-hierarchy-and-cache/index.html">Related: memory hierarchy and cache</a>
+      <a href="../cpu-performance-cpi-mips-and-amdahl/index.html">Related: CPI and Amdahl</a>
+      <a href="../memory-interfacing-and-interleaving/index.html">Related: memory interfacing</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> The arithmetic of a two-level cache &mdash; average memory access time as a weighted average of three outcomes, its factored form, the two conventions for a level&rsquo;s stated time, local versus global miss rate, the equation that solving backwards produces, and the conversion of a per-access cost into CPI stall cycles.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a two-level hierarchy, write the three mutually exclusive outcomes of one access with their probabilities and path costs, compute the average both as a weighted sum and as T1 + m1&thinsp;T2 + m1&thinsp;m2&thinsp;T3, decide from the wording whether a printed time is a level&rsquo;s own time or already includes the levels above, tell a local from a global miss rate by its denominator, solve for a miss rate when the average is given, and convert the result into cycles per instruction.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the arithmetic of the hierarchy</em>, not a second lesson on mapping, replacement and the three Cs: <a href="../memory-hierarchy-and-cache/index.html">memory hierarchy and cache</a> owns offset/index/tag, the three mappings, LRU walks and the 3 C&rsquo;s, and it quotes the single-level average once. This page owns what that lesson only states: the multi-level average, both time conventions, both miss-rate denominators, and the move to CPI. Every number quoted here is computed by the page&rsquo;s own model in exact rational arithmetic, and 36 checks re-verify it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A &mdash; explicitly in the syllabus.</strong> Section 3 of the official GATE 2027 CS syllabus (IIT Madras) names &ldquo;Memory hierarchy: cache memory &ndash; mapping&rdquo;. The average-access-time arithmetic is the tool every question on that clause uses; the phrase &ldquo;average memory access time&rdquo; itself is not printed in the syllabus, so this page treats the clause as the authority and the arithmetic as its working part.</p>
+          <p class="small"><span class="claim-chip claim-chip--verified">Verified fact</span> Four previous-year questions are used here, each with its year and set: GATE CSE 2016 (average access time from two hit rates), GATE CSE 2017 Set 1 (a local miss rate from counts), GATE CSE 2017 Set 2 (both miss rates from an average), and GATE CSE 2025 Set 1 (inclusive times in nanoseconds, key 11.83&ndash;11.87). Each was read in a reproduction of the paper and is labelled where it appears.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> No frequency or marks-weightage figure is claimed. Question numbers differ between reproductions of the same paper, so each item is identified by year and set, not by a number.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Hit time, miss rate, miss penalty and what a block is &mdash; <a href="../memory-hierarchy-and-cache/index.html">memory hierarchy and cache</a>.</li>
+            <li>CPI, CPU time and the idea that a speedup is a ratio of CPIs &mdash; <a href="../cpu-performance-cpi-mips-and-amdahl/index.html">CPU performance</a>.</li>
+            <li>Multiplying probabilities for two events in sequence, and weighted averages.</li>
+            <li>The quadratic formula, and why a probability cannot be negative.</li>
+            <li>Clock cycles as the unit of cost; converting between cycles and nanoseconds needs the clock rate.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Five ideas this page establishes</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>One access has exactly three outcomes; their probabilities sum to one, and the average is their weighted sum.</li>
+            <li>Regrouping that sum gives T1 + m1&thinsp;T2 + m1&thinsp;m2&thinsp;T3 &mdash; an identity, not a mnemonic. Using m2 alone gives 26.8 cycles where the truth is 4.3.</li>
+            <li>A printed time may be a level&rsquo;s own time or already inclusive; the same GATE 2025 Set 1 data gives 11.85 ns or 12.5 ns depending on that reading.</li>
+            <li>Local miss rate divides by the accesses that reached the level, global by all accesses; they differ by exactly the factor m1.</li>
+            <li>A per-access cost becomes a per-instruction cost through the accesses-per-instruction figure, and the extra cost is AMAT minus the hit time, not AMAT.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The one sentence worth remembering</h3>
+          <p class="small" style="margin-bottom:0">Every two-level cache question is one partition &mdash; hit, miss-then-hit, miss twice &mdash; and every wrong option is that partition with one probability or one time misread.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Approximate study time</h3>
+          <p class="small" style="margin-bottom:0">About 55&ndash;70 minutes: 15 for the animation, 15 for the two conventions and the two denominators, 20 for the practice set, 10 for revision. The figure is approximate, not measured.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid">
+
+        <div class="card card--hero span-3">
+          <h3>Intuition first</h3>
+          <p class="small">You ask a librarian for a book. Most times the book is on the desk in front of her, and the answer takes a second. Sometimes she has to walk to the shelf in the room behind, which takes longer, and occasionally she has to phone the warehouse across town. Your average waiting time is not the average of one, ten and a hundred seconds: it depends on how often each trip happens. A book on the desk is the common case, so it dominates the average.</p>
+          <p class="small" style="margin-bottom:0">That is the entire content of average memory access time. The three trips cannot overlap and one of them always happens, so their frequencies add to one. Once you write the three frequencies down, the average is a weighted sum, and everything else on this page is a way of reading the question that tells you which numbers go into it.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Formal definition: the three outcomes</h3>
+          <p class="small">Let T1 be the L1 access time, T2 the L2 access time, T3 the main-memory access time, m1 the L1 miss rate and m2 the L2 <em>local</em> miss rate. One memory access ends in exactly one of three ways:</p>
+          <ul class="small">
+            <li><strong>L1 hit</strong> &mdash; probability 1 &minus; m1, cost T1.</li>
+            <li><strong>L1 miss, L2 hit</strong> &mdash; probability m1(1 &minus; m2), cost T1 + T2.</li>
+            <li><strong>Both miss</strong> &mdash; probability m1&thinsp;m2, cost T1 + T2 + T3.</li>
+          </ul>
+          <p class="small" style="margin-bottom:0">The three probabilities add to 1: (1 &minus; m1) + m1(1 &minus; m2) + m1&thinsp;m2 = 1. The second probability is a product because reaching L2 requires the first miss, and then L2 must also miss; that is the multiplication rule for two events in sequence.</p>
+        </div>
+
+        <div class="card">
+          <h3>The average, and its factored form</h3>
+          <p class="small">Average memory access time is the weighted sum of the three costs:</p>
+          <p class="small mono">AMAT = (1&minus;m1)T1 + m1(1&minus;m2)(T1+T2) + m1m2(T1+T2+T3)</p>
+          <p class="small">Every term contains T1, and the probabilities sum to 1, so T1 survives once. T2 is paid by the two outcomes that reach L2, whose probabilities sum to m1. T3 is paid only by the third outcome. Regrouping:</p>
+          <p class="small mono" style="margin-bottom:0">AMAT = T1 + m1&thinsp;T2 + m1&thinsp;m2&thinsp;T3</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Derivation</span> This is algebra on the same three lines, not a new formula, and the page&rsquo;s model checks the two forms against each other on 500 random configurations.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two time conventions</h3>
+          <p class="small"><strong>Own time:</strong> T2 is the cost of looking in L2 and nothing else, so the path cost of reaching main memory is T1 + T2 + T3. Add along the path. GATE CSE 2016 and 2017 Set 2 print times of this kind.</p>
+          <p class="small"><strong>Inclusive time:</strong> the printed figure for L2 already contains the L1 lookup and the transfer back, and the printed figure for main memory already contains both. Then the path costs are the printed numbers themselves, or equivalently the increments s1, s2 &minus; s1, s3 &minus; s2. GATE CSE 2025 Set 1 prints times of this kind.</p>
+          <p class="small" style="margin-bottom:0">Both readings are exact; the difference is what the number means. Adding an inclusive time to the level above it charges that level twice, which on the 2025 numbers gives 12.5 ns against a key of 11.83&ndash;11.87.</p>
+        </div>
+
+        <div class="card">
+          <h3>Local and global miss rate</h3>
+          <p class="small"><strong>Local</strong> miss rate of a level = misses in that level divided by the accesses that <em>reached</em> it. <strong>Global</strong> miss rate = misses in that level divided by all accesses to the cache system. They are one factor apart:</p>
+          <p class="small mono">global(L2) = m1 &times; local(L2)</p>
+          <p class="small" style="margin-bottom:0">A third number appears in papers too: misses per instruction, which is a count, not a rate. On GATE CSE 2017 Set 1 the three are 0.05 (local), 0.005 (global) and 0.007 (per instruction), and only one of them answers the question asked.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Hierarchical and simultaneous access</h3>
+          <p class="small"><strong>Hierarchical:</strong> the levels are consulted in turn, so a main-memory access pays T1 + T2 + T3 and an L1 hit pays only T1. This is the reading the formula above already assumes.</p>
+          <p class="small"><strong>Simultaneous:</strong> every level starts at once and the slowest started wins, so an L1 hit pays only T1 while the miss outcomes pay the whole time of the level that finally answers: h1&thinsp;T1 + (1&minus;h1)T2 + (1&minus;h1)(1&minus;h2)T3.</p>
+          <p class="small" style="margin-bottom:0">On the GATE CSE 2016 numbers these give 13.0 ns and 12.8 ns, and both are printed as options. The convention is a property of the hardware the question describes, so it has to be read, not assumed.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>From a per-access cost to CPI</h3>
+          <p class="small">A performance question wants cycles per instruction. The bridge is the number of memory accesses per instruction, call it a:</p>
+          <p class="small mono">stalls per instruction = a &times; (AMAT &minus; T1)</p>
+          <p class="small mono">CPI = base CPI + stalls per instruction</p>
+          <p class="small" style="margin-bottom:0">The subtraction is the assumption: the base CPI already pays one cycle for the access, so only the excess is a stall. Write that assumption next to the formula every time, because charging AMAT in full counts the L1 lookup twice.</p>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>Symbols, in words</h3>
+          <p class="small" style="margin-bottom:0"><span class="mono">T1, T2, T3</span> are the access times of L1, L2 and main memory. <span class="mono">m1</span> is the fraction of accesses that miss in L1. <span class="mono">m2</span> is the fraction of the accesses that reached L2 that miss there &mdash; the local rate. <span class="mono">m1&thinsp;m2</span> is the fraction of all accesses that reach main memory. <span class="mono">h1, h2</span> are hit rates, so h1 = 1 &minus; m1. <span class="mono">a</span> is memory accesses per instruction. <span class="mono">CPI</span> is clock cycles per instruction. <span class="mono">AMAT</span> is clock cycles (or nanoseconds) per memory access.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser&rsquo;s own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A two-level cache answers every access in exactly one of three ways.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Three levels, three outcomes</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A two-level cache answers every access in exactly one of three ways.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div class="grid">
+
+        <div class="card card--definition span-3">
+          <h3>Worked example 1 &mdash; the configuration used throughout, by both routes</h3>
+          <p class="small mono">T1 = 1, m1 = 0.10, T2 = 8, m2 = 0.25 (local), T3 = 100 cycles</p>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li><strong>The three outcomes.</strong> L1 hit: probability 0.90, cost 1. L1 miss then L2 hit: 0.10 &times; 0.75 = 0.075, cost 9. Both miss: 0.10 &times; 0.25 = 0.025, cost 109. <span class="muted">&mdash; 0.90 + 0.075 + 0.025 = 1, so nothing is missing.</span></li>
+            <li><strong>The weighted sum.</strong> 0.90(1) + 0.075(9) + 0.025(109) = 0.9 + 0.675 + 2.725 = 4.3 cycles. In exact fractions the terms are 9/10, 27/40 and 109/40, summing to 43/10.</li>
+            <li><strong>The factored form.</strong> 1 + 0.10(8) + 0.10(0.25)(100) = 1 + 0.8 + 2.5 = 4.3 cycles. Same number, fewer lines.</li>
+            <li><strong>Where the time goes.</strong> The main-memory term is 2.725 of the 4.3 cycles, about 63 per cent, although it happens on only 2.5 per cent of accesses.</li>
+            <li><strong>The wrong form.</strong> 1 + 0.10(8) + 0.25(100) = 26.8 cycles. It treats every access as if L1 had already failed.</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 2 &mdash; GATE CSE 2025 Set 1, inclusive times</h3>
+          <p class="small">L1 hit rate 0.95 at 10 ns; L2 hit rate 0.85 at 20 ns, stated to include the L1 miss penalty; main memory 200 ns, stated to include both. Average access time in ns?</p>
+          <p class="small">Probabilities: 0.95, 0.05 &times; 0.85 = 0.0425, 0.05 &times; 0.15 = 0.0075. Path costs are the printed times, 10, 20, 200.</p>
+          <p class="small mono">0.95(10) + 0.0425(20) + 0.0075(200) = 9.5 + 0.85 + 1.5 = 11.85 ns</p>
+          <p class="small">The increment route agrees: 10 + 0.05(10) + 0.0075(180) = 11.85.</p>
+          <p class="small" style="margin-bottom:0">The published key accepts 11.83 to 11.87. Adding the inclusive times again gives 12.5 ns, which the key rejects.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 3 &mdash; GATE CSE 2017 Set 1, which denominator</h3>
+          <p class="small">1.4 memory accesses per instruction; L1 miss rate 0.1; L2 experiences on average 7 misses per 1,000 instructions. Local miss rate of L2?</p>
+          <p class="small mono">1,000 instr &rarr; 1,400 accesses &rarr; 140 L1 misses &rarr; 7 L2 misses</p>
+          <p class="small mono">local = 7/140 = 0.05 &nbsp; global = 7/1400 = 0.005</p>
+          <p class="small" style="margin-bottom:0">The answer is 0.05. Dividing 7 by 1,000 gives 0.007, a miss count per instruction, which is neither of the two rates.</p>
+        </div>
+
+        <div class="card">
+          <h3>Worked example 4 &mdash; GATE CSE 2017 Set 2, solving backwards</h3>
+          <p class="small">L1 access 1 cycle, L2 access 8 cycles, main-memory miss penalty 18 cycles, L1 miss rate twice the L2 miss rate, average access time 2 cycles. Find both miss rates.</p>
+          <p class="small mono">1 + 8x + 18x(x/2) = 2 &rArr; 9x&sup2; + 8x &minus; 1 = 0</p>
+          <p class="small mono">x = (&minus;8 &plusmn; 10)/18 &rArr; x = 1/9 or x = &minus;1</p>
+          <p class="small">Reject &minus;1 because a probability cannot be negative. Check: 1 + 8/9 + 1/9 = 2.0 exactly.</p>
+          <p class="small" style="margin-bottom:0">So m1 = 0.111 and m2 = 0.056. The global miss rate of L2 is 1/162, about 0.0062.</p>
+        </div>
+
+        <div class="card card--takeaway span-3">
+          <h3>Worked example 5 &mdash; the same configuration as CPI, and two upgrades priced</h3>
+          <p class="small">Base CPI 1.0 and 1.4 memory accesses per instruction. The average access costs 4.3 cycles and a hit costs 1, so each access wastes 3.3 cycles. Stalls per instruction = 1.4 &times; 3.3 = 4.62, so CPI = 1.0 + 4.62 = 5.62. The split by level adds back: 1.4 &times; 0.10 &times; 8 = 1.12 for L2 lookups, and 1.4 &times; 0.025 &times; 100 = 3.5 for main memory.</p>
+          <p class="small">Halving m1 to 0.05 gives 1 + 0.4 + 1.25 = 2.65 cycles, stalls 2.31, CPI 3.31, speedup 5.62/3.31 = 1.70. Halving m2 to 0.125 gives 1 + 0.8 + 1.25 = 3.05 cycles, stalls 2.87, CPI 3.87, speedup 1.45.</p>
+          <p class="small" style="margin-bottom:0">The inner level wins because m1 multiplies both lower terms while m2 multiplies only the last one. Neither change halves the time: the base CPI of 1.0 is untouched, so halving the L1 miss rate cuts execution time by 41 per cent, not 50.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid">
+
+        <div class="card card--definition">
+          <h3>When a limit collapses the formula</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>m1 = 0.</strong> L1 never misses, so AMAT = T1 and the lower levels are irrelevant. This is the only case in which the m2-only form agrees with the truth, which is why a wrong formula can look right on a degenerate example.</li>
+            <li><strong>m2 = 0.</strong> L2 never misses, so the third term vanishes and AMAT = T1 + m1&thinsp;T2. Main memory is never reached.</li>
+            <li><strong>m2 = 1.</strong> Every L2 access misses, so the third term becomes m1&thinsp;T3: the hierarchy is effectively one level deep.</li>
+            <li><strong>One level only.</strong> Delete the L2 row and AMAT = T1 + m1&thinsp;T3, the single-level formula, with T3 playing the part of the miss penalty.</li>
+            <li><strong>T1 = 0.</strong> Physically impossible for a real cache, but some questions quote hit times of zero to focus on the misses; then AMAT = m1(T2 + m2&thinsp;T3) and the &ldquo;extra cost&rdquo; used for CPI is AMAT itself.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Three levels, and beyond</h3>
+          <p class="small">The pattern extends without new ideas: the average is the sum over outcomes, and each outcome&rsquo;s probability is a product of the miss rates above it.</p>
+          <p class="small mono">AMAT = T1 + m1&thinsp;T2 + m1&thinsp;m2&thinsp;T3 + m1&thinsp;m2&thinsp;m3&thinsp;T4</p>
+          <p class="small" style="margin-bottom:0">Each new level adds one term and multiplies the previous probability by one more miss rate. A four-level machine is the same three lines of algebra with a longer sum, and a question that gives three levels is testing exactly this, not a new formula.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Cases that break the simple reading</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Unified versus split caches.</strong> If instruction and data fetches share one L1, the accesses-per-instruction figure is 1 plus the fraction of instructions that load or store, not 1.0. A question that gives separate I and D caches expects you to count fetches and loads separately.</li>
+            <li><strong>Write-back traffic.</strong> A dirty block evicted from L2 costs an extra main-memory write. That traffic is not in the read-path AMAT and is usually given as a separate rate; do not fold it into m2 unless the question says so.</li>
+            <li><strong>Inclusive versus exclusive hierarchies.</strong> In an inclusive hierarchy a block in L1 is always in L2; in an exclusive one it is not, so a demotion between levels costs a transfer. Neither changes the AMAT algebra, but both change what m1 and m2 mean physically.</li>
+            <li><strong>Cycles versus nanoseconds.</strong> Mixing the two is the most common unit error. Convert with the clock rate once, at the end, and never inside the weighted sum.</li>
+            <li><strong>Average over what.</strong> AMAT is per memory access. If a question asks for time per instruction, the accesses-per-instruction factor belongs in the line.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>A boundary worth computing</h3>
+          <p class="small">The inclusive-time trap has a closed form: the gap between the naive reading and the correct one is m1(s1 + m2&thinsp;s2), which the model verifies on all 900 swept configurations. On the GATE CSE 2025 Set 1 numbers that is exactly 0.65 ns. With a 10 ns L1, a 20 ns inclusive L2 time and both miss rates at 30 per cent it reaches 4.8 ns.</p>
+          <p class="small" style="margin-bottom:0">The gap grows with m1, because m1 is the probability attached to the term that gets counted twice. That is why the trap is worth more marks on a question with a high miss rate than on one with a low one, and why a small gap still fails a two-decimal numerical answer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid">
+
+        <div class="card card--trap span-2">
+          <h3>Misconception 1 &mdash; &ldquo;the L2 term is m2 times the main-memory time&rdquo;</h3>
+          <p class="small">This is the single most common error on the topic, and it produces an answer several times too large.</p>
+          <p class="small"><strong>Counterexample.</strong> With T1 = 1, m1 = 0.10, T2 = 8, m2 = 0.25, T3 = 100 the m2-only form gives 26.8 cycles; the truth is 4.3. The model sweeps 400 combinations of the two rates and the two forms agree only when m1 = 1 &mdash; that is, when L1 never hits at all.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it feels right.</strong> m2 is called &ldquo;the L2 miss rate&rdquo;, and it is tempting to attach it to the L2 miss penalty. But the probability of reaching main memory is the probability of missing twice, m1&thinsp;m2, and the local rate alone describes only the accesses that already failed in L1.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 2 &mdash; &ldquo;add the printed times along the path&rdquo;</h3>
+          <p class="small">True only when the printed times are own times.</p>
+          <p class="small"><strong>Counterexample.</strong> GATE CSE 2025 Set 1 prints 20 ns for L2 <em>including the L1 miss penalty</em>. Adding 10 + 0.05(20) + 0.0075(200) gives 12.5 ns; the key is 11.83&ndash;11.87 and the correct figure is 11.85. The error is 0.65 ns, which is enough to fail a two-decimal range.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Write the three path costs before writing any formula. If a printed number already contains the level above, the path cost is that number.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 3 &mdash; &ldquo;a miss rate is a miss rate&rdquo;</h3>
+          <p class="small">Local and global rates differ by the factor m1, and questions use both words.</p>
+          <p class="small"><strong>Counterexample.</strong> GATE CSE 2017 Set 1: the local rate of L2 is 0.05 and the global rate is 0.005, ten times apart, because m1 = 0.1. Answering with the global figure is a wrong option, not a rounding difference.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Read the denominator printed in the sentence. &ldquo;Misses per 1000 instructions&rdquo; is a count; &ldquo;the miss rate of the L2 cache&rdquo; almost always means the local rate, because the global one is not a property of L2 alone.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 4 &mdash; &ldquo;AMAT is the cycles per instruction&rdquo;</h3>
+          <p class="small">AMAT is per access; CPI is per instruction. The bridge is the accesses-per-instruction figure.</p>
+          <p class="small"><strong>Counterexample.</strong> On this page AMAT is 4.3 cycles per access and the average instruction carries 1.4 accesses, so 6.02 cycles per instruction pass through memory while the stall cost is 4.62 cycles. Quoting 4.3 as a CPI understates the cost by a third.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Write the unit at the end of every line: cycles per access, cycles per instruction, nanoseconds per access.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Misconception 5 &mdash; &ldquo;halving the miss rate halves the time&rdquo;</h3>
+          <p class="small">A miss rate is one component of a sum, and the base CPI stays whatever you do to the cache.</p>
+          <p class="small"><strong>Counterexample.</strong> Halving m1 from 0.10 to 0.05 takes the CPI from 5.62 to 3.31: a speedup of 1.70 and a time cut of 41 per cent, not 50. Even an infinite cache leaves the CPI at 1.0, so the ceiling is 5.62.</p>
+          <p class="small" style="margin-bottom:0"><strong>Repair.</strong> Compute both CPIs and divide. The ratio of CPIs is the speedup, and it is always smaller than the ratio of the miss rates.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>The closely confused pair, side by side</h3>
+          <p class="small"><strong>Hierarchical</strong> and <strong>simultaneous</strong> access both describe a two-level cache and both produce a single average. They differ in what an L1 hit costs and what a miss costs:</p>
+          <ul class="small" style="margin-bottom:0">
+            <li>Hierarchical: an L1 hit pays T1, a main-memory access pays T1 + T2 + T3. Formula: T1 + m1&thinsp;T2 + m1&thinsp;m2&thinsp;T3. On GATE CSE 2016 data: 13.0 ns.</li>
+            <li>Simultaneous: an L1 hit pays T1, an L2 hit pays T2 only, a main-memory access pays T3 only. Formula: h1&thinsp;T1 + (1&minus;h1)T2 + (1&minus;h1)(1&minus;h2)T3. On the same data: 12.8 ns.</li>
+            <li>The 0.2 ns gap is smaller than the gap to most wrong options, which is exactly why the convention has to be read from the question and not guessed.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid">
+
+        <div class="card card--definition span-3">
+          <h3>Four verified previous-year shapes</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>GATE CSE 2016</strong> &mdash; two hit rates and three times, average access time asked. Shape: hierarchical weighted sum. Answer 13.0 ns; the simultaneous reading gives the printed distractor 12.8.</li>
+            <li><strong>GATE CSE 2017 Set 1</strong> &mdash; 1.4 accesses per instruction, an L1 miss rate and an L2 miss count per 1,000 instructions. Shape: denominator arithmetic. Answer 0.05.</li>
+            <li><strong>GATE CSE 2017 Set 2</strong> &mdash; three times and an average, both miss rates tied by &ldquo;twice&rdquo;. Shape: quadratic from the identity. Answers 0.111 and 0.056.</li>
+            <li><strong>GATE CSE 2025 Set 1</strong> &mdash; inclusive times and two hit rates, a numerical answer in nanoseconds. Shape: outcome-weighted sum with the printed times as path costs. Answer 11.85, key 11.83&ndash;11.87.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>The procedure that works on all four</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>List the three outcomes and write each probability as a product of the miss rates above it.</li>
+            <li>Check the three probabilities sum to 1 before computing anything.</li>
+            <li>Decide whether each printed time is own or inclusive; write the three path costs in the question&rsquo;s unit.</li>
+            <li>Multiply and add, exactly, and only then round to the precision asked.</li>
+            <li>Name the substitution behind each distractor you can see in the options.</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>What each distractor usually is</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Far too large &mdash; the m2-only form, or a local rate used as a global one.</li>
+            <li>Slightly too large &mdash; inclusive times added along the path (12.5 against 11.85).</li>
+            <li>Slightly too small &mdash; the simultaneous reading where hierarchical was meant (12.8 against 13.0).</li>
+            <li>Off by the accesses-per-instruction factor &mdash; per-access used as per-instruction.</li>
+            <li>Exactly one of two symmetric values &mdash; the two miss rates swapped, which happens when m1 and m2 are confused.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>How this connects to the rest of the syllabus</h3>
+          <p class="small" style="margin-bottom:0">The CPI arithmetic here is the same arithmetic as <a href="../cpu-performance-cpi-mips-and-amdahl/index.html">CPU performance</a>, and the Amdahl argument that limits every upgrade is that lesson&rsquo;s subject. The mapping, replacement and 3 C&rsquo;s that decide <em>which</em> miss rate you get are in <a href="../memory-hierarchy-and-cache/index.html">memory hierarchy and cache</a>. Block transfer sizes and the number of memory cycles per block belong to <a href="../memory-interfacing-and-interleaving/index.html">memory interfacing and interleaving</a>. A pipeline stall caused by a cache miss is priced in <a href="../pipelining-and-hazards/index.html">pipelining and hazards</a>, using the same stall-cycle idea with a different source of stalls.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div class="grid">
+
+        <div class="card card--recessed span-3">
+          <h3>Twelve questions: four verified previous-year items and eight originals</h3>
+          <p class="small" style="margin-bottom:8px">Q7, Q8, Q9 and Q10 are <strong>verified GATE previous-year questions</strong>, each with its year and set, confirmed against a reproduction of the paper. The other eight are <strong>original GATE-style questions</strong> written for this page; they are not previous-year questions and are not labelled as such.</p>
+          <p class="small muted" style="margin-bottom:0">Every numeric answer below was computed by this page&rsquo;s own model in exact rational arithmetic, not quoted from a key. <label class="small" style="margin-left:6px"><input type="checkbox" id="mock-toggle"> Mock-test mode (answers stay hidden until you submit)</label> <button class="btn" id="mock-submit" hidden>Submit all</button></p>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>In the factored form of average memory access time for a two-level cache, which quantity multiplies T3, the main-memory access time?</p>
+            <ol class="choices">
+              <li>m2, the local L2 miss rate.</li>
+              <li>m1, the L1 miss rate.</li>
+              <li>The product m1&thinsp;m2.</li>
+              <li>The sum m1 + m2.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (C).</strong> Main memory is reached only when both levels miss, and the two misses happen in sequence, so the probability is m1&thinsp;m2.</p>
+            <p class="small">(A) is the classic error and gives 26.8 instead of 4.3 on the page&rsquo;s configuration. (B) is the probability of reaching L2, which multiplies T2. (D) can exceed 1 and is not a probability.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>A two-level cache has T1 = 2 cycles, m1 = 0.08, T2 = 12 cycles, m2 = 0.30 (local), and a main-memory access time of 150 cycles. All times are own times. Find the average memory access time in cycles.</p>
+            <p class="muted">Answer to two decimal places.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 6.56 cycles.</strong> 2 + 0.08(12) + 0.08(0.30)(150) = 2 + 0.96 + 3.6 = 6.56.</p>
+            <p class="small">The three outcome probabilities are 0.92, 0.08 &times; 0.70 = 0.056 and 0.024, and 0.92(2) + 0.056(14) + 0.024(164) = 1.84 + 0.784 + 3.936 = 6.56, which agrees. Using m2 alone in the last term would give 47.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>A cache system has an L1 miss rate of 0.05 and an L2 local miss rate of 0.20. What is the fraction of all memory accesses that reach main memory?</p>
+            <ol class="choices">
+              <li>0.20</li>
+              <li>0.25</li>
+              <li>0.01</li>
+              <li>0.15</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (C).</strong> 0.05 &times; 0.20 = 0.01, the global miss rate of L2.</p>
+            <p class="small">(A) is the local rate, which is what fraction of <em>L2 accesses</em> miss. (B) adds the rates, which is meaningless because they have different denominators. (D) subtracts them, the same error in the other direction.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>L1 hit rate 0.90 at 1 ns. L2 hit rate 0.60 at 5 ns, stated to include the L1 miss penalty. Main memory 100 ns, stated to include both penalties. Find the average access time in nanoseconds.</p>
+            <p class="muted">Answer to one decimal place.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 5.2 ns.</strong> Probabilities 0.90, 0.10 &times; 0.60 = 0.06, 0.10 &times; 0.40 = 0.04. 0.90(1) + 0.06(5) + 0.04(100) = 0.9 + 0.3 + 4.0 = 5.2.</p>
+            <p class="small">The increment route agrees: 1 + 0.10(4) + 0.04(95) = 1 + 0.4 + 3.8 = 5.2. Adding the inclusive times again gives 1 + 0.10(5) + 0.04(100) = 5.5, which is wrong.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>A processor has base CPI 2.0, 1.2 memory accesses per instruction, and an average memory access time of 3.5 cycles with an L1 hit time of 1 cycle. What is its CPI?</p>
+            <ol class="choices">
+              <li>4.2</li>
+              <li>5.0</li>
+              <li>6.2</li>
+              <li>3.5</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (B).</strong> Extra cost per access = 3.5 &minus; 1 = 2.5; stalls = 1.2 &times; 2.5 = 3.0; CPI = 2.0 + 3.0 = 5.0.</p>
+            <p class="small">(A) forgets the accesses-per-instruction factor (2.0 + 2.5 &minus; 0.3). (C) charges the full 3.5 per access instead of the extra 2.5. (D) is the average access time used as a CPI, ignoring the base.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--msq">MSQ</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>Which of the following are true of a two-level cache with own access times?</p>
+            <ol class="choices">
+              <li>The three outcome probabilities sum to 1.</li>
+              <li>The global miss rate of L2 is m1 times its local miss rate.</li>
+              <li>Halving m1 always halves the average access time.</li>
+              <li>If m1 = 0, the average equals T1 whatever m2 is.</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A), (B) and (D).</strong></p>
+            <p class="small">(A) holds because the outcomes are exhaustive and disjoint. (B) is the definition of the two denominators. (D) holds because every other term carries a factor m1.</p>
+            <p class="small">(C) is false: the average is T1 + m1&thinsp;T2 + m1&thinsp;m2&thinsp;T3, so halving m1 halves the two lower terms but not T1. On the page&rsquo;s configuration it takes 4.3 to 2.65, not to 2.15.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--pyq">GATE CSE 2017 Set 1</span></div>
+          <div class="q-body small">
+            <p>Consider a two-level cache hierarchy with L1 and L2 caches. An application incurs 1.4 memory accesses per instruction on average. For this application, the miss rate of L1 cache is 0.1; the L2 cache experiences, on average, 7 misses per 1,000 instructions. What is the miss rate of L2, correct to two decimal places?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 0.05.</strong> 1,000 instructions carry 1,400 accesses; 10 per cent of them miss in L1, which is 140 misses; 7 of those 140 reach main memory, so the local L2 miss rate is 7/140 = 0.05.</p>
+            <p class="small">The published answer is 0.05. The trap is dividing 7 by 1,000, which gives 0.007 &mdash; a count per instruction, not a rate over L2 accesses. The global miss rate, 0.005, is a third quantity and is not what the question asks for.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--mcq">MCQ</span> <span class="badge badge--pyq">GATE CSE 2017 Set 2</span></div>
+          <div class="q-body small">
+            <p>In a two-level cache system, the access times of L1 and L2 caches are 1 and 8 clock cycles respectively. The miss penalty from the L2 cache to main memory is 18 clock cycles. The miss rate of L1 cache is twice that of L2. The average memory access time of this cache system is 2 cycles. The miss rates of L1 and L2 respectively are:</p>
+            <ol class="choices">
+              <li>0.111 and 0.056</li>
+              <li>0.056 and 0.111</li>
+              <li>0.0892 and 0.1784</li>
+              <li>0.1784 and 0.0892</li>
+            </ol>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: (A).</strong> With x = m1 and m2 = x/2: 1 + 8x + 18x(x/2) = 2, so 9x&sup2; + 8x &minus; 1 = 0, whose roots are 1/9 and &minus;1. A rate cannot be negative, so x = 0.111 and m2 = 0.056.</p>
+            <p class="small">(B) swaps the two rates, which the factor of two forbids. (C) and (D) come from misreading the 18 as an own L2 time rather than a main-memory penalty, which changes which term carries the square.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--pyq">GATE CSE 2016</span></div>
+          <div class="q-body small">
+            <p>Consider a system with a two-level cache and main memory. The L1 cache has an access time of 1 ns and a hit rate of 0.8; the L2 cache has an access time of 10 ns and a hit rate of 0.9; main memory has an access time of 500 ns. What is the average access time of the system in ns, ignoring the search time within the cache?</p>
+            <p class="muted">Treat the levels as hierarchical, with each time being that level&rsquo;s own time.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 13.0 ns.</strong> 1 + 0.2(10) + 0.2(0.1)(500) = 1 + 2 + 10 = 13.0.</p>
+            <p class="small">The simultaneous reading gives 0.8(1) + 0.2(10) + 0.02(500) = 12.8 ns, which is a printed distractor on that paper. The accepted answer is 13.0, so the intended hardware is hierarchical.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--pyq">GATE CSE 2025 Set 1</span></div>
+          <div class="q-body small">
+            <p>A computer has a memory hierarchy with a two-level cache (L1 and L2) and a main memory. An access looks in L1, then L2, then main memory. The L1 hit rate is 0.95 with an access time of 10 ns. The L2 hit rate is 0.85 with an access time of 20 ns, stated to include the L1 miss penalty. Main memory takes 200 ns, stated to include both cache miss penalties. Find the average memory access time in ns.</p>
+            <p class="muted">Answer to two decimal places.</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 11.85 ns.</strong> The probabilities are 0.95, 0.05 &times; 0.85 = 0.0425 and 0.05 &times; 0.15 = 0.0075, and the path costs are the printed inclusive times 10, 20 and 200: 9.5 + 0.85 + 1.5 = 11.85.</p>
+            <p class="small">The published key accepts 11.83 to 11.87. Adding the inclusive times along the path gives 12.5, which is outside the range; the difference is that the L1 lookup gets charged twice.</p>
+          </div>
+        </div>
+
+        <div class="question card">
+          <div class="q-head"><span class="badge badge--nat">NAT</span> <span class="badge badge--orig">Original practice</span></div>
+          <div class="q-body small">
+            <p>Take the page&rsquo;s configuration (T1 = 1, m1 = 0.10, T2 = 8, m2 = 0.25, T3 = 100 cycles) with base CPI 1.0 and 1.4 memory accesses per instruction. An engineer halves the L1 miss rate. What is the resulting speedup, correct to two decimal places?</p>
+          </div>
+          <button class="reveal">Show answer</button>
+          <div class="answer" hidden>
+            <p class="small"><strong>Answer: 1.70.</strong> New average = 1 + 0.05(8) + 0.05(0.25)(100) = 2.65 cycles; stalls = 1.4 &times; 1.65 = 2.31; CPI = 3.31. Speedup = 5.62 / 3.31 = 1.70.</p>
+            <p class="small">Halving the L2 local miss rate instead gives CPI 3.87 and a speedup of 1.45, so the inner level is the better investment here. Neither change gives 2.00, because the base CPI of 1.0 is unaffected by any cache improvement.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid">
+
+        <div class="card card--definition">
+          <h3>Definitions in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>AMAT:</strong> average cycles (or time) per memory access.</li>
+            <li><strong>Own time:</strong> a level&rsquo;s access time with nothing else in it.</li>
+            <li><strong>Inclusive time:</strong> a level&rsquo;s stated time that already contains the levels above.</li>
+            <li><strong>Local miss rate:</strong> misses over the accesses that reached that level.</li>
+            <li><strong>Global miss rate:</strong> misses over all accesses to the cache system.</li>
+            <li><strong>Hierarchical access:</strong> levels consulted in turn, times add along the path.</li>
+            <li><strong>Simultaneous access:</strong> levels started together, slowest started wins.</li>
+            <li><strong>Stall cycles per instruction:</strong> accesses per instruction times the excess cost per access.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Formulas and their conditions</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Probabilities: 1 &minus; m1, m1(1 &minus; m2), m1&thinsp;m2; they sum to 1 (two levels, sequential).</li>
+            <li>Weighted average: &Sigma; p&thinsp;&times;&thinsp;path cost (always true, any convention).</li>
+            <li>Factored form: T1 + m1&thinsp;T2 + m1&thinsp;m2&thinsp;T3 (own times, hierarchical).</li>
+            <li>Increment form: s1 + m1(s2 &minus; s1) + m1&thinsp;m2(s3 &minus; s2) (inclusive times, hierarchical).</li>
+            <li>Simultaneous: h1&thinsp;T1 + (1&minus;h1)T2 + (1&minus;h1)(1&minus;h2)T3.</li>
+            <li>Three levels: add the term m1&thinsp;m2&thinsp;m3&thinsp;T4.</li>
+            <li>CPI: base + a(AMAT &minus; T1); speedup = old CPI / new CPI.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Decision procedure</h3>
+          <ol class="step-list small" style="margin-bottom:0">
+            <li>Write the three outcomes with a probability and a path cost each.</li>
+            <li>Check the probabilities sum to 1.</li>
+            <li>Fix the convention: own or inclusive; hierarchical or simultaneous.</li>
+            <li>Fix the unit: cycles or nanoseconds, per access or per instruction.</li>
+            <li>Weight, add, and only then round.</li>
+            <li>If a rate is unknown, solve; keep the root in [0, 1].</li>
+          </ol>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Traps, each with its number</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>&ldquo;m2 times T3&rdquo; &rarr; 26.8 against the true 4.3 cycles.</li>
+            <li>&ldquo;add inclusive times&rdquo; &rarr; 12.5 against 11.85 ns.</li>
+            <li>&ldquo;global as local&rdquo; &rarr; 0.005 against 0.05.</li>
+            <li>&ldquo;per access as per instruction&rdquo; &rarr; 4.3 against 6.02 cycles.</li>
+            <li>&ldquo;both roots are answers&rdquo; &rarr; the &minus;1 root is not a rate.</li>
+            <li>&ldquo;halving the miss rate halves the time&rdquo; &rarr; 1.70, not 2.00.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway span-2">
+          <h3>Six quick revision questions, answers inverted</h3>
+          <p class="small">1. What multiplies T3 in a two-level average? <span class="muted">&mdash; m1&thinsp;m2, the probability of reaching main memory.</span></p>
+          <p class="small">2. What is the relation between the two miss-rate denominators? <span class="muted">&mdash; global = m1 &times; local.</span></p>
+          <p class="small">3. When may you add the printed times along the path? <span class="muted">&mdash; only when each is a level&rsquo;s own time.</span></p>
+          <p class="small">4. What does GATE CSE 2016 distinguish by 13.0 against 12.8? <span class="muted">&mdash; hierarchical against simultaneous access.</span></p>
+          <p class="small">5. Why is the extra cost AMAT &minus; T1 and not AMAT? <span class="muted">&mdash; the base CPI already pays for one access.</span></p>
+          <p class="small" style="margin-bottom:0">6. Which level is worth improving first? <span class="muted">&mdash; the inner one: its miss rate multiplies every level below it.</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid">
+
+        <div class="card card--definition span-2">
+          <h3>Official</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>GATE 2027 CS syllabus, IIT Madras &mdash; <span class="mono">gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</span>, read 2026-11-05. Section 3 prints &ldquo;Memory hierarchy: cache memory &ndash; mapping&rdquo;. Supports the syllabus classification only; it says nothing about the arithmetic taught here.</li>
+            <li>GATE CSE 2025 Set 1, the two-level cache numerical-answer question &mdash; read as a reproduction of the paper; its published key is 11.83 to 11.87 ns. Supports Worked example 2 and the inclusive-time discussion.</li>
+            <li>GATE CSE 2017 Set 1, the local-miss-rate question, and GATE CSE 2017 Set 2, the two-miss-rate question &mdash; read as reproductions with published keys 0.05 and 0.111 / 0.056. Support Worked examples 3 and 4.</li>
+            <li>GATE CSE 2016, the two-level average-access-time question with the option set 13.0 / 12.8 / 12.6 / 12.4 &mdash; read as a reproduction. Supports the hierarchical-against-simultaneous discussion.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Textbook and course material</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>Hennessy and Patterson, <em>Computer Architecture: A Quantitative Approach</em> &mdash; the AMAT definition, the hierarchical and simultaneous formulas, and the CPI stall-cycle decomposition. Used for the structure of the arithmetic; not quoted verbatim.</li>
+            <li>Patterson and Hennessy, <em>Computer Organization and Design</em>, the memory-hierarchy chapter &mdash; local and global miss rates, and the &ldquo;misses per instruction&rdquo; measure.</li>
+            <li>NPTEL and standard Indian university course notes on computer organization &mdash; the convention that GATE keys follow when a question is silent, namely hierarchical access with own times.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Community material, used with care</h3>
+          <ul class="small src-list" style="margin-bottom:0">
+            <li>GATE Overflow discussion threads for the four previous-year questions &mdash; used to see which substitutions appear as distractors, and to notice that a widely posted 12.5 ns answer for GATE CSE 2025 Set 1 was corrected by the official key. Used as an observation about errors, not as authority.</li>
+            <li>Exam archive sites reproducing the same papers &mdash; used to cross-check the wording and the option sets. Question numbering differs between reproductions, so items are cited by year and set.</li>
+          </ul>
+        </div>
+
+        <div class="card card--recessed">
+          <h3>What this research did not cover</h3>
+          <p class="small" style="margin-bottom:0">No previous-year paper was read end to end, so no frequency or weightage claim is made. The inclusive-time question&rsquo;s official key was read from a reproduction that quotes it, not from the official PDF. No audio is shipped: the narration is a script plus optional browser speech synthesis, whose voice availability differs by platform.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../../assets/p5-version.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="timeline.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
