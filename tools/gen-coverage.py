@@ -7782,6 +7782,69 @@ topics.append(topic(
         "the four-step procedure and the two verdicts reported separately"],
 ))
 
+# ---------------------------------------------------------------- Compiler Design (grammar transformation for LL(1))
+topics.append(topic(
+    "Compiler Design",
+    "Analysis: parsing (Section 7) \u2014 the preprocessing step the parsing survey names and does not build",
+    "Eliminating left recursion (immediate, indirect and hidden) and left factoring a shared prefix",
+    ["left recursion as A => A gamma, and its three routes",
+     "the left-corner relation and the closure test",
+     "the direct rewrite and the epsilon that carries 'zero or more'",
+     "the production count n + m + 1",
+     "the ordered algorithm for indirect recursion",
+     "left factoring, longest prefix first, repeated to a fixed point",
+     "what each transformation preserves, and what it does not",
+     "why neither transformation is sufficient for LL(1)"],
+    prereq=["lexical-analysis-parsing-and-sdt", "context-free-grammars-and-pushdown-automata"],
+    related=["lexical-analysis-parsing-and-sdt", "canonical-lr1-items-and-lalr-merging",
+             "deterministic-pda-and-dcfl", "chomsky-hierarchy", "parser-error-detection-and-recovery"],
+    importance="high",
+    evidence=("Section 7 of the GATE 2027 CS syllabus (IIT Madras, CS_GATE2027_Syllabus.pdf, read 2026-11-04) prints "
+              "'Lexical analysis, parsing, syntax-directed translation.'; grammar transformation for top-down parsing is "
+              "the standard content of the word 'parsing' in that clause, and the prerequisite lesson on LL(1) parsing "
+              "names left-recursion elimination and left factoring as a preprocessing step without building it. Two "
+              "previous-year items are reproduced on the page because their year and question number were confirmed: "
+              "GATE CSE 1998 Q6b (the grammar S -> Aa | b, A -> Ac | Sd | epsilon, answered 7 productions, which the "
+              "model derives and then compares with the published answer) and GATE CSE 2003 Q16 (answer: none of the "
+              "above). No frequency or weightage claim is made."),
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="left-recursion-elimination-and-left-factoring",
+    path="topics/left-recursion-elimination-and-left-factoring/index.html",
+    execution=("published 2026-11-04; 19 model checks over 4 exhaustive language enumerations, check-lesson PASS, "
+               "geometry audit clean after three overlap fixes"),
+    microtopics=[
+        "a left-recursive rule expands without consuming a character, so the parser never reaches the input",
+        "the loop is in the parser, not in the language",
+        "a shared prefix is a table conflict, not a loop",
+        "neither transformation belongs to the LL(1) construction; both run before it",
+        "A -> A alpha | beta is beta followed by any number of alpha",
+        "the direct rewrite: A -> beta A', A' -> alpha A' | epsilon",
+        "the helper encodes 'zero or more'; the epsilon is the base case",
+        "deleting the epsilon empties the language: 4 strings up to length 7 become 0",
+        "the count n + m + 1, applied per rewritten nonterminal",
+        "four alternatives become five: S -> Sa | Sb | c | d",
+        "an empty beta is still a base alternative: A -> bdA' | A'",
+        "a nonterminal with no base alternative generates nothing, and the rewrite keeps that",
+        "the rewrite preserves the language and changes the parse trees",
+        "10 - 3 - 2 is 5 under the left-recursive grammar and 9 after the rewrite",
+        "left recursion is A => A gamma, not 'a rule beginning with its own left side'",
+        "the left-corner relation, with the nullable-prefix jump",
+        "indirect recursion: S => Aa => Sda, so S and A are both left recursive",
+        "hidden recursion: A -> B A a with B nullable, which the one-step scan misses",
+        "the ordered algorithm: substitute earlier nonterminals, then remove what is immediate",
+        "GATE CSE 1998 Q6b: 5 productions become 7, and the 17 strings up to length 5 are unchanged",
+        "left factoring: A -> alpha beta1 | alpha beta2 becomes A -> alpha A', A' -> beta1 | beta2",
+        "factoring uses the longest common prefix and repeats to a fixed point",
+        "abc | abd | ae needs two passes and 3 productions become 5",
+        "the primes record the pass order, not the nesting",
+        "the factored dangling else still conflicts at M[S', e]",
+        "S -> A | B, A -> a, B -> a has neither defect and is still not LL(1): GATE CSE 2003 Q16",
+        "both transformations are necessary conditions; the table is the test",
+        "the ordered algorithm assumes no cycles and no epsilon-productions in its input",
+        "the four-step procedure: closure, order-substitute-eliminate, factor, build the table"],
+))
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -7815,6 +7878,7 @@ _RECHECKED = {
     "symbol-table-organisation-and-scope": "2026-11-03",
     "counting-eulerian-circuits-best-theorem": "2026-11-03",
     "view-serialisability-and-blind-writes": "2026-11-04",
+    "left-recursion-elimination-and-left-factoring": "2026-11-04",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
