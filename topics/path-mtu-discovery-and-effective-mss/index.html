@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Path MTU Discovery and the Effective Send Size — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Path MTU discovery and the effective send size</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-options-mss-and-window-retraction/index.html">Prerequisite: the MSS option</a>
+      <a href="../ip-fragmentation-cidr-and-nat/index.html">Related: fragmentation</a>
+      <a href="../ip-support-protocols-arp-dhcp-icmp/index.html">Related: ICMP</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Path MTU discovery, and the effective send size it produces: the path MTU as the smallest hop on the way, the Don't Fragment probe and the ICMP message that answers it, the Next-Hop MTU field, the plateau table used when that field is empty, the floors of 68 and 1280, and what a sender does when the answer never comes.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a list of hop MTUs, state the path MTU and the largest segment that fits over IPv4 and over IPv6. Given a peer's advertised MSS and a path, compute the effective send size and the datagram it builds. Given a returned total length and no next-hop MTU, run the plateau search and state how far it lands below the truth. Given a message reporting a value below a floor, say whether it is accepted.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the discovery procedure and the arithmetic it feeds</em>: the MSS lesson before this one computes a promise from a local link, and this page supplies the other half, the size the path will actually carry.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite mechanism for a named clause.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus, read from the official PDF on 2026-11-04, prints: <em>"TCP- flow control and congestion control, socket API; DNS and HTTP."</em> A TCP sender chooses its segment size from this mechanism, so the flow-control clause cannot be applied without it.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>path MTU</em>, <em>fragmentation needed</em> and <em>plateau</em> are <strong>not</strong> printed in the 2027 syllabus. The class-B label rests on the mechanism, and no claim is made here about how often it appears in past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The topic is examinable because every step is a subtraction of named header sizes and a comparison against a ceiling, followed by a minimum of two numbers.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../tcp-options-mss-and-window-retraction/index.html">The MSS option</a> — that the MSS counts data only, and is the datagram size minus 40.</li>
+            <li><a href="../ip-fragmentation-cidr-and-nat/index.html">IP fragmentation</a> — the MTU, the DF bit, the identification and offset fields.</li>
+            <li><a href="../ip-support-protocols-arp-dhcp-icmp/index.html">ICMP</a> — the message types and how a router reports a drop.</li>
+            <li>Arithmetic: subtraction from a fixed ceiling, taking a minimum of several numbers, and percentages.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">No network and no simulator are needed. Every number on the page is computed when the page loads.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>The path is the minimum</strong> of its hops, and the first hop is only a starting guess.</li>
+            <li><strong>DF plus a message</strong> turns a silent drop into a measurement: one step per decrease.</li>
+            <li><strong>The field counts headers:</strong> 1400 means 1400 with the IP header, so 1360 of data.</li>
+            <li><strong>Floors hold:</strong> 68 octets over IPv4, 1280 over IPv6, and a lower report is discarded.</li>
+            <li><strong>Silence needs a fallback:</strong> clamp the MSS, or probe without ICMP.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the arithmetic needs them. <strong>1</strong> A promise of 1460 against a 1400-byte path, and the 100-byte gap. <strong>2</strong> Four paths as rows of hops, with the smallest hop and the MSS that follows. <strong>3</strong> The probe: DF, the refusal, the message, the smaller datagram. <strong>4</strong> The message header, and the two bytes that carry the answer. <strong>5</strong> The effective size as a minimum of two numbers, checked in bytes on the wire. <strong>6</strong> The eleven plateaus, and the search that lands 394 bytes low. <strong>7</strong> Five rules and four timers. <strong>8</strong> IPv6: no DF bit, a floor of 1280, and a message to discard. <strong>9</strong> The black hole, and the two cures. <strong>10</strong> The chain of five steps and the five slips.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>How to study this lesson</h3>
+          <p class="small">Approximate study time: 45–65 minutes, which is an estimate and not a measurement. Watch the Animation tab once with captions on, then read Examples, then take Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">The page recomputes everything it shows when it loads: it takes the minimum of each hop list, derives every MSS from its path MTU, runs the plateau search, checks both floors, and prints the number of checks that passed under the canvas, so a wrong figure would show there before you read it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a doorway you cannot see</h3>
+          <p class="small">You are carrying parcels through a building whose doorways are of different widths, and you cannot see the narrowest one. You know the width of the first door, because you are standing in it. So you build a parcel to fit that door and set off. When it does not fit, someone at the narrow doorway sends back a note saying how wide the door is, and you rebuild the parcel to that width. Nothing tells you the width in advance; the note is the only measurement you get.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The doorway explains why the first hop is the only starting point; it does not explain why the note counts the parcel's own wrapper, which scene 4 supplies.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Vocabulary, every term in words</h3>
+          <p class="small"><strong>Link MTU</strong> — the largest datagram one link carries without fragmenting.</p>
+          <p class="small"><strong>Path MTU</strong> — the smallest link MTU over all the links on the path.</p>
+          <p class="small"><strong>DF bit</strong> — the Don't Fragment flag in an IPv4 header; a router may not fragment the datagram.</p>
+          <p class="small"><strong>Datagram Too Big</strong> — RFC 1191's name for ICMP type 3 code 4.</p>
+          <p class="small"><strong>Next-Hop MTU</strong> — the 16-bit field that message carries, counting the IP header.</p>
+          <p class="small"><strong>Plateau</strong> — a table value standing for a group of similar real MTUs.</p>
+          <p class="small"><strong>Packet Too Big</strong> — the IPv6 message, ICMPv6 type 2, carrying an MTU.</p>
+          <p class="small" style="margin-bottom:0"><strong>Black hole</strong> — a path that drops packets without returning the message that explains why.</p>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="margin-top:0">
+        <div class="card card--definition">
+          <h3>Why a host cannot simply ask</h3>
+          <p class="small">No field in IPv4 or IPv6 carries the path MTU. Routers know only their own next hop, and the path is a property of the whole route, which may change between two datagrams. The only number a host has at the start is the MTU of the link it is attached to.</p>
+          <p class="small" style="margin-bottom:0">So discovery is a conversation: send something too large, learn, send smaller. The design question is how few messages that conversation can take, and the Next-Hop MTU field is the answer to it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>What fragmentation would have cost</h3>
+          <p class="small">Before discovery, a host could let routers fragment. Then a 1500-byte datagram on a 1400-byte path becomes a 1400-byte fragment and a 100-byte fragment, and the loss of either one costs the whole datagram a retransmission.</p>
+          <p class="small" style="margin-bottom:0">Fragmentation is not wrong, it is expensive: it multiplies the number of things that can be lost per unit of data. Discovery avoids it by never producing the second fragment.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>The 576-octet rule, in one line</h3>
+          <p class="small">RFC 1191 quotes RFC 1122's rule: a host must not send an IP datagram larger than 576 octets unless it has permission from the receiver. For TCP, that permission is the peer's MSS, so the limit is 40 plus the peer's MSS.</p>
+          <p class="small" style="margin-bottom:0">A default datagram of 576 gives a default MSS of 536, and that is exactly the value assumed when no MSS option arrives at all.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The four numbers this lesson keeps returning to</h3>
+          <p class="small"><strong>1400</strong> — the tunnel path in every example, and the bottleneck hop.</p>
+          <p class="small"><strong>1360</strong> — 1400 minus 40: the largest segment that fits, over IPv4.</p>
+          <p class="small"><strong>1006</strong> — the plateau an old-style search lands on, 394 bytes low.</p>
+          <p class="small" style="margin-bottom:0"><strong>1280</strong> — the IPv6 floor, leaving 1220 bytes of data.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A host on a 1500-byte link advertises 1460 bytes of data, because its own link can carry that.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">The promise is made from the wrong link</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A host on an Ethernet link advertises fourteen sixty. It computes that from its own link: fifteen hundred, less twenty for IP, less twenty for TCP.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 1 — the promise, the path and the gap</h3>
+              <p class="small"><strong>Given</strong> a host on a 1500-byte Ethernet link whose peer is reached over a path with hops 1500, 1400, 1500. <strong>Asked</strong> the MSS it advertises, the datagram it builds, and whether that datagram passes.</p>
+              <p class="small">The advertised MSS is 1500 − 20 − 20 = 1460. The datagram is 1460 + 40 = 1500 bytes. The path MTU is the smallest hop, 1400, so the datagram is 1500 − 1400 = 100 bytes too large and is dropped at hop 2.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> The page computes 1460, 1500, 1400 and 100 at load and prints them in scene 1.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 2 — the effective size, two ways</h3>
+              <p class="small"><strong>Given</strong> the same 1400-byte path, with a peer that advertises 1300 in one run and 1460 in another. <strong>Asked</strong> the effective send size in each.</p>
+              <p class="small">The path ceiling is 1400 − 40 = 1360. With a peer at 1300 the minimum is 1300, and the datagram is 1340 bytes, which fits. With a peer at 1460 the minimum is 1360, and the datagram is 1400 bytes, which also fits, exactly.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 1300 + 40 = 1340 ≤ 1400 and 1360 + 40 = 1400 ≤ 1400, so both choices satisfy the path; only the first satisfies the peer as well.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 3 — the probe, counted in steps</h3>
+              <p class="small"><strong>Given</strong> a host that assumes 1500 and a path whose MTU is 1400, with a router that fills in the Next-Hop MTU field. <strong>Asked</strong> how many messages and how many datagrams are lost before the estimate is right.</p>
+              <p class="small">One datagram is lost, one message is received, and the estimate becomes exactly 1400. The next datagram is 1400 bytes and is delivered. So: one loss, one message, one step.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 1191 section 4 requires the router to put the next-hop MTU in the message, which is what makes a single step possible.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 4 — the same probe without the field</h3>
+              <p class="small"><strong>Given</strong> the same path and a router that leaves the field zero, so the host must use the plateau table. <strong>Asked</strong> the estimates and the final error.</p>
+              <p class="small">The greatest plateau below 1500 is 1492, which is still too large and is lost. The greatest plateau below 1492 is 1006, which fits. The estimate ends at 1006, which is 394 bytes below 1400, or 28.14 per cent.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--derivation">Mathematical derivation</span> 1400 − 1006 = 394 and 394 / 1400 = 0.2814; the page recomputes both and prints them in scene 6.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>Example 5 — the IPv6 floor</h3>
+              <p class="small"><strong>Given</strong> an IPv6 path whose narrowest link is 1280 bytes, and a Packet Too Big message that reports 1000. <strong>Asked</strong> what the estimate becomes, and what the largest segment holds.</p>
+              <p class="small">The message is below the IPv6 minimum link MTU, so it is discarded and the estimate stays 1280. The data is 1280 − 40 − 20 = 1220 bytes. Over IPv4 the same path would leave 1240, but that is not the version in use.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 8201 section 4 requires the message to be discarded and forbids reducing the estimate below the IPv6 minimum link MTU; RFC 8200 section 5 fixes that minimum at 1280 octets.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 6 — the black hole, and the clamp</h3>
+              <p class="small"><strong>Given</strong> a 1400-byte path, a host that advertises 1460, and a firewall that drops all ICMP errors. <strong>Asked</strong> why the connection opens and then stalls, and what a clamp does.</p>
+              <p class="small">The handshake uses 60-byte segments, which pass; the first full-size segment is 1500 bytes, which does not, and no message comes back. Retransmissions repeat the same size. Clamping the advertised MSS to 1360 makes every datagram 1400 bytes, which fits.</p>
+              <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> RFC 8201 section 1 names this a black-hole connection: the handshake completes and the transfer hangs.</p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 7 — the efficiency cost of a narrow path</h3>
+              <p class="small"><strong>Given</strong> four paths: 1500, 1492, 1400 and 1280, all over IPv4 except the last, which is read both ways. <strong>Asked</strong> the share of each datagram that is data.</p>
+              <p class="small">1460/1500 = 97.33 per cent; 1452/1492 = 97.32; 1360/1400 = 97.14; 1240/1280 = 96.88 over IPv4; and 1220/1280 = 95.31 over IPv6.</p>
+              <p class="small" style="margin-bottom:0">The lesson is not that narrow paths are bad, but that the header share is fixed while the payload shrinks, so the cost grows faster than the MTU falls.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 2</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The boundaries, each with its number</h3>
+          <p class="small" style="margin-bottom:0">Six cases where the arithmetic changes behaviour: the 68-octet floor, the IPv6 floor, a zero in the message, the default when no MSS arrives, a path that is wider than the first hop, and a message that arrives after the path widened.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The estimate never falls below 68</h3>
+          <p class="small">68 octets is the size every router must be able to forward, so RFC 1191 forbids reducing the estimate below it, and the Next-Hop MTU field is never filled with a smaller value.</p>
+          <p class="small" style="margin-bottom:0">68 − 40 = 28 bytes of data, which is legal and nearly useless; the floor exists to keep the mechanism from producing an unsendable number.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The IPv6 floor is 1280, and a lower report is discarded</h3>
+          <p class="small">Every IPv6 link must carry 1280 bytes. A Packet Too Big reporting less contradicts the protocol, so it is dropped and the estimate stays at 1280.</p>
+          <p class="small" style="margin-bottom:0">This is a difference in kind from IPv4, where a low report is simply a small path. On IPv6 a low report is evidence of a broken or forged message.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A zero in the field is not a zero-byte path</h3>
+          <p class="small">A zero means the router never implemented the field. The host must not read it as an MTU of zero; it must fall back to a search or to 576 bytes without DF.</p>
+          <p class="small" style="margin-bottom:0">The plateau search from 1500 lands on 1006 after two steps, which is what the fallback costs when the field is missing.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>No MSS option means 536, not "anything"</h3>
+          <p class="small">If the peer sends no MSS option, the send size defaults to 536 bytes, which is the 576-octet datagram minus 40. It is a bound, not a permission.</p>
+          <p class="small" style="margin-bottom:0">Note that 576 is not itself a plateau: it sits inside the 508 group, so an old-style search for it lands on 508.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>A path can be wider than the first hop</h3>
+          <p class="small">The first hop is an upper bound only when every later hop is at least as wide. A host on a 1280-byte link reaching a 1500-byte path is bounded by its own link, and discovery has nothing to find.</p>
+          <p class="small" style="margin-bottom:0">That is why the estimate starts at the first hop and only ever falls on evidence: starting low is safe, starting high is what the mechanism is for.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>A message arriving after the path widened</h3>
+          <p class="small">Routes change. A Datagram Too Big message that was generated before a re-route can arrive afterwards and report a value that no longer holds. RFC 1191 handles this by allowing the estimate to fall on any message and to rise only on a deliberate probe, and by ageing a cached estimate back to the first hop after about ten minutes.</p>
+          <p class="small" style="margin-bottom:0">The asymmetry is the point: a stale low estimate costs throughput, a stale high estimate costs dropped data, so only the first is tolerated without evidence.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Seven beliefs that produce a wrong answer</h3>
+          <p class="small" style="margin-bottom:0">Each is paired with the counterexample that breaks it. Every counterexample is computed by the page.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>1 — "The path MTU is the first hop's MTU"</h3>
+          <p class="small">Wrong: the path MTU is the smallest link MTU over the whole path, and the first hop is only the one number the host knows.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: hops 1500, 1400, 1500 have a first hop of 1500 and a path MTU of 1400. A 1500-byte datagram built from the first hop is dropped at hop 2.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>2 — "The next-hop MTU is a payload size"</h3>
+          <p class="small">Wrong: the field counts the IP header and excludes link headers, so it is comparable with a datagram size.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: a report of 1400 leaves 1360 bytes of data over IPv4, not 1400. Reading it as data overstates the segment by 40 bytes, and by 60 over IPv6.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>3 — "A larger report means the path grew"</h3>
+          <p class="small">Wrong: a host must never raise its estimate because a message says so. The message may be stale, forged, or from a different path to the same destination.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: a message reporting 9000 on a 1400-byte path would raise the estimate by 7600 bytes and lose every datagram that followed.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>4 — "DF only matters on IPv6"</h3>
+          <p class="small">Wrong, and backwards: the DF bit is an IPv4 field, and it is the whole of the IPv4 mechanism. IPv6 has no DF bit at all, because routers never fragment.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: IPv6 needs no flag to force a message, while IPv4 needs DF set on every datagram or the router will fragment silently and never report.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>5 — "Discovery finds the exact path MTU"</h3>
+          <p class="small">Wrong when the field is missing: the plateau search is allowed to underestimate, and it does so by design.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: over a 1400-byte path the search ends at 1006, which is 394 bytes and 28.14 per cent low, and it never notices.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>6 — "A dropped ICMP message just costs one packet"</h3>
+          <p class="small">Wrong: it costs every packet of that size, indefinitely, because nothing else in the transport layer changes the size.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: the 60-byte handshake succeeds and the 1500-byte data segment is retransmitted unchanged, so the connection is open and transfers nothing.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>7 — "Lowering the estimate below the IPv6 floor is safer"</h3>
+          <p class="small">Wrong: the floor is a requirement on the links, so a report below it is not a smaller path but an invalid message. Following it produces segments no compliant path needs and hides the real fault.</p>
+          <p class="small" style="margin-bottom:0">Counterexample: a Packet Too Big reporting 1000 on an IPv6 path is discarded and the estimate stays 1280, leaving 1220 bytes of data. Reducing to 1000 would leave 940 and treat a broken message as a fact about the network.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How this becomes a question, and the procedure that answers it</h3>
+          <p class="small" style="margin-bottom:0">Four shapes appear: a path MTU from a hop list, an effective segment size from two numbers, a plateau search, and a floor test. Each has a fixed procedure, and each has one step that is usually skipped.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — the path MTU and the segment</h3>
+          <p class="small"><strong>1.</strong> List the link MTUs and take the smallest.</p>
+          <p class="small"><strong>2.</strong> Subtract the fixed headers: 40 for IPv4, 60 for IPv6.</p>
+          <p class="small"><strong>3.</strong> Add the headers back to check the datagram fits exactly.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is step 2's version: subtracting 40 on an IPv6 path overstates the data by 20 bytes.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — the effective send size</h3>
+          <p class="small"><strong>1.</strong> Compute the path ceiling as the path MTU minus the headers.</p>
+          <p class="small"><strong>2.</strong> Take the minimum of that and the peer's advertised MSS.</p>
+          <p class="small"><strong>3.</strong> State the datagram as the answer plus the headers, and compare with the path.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is step 2: using the peer's value when the path is stricter, or the path when the peer is.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — the plateau search</h3>
+          <p class="small"><strong>1.</strong> Start from the total length of the datagram that was dropped.</p>
+          <p class="small"><strong>2.</strong> Take the greatest plateau strictly below it.</p>
+          <p class="small"><strong>3.</strong> Repeat while the value still exceeds the true path MTU, then state the underestimate.</p>
+          <p class="small" style="margin-bottom:0"><strong>The skipped step</strong> is step 3's direction: the plateau must be strictly below the returned length, because a value equal to it has already been proved too large.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Shape 4 — the floor test</h3>
+          <p class="small"><strong>1.</strong> Identify the IP version, because the floors differ: 68 and 1280.</p>
+          <p class="small"><strong>2.</strong> Compare the reported value with the floor.</p>
+          <p class="small"><strong>3.</strong> Below the floor, discard the message and keep the estimate; at or above it, lower the estimate.</p>
+          <p class="small" style="margin-bottom:0">The trap is treating the IPv4 floor as a lower bound on the estimate only: on IPv6 it also invalidates the message.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>What is and is not claimed on this page</h3>
+          <p class="small">No previous-year question is reproduced or attributed here, and no statement is made about how often this topic appears in GATE CSE papers. The four shapes above are question <em>patterns</em> derived from the standards, not a summary of past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> Any weightage figure for path MTU discovery is an estimate from a coaching source unless it names a paper and a question number. Treat such a figure as planning information, not as a prediction for GATE CSE 2027.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question. Every answer was computed, and where the page models it, checked by the page.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A path crosses links of 1500, 1400 and 1500 bytes. A TCP connection over IPv4 uses this path. The largest amount of TCP data one segment can carry without fragmentation is ______ bytes.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1360</p>
+                <p>The path MTU is the smallest hop, 1400. Over IPv4 the fixed headers are 20 + 20 = 40, so the data is 1400 − 40 = 1360.</p>
+                <p><strong>Why 1460 appears.</strong> Using the 1500-byte first hop instead of the path. <strong>Why 1400 appears.</strong> Reading the path MTU as a data size and forgetting the two headers.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A router returns an ICMP type 3 code 4 message with a Next-Hop MTU of 1400. What does the 1400 count?</p>
+                <ol class="choices">
+                  <li>The largest TCP payload that could have been forwarded.</li>
+                  <li>The largest IP datagram that could have been forwarded, including the IP header.</li>
+                  <li>The MTU of the link the datagram arrived on.</li>
+                  <li>The number of bytes by which the datagram exceeded the next hop.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The field is defined as the size of the largest datagram that could be forwarded along the path without being fragmented at that router, counting the IP header and IP data and excluding lower-level headers.</p>
+                <p><strong>Why A appears.</strong> Reading it as a payload, which would overstate the segment by 40 bytes over IPv4. <strong>Why C appears.</strong> Confusing the incoming link with the next hop, which is the one that refused it. <strong>Why D appears.</strong> It is a size, not a difference.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A host receives a Datagram Too Big message with a zero in the Next-Hop MTU field, after sending a 1500-byte datagram over a path whose MTU is 1400. Using the plateau table, the host's estimate after two steps is ______ bytes.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1006</p>
+                <p>The greatest plateau below 1500 is 1492, which is still too large. The greatest plateau below 1492 is 1006, which fits.</p>
+                <p><strong>Why 1492 appears.</strong> Stopping after one step, which is not yet small enough. <strong>Why 1400 appears.</strong> Using the true path MTU, which a zero in the field does not reveal.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following are true of path MTU discovery as RFC 1191 specifies it for IPv4?</p>
+                <ol class="choices">
+                  <li>The estimate may be reduced below 68 octets if the message says so.</li>
+                  <li>The estimate must never be increased in response to a Too Big message.</li>
+                  <li>An attempt to raise the estimate must wait at least 5 minutes after a Too Big message.</li>
+                  <li>Setting the DF bit is optional, because routers fragment anyway.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B and C</p>
+                <p>B is the asymmetry rule: a message may lower the estimate but never raise it. C is the timer, with 10 minutes recommended.</p>
+                <p>A is false: the estimate must never go below 68 octets. D is false: DF is what forces the router to report instead of fragmenting, so without it there is no measurement at all.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>An IPv6 node on a path whose MTU is 1280 receives a Packet Too Big reporting an MTU of 1000. What should it do?</p>
+                <ol class="choices">
+                  <li>Reduce the path MTU estimate to 1000 and send 940-byte segments.</li>
+                  <li>Discard the message and keep the estimate at 1280.</li>
+                  <li>Reduce the estimate to 1280 and start fragmenting at the source.</li>
+                  <li>Raise the estimate to the local link MTU and probe again.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>Every IPv6 link must carry 1280 bytes, so a report below the IPv6 minimum link MTU is inconsistent with the protocol and must be discarded; the estimate must not fall below 1280.</p>
+                <p><strong>Why A appears.</strong> Treating a broken message as a fact about the path. <strong>Why C appears.</strong> The estimate is already 1280, so there is nothing to reduce. <strong>Why D appears.</strong> Raising needs a deliberate probe after the timers, not a response to a message.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A peer advertises an MSS of 1300. The path MTU is 1400 and the connection runs over IPv4. The size of the largest datagram the sender may build is ______ bytes.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1340</p>
+                <p>The effective send size is the smaller of 1300 and 1400 − 40 = 1360, which is 1300. Adding the 40 bytes of fixed headers gives 1340.</p>
+                <p><strong>Why 1400 appears.</strong> Using the path ceiling and ignoring the peer's stricter promise. <strong>Why 1300 appears.</strong> Giving the data size when the question asks for the datagram.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A connection completes its handshake and then transfers nothing, while small requests still work. Which explanations are consistent with a path MTU black hole?</p>
+                <ol class="choices">
+                  <li>The path MTU is smaller than the datagram size the sender uses.</li>
+                  <li>ICMP error messages are being filtered somewhere on the path.</li>
+                  <li>The receiver's advertised MSS is larger than the path allows.</li>
+                  <li>Lowering the sender's segment size to fit the path would restore the transfer.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A, B and D</p>
+                <p>A is the condition: full-size datagrams exceed the path and are dropped. B is why nothing corrects it: the message that would lower the estimate never arrives. D is the cure: a segment that fits is delivered.</p>
+                <p>C is not required: a receiver may legitimately advertise the MSS of its own link, and the sender is still expected to respect the path. A receiver whose promise exceeds the path is normal, not faulty.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A host caches a path MTU of 1400. It is never reduced again. After how many seconds should the estimate be reset to the first-hop MTU?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 600</p>
+                <p>RFC 1191 section 6.3 says a cached estimate that has not been decreased for on the order of 10 minutes should be reset to the first-hop MTU, which is 600 seconds.</p>
+                <p><strong>Why 300 appears.</strong> Confusing the 5-minute minimum between attempts to raise the estimate with the ageing timer. <strong>Why 120 appears.</strong> Confusing it with the recommended 2 minutes after a successful raise.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>&#9664; Previous</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next &#9654;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Every number below is computed by the page at load and is the same number the animation prints.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions and constants</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Path MTU: the smallest link MTU over all links on the path.</li>
+            <li>IPv4 headers: 20 bytes; IPv6 base header: 40; TCP: 20. So 40 and 60.</li>
+            <li>Message: ICMP type 3 code 4 (IPv4), ICMPv6 type 2 (IPv6).</li>
+            <li>Next-Hop MTU: 16 bits, counting the IP header, never below 68.</li>
+            <li>Floors: 68 octets (IPv4), 1280 octets (IPv6 minimum link MTU).</li>
+            <li>Default with no MSS option: 536 bytes, from a 576-byte datagram.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Procedures, in the order they are applied</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Take the minimum of the hop MTUs to get the path MTU.</li>
+            <li>Subtract 40 for IPv4 or 60 for IPv6 to get the ceiling.</li>
+            <li>Take the minimum of that and the peer's MSS to get the effective size.</li>
+            <li>Probe with DF, or read the Next-Hop MTU field, to learn a decrease.</li>
+            <li>If the field is zero, take the greatest plateau below the returned total length.</li>
+          </ol>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The numbers worth carrying</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>1400 → 1360 over IPv4 and 1340 over IPv6.</li>
+            <li>1492 → 1452; 1280 → 1220 over IPv6 and 1240 over IPv4.</li>
+            <li>1500 → 1492 → 1006: the two-step plateau search, 394 bytes low.</li>
+            <li>300 / 60 seconds: the minimum waits before raising; 600 / 120 recommended.</li>
+            <li>600 seconds: when a cached estimate is aged back to the first hop.</li>
+          </ul>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The five slips</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Using the first-hop MTU as the path MTU.</li>
+            <li>Counting the headers inside the MSS, or reading the next-hop MTU as data.</li>
+            <li>Raising the estimate because a message reports a larger path.</li>
+            <li>Reducing the estimate below 68, or below 1280 over IPv6.</li>
+            <li>Assuming the ICMP message will always arrive.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Three sentences to carry into the exam</h3>
+          <p class="small">The path MTU is the smallest link MTU on the path, not the first one, and the largest segment that fits is that number minus the fixed headers: 40 over IPv4 and 60 over IPv6. A host discovers it by setting DF and lowering its estimate on every Datagram Too Big message, which carries the next-hop MTU in two bytes that used to be padding, so one message gives one exact step. When that field is empty the host searches a table of plateaus and may underestimate by a quarter; when the message is filtered altogether the connection is a black hole, and the cures are clamping the advertised MSS or probing without ICMP.</p>
+          <p class="small" style="margin-bottom:0">Quick revision questions, answers in the Practice tab: what data does a 1400-byte path allow over IPv4? What does a report of 1400 leave over IPv6? Where does a plateau search from 1500 end? What happens to a Packet Too Big reporting 1000 on IPv6? How long before a cached estimate is reset?</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>What the research consulted</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>RFC 1191, "Path MTU Discovery"</strong> (Mogul and Deering; November 1990; obsoletes RFC 1063). Read on 2026-11-04. Supports the definition of the path MTU as the minimum hop MTU, the DF probe, the router's obligation to report, the Next-Hop MTU field and its definition (section 4), the host rules and timers (section 3), the old-style search (section 5), the 10-minute ageing (section 6.3), the plateau table 7-1 (section 7), and the 576-octet rule with the default MSS of 536 (section 3.1).</li>
+            <li><strong>RFC 8201, "Path MTU Discovery for IP version 6"</strong> (McCann, Deering, Mogul, Hinden; July 2017; STD 87; obsoletes RFC 1981). Read on 2026-11-04. Supports the Packet Too Big procedure, the rule that a report below the IPv6 minimum link MTU is discarded, the 1280 floor, the same timers as RFC 1191, and the naming of the black-hole connection.</li>
+            <li><strong>RFC 8200, "Internet Protocol, Version 6 (IPv6) Specification"</strong>, section 5. Read on 2026-11-04. Supports the IPv6 minimum link MTU of 1280 octets, the requirement that links carry it, and the rule that IPv6 routers do not fragment.</li>
+            <li><strong>RFC 8899, "Packetization Layer Path MTU Discovery for Datagram Transports"</strong> (Fairhurst, Jones, Tüxen, Rüngeler, Völker; December 2020; updates RFC 4821). Read on 2026-11-04. Supports discovery that does not rely on ICMP, the probe-and-acknowledge method, the black-hole definition and detection, and the base and raise timers.</li>
+            <li><strong>RFC 4443, "ICMPv6"</strong>, section 3.2, for the Packet Too Big message and its MTU field.</li>
+            <li><strong>GATE 2027 CS syllabus PDF, IIT Madras.</strong> Downloaded and read on 2026-11-04. Section 10 reads: "TCP- flow control and congestion control, socket API; DNS and HTTP." That is the clause this lesson is a mechanism for.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What each source supports, and what it does not</h3>
+          <p class="small">RFC 1191 supports every IPv4 rule on the page, including the plateau values, which are reproduced as a table rather than as prose. RFC 8201 and RFC 8200 support the IPv6 floor and the discard rule. RFC 8899 supports the probing method and the black-hole language.</p>
+          <p class="small" style="margin-bottom:0">None of them states a formula for payload efficiency, and none gives the four example paths used here; those paths and the percentages are arithmetic on the sizes this page computes. RFC 1191's plateau table is explicitly an implementation suggestion and not a specification, which the lesson says on the page.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What was not verified, and the assumptions the model makes</h3>
+          <p class="small" style="margin-bottom:0">No previous-year question is reproduced or attributed anywhere on this page, and no claim is made about how often this topic appears in GATE CSE papers. The four paths are illustrative hop lists, not measurements of any real network. The model assumes a single path with a fixed MTU for the life of the example, IPv4 headers with no options and IPv6 headers with no extension headers, one bottleneck per path, and a peer MSS of 1300 in the clamping example. It does not model equal-cost multipath with different path MTUs, IP options or extension headers, the congestion window, or the full DPLPMTUD state machine, all of which are outside this lesson's scope and are named here so the boundary is explicit.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
