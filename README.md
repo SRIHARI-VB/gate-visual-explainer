@@ -124,6 +124,7 @@ lessons are static files and work from a local clone.
 | Verbal Aptitude: Grammar, Vocabulary in Context, Comprehension and Narrative Sequencing | General Aptitude | A — explicitly in the syllabus | `topics/verbal-aptitude/index.html` |
 | Sequencing and Order of Evaluation in C: Sequence Points, Side Effects, and the Expressions That Have No Answer | Programming And Data Structures | A — explicitly in the syllabus | `topics/sequencing-and-order-of-evaluation-in-c/index.html` |
 | Chomsky Normal Form and Grammar Simplification: Four Passes, the Helper Counts and the 2n − 1 Arithmetic | Theory Of Computation | A — explicitly in the syllabus | `topics/chomsky-normal-form-and-grammar-simplification/index.html` |
+| Proving a Language Is Not Context-Free: the Pumping Lemma as a Game, Ogden’s Lemma and the Closure Route | Theory Of Computation | A — explicitly in the syllabus | `topics/proving-a-language-is-not-context-free/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
