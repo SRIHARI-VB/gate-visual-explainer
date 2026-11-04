@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequencing and Order of Evaluation in C — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">Sequencing and order of evaluation in C</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../c-fundamentals/index.html">Prerequisite: C fundamentals</a>
+      <a href="../bitwise-operators-and-bit-manipulation/index.html">Related: the four cases with no answer</a>
+      <a href="../function-pointers/index.html">Related: function pointers</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> Sequencing in C. Precedence and associativity decide how an expression is <em>grouped</em>; they do not decide the order in which its parts are <em>computed</em>. This page teaches the second question: value computations against side effects, the places the standard calls sequence points, the rule about an unsequenced side effect on a scalar object, and the expressions that therefore have no answer.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given any C expression, decide in five steps whether its value is fixed, whether only its order is free, or whether its behaviour is undefined — and state which, with the reason. Rewrite each undefined form into a defined one. Name the operators that carry a sequence point and the one comma that does not.</p>
+          <p class="small muted" style="margin-bottom:0">I read the request as <em>the sequencing rules of the C language as the standard states them</em>, not as a general lecture on operator precedence, which the C fundamentals lesson already owns. Precedence appears here only as the thing that is <em>not</em> the answer.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class A — the language is named in the syllabus.</strong></p>
+          <p class="small">Section 4 of the GATE 2027 CS syllabus opens with <em>"Programming in C"</em>, and the operators named there — increment, assignment, the logical operators, the comma operator — are exactly the operators whose sequencing this page states.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>sequence point</em>, <em>order of evaluation</em> and <em>undefined behaviour</em> are <strong>not</strong> printed in the 2027 syllabus. The class-A label rests on the language being named, and no claim is made here about how often the topic has appeared.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The topic is examinable because a question can be answered without running anything: the verdict follows from the barriers in the expression.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../c-fundamentals/index.html">C fundamentals</a> — types, operators, precedence and associativity, <code>i++</code> against <code>++i</code>.</li>
+            <li>Reading a small expression as a tree: which operator takes which operand.</li>
+            <li>The idea of a variable as a named box whose contents can be read and written.</li>
+            <li>No compiler and no packet of hardware is needed. Every count on this page is computed when the page loads.</li>
+          </ul>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>Five ideas, one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>Grouping is not scheduling.</strong> Precedence fixes the tree; the standard leaves the order open.</li>
+            <li><strong>An evaluation is two parts.</strong> A value computation, and sometimes a side effect — a store.</li>
+            <li><strong>Barriers are few and named.</strong> The call, <code>&amp;&amp;</code>, <code>||</code>, the comma operator, <code>?:</code>, and the end of a statement.</li>
+            <li><strong>One rule decides everything.</strong> Two unsequenced accesses to one scalar, one of them a write, is undefined.</li>
+            <li><strong>A computable answer proves nothing.</strong> <code>i = i++ + 1</code> has one answer on every ordering and is still undefined.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> One expression, three legal schedules, one value. <strong>2</strong> <code>i++</code> split into a read and a store, and where an assignment's store sits. <strong>3</strong> A timeline with six barriers and the eight places the standard names. <strong>4</strong> The rule, applied to <code>i = i++ + 1</code>, with the warning that undefined is not unknown. <strong>5</strong> All six orderings of <code>i++ + i++</code> with <code>i</code> equal to 5, and the two answers they produce. <strong>6</strong> Three verdicts side by side. <strong>7</strong> Why <code>i &lt; n &amp;&amp; a[i] == x</code> is safe and the same test written the other way round is not. <strong>8</strong> Four shapes with four verdicts and four rewrites. <strong>9</strong> The five-step procedure. <strong>10</strong> The chain, the six slips, the one-line test.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>How to study this lesson</h3>
+          <p class="small">Approximate study time: 40 to 55 minutes, which is an estimate and not a measurement. Watch the Animation tab once with captions on, read Examples, then take Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">The page enumerates ten forms when it loads: every allowable ordering of each expression is generated from a partial order, simulated, and the answers collected. It then re-runs one enumeration by brute force over all permutations as an independent cross-check, and prints the number of checks that passed under the canvas — so a wrong figure would show there before you read it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: two cooks, one shopping list</h3>
+          <p class="small">Two cooks are told to "add the flour and add the sugar". The instruction is unambiguous about what to add; it says nothing about which cook moves first. If they use separate bowls, any order works and the cake is the same. If they both reach into the <em>same</em> bowl at the same moment — one adding flour while the other reads how much is there — the result depends on who moved first, and the recipe no longer describes what comes out.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The bowls are variables. Separate bowls explain why <code>f() + g()</code> is safe with no order fixed. One shared bowl explains why <code>i++ + i++</code> is not: the second cook reads a quantity the first cook is in the middle of changing.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Vocabulary, every term in words</h3>
+          <p class="small"><strong>Value computation</strong> — working out a value: reading a variable, or computing a result from operands.</p>
+          <p class="small"><strong>Side effect</strong> — a change to the state of the program: storing into a variable, or calling a function that does.</p>
+          <p class="small"><strong>Sequenced before</strong> — a relation between two evaluations: the first finishes, including its side effects, before the second begins.</p>
+          <p class="small"><strong>Unsequenced</strong> — neither is sequenced before the other, so they may happen in any order, and may even interleave.</p>
+          <p class="small"><strong>Indeterminately sequenced</strong> — one happens entirely before the other, but the standard does not say which. Function calls are like this.</p>
+          <p class="small"><strong>Sequence point</strong> — a place in the program where a barrier is placed.</p>
+          <p class="small" style="margin-bottom:0"><strong>Full expression</strong> — an expression that is not part of a larger one: up to the semicolon, or the controlling condition.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The rule, stated exactly</h3>
+          <p class="small">From the C17 standard, 6.5 paragraph 2, in the standard's own words:</p>
+          <p class="small formula">If a side effect on a scalar object is unsequenced relative to either a different side effect on the same scalar object or a value computation using the value of the same scalar object, the behavior is undefined.</p>
+          <p class="small">The same paragraph adds a second sentence that closes the last loophole: if there are several allowable orderings of the subexpressions, the behaviour is undefined if such an unsequenced side effect occurs in <em>any</em> of them.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--verified">Verified fact</span> Quoted from the C17 working draft (N2176), 6.5p2, the same text the published ISO/IEC 9899:2018 carries.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>The eight places a sequence point sits</h3>
+          <p class="small">Grouped from the standard's Annex C summary. The first five are the ones a question turns on, because they are the only barriers available <em>inside</em> one expression.</p>
+          <div class="sheet">
+            <div class="row"><span class="nowrap"><strong>1</strong></span><span>after the function designator and the arguments, before the call — 6.5.2.2p10</span></div>
+            <div class="row"><span class="nowrap"><strong>2</strong></span><span>after the left operand of <code>&amp;&amp;</code> — 6.5.13p3</span></div>
+            <div class="row"><span class="nowrap"><strong>3</strong></span><span>after the left operand of <code>||</code> — 6.5.14p3</span></div>
+            <div class="row"><span class="nowrap"><strong>4</strong></span><span>after the left operand of the comma operator — 6.5.17p2</span></div>
+            <div class="row"><span class="nowrap"><strong>5</strong></span><span>after the first operand of <code>?:</code> — 6.5.15p4</span></div>
+            <div class="row"><span class="nowrap"><strong>6</strong></span><span>after a full expression, before the next full expression — 6.8p4</span></div>
+            <div class="row"><span class="nowrap"><strong>7</strong></span><span>at the end of a full declarator — Annex C</span></div>
+            <div class="row"><span class="nowrap"><strong>8</strong></span><span>before a library function returns — Annex C</span></div>
+          </div>
+          <p class="small" style="margin-top:8px;margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> Annex C also lists the conversion specifiers of formatted input and output, and the calls to a comparison function made by <code>qsort</code> and <code>bsearch</code>. They are left out of the eight above because they never decide an expression question, and a list of eleven is harder to remember than a list of eight.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every count computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">Precedence decides which operator takes which operand. It says nothing about which operand is computed first.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">Precedence groups the syntax, it does not order the run</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">Precedence groups the syntax. It does not schedule the run.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Example 1 — <code>i++ + i++</code> with <code>i</code> equal to 5, enumerated in full</h3>
+              <p class="small">Write the four events. <code>rA</code> and <code>wA</code> belong to the left operand, <code>rB</code> and <code>wB</code> to the right. The only constraints are that each read precedes its own store.</p>
+              <div class="sheet">
+                <div class="row"><span class="nowrap"><strong>1</strong></span><span class="nowrap">rA wA rB wB</span><span>reads 5 and 6, sum <strong>11</strong></span></div>
+                <div class="row"><span class="nowrap"><strong>2</strong></span><span class="nowrap">rA rB wA wB</span><span>reads 5 and 5, sum <strong>10</strong></span></div>
+                <div class="row"><span class="nowrap"><strong>3</strong></span><span class="nowrap">rA rB wB wA</span><span>reads 5 and 5, sum <strong>10</strong></span></div>
+                <div class="row"><span class="nowrap"><strong>4</strong></span><span class="nowrap">rB rA wA wB</span><span>reads 5 and 5, sum <strong>10</strong></span></div>
+                <div class="row"><span class="nowrap"><strong>5</strong></span><span class="nowrap">rB rA wB wA</span><span>reads 5 and 5, sum <strong>10</strong></span></div>
+                <div class="row"><span class="nowrap"><strong>6</strong></span><span class="nowrap">rB wB rA wA</span><span>reads 5 and 6, sum <strong>11</strong></span></div>
+              </div>
+              <p class="small" style="margin-top:8px;margin-bottom:0">Six orderings, two answers, and three pairs of events that are unsequenced: <code>rA</code> against <code>wB</code>, <code>wA</code> against <code>rB</code>, and <code>wA</code> against <code>wB</code>. Because one of those pairs is a store against a store, the statement is undefined — so neither 10 nor 11 is <em>the</em> answer. The page generates this table when it loads; the numbers here are the same computation.</p>
+            </div>
+
+            <div class="card card--trap">
+              <h3>Example 2 — the one that looks safe</h3>
+              <p class="small"><code>int i = 5; i = i++ + 1;</code></p>
+              <p class="small">Two stores to <code>i</code>: the store inside <code>i++</code>, and the store from the assignment. The assignment's store is sequenced after the value computations of both sides — but the store inside <code>i++</code> is a side effect, not a value computation, so nothing orders the two stores.</p>
+              <p class="small">Both orderings leave <code>i</code> equal to 6. That is the trap: the value is the same in every ordering, and the behaviour is still undefined, so no compiler is obliged to produce it.</p>
+              <p class="small" style="margin-bottom:0"><strong>Defined rewrite:</strong> <code>i = i + 1;</code></p>
+            </div>
+
+            <div class="card card--counterexample">
+              <h3>Example 3 — the index and the increment</h3>
+              <p class="small"><code>int a[10]; int i = 5; a[i] = i++;</code></p>
+              <p class="small">The store inside <code>i++</code> is unsequenced with the read of <code>i</code> used as the index. The enumeration gives index 5 or index 6, so the element written is not determined by the source text.</p>
+              <p class="small" style="margin-bottom:0"><strong>Defined rewrites:</strong> <code>a[i] = i + 1; i++;</code> or <code>i++; a[i - 1] = i;</code> — both say which element and when.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card card--definition span-2">
+              <h3>Example 4 — two arguments, one variable</h3>
+              <p class="small"><code>void f(int x, int y); int i = 5; f(i++, i);</code></p>
+              <p class="small">There is a sequence point after the arguments and before the call, but none between the arguments. The two argument expressions are unsequenced, and one of them writes <code>i</code> while the other reads it, so this is undefined — not merely unspecified. The three orderings give the pairs (5,5), (5,5) and (5,6): two distinct pairs, and no rule that picks one.</p>
+              <p class="small" style="margin-bottom:0"><strong>Defined rewrite:</strong> <code>int t = i++; f(t, i);</code> — the increment is now a separate full expression, and the arguments read variables that nothing else in the call writes.</p>
+            </div>
+
+            <div class="card card--definition">
+              <h3>Example 5 — buying a barrier</h3>
+              <p class="small"><code>int i = 5; int x = (i++, i);</code></p>
+              <p class="small">Here the comma is the <em>operator</em>: it has a sequence point after its left operand. So the store from <code>i++</code> completes before <code>i</code> is read on the right. One ordering, one answer, 6, and the statement is defined.</p>
+              <p class="small" style="margin-bottom:0">The parentheses are load-bearing. Written <code>f(i++, i)</code> the same characters are an argument separator, with no barrier at all.</p>
+            </div>
+
+            <div class="card card--takeaway">
+              <h3>Example 6 — the guard that works</h3>
+              <p class="small"><code>if (i &lt; n &amp;&amp; a[i] == x)</code></p>
+              <p class="small"><code>&amp;&amp;</code> has a sequence point after its left operand, so <code>i &lt; n</code> is finished — value and side effects — before <code>a[i]</code> is looked at. The guard protects the index.</p>
+              <p class="small" style="margin-bottom:0">Swap the operands, <code>a[i] == x &amp;&amp; i &lt; n</code>, and the read of <code>a[i]</code> happens first. The guard still runs, but too late to protect anything. Nothing in the language saves a guard written on the wrong side.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Where the rule stops applying, and where it bites hardest</h3>
+          <p class="small" style="margin-bottom:0">The rule is about a <em>scalar object</em> — one number, one pointer, one structure member. Most of the mistakes in this topic come from applying it too widely or too narrowly. These are the boundaries.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Two reads never conflict</h3>
+          <p class="small"><code>x = a + a;</code> reads <code>a</code> twice with no barrier between the reads, and it is perfectly defined. A conflict needs at least one write.</p>
+          <p class="small" style="margin-bottom:0">This is the commonest false alarm: students mark every repeated variable as suspicious. Only a store makes a pair dangerous.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3><code>a[i]</code> and <code>a[j]</code> are different objects</h3>
+          <p class="small">An array is not one scalar object; its elements are separate scalar objects. <code>a[i] = a[j]</code> with <code>i</code> different from <code>j</code> writes one object and reads another, so there is no conflict.</p>
+          <p class="small" style="margin-bottom:0">But <code>i</code> itself is one object, which is why <code>a[i] = i++</code> is undefined: the conflict is on <code>i</code>, not on <code>a</code>.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>One statement is one segment</h3>
+          <p class="small"><code>i++; x = i;</code> is defined: the semicolon is a sequence point. <code>i++, x = i</code> as one expression statement is not — unless the comma is the operator, in which case it is a barrier and it is defined.</p>
+          <p class="small" style="margin-bottom:0">The distinction is the comma's role, not the presence of the character.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The call barrier sits after the arguments</h3>
+          <p class="small">A sequence point exists after the function designator and all the arguments, before the call. It does <em>not</em> sit between two arguments.</p>
+          <p class="small" style="margin-bottom:0">So <code>f(i++, i)</code> is undefined, while <code>f(i++, (i, i))</code> is not — the inner comma is the operator.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Library calls that write</h3>
+          <p class="small"><code>scanf("%d %d", &amp;i, &amp;i)</code> is fine, and the standard says so: there is a sequence point after the action of each conversion specifier. The same rule makes <code>printf</code> with <code>%n</code> ordered against its own conversions.</p>
+          <p class="small" style="margin-bottom:0">But <code>printf("%d %d", i++, i++)</code> is undefined: the conversions are ordered, the argument <em>expressions</em> are not, and both write <code>i</code>.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The loop that is safe by accident</h3>
+          <p class="small"><code>for (i = 0; i &lt; n; i++) a[i] = i;</code> is defined: the increment is one full expression in the <code>for</code> header, and each loop body is another.</p>
+          <p class="small" style="margin-bottom:0">The same loop written <code>a[i++] = i</code> inside the body is undefined for exactly the reason in Example 3 — and it is the kind of "cleanup" an optimiser may compile away.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What undefined does <em>not</em> mean</h3>
+          <p class="small">Undefined behaviour is not "a value you cannot know". The standard imposes no requirement at all, so an implementation may produce the value you expected, a different value, a trap, or nothing — and it may do so differently on the next run of the same binary, because the freedom belongs to the compiler, not to the input.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--community">Community observation</span> Discussions of this topic often report that mainstream compilers "usually" print the naive answer. That is an observation about practice, not a rule: the same reports note that the printed value changes with optimisation level. Nothing in the standard makes the naive answer available.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Six slips, each with a counterexample</h3>
+          <p class="small" style="margin-bottom:0">Each slip is written as the sentence a student says, followed by the case that shows it is wrong, followed by what is true instead.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Slip 1 — "left to right associativity means left to right execution"</h3>
+          <p class="small"><strong>Counterexample:</strong> <code>f() + g() + h()</code> is grouped <code>(f() + g()) + h()</code>, and the call to <code>h()</code> may run first.</p>
+          <p class="small" style="margin-bottom:0"><strong>True instead:</strong> associativity is a statement about the shape of the tree, not about time. The standard fixes the tree and leaves the schedule open.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Slip 2 — "unspecified order means undefined behaviour"</h3>
+          <p class="small"><strong>Counterexample:</strong> <code>f() + g()</code> where the two functions touch nothing shared. The order is unspecified and the program is a correct program.</p>
+          <p class="small" style="margin-bottom:0"><strong>True instead:</strong> unspecified means two or more possibilities, and every one of them is correct. Undefined means no possibility is promised.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Slip 3 — "a comma is a comma"</h3>
+          <p class="small"><strong>Counterexample:</strong> <code>f(i++, i)</code> is undefined, while <code>(i++, i)</code> is defined and has one answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>True instead:</strong> the comma between arguments is punctuation with no barrier; the comma operator carries a sequence point after its left operand.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Slip 4 — "I ran it, so that is the answer"</h3>
+          <p class="small"><strong>Counterexample:</strong> <code>i = i++ + 1</code> prints 6 on every ordering and is undefined, so a compiler may legally remove the statement or print anything.</p>
+          <p class="small" style="margin-bottom:0"><strong>True instead:</strong> an observed output is a fact about one compiler and one set of options. A specification is a fact about the language.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Slip 5 — "a call evaluates its arguments in order"</h3>
+          <p class="small"><strong>Counterexample:</strong> <code>f(i++, i)</code> yields the pairs (5,5) and (5,6) depending on which argument is evaluated first.</p>
+          <p class="small" style="margin-bottom:0"><strong>True instead:</strong> the barrier is after all the arguments, not between them. Order across arguments is unspecified at best, undefined when one of them writes.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>Slip 6 — "an array is one object"</h3>
+          <p class="small"><strong>Counterexample:</strong> <code>a[i] = a[j]</code> with <code>i</code> different from <code>j</code> is defined: two different elements, one read and one write.</p>
+          <p class="small" style="margin-bottom:0"><strong>True instead:</strong> the rule counts scalar objects. Elements are separate objects; the index variable is one object, which is why <code>a[i] = i++</code> fails.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>The closely confused pair, side by side</h3>
+          <div class="sheet">
+            <div class="row"><span class="nowrap"><strong>Unspecified</strong></span><span>two or more possibilities, all correct — <code>f() + g()</code>, one answer, two orderings</span></div>
+            <div class="row"><span class="nowrap"><strong>Undefined</strong></span><span>no requirement at all — <code>f(i++, i)</code>, two answers, three orderings</span></div>
+            <div class="row"><span class="nowrap"><strong>Indeterminately sequenced</strong></span><span>one finishes before the other, but which one is not stated — two calls that share nothing</span></div>
+            <div class="row"><span class="nowrap"><strong>Unsequenced</strong></span><span>may overlap — two operands of one operator, which is where the rule bites</span></div>
+          </div>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Only the last line is dangerous, and only when a store is involved. The first three are properties of the language that a correct program may rely on; the fourth is the one to design out.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>How the topic is tested, and the procedure that answers it</h3>
+          <p class="small">A question on this material never needs a compiler. It needs the barriers, and a count of what happens between them. The five steps below answer every shape on this page.</p>
+          <div class="step-list">
+            <div><strong>Step 1.</strong> Find the full expression: up to the semicolon, or the controlling condition of <code>if</code>, <code>while</code>, <code>for</code> or <code>switch</code>.</div>
+            <div><strong>Step 2.</strong> Mark the barriers inside it: the call, <code>&amp;&amp;</code>, <code>||</code>, the comma operator, <code>?:</code>.</div>
+            <div><strong>Step 3.</strong> Within each segment, list every access to each variable, and mark which accesses are writes.</div>
+            <div><strong>Step 4.</strong> If two accesses to one scalar are unsequenced and at least one is a write, stop: the answer is that the behaviour is undefined.</div>
+            <div><strong>Step 5.</strong> Otherwise the value is fixed. The only freedom left is the order of calls that share nothing.</div>
+          </div>
+          <p class="small" style="margin-top:8px;margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> This is a decision procedure, not a theorem about the exam. It works because the standard's rule is local: a conflict is decided by one pair of evaluations inside one segment.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 1 — a count with no side effect</h3>
+          <p class="small">"What does this print?" where every operand only reads: a chain of <code>+</code>, <code>*</code>, comparisons, or two calls that touch nothing shared.</p>
+          <p class="small" style="margin-bottom:0"><strong>How to answer:</strong> steps 1 to 3 find no write, step 4 does not fire, and the arithmetic of step 5 is ordinary. The order of the calls is free and does not matter.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 2 — a count with a guard</h3>
+          <p class="small">"How many times is <code>a[i]</code> read?" with <code>&amp;&amp;</code> or <code>||</code> in the condition. Short-circuiting is a consequence of the barrier, not a separate rule.</p>
+          <p class="small" style="margin-bottom:0"><strong>How to answer:</strong> step 2 puts a barrier after the left operand, so the right side is not evaluated at all when the left side settles the answer. Count the evaluations, not the characters.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Shape 3 — the verdict question</h3>
+          <p class="small">"Is the behaviour of this statement defined?" — the shape that rewards the rule. Any expression with two unsequenced accesses to one variable, one of them a store, is the answer.</p>
+          <p class="small" style="margin-bottom:0"><strong>How to answer:</strong> run steps 3 and 4 only. Do not compute a number first; the number is not part of the answer, and computing it is how the trap is sprung.</p>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The trap that catches the most marks</h3>
+          <p class="small">A question that asks for a number, where the correct response is that no number is defined. If the options include a value that "looks right" and no option says the behaviour is undefined, the question has a broken premise.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--unverified">Unverified claim</span> This page does not reproduce any previous-year question and makes no claim about how such items have been keyed. Every question in the Practice tab is an original practice question, labelled as such.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question. Every answer was computed, and where the page models the expression, the count in the solution is the count the page prints under its canvas.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>With <code>int i = 5;</code> consider the statement <code>i = i++ + 1;</code>. Which statement is correct?</p>
+                <ol class="choices">
+                  <li>It stores 6 in <code>i</code>, and the behaviour is defined.</li>
+                  <li>It stores 6 in <code>i</code> on both possible orderings, and the behaviour is undefined.</li>
+                  <li>It stores 7 in <code>i</code>, because <code>i++</code> is 5 and the increment adds one more.</li>
+                  <li>It stores 5 in <code>i</code>, because the assignment happens first.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The two stores — the one inside <code>i++</code> and the one from the assignment — are unsequenced, so the behaviour is undefined. The page enumerates both orderings and both give 6, which is exactly why the item is worth asking: one answer does not make a statement defined.</p>
+                <p><strong>Why A appears.</strong> It reads the output as the specification. <strong>Why C appears.</strong> It counts the increment twice. <strong>Why D appears.</strong> It assumes the assignment is sequenced before the right side, when the standard sequences it after the value computations of both operands.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>With <code>int i = 5;</code> the expression <code>i++ + i++</code> has how many distinct sums over all allowable orderings of its evaluations?</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 2</p>
+                <p>Six orderings are allowable, and they produce the sums 10 and 11: four orderings give 10, two give 11. The number of <em>orderings</em> is 6 and the number of <em>distinct answers</em> is 2 — the question asks for the second.</p>
+                <p><strong>The shortcut, and its assumption.</strong> Reading both operands as 5 and answering 10 assumes the two reads happen before either store. That is one ordering out of six, and nothing in the standard prefers it.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of these carries a sequence point? Select all that apply.</p>
+                <ol class="choices">
+                  <li>The end of the left operand of <code>&amp;&amp;</code>.</li>
+                  <li>Between two arguments of a function call.</li>
+                  <li>The end of the left operand of the comma operator.</li>
+                  <li>The end of a full expression, before the next one.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A, C, D</p>
+                <p>The call's barrier comes after all the arguments and before the call — not between two of them. That is the distinction the whole topic turns on: <code>f(i++, i)</code> is undefined, and <code>(i++, i)</code> is defined.</p>
+                <p><strong>Why B is the distractor.</strong> The comma character looks identical in both positions; only its role differs.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p><code>int a[10]; int i = 5; a[i] = i++;</code> — which is true?</p>
+                <ol class="choices">
+                  <li>Defined, because <code>a</code> and <code>i</code> are different objects.</li>
+                  <li>Undefined, because the store to <code>i</code> is unsequenced with the read of <code>i</code> used as the index.</li>
+                  <li>Defined, and it always writes <code>a[5]</code>.</li>
+                  <li>Undefined, because an array is a scalar object.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>The conflict is on <code>i</code>, not on <code>a</code>: one access writes <code>i</code>, the other reads it, and nothing orders them. The enumeration gives index 5 or index 6.</p>
+                <p><strong>Why A appears.</strong> It is right that <code>a</code> and <code>i</code> are different objects, and wrong about which object conflicts. <strong>Why D appears.</strong> An array is not one scalar object; that is the mistake of Slip 6.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p><code>void f(int, int);</code> and <code>int i = 5;</code>. The call <code>f(i++, i)</code> is:</p>
+                <ol class="choices">
+                  <li>defined, and passes (5, 6).</li>
+                  <li>defined, and passes (5, 5).</li>
+                  <li>undefined, because the arguments are unsequenced and one writes what the other reads.</li>
+                  <li>unspecified but defined, because the order of arguments is unspecified.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>Unspecified order alone would be harmless. The write makes it undefined, and both (5,5) and (5,6) are reachable, so neither A nor B is the answer.</p>
+                <p><strong>Why D appears.</strong> It stops at the first true fact — the order is unspecified — and misses that a write inside one of the arguments turns unspecified into undefined.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p><code>int i = 5; int x = (i++, i);</code> — the value stored in <code>x</code> is ______.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 6</p>
+                <p>The comma operator has a sequence point after its left operand, so the store from <code>i++</code> completes before the right operand reads <code>i</code>. One ordering, one answer, defined.</p>
+                <p><strong>The edge case.</strong> Drop the parentheses and write <code>f(i++, i)</code>: the same characters are now a separator, the barrier is gone, and the call is undefined. Parentheses change the meaning of the comma, not the arithmetic.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of these statements have defined behaviour? Select all that apply.</p>
+                <ol class="choices">
+                  <li><code>i = i + 1;</code></li>
+                  <li><code>i++ + i++;</code></li>
+                  <li><code>(i = 3) + (i = 4);</code></li>
+                  <li><code>i++; x = i;</code></li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A, D</p>
+                <p><code>i = i + 1</code> has one store and one read, sequenced by the assignment rule. <code>i++; x = i;</code> is two statements, and the semicolon is a sequence point between them.</p>
+                <p><strong>Why C appears.</strong> It has one answer, 7, on every ordering — and it is still undefined, because the two stores to <code>i</code> are unsequenced. One answer is not a definition.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button class="btn" data-pager-prev>Previous</button>
+          <span class="small muted" data-pager-count>Page 1 of 2</span>
+          <button class="btn" data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>The revision sheet</h3>
+          <p class="small" style="margin-bottom:0">Everything below is stated in the Animation and Build-up tabs, with the reasoning. This page is the compressed form, for the day before.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Definitions, in one line each</h3>
+          <div class="sheet">
+            <div class="row"><span class="nowrap"><strong>Side effect</strong></span><span>a change of state: storing into an object, or calling a function that does</span></div>
+            <div class="row"><span class="nowrap"><strong>Sequenced before</strong></span><span>the first finishes, side effects included, before the second begins</span></div>
+            <div class="row"><span class="nowrap"><strong>Unsequenced</strong></span><span>neither before the other; may interleave</span></div>
+            <div class="row"><span class="nowrap"><strong>Indeterminately sequenced</strong></span><span>one before the other, but the standard does not say which</span></div>
+            <div class="row"><span class="nowrap"><strong>Full expression</strong></span><span>an expression that is not part of another</span></div>
+          </div>
+        </div>
+
+        <div class="card card--trap">
+          <h3>The rule, in one line</h3>
+          <p class="small">Two unsequenced accesses to one scalar object, at least one of them a store: undefined.</p>
+          <p class="small" style="margin-bottom:0">It fires if <em>any</em> allowable ordering has such a pair, so a single legal ordering is enough to condemn the statement.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The barriers</h3>
+          <p class="small">Inside one expression: the call (after its arguments), <code>&amp;&amp;</code>, <code>||</code>, the comma operator, <code>?:</code>. Between statements: every full expression boundary.</p>
+          <p class="small" style="margin-bottom:0">Not a barrier: the comma that separates arguments, and anything inside a single operator's operands.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three verdicts</h3>
+          <div class="sheet">
+            <div class="row"><span class="nowrap"><strong>One answer, fixed order</strong></span><span>nothing written — <code>x = i + 1</code></span></div>
+            <div class="row"><span class="nowrap"><strong>One answer, free order</strong></span><span>nothing shared — <code>f() + g()</code></span></div>
+            <div class="row"><span class="nowrap"><strong>Several or no answer</strong></span><span>a write in the gap — <code>f(i++, i)</code>, <code>i++ + i++</code></span></div>
+          </div>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The four rewrites</h3>
+          <div class="sheet">
+            <div class="row"><span class="nowrap"><strong><code>i++ + i++</code></strong></span><span><code>a = i; b = i; i += 2;</code></span></div>
+            <div class="row"><span class="nowrap"><strong><code>a[i] = i++</code></strong></span><span><code>a[i] = i + 1; i++;</code></span></div>
+            <div class="row"><span class="nowrap"><strong><code>f(i++, i)</code></strong></span><span><code>t = i++; f(t, i);</code></span></div>
+            <div class="row"><span class="nowrap"><strong><code>i = i++ + 1</code></strong></span><span><code>i = i + 1;</code></span></div>
+          </div>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Every rewrite works by the same move: make each store its own full expression, or put a comma operator between the store and the read.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Four quick checks, answers withheld</h3>
+          <div class="sheet">
+            <div class="row"><span class="nowrap"><strong>1</strong></span><span>Is <code>x = a + a</code> defined? Why?</span></div>
+            <div class="row"><span class="nowrap"><strong>2</strong></span><span>How many distinct answers does <code>i++ + ++i</code> have with <code>i</code> equal to 5?</span></div>
+            <div class="row"><span class="nowrap"><strong>3</strong></span><span>Why is <code>i &lt; n &amp;&amp; a[i] == x</code> safe and <code>a[i] == x &amp;&amp; i &lt; n</code> not?</span></div>
+            <div class="row"><span class="nowrap"><strong>4</strong></span><span>Is <code>printf("%d %d", i++, i++)</code> defined? What about <code>scanf("%d %d", &amp;i, &amp;i)</code>?</span></div>
+          </div>
+          <p class="small" style="margin-top:8px;margin-bottom:0">Answers: (1) yes, two reads never conflict; (2) two — 11 and 12, over six orderings; (3) the barrier sits after the left operand, so the guard must be written first; (4) the first is undefined, the second is defined because there is a sequence point after each conversion specifier.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What was read, and what each source supports</h3>
+          <p class="small" style="margin-bottom:0">Consulted on 4 November 2026. The standard is the authority for every rule on this page; the other sources were used to check that the reading of the standard is the common one, and to find the counterexamples.</p>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Primary</h3>
+          <div class="src-list">
+            <p><strong>ISO/IEC 9899:2018 (C17), working draft N2176.</strong> Section 5.1.2.3 paragraphs 2 and 3 define side effect, sequenced before, unsequenced and indeterminately sequenced. 6.5 paragraph 2 carries the rule and the sentence about multiple allowable orderings. 6.5.2.2 covers the call and its arguments, 6.5.2.4 the increment operators, 6.5.13 to 6.5.17 the sequence points of <code>&amp;&amp;</code>, <code>||</code>, <code>?:</code>, assignment and the comma operator. Annex C summarises the sequence points. Read as the ballot document at <span class="mono small">https://kcir.pwr.edu.pl/~mucha/PProg/c17_updated_proposed_fdis.pdf</span>.</p>
+            <p><strong>Official GATE 2027 CS syllabus, IIT Madras.</strong> Section 4, which opens "Programming in C", is the basis of the class-A label. <span class="mono small">https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf</span></p>
+          </div>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Secondary, for the common reading</h3>
+          <div class="src-list">
+            <p><strong>cppreference, "Order of evaluation" (C).</strong> Lists the sequencing rules 1 to 14, including the C11 additions: the value computation of a postfix increment before its side effect, and the assignment store after the value computations of both operands. Also lists the undefined examples <code>i = i++ + 1</code>, <code>f(i, i++)</code> and <code>a[i] = i++</code>. <span class="mono small">https://en.cppreference.com/c/language/eval_order</span></p>
+            <p><strong>SEI CERT C rule EXP30-C.</strong> "Do not depend on the order of evaluation for side effects". Repeats the Annex C list of sequence points and states that the comma between function arguments is not a sequence point. <span class="mono small">https://cmu-sei.github.io/secure-coding-standards/sei-cert-c-coding-standard/rules/expressions-exp/exp30-c/</span></p>
+          </div>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What this page did not verify</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>No previous-year GATE question is reproduced, and no claim is made about how such an item has been keyed. The Practice tab says the same thing on every question.</li>
+            <li>No compiler was run for this lesson. Every count comes from the page's own enumeration of orderings, which is checked twice — once by walking the partial order, once by brute force over all permutations.</li>
+            <li>The claim that mainstream compilers "usually" print the naive answer is labelled a community observation, because it was read in discussion rather than measured here.</li>
+            <li>Annex C also lists the formatted-input and output specifiers and the <code>qsort</code> and <code>bsearch</code> comparison calls. They are acknowledged in the Build-up tab and left out of the eight-place list, which is a teaching choice and is labelled as one.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>

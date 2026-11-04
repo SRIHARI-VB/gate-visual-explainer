@@ -117,6 +117,7 @@ lessons are static files and work from a local clone.
 | Spatial Aptitude: Transformations, Paper Folding and Patterns | General Aptitude | A — explicitly in the syllabus | `topics/spatial-aptitude/index.html` |
 | Tenses, Adjectives and Conjunctions: Form, Degree and Link | General Aptitude | A — explicitly in the syllabus | `topics/tense-adjectives-and-conjunctions/index.html` |
 | Verbal Aptitude: Grammar, Vocabulary in Context, Comprehension and Narrative Sequencing | General Aptitude | A — explicitly in the syllabus | `topics/verbal-aptitude/index.html` |
+| Sequencing and Order of Evaluation in C: Sequence Points, Side Effects, and the Expressions That Have No Answer | Programming And Data Structures | A — explicitly in the syllabus | `topics/sequencing-and-order-of-evaluation-in-c/index.html` |
 
 `topics.json` is the registry of record. The hub `index.html` is generated from
 it by `node tools/gen-hub.mjs` — never hand-edit the hub. Cards are grouped by
