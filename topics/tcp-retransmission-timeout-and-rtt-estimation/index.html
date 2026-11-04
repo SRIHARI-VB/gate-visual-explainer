@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP's Retransmission Timeout: RTT Sampling, SRTT and RTTVAR, Karn's Algorithm and Backoff — GATE Visual Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="../../index.html">GATE Visual Explainer</a>
+    <span class="lesson-name">TCP retransmission timeout and RTT estimation</span>
+    <span class="spacer"></span>
+    <nav class="navlinks">
+      <a href="../../index.html">All topics</a>
+      <a href="../tcp-flow-congestion-control-and-sockets/index.html">Prerequisite: TCP flow and congestion control</a>
+      <a href="../udp-datagram-checksum-and-demultiplexing/index.html">Related: UDP</a>
+      <a href="../socket-api-and-connection-lifecycle/index.html">Related: socket API</a>
+      <a href="transcript.md">Transcript</a>
+    </nav>
+  </header>
+
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Lesson sections">
+    <button class="tab" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="buildup" role="tab" aria-selected="false">Build-up</button>
+    <button class="tab" data-tab="animation" role="tab" aria-selected="false">Animation</button>
+    <button class="tab" data-tab="examples" role="tab" aria-selected="false">Examples</button>
+    <button class="tab" data-tab="edges" role="tab" aria-selected="false">Edge cases</button>
+    <button class="tab" data-tab="misconceptions" role="tab" aria-selected="false">Misconceptions</button>
+    <button class="tab" data-tab="gate" role="tab" aria-selected="false">GATE patterns</button>
+    <button class="tab" data-tab="practice" role="tab" aria-selected="false">Practice</button>
+    <button class="tab" data-tab="revision" role="tab" aria-selected="false">Revision</button>
+    <button class="tab" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+  </nav>
+
+  <main class="panels">
+
+    <!-- ============================ 1. OVERVIEW ============================ -->
+    <section class="panel active" id="panel-overview" role="tabpanel" aria-label="Overview">
+      <div class="grid">
+
+        <div class="card card--hero span-2">
+          <h3>Topic and objective</h3>
+          <p><strong>TOPIC:</strong> How a TCP sender chooses the retransmission timeout — the measurement of a round trip, the two smoothed averages SRTT and RTTVAR, the one-second floor and the sixty-second ceiling, Karn's rule about retransmitted segments, and the doubling that follows every expiry.</p>
+          <p><strong>LEARNING OBJECTIVE:</strong> Given a sequence of round-trip samples, apply RFC 6298 in the order it is written and produce the timer value the sender actually uses. Say which rule produced each number, including the two rules that are not arithmetic (the floor and Karn's refusal to sample). Predict what happens to the timer across a timeout, a burst of expiries and a return to a steady path, and compute the numbers.</p>
+          <p class="small muted" style="margin-bottom:0">I read this as <em>the mechanism behind the loss signal of the named TCP clause</em>: the congestion-control lesson already uses a timeout as one of its two loss signals and does not compute the timer. That computation is this page.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>GATE relevance</h3>
+          <p><span class="claim-chip claim-chip--verified">Verified fact</span> <strong>Class B — a prerequisite mechanism for a named clause.</strong></p>
+          <p class="small">Section 10 of the GATE 2027 CS syllabus reads: <em>"TCP- flow control and congestion control, socket API; DNS and HTTP."</em> The retransmission timer is the mechanism that produces one of the two loss signals congestion control acts on, so it is a prerequisite for that clause rather than a clause of its own.</p>
+          <p class="small"><span class="claim-chip claim-chip--unverified">Unverified claim</span> The words <em>RTO</em>, <em>SRTT</em>, <em>RTTVAR</em>, <em>Karn</em> and <em>backoff</em> are <strong>not</strong> printed in the 2027 syllabus. The class-B label rests on the mechanism, not on the wording. I make no claim about how often this appears in past papers.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> A timer question is arithmetic with three rules and two clamps, which is why it is examinable at all: every step has one right answer.</p>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>Prerequisites</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><a href="../tcp-flow-congestion-control-and-sockets/index.html">TCP flow and congestion control</a> — what a segment, an ACK, a sequence number and a duplicate ACK are, and the two loss signals.</li>
+            <li><a href="../layering-switching-and-performance-metrics/index.html">Layering and performance metrics</a> — round-trip time, throughput and the units.</li>
+            <li>Arithmetic: weighted averages, absolute values, and powers of 0.75 and 0.875.</li>
+            <li>Helpful, not required: <a href="../sliding-window-arq-protocols/index.html">sliding window and ARQ</a>, where a timeout first appears as a protocol device.</li>
+          </ul>
+          <p class="small" style="margin-top:8px;margin-bottom:0">No simulator and no network are needed. Every number on the page is computed by the page.</p>
+        </div>
+
+        <div class="card card--takeaway">
+          <h3>The five ideas, in one line each</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>The timer is one deadline</strong>, restarted by an ACK that acknowledges new data, and it guards the oldest unacknowledged byte.</li>
+            <li><strong>Two averages, not one:</strong> SRTT is the centre, RTTVAR is the spread, and the timer is the centre plus four spreads.</li>
+            <li><strong>Order matters:</strong> the spread is computed from the centre as it was, before the centre moves.</li>
+            <li><strong>Two clamps:</strong> a computed timer below one second is raised, and a maximum may be set at sixty seconds or more.</li>
+            <li><strong>No sample after a retransmission:</strong> Karn's rule, because the ACK does not say which copy it answered.</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition span-2">
+          <h3>Visualization plan</h3>
+          <p class="small" style="margin-bottom:0">Ten scenes, in the order the reasoning needs them. <strong>1</strong> One deadline that moves: a send at 0 ms, ACKs at 400 and 800 ms, and the three deadlines 1200, 1600 and 2000. <strong>2</strong> The two errors, with their computed costs: three spurious copies against thirty wasted round trips. <strong>3</strong> The first sample: 40 ms gives 120 ms, and the floor replaces it with 1000 ms, twenty-five times the measurement. <strong>4</strong> The five-sample trace as a table, every row computed. <strong>5</strong> The same sample under both update orders, 1124.42 against 1074.45. <strong>6</strong> Thirty steady samples and one spike of 1600 ms, drawn as two curves. <strong>7</strong> Karn's two scenarios on one axis, 50 ms and 1600 ms against a true 400. <strong>8</strong> The doubling ladder from 1200 to the 60000 cap. <strong>9</strong> The closed form of the spread and the sample at which the timer is within ten per cent. <strong>10</strong> Five steps and the four slips.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>How to study this lesson</h3>
+          <p class="small">Approximate study time: 45–65 minutes, which is an estimate and not a measurement. Watch the Animation tab once with captions on, then read Examples, then take Practice with mock mode on.</p>
+          <p class="small" style="margin-bottom:0">The page computes every figure it shows when it loads: it runs the estimator over three sample lists, recomputes the fifth row from the fourth, runs both update orders, scans forty rows for the tenth-per-cent crossing, builds the backoff ladder and re-runs both Karn scenarios. The number of checks that passed is printed under the canvas, so a wrong figure would show up there before you read it.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 2. BUILD-UP ============================ -->
+    <section class="panel" id="panel-buildup" role="tabpanel" aria-label="Build-up">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>Intuition first: a stopwatch you must set before you know the answer</h3>
+          <p class="small">You post a letter and want to know when to stop waiting and post another copy. You have no clock on the postal service; all you have is how long past letters took. If you set the stopwatch too short, you post copies of letters that were never lost. Too long, and one lost letter wastes a week. So you keep two numbers: your running guess at how long a letter takes, and your running guess at how much that guess wobbles. The stopwatch is the guess plus a few wobbles.</p>
+          <p class="small" style="margin-bottom:0"><span class="claim-chip claim-chip--interpretation">Educational interpretation</span> The letter carries the two averages and the two clamps. It does not carry the retransmission ambiguity, which scene 7 supplies, or the exact weights, which are one eighth and one quarter.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Vocabulary, every term in words</h3>
+          <p class="small"><strong>RTT</strong> — round-trip time: how long a segment and its acknowledgement take together. A duration you measure.</p>
+          <p class="small"><strong>RTO</strong> — retransmission timeout: the duration the sender waits before resending. A duration you choose.</p>
+          <p class="small"><strong>Sample R</strong> — one measured RTT, from a segment that was sent once.</p>
+          <p class="small"><strong>SRTT</strong> — smoothed round-trip time: the running centre, a weighted average that leans on history.</p>
+          <p class="small"><strong>RTTVAR</strong> — round-trip time variation: the running spread, a weighted average of how far samples land from the centre.</p>
+          <p class="small"><strong>G</strong> — clock granularity: the smallest interval the sender's clock can measure, in milliseconds.</p>
+          <p class="small"><strong>K</strong> — how many spreads of margin the timer carries. RFC 6298 fixes K = 4.</p>
+          <p class="small"><strong>Backoff</strong> — doubling the timer on each expiry.</p>
+          <p class="small" style="margin-bottom:0"><strong>Karn's rule</strong> — take no RTT sample from a segment that was retransmitted.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The three rules, in words</h3>
+          <p class="small"><strong>Rule 2.1 — before any sample.</strong> The timer is one second. (The older document used three.)</p>
+          <p class="small"><strong>Rule 2.2 — the first sample R.</strong> The centre becomes R; the spread becomes half of R; the timer becomes the centre plus four spreads, which is three times R.</p>
+          <p class="small"><strong>Rule 2.3 — every later sample R&prime;.</strong> First the spread becomes three quarters of itself plus one quarter of the gap between the <em>old</em> centre and R&prime;. Then the centre becomes seven eighths of itself plus one eighth of R&prime;. Then the timer is recomputed.</p>
+          <p class="small"><strong>Rule 2.4 — the floor.</strong> A computed timer below one second is raised to one second.</p>
+          <p class="small" style="margin-bottom:0"><strong>Rule 2.5 — the ceiling.</strong> A maximum may be set, provided it is at least sixty seconds.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Why four spreads and not four standard deviations</h3>
+          <p class="small">The margin has to cover the sample that has not happened yet, and RTTVAR is not a standard deviation. It is a smoothed mean absolute deviation: the average of how far samples fall from the centre, smoothed the same way the centre is.</p>
+          <p class="small" style="margin-bottom:0">Four deviations is a wide but finite margin. It is not a probability statement and no percentage is claimed here: the rule is a rule, and the page treats it as one.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What the model computes, and what it assumes</h3>
+          <p class="small" style="margin-bottom:0">The model implements rules 2.1 to 2.5, 5.1 to 5.7 and Karn's rule, with the constants the document states: alpha one eighth, beta one quarter, K four, granularity one millisecond, floor one second, ceiling sixty seconds. It assumes every sample is a clean measurement of one segment, that the clock granularity is small enough to ignore in the margin except where stated, and that the sender has one timer. It does not model delayed ACKs, timestamps, selective acknowledgement, the congestion window, or the receive side. Where the page quotes a rule it quotes the rule; where it computes, it computes; and the count of passing checks is printed under the canvas.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 3. ANIMATION ============================ -->
+    <section class="panel is-flex" id="panel-animation" role="tabpanel" aria-label="Animation">
+      <div class="anim">
+
+        <div class="stage">
+          <div class="canvas-wrap" id="canvas-holder">
+            <div class="canvas-fallback" id="canvas-fallback">
+              <p><strong>This browser could not give the page a drawing surface.</strong> The animation needs either p5.js from its CDN or the browser's own canvas, and neither is available here. Nothing else is lost: the caption band below still runs with the timeline, and the Build-up, Examples, Edge cases and Revision tabs carry the whole lesson in words, with every number computed.</p>
+            </div>
+          </div>
+          <div class="caption-band" id="caption-band">
+            <p class="caption-text" id="cap-text">A TCP sender keeps one retransmission timer. Its duration is the RTO.</p>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="scene-meta">
+            <span class="k">Now showing</span>
+            <p class="scene-title" id="scene-title">One number, restarted by new data</p>
+            <p class="counter" id="scene-count">Scene 1 of 10</p>
+          </div>
+          <div class="scene-meta">
+            <span class="k">Narration</span>
+            <p class="narration" id="narration">A TCP sender keeps one retransmission timer. The duration it waits is called the RTO.</p>
+          </div>
+          <div class="checks" id="checks">
+            <span class="k">Model checks</span>
+            running&hellip;
+          </div>
+        </aside>
+
+        <div class="controls">
+          <button class="btn btn--primary" id="btn-play" aria-pressed="false">Play</button>
+          <button class="btn" id="btn-pause" disabled>Pause</button>
+          <button class="btn" id="btn-restart">Restart</button>
+          <div class="ctrl-group">
+            <button class="btn" id="btn-prev" title="Previous scene">&#9664; Scene</button>
+            <button class="btn" id="btn-next" title="Next scene">Scene &#9654;</button>
+          </div>
+          <div class="scrub-wrap">
+            <input type="range" id="scrub" min="0" max="300" step="0.1" value="0" aria-label="Lesson position">
+            <span class="time"><span id="time-cur">0:00</span> / <span id="time-total">5:00</span></span>
+          </div>
+          <div class="ctrl-group">
+            <span class="ctrl-label">Speed</span>
+            <select class="btn" id="speed" aria-label="Playback speed">
+              <option value="0.5">0.5&times;</option>
+              <option value="0.75">0.75&times;</option>
+              <option value="1" selected>1&times;</option>
+              <option value="1.5">1.5&times;</option>
+              <option value="2">2&times;</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="cap-toggle" aria-pressed="true">Captions on</button>
+            <select class="btn" id="cap-mode" aria-label="Caption mode">
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+              <option value="keyword">Keyword</option>
+              <option value="trap">Exam trap</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <button class="btn" id="motion-toggle" aria-pressed="false">Reduced motion: off</button>
+            <button class="btn" id="btn-voice" aria-pressed="false">Speak narration</button>
+            <button class="btn" id="btn-fullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 4. EXAMPLES ============================ -->
+    <section class="panel" id="panel-examples" role="tabpanel" aria-label="Examples">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 1 — the first sample on a fast path</h3>
+              <p class="small">A local connection measures its first round trip at 40 ms, with a clock granularity of 1 ms.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> SRTT = R = 40 ms <span class="why">rule 2.2</span></p>
+                <p><strong>2.</strong> RTTVAR = R/2 = 20 ms <span class="why">one sample has no spread, so the rule invents half of it</span></p>
+                <p><strong>3.</strong> margin = max(1, 4 &times; 20) = 80 ms <span class="why">4 RTTVAR beats the 1 ms granularity</span></p>
+                <p><strong>4.</strong> computed RTO = 40 + 80 = 120 ms</p>
+                <p><strong>5.</strong> 120 &lt; 1000, so the timer used is 1000 ms <span class="why">rule 2.4, the floor</span></p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">The timer is twenty-five times the measured round trip, and SRTT and RTTVAR are untouched at 40 and 20. The floor changes the timer, not the estimate.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 2 — five samples, computed row by row</h3>
+              <p class="small">Samples 400, 380, 420, 400, 800 ms. Each row applies rule 2.3 to the row above, then rule 2.4.</p>
+              <div class="step-list small">
+                <p><strong>1.</strong> 400: SRTT 400.0000, RTTVAR 200.0000, RTO 1200.00 <span class="why">first sample</span></p>
+                <p><strong>2.</strong> 380: SRTT 397.5000, RTTVAR 155.0000, RTO 1017.50</p>
+                <p><strong>3.</strong> 420: SRTT 400.3125, RTTVAR 121.8750, RTO 887.81 &rarr; 1000 <span class="why">floor binds</span></p>
+                <p><strong>4.</strong> 400: SRTT 400.2734, RTTVAR 91.4844, RTO 766.21 &rarr; 1000 <span class="why">floor binds</span></p>
+                <p><strong>5.</strong> 800: SRTT 450.2393, RTTVAR 168.5449, RTO 1124.42</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">Check row 2 by hand: RTTVAR = 0.75 &times; 200 + 0.25 &times; |400 &minus; 380| = 150 + 5 = 155; SRTT = 0.875 &times; 400 + 0.125 &times; 380 = 350 + 47.5 = 397.5.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 3 — the same sample under both orders</h3>
+              <p class="small">From row 4, old SRTT 400.2734 and old RTTVAR 91.4844, with a sample of 800.</p>
+              <div class="step-list small">
+                <p><strong>As written.</strong> gap = |400.2734 &minus; 800| = 399.7266 <span class="why">the old centre</span></p>
+                <p>RTTVAR = 0.75 &times; 91.4844 + 0.25 &times; 399.7266 = 68.6133 + 99.9316 = 168.5449</p>
+                <p>SRTT = 0.875 &times; 400.2734 + 0.125 &times; 800 = 450.2393</p>
+                <p>RTO = 450.2393 + 4 &times; 168.5449 = 1124.4189 ms</p>
+                <p><strong>Swapped.</strong> centre first gives 450.2393, so the gap is only 349.7607</p>
+                <p>RTTVAR = 68.6133 + 87.4402 = 156.0535, and RTO = 1074.4531 ms</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">The difference is 49.9658 ms of timer on one sample, and it always points the same way: too small a spread, so too short a timer.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 4 — one spike after thirty steady samples</h3>
+              <p class="small">Thirty samples of 400 ms converge the spread, then one sample of 1600 ms.</p>
+              <div class="step-list small">
+                <p><strong>Before.</strong> SRTT 400, RTTVAR 0.0476, timer on the floor at 1000 ms</p>
+                <p><strong>Spread.</strong> 0.75 &times; 0.0476 + 0.25 &times; |400 &minus; 1600| = 0.0357 + 300 = 300.0357</p>
+                <p><strong>Centre.</strong> 0.875 &times; 400 + 0.125 &times; 1600 = 350 + 200 = 550</p>
+                <p><strong>Timer.</strong> 550 + 4 &times; 300.0357 = 1750.1429 ms</p>
+                <p><strong>Factor.</strong> 1750.1429 / 1000 = 1.7501</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">The centre moved by 150 ms and the timer by 750: the spread, not the centre, did most of the work. On the next steady sample the gap term is 150 and three quarters of the excess disappears.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="card">
+              <h3>Example 5 — Karn's ambiguity, both ways</h3>
+              <p class="small">A segment is sent at 0 ms with a 1200 ms timer, and a copy at 1200 ms. The path round trip is 400 ms.</p>
+              <div class="step-list small">
+                <p><strong>Case A.</strong> The ACK arrives at 1250 ms and answers the <em>original</em>.</p>
+                <p>Timed from the copy: 1250 &minus; 1200 = 50 ms <span class="why">one eighth of the truth</span></p>
+                <p>Timed from the original: 1250 &minus; 0 = 1250 ms <span class="why">three times the truth</span></p>
+                <p><strong>Case B.</strong> The ACK arrives at 1600 ms and answers the <em>copy</em>.</p>
+                <p>Timed from the copy: 400 ms <span class="why">right by luck, not by measurement</span></p>
+                <p>Timed from the original: 1600 ms <span class="why">four times the truth</span></p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">No choice of send time is safe, so RFC 6298 section 3 forbids the sample. The timer stays at the doubled 2400 ms until a clean sample arrives.</p>
+            </div>
+
+            <div class="card">
+              <h3>Example 6 — the ladder, and the timer that restarts</h3>
+              <p class="small">From the worked timer of 1200 ms, with a sixty-second maximum.</p>
+              <div class="step-list small">
+                <p><strong>Ladder.</strong> 1200, 2400, 4800, 9600, 19200, 38400, 60000 <span class="why">the seventh doubling, 76800, passes the cap</span></p>
+                <p><strong>Doublings.</strong> six, then the cap is reached</p>
+                <p><strong>Timer.</strong> a send at 0 ms starts a deadline at 1200 ms</p>
+                <p><strong>ACK at 400.</strong> deadline becomes 400 + 1200 = 1600 ms</p>
+                <p><strong>ACK at 800.</strong> deadline becomes 800 + 1200 = 2000 ms, then off</p>
+              </div>
+              <p class="small muted" style="margin-bottom:0">The timer never counts down from a fixed point; it is always "the last progress plus RTO". That is why an ACK that acknowledges new data is worth more than one that does not.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 5. EDGE CASES ============================ -->
+    <section class="panel" id="panel-edges" role="tabpanel" aria-label="Edge cases">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample">
+          <h3>Edge case 1 — when the floor governs every row</h3>
+          <p class="small">On a 40 ms path the computed timer is 120 ms at the first sample and falls from there, so the floor governs the timer on every row for as long as the path stays fast. The estimate keeps improving and the timer does not move.</p>
+          <p class="small" style="margin-bottom:0">Consequence for an exam answer: if the question asks for "the RTO", state which one you mean, the computed value or the value used. On this page the table shows both columns for exactly that reason.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 2 — when the granularity term wins</h3>
+          <p class="small">The margin is max(G, 4 RTTVAR), not 4 RTTVAR. If the spread falls below a quarter of the clock granularity, the margin is G and the timer becomes the centre plus G.</p>
+          <p class="small" style="margin-bottom:0">With G = 1 ms that needs RTTVAR below 0.25 ms, which the forty-row steady trace reaches: at row 40 the spread is 0.0027 ms, so the margin there would be 1 ms, not 0.0108 ms.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 3 — the ceiling can be raised, not lowered</h3>
+          <p class="small">Rule 2.5 permits a maximum only if it is at least sixty seconds. A maximum of ten seconds would be a violation, because the doubling exists to survive a badly congested path.</p>
+          <p class="small" style="margin-bottom:0">So a question that says "the timer is capped at 60 s" is describing one permitted choice, not a number the document fixes.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 4 — the handshake rule</h3>
+          <p class="small">If the timer expires while waiting for the ACK of a SYN, and the implementation's timer is below three seconds, rule 5.7 requires the timer to be re-initialised to three seconds when data transmission begins after the handshake.</p>
+          <p class="small" style="margin-bottom:0">The handshake measures the connection setup, not the data path, so the first data segment does not inherit a small timer from it.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 5 — a timeout is not proof of loss</h3>
+          <p class="small">A timer that fires says only that no ACK arrived within RTO. The segment may have arrived and its ACK may be late, or the ACK may be lost, or the path may have doubled its delay. The sender's response is the same in all three cases, which is why the rule is arithmetic rather than diagnosis.</p>
+          <p class="small" style="margin-bottom:0">This is also why the floor exists: an early retransmission adds a copy to a path that is merely slow.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Edge case 6 — the sample you may never take</h3>
+          <p class="small">A segment that was retransmitted can never supply a sample under Karn's rule, and the one documented exception is the timestamp option, which puts a send time in the segment so the ACK identifies which copy it answers.</p>
+          <p class="small" style="margin-bottom:0">Without timestamps, a long run of losses means no samples at all, so the timer only ever doubles. It comes down again only when a clean ACK arrives.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 6. MISCONCEPTIONS ============================ -->
+    <section class="panel" id="panel-misconceptions" role="tabpanel" aria-label="Misconceptions">
+      <div class="grid grid--2">
+
+        <div class="card card--counterexample span-2">
+          <h3>Misconception 1 — "the timeout is the round-trip time"</h3>
+          <p class="small">The RTT is measured; the RTO is chosen. The RTO is the centre plus four spreads, and then clamped. On the worked trace the final RTT is 800 ms and the final timer is 1124.42 ms; on the fast path the RTT is 40 ms and the timer is 1000 ms.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample.</strong> A connection whose RTT is 40 ms uses a 1000 ms timer, twenty-five times the RTT. Any rule that sets the timer to the RTT would retransmit on almost every segment.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 2 — "RTTVAR is a variance"</h3>
+          <p class="small">It is a smoothed mean absolute deviation. With one sample the variance of the samples is zero, but rule 2.2 sets RTTVAR to half the sample, so RTTVAR is 200 ms for a single 400 ms sample.</p>
+          <p class="small" style="margin-bottom:0"><strong>Why it matters.</strong> Four times a deviation is not four standard deviations, and a question that treats the margin as a statistical confidence interval is answering a different question.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 3 — "SRTT is the mean of the samples"</h3>
+          <p class="small">It is an exponentially weighted average with weight one eighth on the newest sample. For the five samples 400, 380, 420, 400, 800 the arithmetic mean is 480 ms and SRTT is 450.2393 ms.</p>
+          <p class="small" style="margin-bottom:0"><strong>Counterexample.</strong> Reordering the same five samples changes the mean not at all and changes SRTT: the filter has a memory, a mean does not.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 4 — "the order of the two updates does not matter"</h3>
+          <p class="small">Rule 2.3 states the order and says the spread uses SRTT before it is updated. Swapping the two lines changes the fifth row from 168.5449 to 156.0535 ms and the timer from 1124.42 to 1074.45 ms.</p>
+          <p class="small" style="margin-bottom:0"><strong>Direction.</strong> The swapped order always under-estimates the spread, so it always shortens the timer.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 5 — "after a timeout you sample the retransmission"</h3>
+          <p class="small">Karn's rule forbids it. In case A the naive sample is 50 ms for a 400 ms path; in case B it is 1600 ms for the same path. The ACK carries a sequence number, and both copies carry the same one.</p>
+          <p class="small" style="margin-bottom:0"><strong>The exception.</strong> The timestamp option, which carries the send time and so identifies the copy. Without it, no sample.</p>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>Misconception 6 — "the floor applies to the estimate"</h3>
+          <p class="small">Rule 2.4 clamps the computed timer. SRTT and RTTVAR keep their computed values. Clamping RTTVAR instead changes every later row, because the next update starts from the clamped spread.</p>
+          <p class="small" style="margin-bottom:0"><strong>Check.</strong> In the worked trace rows 3 and 4 show a computed timer below 1000 and an applied timer of 1000, with SRTT and RTTVAR unchanged at 400.3125 / 121.875 and 400.2734 / 91.4844.</p>
+        </div>
+
+        <div class="card card--counterexample span-2">
+          <h3>Closely confused pair — a timeout against three duplicate ACKs</h3>
+          <p class="small">A timeout is the timer expiring: the sender retransmits the earliest unacknowledged segment, doubles the timer and cuts the congestion window to one segment. Three duplicate ACKs are a different signal: no timer expires, the sender retransmits without waiting, and the congestion window is halved rather than reset. The congestion-control lesson owns that second signal; this page owns only the first.</p>
+          <p class="small" style="margin-bottom:0"><strong>The distinguishing question:</strong> did a timer expire, or did acknowledgements arrive that acknowledge nothing new? Only the first doubles the timer.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 7. GATE PATTERNS ============================ -->
+    <section class="panel" id="panel-gate" role="tabpanel" aria-label="GATE patterns">
+      <div class="grid grid--2">
+
+        <div class="card card--hero span-2">
+          <h3>What a question on this topic asks, and the order to answer it in</h3>
+          <p class="small">No previous-year question is reproduced or attributed on this page. What follows is the shape of the questions this material supports, and a procedure that answers them without a decision at each step.</p>
+          <ol class="small" style="margin-bottom:0">
+            <li><strong>How many samples?</strong> None: one second. One: three times the sample. Two or more: the recursion, spread first.</li>
+            <li><strong>Is any sample from a retransmitted segment?</strong> If yes, discard it and double the timer instead.</li>
+            <li><strong>Compute, then clamp.</strong> The floor is one second, the ceiling at least sixty, and neither touches SRTT or RTTVAR.</li>
+            <li><strong>Name the rule that produced the number.</strong> A doubling is not a recomputation, and a clamp is not an estimate.</li>
+          </ol>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 1 — one sample, then the floor</h3>
+          <p class="small">A first measurement of R gives a computed timer of 3R. If 3R is below one second, the answer is one second, and the trap is to report 3R.</p>
+          <p class="small" style="margin-bottom:0">Worked here: R = 40 ms gives 120 ms computed and 1000 ms used.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 2 — a short trace</h3>
+          <p class="small">Three or four samples, and a request for the timer after the last one. The arithmetic is the whole question, and the order of the two updates is where most attempts lose a mark.</p>
+          <p class="small" style="margin-bottom:0">Worked here: five samples ending at 450.2393 ms of centre and 1124.42 ms of timer.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 3 — what happens at a timeout</h3>
+          <p class="small">The question gives a timer, one or more expiries, and asks for the value afterwards. The answer is a doubling per expiry, capped, with no sample taken.</p>
+          <p class="small" style="margin-bottom:0">Worked here: 1200, 2400, 4800, 9600, 19200, 38400, 60000.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>Pattern 4 — which sample is legal</h3>
+          <p class="small">The question describes a retransmission and asks what the sender may measure. The answer is nothing, unless timestamps are in use.</p>
+          <p class="small" style="margin-bottom:0">Worked here: 50 ms and 1600 ms, both wrong for a 400 ms path.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What this page does not claim</h3>
+          <p class="small" style="margin-bottom:0">It makes no claim about how often the topic appears, and it does not reproduce a previous-year question, because I did not verify a paper, set and question number for this topic in this session. The constants and the rules are quoted from RFC 6298; the arithmetic is computed by the page and re-checked by twenty-five checks whose count is printed under the canvas.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 8. PRACTICE ============================ -->
+    <section class="panel" id="panel-practice" role="tabpanel" aria-label="Practice">
+      <div data-pager>
+        <div class="pager-page active">
+          <div class="grid grid--2">
+
+            <div class="card card--hero span-2">
+              <h3>Practice set — answers are withheld until you reveal them</h3>
+              <p class="small">Every question here is an <strong>original practice question</strong> written for this lesson, and each is labelled so. None is presented as a previous-year question. Every answer was computed and, where the page models it, checked by the page.</p>
+              <label class="small" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input type="checkbox" id="mock-toggle"> Mock-test mode: hide every answer until you submit
+              </label>
+              <p class="small" style="margin-bottom:0"><button class="btn" id="mock-submit" hidden>Submit and reveal all answers</button></p>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A TCP connection makes its first round-trip measurement of 100 ms. The clock granularity is 1 ms. Following RFC 6298, the retransmission timeout the sender actually uses is ______ ms.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 1000</p>
+                <p>The computed value is 3R = 300 ms: SRTT 100, RTTVAR 50, margin 200. Rule 2.4 then raises any computed value below one second to one second, so the timer used is 1000 ms.</p>
+                <p><strong>Why 300 appears.</strong> The computed value before the floor. <strong>Why 150 appears.</strong> Adding only the margin of 4 &times; 50 without SRTT, or halving wrongly.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>An estimator holds SRTT = 400 ms and RTTVAR = 20 ms. A new sample of 800 ms arrives, with alpha = 1/8 and beta = 1/4. The new value of RTTVAR is</p>
+                <ol class="choices">
+                  <li>20.00 ms</li>
+                  <li>102.50 ms</li>
+                  <li>115.00 ms</li>
+                  <li>100.00 ms</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>RTTVAR = 0.75 &times; 20 + 0.25 &times; |400 &minus; 800| = 15 + 100 = 115 ms, using the old SRTT.</p>
+                <p><strong>Why 102.50 appears.</strong> The swapped order: the centre is moved to 450 first, so the gap is 350 and the result is 15 + 87.5. <strong>Why 100 appears.</strong> The gap term alone, without three quarters of the old spread. <strong>Why 20 appears.</strong> Leaving the spread unchanged, which is what happens only when the sample equals the centre.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Which of the following statements about RFC 6298 are true?</p>
+                <ol class="choices">
+                  <li>RTTVAR is the variance of the round-trip samples.</li>
+                  <li>The first measurement sets RTTVAR to half of that measurement.</li>
+                  <li>A computed timeout below one second is raised to one second.</li>
+                  <li>An RTT sample may be taken from a retransmitted segment when timestamps are not used.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B and C</p>
+                <p>B is rule 2.2 and C is rule 2.4. A is false: RTTVAR is a smoothed mean absolute deviation, and for a single sample it is half the sample while the variance of one observation is zero. D is false: Karn's rule forbids the sample, and timestamps are exactly the exception that makes it safe.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>The timer stands at 1200 ms when a segment is retransmitted. It expires three more times with no acknowledgement, and the implementation caps the timer at 60 seconds. After the third doubling the timer is ______ ms.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 9600</p>
+                <p>1200 &rarr; 2400 &rarr; 4800 &rarr; 9600. The cap is not reached until the fifth doubling, which gives 38400, and the sixth, which would pass 60000.</p>
+                <p><strong>Why 19200 appears.</strong> Counting the first expiry as an extra doubling. <strong>Why 60000 appears.</strong> Applying the cap immediately instead of after each doubling.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A segment is sent at 0 ms with a 1200 ms timer and retransmitted at 1200 ms. An acknowledgement arrives at 1250 ms, and the connection does not use timestamps. What does RFC 6298 require?</p>
+                <ol class="choices">
+                  <li>Take a 50 ms sample and update the estimate.</li>
+                  <li>Take a 1250 ms sample and update the estimate.</li>
+                  <li>Take no sample; the timer stays at the doubled value.</li>
+                  <li>Take the mean of 50 and 1250 as the sample.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: C</p>
+                <p>Karn's rule: the ACK does not say which copy it answers, so neither send time is a measurement. The timer was doubled to 2400 ms at the expiry and that value stands until a clean sample arrives.</p>
+                <p><strong>Why A appears.</strong> It is the tempting arithmetic and it is wrong by a factor of eight on this path. <strong>Why D appears.</strong> Averaging two unknowns is not a measurement; both candidates are wrong, so their mean is too.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager-page">
+          <div class="grid grid--2">
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--nat">NAT</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A path's round trip is a constant 400 ms. Using rule 2.2 and then rule 2.3, the computed timeout first comes within 10 per cent of 400 ms at sample number ______.</p>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: 12</p>
+                <p>With a constant sample the gap is zero, so RTTVAR(n) = 200 &times; 0.75<sup>n&minus;1</sup> ms and the computed timer is 400 + 4 RTTVAR. Within 10 per cent means 4 RTTVAR &le; 40, that is RTTVAR &le; 10. At n = 11 the spread is 11.2627 ms; at n = 12 it is 8.4470 ms.</p>
+                <p><strong>Why 11 appears.</strong> Stopping one row early. <strong>Why 8 appears.</strong> Solving 0.75<sup>n</sup> &le; 0.1 and forgetting the factor of four.</p>
+              </div>
+            </div>
+
+            <div class="question card">
+              <div class="q-head"><span class="badge badge--msq">MSQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>A single retransmission timeout expires. Which of these does the sender do?</p>
+                <ol class="choices">
+                  <li>Retransmit the earliest unacknowledged segment.</li>
+                  <li>Set the timer to twice its previous value.</li>
+                  <li>Take an RTT sample from the retransmitted segment.</li>
+                  <li>Restart the timer with the new value.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: A, B and D</p>
+                <p>Rules 5.4, 5.5 and 5.6 in that order. C is forbidden by Karn's rule, since the ACK that eventually arrives cannot be attributed to one copy.</p>
+                <p><strong>Why C is tempting.</strong> The ACK does arrive, and it is easy to treat its arrival time as a measurement. What it measures is the age of an unknown copy.</p>
+              </div>
+            </div>
+
+            <div class="question card span-2">
+              <div class="q-head"><span class="badge badge--mcq">MCQ</span><span class="badge badge--orig">Original practice</span></div>
+              <div class="q-body">
+                <p>Two implementations run the same five samples through RFC 6298 and report different timers. The first reports 1124.42 ms and the second 1074.45 ms. Which single difference explains it?</p>
+                <ol class="choices">
+                  <li>The second used a different value of K.</li>
+                  <li>The second updated SRTT before RTTVAR.</li>
+                  <li>The second applied the one-second floor to RTTVAR.</li>
+                  <li>The second used a ceiling of 1100 ms.</li>
+                </ol>
+              </div>
+              <button class="reveal">Show answer</button>
+              <div class="answer" hidden>
+                <p class="verdict">Answer: B</p>
+                <p>Updating the centre first makes the gap in the spread smaller: 349.7607 instead of 399.7266, which gives RTTVAR 156.0535 and a timer of 1074.4531 ms. The difference is 49.9658 ms.</p>
+                <p><strong>Why A appears.</strong> A different K changes the margin by whole multiples and would not land on this value. <strong>Why D appears.</strong> A 1100 ms ceiling would have clipped the first answer, not produced the second.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pager">
+          <button data-pager-prev>Previous</button>
+          <span class="count" data-pager-count>Page 1 of 3</span>
+          <button data-pager-next>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 9. REVISION ============================ -->
+    <section class="panel" id="panel-revision" role="tabpanel" aria-label="Revision">
+      <div class="grid grid--2">
+
+        <div class="card card--takeaway">
+          <h3>The constants, in one table</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Initial timer before any sample: <strong>1 s</strong> (the older RFC 2988 used 3 s)</li>
+            <li>alpha, the weight on a new sample in the centre: <strong>1/8</strong></li>
+            <li>beta, the weight on a new gap in the spread: <strong>1/4</strong></li>
+            <li>K, spreads of margin: <strong>4</strong></li>
+            <li>Floor on a computed timer: <strong>1 s</strong></li>
+            <li>Ceiling: <strong>at least 60 s</strong>, if any</li>
+            <li>Handshake rule: a timer below <strong>3 s</strong> is re-initialised to 3 s for data</li>
+          </ul>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The two recursions</h3>
+          <p class="small"><strong>First sample.</strong> SRTT = R, RTTVAR = R/2, RTO = SRTT + max(G, 4 RTTVAR) = 3R.</p>
+          <p class="small"><strong>Later sample R&prime;.</strong> RTTVAR &larr; (3/4) RTTVAR + (1/4)|SRTT &minus; R&prime;|, using the old SRTT; then SRTT &larr; (7/8) SRTT + (1/8) R&prime;; then RTO &larr; SRTT + max(G, 4 RTTVAR).</p>
+          <p class="small" style="margin-bottom:0"><strong>Constant path.</strong> RTTVAR(n) = (R/2)(3/4)<sup>n&minus;1</sup>, and the timer is within 10 per cent of R at n = 12 for R = 400 ms.</p>
+        </div>
+
+        <div class="card card--definition">
+          <h3>The decision procedure</h3>
+          <ol class="small" style="margin-bottom:0">
+            <li>Count the legal samples. A retransmitted segment contributes none.</li>
+            <li>None &rarr; one second. One &rarr; 3R. More &rarr; the recursion, spread first.</li>
+            <li>Compute the timer, then apply the floor, then the ceiling.</li>
+            <li>If a timer expired, double instead of recomputing, once per expiry.</li>
+            <li>Say which rule produced the number.</li>
+          </ol>
+        </div>
+
+        <div class="card card--counterexample">
+          <h3>The four slips</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li>Averaging the samples instead of smoothing them: 480 ms against 450.2393 ms on the worked trace.</li>
+            <li>Reading RTTVAR as a variance: one sample has zero variance and RTTVAR 200 ms.</li>
+            <li>Swapping the two updates: 1074.45 instead of 1124.42 ms.</li>
+            <li>Clamping the spread instead of the timer: every later row changes.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>Three sentences to carry into the exam</h3>
+          <p class="small">The timer is a filter over measurements, with a floor, a ceiling and one rule that forbids a measurement. The spread is the safety margin, so the order of the two updates is part of the algorithm. A retransmission makes the next acknowledgement unmeasurable, and the doubling is what replaces the measurement.</p>
+          <p class="small" style="margin-bottom:0">Quick revision questions, answers in the Practice tab: what is the timer after one 100 ms sample? What is RTTVAR after SRTT 400, RTTVAR 20 and a sample of 800? What is the timer after three doublings from 1200 ms? At which sample does a 400 ms constant path come within 10 per cent?</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================ 10. SOURCES ============================ -->
+    <section class="panel" id="panel-sources" role="tabpanel" aria-label="Sources">
+      <div class="grid grid--2">
+
+        <div class="card card--definition">
+          <h3>What the research consulted</h3>
+          <ul class="small" style="margin-bottom:0">
+            <li><strong>RFC 6298, "Computing TCP's Retransmission Timer"</strong> (Paxson, Allman, Chu, Sargent; June 2011; obsoletes RFC 2988). Read at rfc-editor.org. Supports rules 2.1 to 2.5, rules 5.1 to 5.7, section 3 on Karn's algorithm, and the statement that the algorithm is a MUST.</li>
+            <li><strong>RFC 2988</strong> (Paxson, Allman; November 2000). Read at rfc-editor.org. Supplies the text of rules 2.4 and 2.5 and of section 3 in full, and the record that the initial timer was 3 seconds before RFC 6298 lowered it to 1.</li>
+            <li><strong>GATE 2027 CS syllabus PDF, IIT Madras.</strong> Downloaded and read on 2026-11-04. Section 10 reads: "TCP- flow control and congestion control, socket API; DNS and HTTP." That is the clause this lesson is a prerequisite for.</li>
+          </ul>
+        </div>
+
+        <div class="card card--assumption">
+          <h3>What each source supports, and what it does not</h3>
+          <p class="small">RFC 6298 supports every rule quoted on the page: the constants, the order of the two updates, the floor, the ceiling, the doubling and Karn's rule. It does not claim that one second is optimal; it records the reasoning as avoiding spurious retransmissions and says research may later show a smaller minimum is acceptable.</p>
+          <p class="small" style="margin-bottom:0">The timestamp exception is RFC 6298 section 3's own sentence, pointing at the timestamp option. This page does not quote a timestamp format and does not model one.</p>
+        </div>
+
+        <div class="card card--assumption span-2">
+          <h3>What was not verified, and the assumptions the model makes</h3>
+          <p class="small" style="margin-bottom:0">No previous-year question is reproduced or attributed anywhere on this page, and no claim is made about how often the topic appears in GATE CSE papers. The numbers in the worked trace are computed by the page from the rules rather than copied from a textbook, so they are arithmetic on quoted rules rather than a citation of a worked example. The model assumes one timer, one path, a clock granularity of 1 ms, and samples that measure a single segment; it does not model delayed acknowledgements, timestamps, selective acknowledgement or the congestion window, all of which belong to the neighbouring lesson. The 60-second ceiling is described as a permitted choice, not as a fixed number, because rule 2.5 permits any maximum of at least sixty seconds.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="timeline.js"></script>
+<script src="../../assets/painters.js"></script>
+<script src="../../assets/lesson-kit.js"></script>
+<script src="lesson.js"></script>
+</body>
+</html>
