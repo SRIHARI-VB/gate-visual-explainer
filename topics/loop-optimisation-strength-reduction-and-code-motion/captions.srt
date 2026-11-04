@@ -1,0 +1,159 @@
+1
+00:00:00,000 --> 00:00:07,500
+A program spends nearly all its time in a few loops, so the optimiser spends nearly all its effort there.
+
+2
+00:00:07,500 --> 00:00:15,000
+Here is the loop this page rewrites: an index scaled by four, an array read, a running sum, a counter and a test.
+
+3
+00:00:15,000 --> 00:00:22,500
+Four rewrites act on it: strength reduction, loop-invariant code motion, induction variable elimination and unrolling.
+
+4
+00:00:22,500 --> 00:00:30,000
+The ledger for n iterations starts at 2n multiplies and 3n adds — five arithmetic operations per iteration.
+
+5
+00:00:30,000 --> 00:00:37,500
+t1 = 4 * i is a multiply whose right operand never changes. That is what makes it a candidate.
+
+6
+00:00:37,500 --> 00:00:45,000
+Set t1 = 0 before the loop and replace the multiply by t1 = t1 + 4. The eight values are identical.
+
+7
+00:00:45,000 --> 00:00:52,500
+The index multiplies fall from n to 0, and the adds rise from 3n to 4n. The arithmetic total does not move.
+
+8
+00:00:52,500 --> 00:01:00,000
+The rule: an induction variable is one that steps by a constant, and its affine use can always be replaced by a running total.
+
+9
+00:01:00,000 --> 00:01:07,500
+Two conditions licence the rewrite: the multiplier must be loop-invariant, and the stride of the induction variable must be constant.
+
+10
+00:01:07,500 --> 00:01:15,000
+Break the stride: if the body doubles i, the running add gives 0, 4, 8, 12, 16 where the multiply gives 0, 4, 8, 16, 32.
+
+11
+00:01:15,000 --> 00:01:22,500
+A multiplier that is not a power of two still works: multiplying by seven becomes adding seven.
+
+12
+00:01:22,500 --> 00:01:30,000
+But x * 2 to x << 1 is not a legal rewrite in C when x can be negative: shifting a negative value is undefined.
+
+13
+00:01:30,000 --> 00:01:37,500
+Now the second rewrite. t3 = b * c sits in the body and produces the same value on every iteration.
+
+14
+00:01:37,500 --> 00:01:45,000
+Move it to the preheader, the block that runs once before the loop. The multiplies fall from 2n to n + 1.
+
+15
+00:01:45,000 --> 00:01:52,500
+Two conditions: every operand must be invariant, and the moved definition must reach every exit of the loop.
+
+16
+00:01:52,500 --> 00:02:00,000
+The saving is real but bounded: one multiply saved per iteration, and nothing else in the loop changes.
+
+17
+00:02:00,000 --> 00:02:07,500
+First failure: an operand that the loop writes. Here the loop does x = x + 1, so x * x is not invariant.
+
+18
+00:02:07,500 --> 00:02:15,000
+Second failure: a loop that runs zero times. Hoisting 100 / y out of it executes a division that the original never executed.
+
+19
+00:02:15,000 --> 00:02:22,500
+The repair is a guard: hoist only if the loop is known to run at least once, or move the value into an if that tests the trip count.
+
+20
+00:02:22,500 --> 00:02:30,000
+And a third cost, not a failure: the hoisted value stays live across the whole loop, so it may occupy a register for n iterations.
+
+21
+00:02:30,000 --> 00:02:37,500
+After strength reduction, i is used for exactly two things: stepping t1, and the test i < n.
+
+22
+00:02:37,500 --> 00:02:45,000
+Rewrite the test as t1 < limit with limit = 4 * n in the preheader. Then i has no uses, and the increment is deleted.
+
+23
+00:02:45,000 --> 00:02:52,500
+The deleted increment is not dead code elimination done first: the rewrite is what makes i dead, and then the deletion is trivial.
+
+24
+00:02:52,500 --> 00:03:00,000
+The boundary: 4 * n can overflow where i < n could not, so the rewrite is not free at the edge of the machine word.
+
+25
+00:03:00,000 --> 00:03:07,500
+The fourth rewrite does not remove work. It removes tests: replicate the body four times and test once.
+
+26
+00:03:07,500 --> 00:03:15,000
+For n equal to eight the tests fall from 8 to 2. For n equal to ten they fall from 10 to 4.
+
+27
+00:03:15,000 --> 00:03:22,500
+A remainder loop is not optional: without it the last n mod 4 iterations are silently dropped.
+
+28
+00:03:22,500 --> 00:03:30,000
+The trade is body size against test count, and past a point the larger body costs more in the instruction cache than it saves.
+
+29
+00:03:30,000 --> 00:03:37,500
+Four versions, one ledger. Arithmetic operations for n iterations: 5n, then 4n + 1, 4n + 1, and 3n + 2.
+
+30
+00:03:37,500 --> 00:03:45,000
+Versions one and two reach the same total by different routes: one removes a multiply, the other turns it into an add.
+
+31
+00:03:45,000 --> 00:03:52,500
+Only the third rewrite removes an operation outright: the increment disappears with i, saving exactly n adds.
+
+32
+00:03:52,500 --> 00:04:00,000
+The loads and the tests never move: no rewrite here removes an array access or a branch except unrolling.
+
+33
+00:04:00,000 --> 00:04:07,500
+Shape one, from GATE CSE 2006: a loop is printed and four optimisations are named, and one of them has no scope.
+
+34
+00:04:07,500 --> 00:04:15,000
+There is invariance, there is a repeated subexpression, there is a multiply to reduce, and there is no dead code — so the false option is dead code elimination.
+
+35
+00:04:15,000 --> 00:04:22,500
+Shape two, from GATE CSE 2021 Set 2: count the additions and the dereferences after common subexpression elimination.
+
+36
+00:04:22,500 --> 00:04:30,000
+Both shapes reward the same habit: count what is inside the loop, and check separately what moved outside it.
+
+37
+00:04:30,000 --> 00:04:37,500
+Step one: find the invariants. Step two: find the induction variables and their strides.
+
+38
+00:04:37,500 --> 00:04:45,000
+Step three: ask what the rewrite makes dead. Step four: ask what it makes unsafe.
+
+39
+00:04:45,000 --> 00:04:52,500
+The five traps: instruction count against cost, zero-trip loops, naming the optimisations in the wrong order, overflow, and signed shifts.
+
+40
+00:04:52,500 --> 00:05:00,000
+None of this is in the syllabus as a heading. It is what the word local, in local optimisation, is measured against.
