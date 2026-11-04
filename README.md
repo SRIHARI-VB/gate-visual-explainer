@@ -98,6 +98,7 @@ lessons are static files and work from a local clone.
 | Context-Free Grammars and Pushdown Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/context-free-grammars-and-pushdown-automata/index.html` |
 | Regular Expressions and Finite Automata | Theory Of Computation | A — explicitly in the syllabus | `topics/regular-expressions-and-finite-automata/index.html` |
 | Turing Machines and Undecidability | Theory Of Computation | A — explicitly in the syllabus | `topics/turing-machines-and-undecidability/index.html` |
+| Myhill–Nerode and Distinguishability: The Classes That Are the States | Theory Of Computation | B — prerequisite for a syllabus topic | `topics/myhill-nerode-and-distinguishability/index.html` |
 | Canonical LR(1) and LALR(1): the Item That Carries a Lookahead, and the Merge That Can Create a Conflict | Compiler Design | A — explicitly in the syllabus | `topics/canonical-lr1-items-and-lalr-merging/index.html` |
 | Data-Flow Analysis: the Framework Behind Constant Propagation, Liveness and CSE | Compiler Design | A — explicitly in the syllabus | `topics/data-flow-analysis-framework/index.html` |
 | Lexical Analysis, Parsing and Syntax-Directed Translation | Compiler Design | A — explicitly in the syllabus | `topics/lexical-analysis-parsing-and-sdt/index.html` |
