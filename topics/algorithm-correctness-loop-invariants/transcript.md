@@ -140,9 +140,9 @@ Exam-trap caption mode adds: *A hang produces no wrong output, so an output-comp
 
 *3:00 – 3:30 · objective: Count invariant violations, wrong answers and hangs over all 3,688 small cases, for the correct loop and for the 2008 one.*
 
-**3:00–3:07** — Every claim here is checked by enumeration: three thousand six hundred and eighty-eight sorted arrays of length one to five over values one to six.
+**3:00–3:07** — Every claim here is checked by enumeration: four hundred and sixty-one sorted arrays of length one to five over values one to six, times eight targets, is three thousand six hundred and eighty-eight cases.
 
-> Caption: Every claim here is checked by enumeration: 3,688 sorted arrays of length 1 to 5 over values 1 to 6.
+> Caption: Every claim here is checked by enumeration: 461 sorted arrays of length 1 to 5 over values 1 to 6, times 8 targets, is 3,688 cases.
 
 **3:07–3:15** — The correct loop: zero invariant violations, zero wrong answers, eight thousand and ninety-one probes, at most three per search.
 

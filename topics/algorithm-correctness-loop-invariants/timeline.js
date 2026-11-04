@@ -224,9 +224,9 @@ window.LESSON_TIMELINE = {
 
     /* ---------------- scene 7: exhaustive ---------------- */
     { id: 'e25', scene: 'exhaustive', start: 180, end: 187.5,
-      caption: 'Every claim here is checked by enumeration: 3,688 sorted arrays of length 1 to 5 over values 1 to 6.',
-      detail: 'Each array is paired with each of the eight targets 0 to 7, some present and some absent. That is the whole input space at this size, so a count over it is a proof for those sizes and evidence about the rest.',
-      narration: 'Every claim here is checked by enumeration: three thousand six hundred and eighty-eight sorted arrays of length one to five over values one to six.',
+      caption: 'Every claim here is checked by enumeration: 461 sorted arrays of length 1 to 5 over values 1 to 6, times 8 targets, is 3,688 cases.',
+      detail: '461 arrays times 8 targets is 3,688 cases, some with the target present and some absent. That is the whole input space at this size, so a count over it is a proof for those sizes and evidence about the rest.',
+      narration: 'Every claim here is checked by enumeration: four hundred and sixty-one sorted arrays of length one to five over values one to six, times eight targets, is three thousand six hundred and eighty-eight cases.',
       keyword: 'enumeration' },
     { id: 'e26', scene: 'exhaustive', start: 187.5, end: 195,
       caption: 'The correct loop: zero invariant violations, zero wrong answers, 8,091 probes, at most 3 per search.',
