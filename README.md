@@ -46,6 +46,7 @@ lessons are static files and work from a local clone.
 | Trees, Binary Search Trees and Heaps | Programming And Data Structures | A — explicitly in the syllabus | `topics/trees-bst-and-heaps/index.html` |
 | Asymptotic Complexity and Recurrences | Algorithms | A — explicitly in the syllabus | `topics/asymptotic-complexity/index.html` |
 | Binary Search and Its Variants | Algorithms | A — explicitly in the syllabus | `topics/binary-search-and-variants/index.html` |
+| Deterministic Linear-Time Selection: Quickselect, Median of Medians and Why Five | Algorithms | B — prerequisite for a syllabus topic | `topics/deterministic-selection-median-of-medians/index.html` |
 | Divide and Conquer: the Three-Step Pattern, the Recursion Tree and the Recurrence | Algorithms | A — explicitly in the syllabus | `topics/divide-and-conquer/index.html` |
 | Dynamic Programming: Formulation, Tables and Classic Problems | Algorithms | A — explicitly in the syllabus | `topics/dynamic-programming/index.html` |
 | Exact counts: comparisons, probes, transfers and multiplications | Algorithms | B — prerequisite for a syllabus topic | `topics/exact-counts-across-topics/index.html` |
