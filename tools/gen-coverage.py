@@ -263,6 +263,48 @@ topics.append(topic(
     execution="published 2026-10-26 (earlier run)",
     microtopics=["checking the four group axioms", "subgroup tests", "order divides group order"]))
 
+# Isomorphism is the relation the word "Groups" is taught with, and GATE CSE 2007
+# examined it directly. It is not itself printed in the syllabus, so this row is
+# graded medium and the class is recorded as B in topics.json.
+topics.append(topic(
+    DM, "Algebraic structures", "Group isomorphism and invariants",
+    ["the definition and its two obligations",
+     "consequences: identity, inverses, element order",
+     "isomorphism as an equivalence relation",
+     "invariants: order, abelianness, element-order profile, centre, subgroups, automorphisms",
+     "the brute-force isomorphism search and its pruning",
+     "the limit of the profile, with an order-16 counterexample"],
+    prereq=["monoids-and-groups"],
+    related=["relations and their properties", "functions and their properties",
+             "partial orders and lattices"],
+    importance="medium",
+    evidence=("The printed clause is 'Monoids, Groups'. The word isomorphism is not printed, but it is the "
+              "relation the clause is taught with and GATE CSE 2007 asked for the number of non-isomorphic "
+              "abelian groups of order 4. " + SYL),
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="group-isomorphism-and-invariants",
+    path="topics/group-isomorphism-and-invariants/index.html",
+    execution="published 2026-11-05: 46 of 46 model checks pass, geometry audit clean on the first run",
+    microtopics=[
+        "an isomorphism is a bijection with phi(a*b) = phi(a)*phi(b), and both halves are load-bearing",
+        "phi(e) = e, phi(a^-1) = phi(a)^-1, and order(phi(a)) = order(a) come free from the one equation",
+        "isomorphism is an equivalence relation, checked on four groups of order 6: reflexive 4 of 4, symmetric 12 of 12, transitive 64 of 64",
+        "an invariant is anything read off the table, so a relabelling cannot change it",
+        "the six invariants used here: order, abelianness, element-order profile, centre size, subgroup counts, automorphism count",
+        "a mismatching invariant proves difference; a matching one proves nothing",
+        "Z6 is isomorphic to Z2xZ3 by phi(x) = (x mod 2, x mod 3), checked on all 36 ordered pairs with 0 violations",
+        "exactly two of the 120 bijections fixing the identity are isomorphisms, so Aut(Z6) = 2",
+        "Z4 against V4: one element of order 2 against three, so no bijection can preserve order",
+        "Z6 against S3: abelianness settles it in one line, and the profiles 1,1,2,2 and 1,3,2 agree",
+        "D4 against Q8: both non-abelian with centre of size 2, so only the profiles 1,5,2 and 1,1,6 separate them",
+        "the exhaustive search costs (n-1)! bijections and n^2 products each: 6/96, 120/4320, 5040/322560",
+        "the element-order filter is the same search pruned, and it removes every D4-against-Q8 candidate before a product is tested",
+        "Z4xZ4 and Q8xZ2 both have profile 1,3,12 and are not isomorphic, so a matching profile is never a proof",
+        "the four-step procedure: order, abelianness, profile, then the map; only the last can answer yes",
+        "GATE CSE 2007: the number of non-isomorphic abelian groups of order 4 is 2, and the abelian restriction is free at order p squared",
+        "the short classification list: order 4 gives 2, order 6 gives 2, order 8 gives 5, order 9 gives 2, a prime gives 1"]))
+
 # The syllabus names "Graphs: connectivity, matching, colouring" as one item. It is
 # too large for one screen-based lesson, so it is split into two independently
 # teachable topics that keep the prerequisite order: connectivity first, then
