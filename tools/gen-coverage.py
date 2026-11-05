@@ -5208,6 +5208,62 @@ topics.append(topic(
         "the trapezium (6, 10, height 4) is 32, the same as the two triangles it splits into"
     ]))
 
+
+# ---------------------------------------------------------------- Group actions (depth inside 'Monoids, Groups')
+topics.append(topic(
+    DM, "Section 1: 'Monoids, Groups' - the action of a group on a set, which the printed clause does not name",
+    "Group actions, orbits and stabilisers, with Burnside's lemma",
+    ["the two axioms of an action",
+     "the orbit of a point and the partition it gives",
+     "the stabiliser and the subgroup it forms",
+     "orbit-stabiliser: |G| = |orbit| x |stab|",
+     "Burnside's lemma as an average of fixed points",
+     "the cycle-structure shortcut k^c",
+     "necklaces against bracelets",
+     "conjugation as an action, and Cayley's theorem as a corollary"],
+    prereq=["monoids and groups", "group homomorphisms and kernels", "functions and their properties"],
+    related=["counting and combinatorics", "group isomorphism and invariants", "graphs: matching and colouring"],
+    importance="medium",
+    evidence=("Section 1 of the GATE 2027 CS syllabus prints 'Monoids, Groups' and, under Combinatorics, "
+              "'counting'. The words group action, orbit, stabiliser and Burnside are not printed, so this row "
+              "is class B and the evidence is the named counting clause, not a claim about frequency. " + SYL),
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="group-actions-orbits-and-burnside",
+    path="topics/group-actions-orbits-and-burnside/index.html",
+    execution=("published 2026-11-05: 39 model checks pass, 10 scenes, 50 cues, geometry audit clean, "
+               "orbit-stabiliser verified on 355 point-element pairs and Burnside against brute force on 12 actions"),
+    microtopics=[
+        "an action as a map from a group element and a point to a point, with no bijection and no size relation",
+        "rule one: the identity fixes every point, checked on every point of all twelve actions",
+        "rule two: (gh).x = g.(h.x), checked on every pair of elements and every point",
+        "the action stored as a move table, so a wrong action throws at load instead of drawing",
+        "the orbit as the reachable set, found by search rather than by inspection",
+        "being in one orbit is an equivalence relation, so orbits partition the set: 4 + 2 = 6 segments, 6 blocks adding to 16",
+        "two orbits of different sizes inside one action, which is why orbit size is not a property of the group",
+        "the stabiliser as the set of elements fixing a point, and the proof that it is a subgroup",
+        "the stabiliser of a corner of the square is {e, s}, of size 2, and is NOT normal: conjugating it gives {e, r2s}",
+        "stabilisers of one orbit are conjugate, checked on 98 pairs",
+        "orbit-stabiliser |G| = |orbit| x |stab|, proved by the coset fibres and verified on 355 point-element pairs",
+        "8 = 4 x 2 on a corner, 8 = 2 x 4 on a diagonal, 6 = 3 x 2 for S3 on three points",
+        "every orbit size divides the group order, so an orbit of size 3 is impossible in D4",
+        "Burnside's lemma: the number of orbits is the average number of fixed points",
+        "the double count that proves it: fixed points over elements equals stabiliser sizes over points",
+        "the naive division fails: 16 colourings over 8 symmetries is 2, while the answer is 6",
+        "C4 on the 16 two-colourings fixes 16, 2, 4, 2, so 24/4 = 6, matching the brute-force orbit count",
+        "D4 on the 16 two-colourings fixes 16, 2, 4, 2, 8, 4, 8, 4, so 48/8 = 6",
+        "three colours: 96/4 = 24 by rotation and 168/8 = 21 with reflections",
+        "six beads in two colours: 84/6 = 14 necklaces and 156/12 = 13 bracelets",
+        "64/6 = 10.67, which is not even a whole number, so no divisor works",
+        "the k-colour formulas (k^4 + k^2 + 2k)/4 and (k^4 + 2k^3 + 3k^2 + 2k)/8, checked against brute force for k = 1..4",
+        "the table 1, 6, 24, 70, 165 against 1, 6, 21, 55, 120, and why the agreement at k = 2 is a coincidence",
+        "the cycle-structure shortcut: a permutation with c cycles fixes k^c colourings",
+        "left multiplication on the group itself: one orbit of size |G|, trivial stabilisers, and Cayley's theorem",
+        "conjugation on the group itself: orbits are conjugacy classes, stabilisers are centralisers",
+        "Burnside counts classes: 18/6 = 3 for S3 and 40/8 = 5 for D4",
+        "the four traps: naive division, the wrong group, swapped orbit and stabiliser, and 'subgroup therefore normal'",
+    ]))
+
 PRESERVE = ("coverage_status", "lesson_slug", "repo_path", "last_execution_status",
             "microtopics", "coverage_note", "last_verified_date")
 if os.path.exists("syllabus-coverage.json"):
