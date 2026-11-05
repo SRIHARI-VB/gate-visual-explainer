@@ -20,6 +20,7 @@ lessons are static files and work from a local clone.
 | First-Order Resolution and Unification | Discrete Mathematics | A — explicitly in the syllabus | `topics/first-order-resolution-and-unification/index.html` |
 | Graphs: Connectivity and Structure | Discrete Mathematics | A — explicitly in the syllabus | `topics/graphs-connectivity/index.html` |
 | Graphs: Matching and Colouring | Discrete Mathematics | A — explicitly in the syllabus | `topics/matching-and-colouring/index.html` |
+| Group Homomorphisms and the Kernel: Collapse, Quotient and the First Isomorphism Theorem | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/group-homomorphisms-kernel-and-quotient/index.html` |
 | Group Isomorphism and the Invariant Hunt: Same Order Is Not the Same Group | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/group-isomorphism-and-invariants/index.html` |
 | Mathematical Induction and Well-Ordering | Discrete Mathematics | B — prerequisite for a syllabus topic | `topics/mathematical-induction/index.html` |
 | Monoids and Groups | Discrete Mathematics | A — explicitly in the syllabus | `topics/monoids-and-groups/index.html` |
