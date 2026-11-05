@@ -8483,6 +8483,56 @@ topics.append(topic(
     ]))
 
 
+# The map that is weaker than an isomorphism, and everything the weakness
+# forces. Section 1 prints "Monoids, Groups"; homomorphism, kernel and quotient
+# are not printed, so this row is graded medium and classed B in topics.json.
+topics.append(topic(
+    DM, "Algebraic structures", "Group homomorphisms, kernels and quotients",
+    ["the definition with no bijection clause",
+     "consequences: identity, inverses, order divided not preserved",
+     "the kernel as the preimage of the identity, and as a subgroup",
+     "injective exactly when the kernel is trivial, both directions",
+     "the image as a subgroup, and |G| = |ker| x |im|",
+     "the kernel is normal; non-normal subgroups are never kernels",
+     "cosets, quotient groups, and why coset multiplication needs normality",
+     "the first isomorphism theorem, verified on four maps",
+     "counting homomorphisms between cyclic groups, and onto ones"],
+    prereq=["monoids-and-groups", "group-isomorphism-and-invariants"],
+    related=["group isomorphism and invariants", "functions and their properties",
+             "relations and their properties"],
+    importance="medium",
+    evidence=("The printed clause is 'Monoids, Groups'. Homomorphism, kernel and quotient are not printed, "
+              "but they are the vocabulary the clause is examined with, and questions of the shape "
+              "'how many homomorphisms from Zm to Zn' are standard. No previous-year question about a kernel "
+              "directly could be verified in this run, so no frequency claim is made. " + SYL),
+    difficulty="medium-hard",
+    status="PUBLISHED",
+    slug="group-homomorphisms-kernel-and-quotient",
+    path="topics/group-homomorphisms-kernel-and-quotient/index.html",
+    execution="published 2026-11-05: 51 of 51 model checks pass, geometry audit clean on the first run",
+    microtopics=[
+        "a homomorphism is phi(ab) = phi(a)phi(b) with no bijection clause; an isomorphism adds the bijection",
+        "phi(e) = e and phi(a^-1) = phi(a)^-1 come free from the one equation",
+        "order(phi(a)) divides order(a) but is not equal in general: Z4 to Z2 by remainder sends order 4 to order 2",
+        "the kernel is the preimage of the identity, always a subgroup, and always contains e",
+        "kernel size is the fibre size: Z6 to Z3 has kernel {0,3}, so every image value has exactly two preimages",
+        "injective iff the kernel is {e}, checked on 41 homomorphisms between twelve small cyclic pairs",
+        "the image is a subgroup of the target, and |G| = |ker| x |im|: 6=2x3, 12=3x4, 6=3x2, 4=2x2",
+        "the kernel is normal: phi(gkg^-1) = phi(g)e phi(g)^-1 = e",
+        "S3 has 6 subgroups and 3 normal; D4 has 10 subgroups and 6 normal, the four reflection pairs not among them",
+        "conjugating one transposition subgroup of S3 gives all three, so none is closed under conjugation",
+        "counterexample: {e,s} is a subgroup of D4 and the kernel of no homomorphism out of D4",
+        "coset multiplication is well defined exactly for normal subgroups; for {e,(2 3)} in S3 two names of one coset give different answers",
+        "12 of the 36 ordered pairs of Z6 lie in a common coset of {0,3}, and all of them agree",
+        "first isomorphism theorem: the induced map from G/ker to the image is well defined, injective, onto and operation preserving",
+        "verified on Z6 to Z3 (3 cosets), Z12 to Z4 (4), S3 to Z2 (2) and Z4 to Z2 (2)",
+        "every homomorphism is a quotient followed by an injective map",
+        "Hom(Zm,Zn) = gcd(m,n) by enumerating every map for m,n from 1 to 6, with the m=1 case handled separately",
+        "256 maps Z4 to Z4 give 4 homomorphisms; 729 maps Z6 to Z3 give 3; 46656 S3 to S3 give 10; 4096 S3 to V4 give 4",
+        "onto homomorphisms Zm to Zn are phi(n) when n divides m, and none otherwise: 12 to 4 gives 2, 6 to 4 gives 0",
+        "GATE CSE 2024 Set 2: the number of self-inverse elements in Z2xZ3xZ4 is 4, recomputed by testing all 24 elements",
+        "the four question shapes and the three traps: order divided, kernel normal, size product"]))
+
 _seen = set()
 _dedup = []
 for _t in topics:
@@ -8527,6 +8577,7 @@ _RECHECKED = {
     "proving-a-language-is-not-context-free": "2026-11-05",
     "linear-bounded-automata": "2026-11-05",
     "ambiguity-of-context-free-grammars": "2026-11-05",
+    "group-homomorphisms-kernel-and-quotient": "2026-11-05",
 }
 for _t in topics:
     _d = _RECHECKED.get(_t.get("lesson_slug"))
